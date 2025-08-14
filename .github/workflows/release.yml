@@ -29,7 +29,7 @@ jobs:
               repo: "${{ github.event.repository.name }}",
               body: "Please make sure e2e tests pass before merging this PR! \n ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             })
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: steps.release-please.outputs.pr
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         if: steps.release-please.outputs.pr
@@ -78,7 +78,7 @@ jobs:
             })
 
       # These run after release-please generates a release, so when the release PR is merged
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: steps.release-please.outputs.version
         with:
           fetch-depth: 0
@@ -110,7 +110,7 @@ jobs:
           echo "${GPG_KEY}" | gpg --import --batch > /dev/null || { echo "Failed to import GPG key"; exit 1; }
       - name: Run GoReleaser
         if: steps.release-please.outputs.version
-        uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 # v6.3.0
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
         with:
           args: release --clean
         env:
