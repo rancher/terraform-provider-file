@@ -3,7 +3,7 @@ name: release
 on:
   push:
     branches:
-    - main
+    - release/v1
 
 permissions: write-all
 
