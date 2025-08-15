@@ -1,11 +1,10 @@
 # Copyright (c) HashiCorp, Inc.
 
-# Visit https://goreleaser.com for documentation on how to customize this
-# behavior.
+# https://goreleaser.com for documentation
+
 version: 2
 before:
   hooks:
-    # this is just an example and not a requirement for provider building/publishing
     - go mod tidy
 builds:
 - env:
@@ -25,12 +24,8 @@ builds:
     - darwin
   goarch:
     - amd64
-    - '386'
     - arm
     - arm64
-  ignore:
-    - goos: darwin
-      goarch: '386'
   binary: '{{ .ProjectName }}_v{{ .Version }}'
 archives:
   - formats: [ 'zip' ]
@@ -55,6 +50,10 @@ signs:
       - "${signature}"
       - "--sign"
       - "${artifact}"
+snapshot:
+  # "snapshot" is the type of release we use for release candidates
+  #  that are generated when a release branch gets a new merge
+  name_template: "{{ .ProjectName }}_{{ .ShortCommit }}"
 release:
   extra_files:
     - glob: 'terraform-registry-manifest.json'
