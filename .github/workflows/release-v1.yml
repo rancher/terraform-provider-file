@@ -76,7 +76,6 @@ jobs:
               repo: "${{ github.event.repository.name }}",
               body: "Tests Failed!"
             })
-
       # These run after release-please generates a release, so when the release PR is merged
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: steps.release-please.outputs.version
@@ -87,25 +86,30 @@ jobs:
         with:
           go-version-file: 'go.mod'
           cache: true
+      - name: retrieve GPG Credentials
+        uses: rancher-eio/read-vault-secrets@main
+        with:
+          secrets: |
+            secret/data/github/repo/rancher/${{ github.repository }}/signing/gpg passphrase | GPG_PASSPHRASE ;
+            secret/data/github/repo/rancher/${{ github.repository }}/signing/gpg privateKeyId | GPG_KEY_ID;
+            secret/data/github/repo/rancher/${{ github.repository }}/signing/gpg privateKey | GPG_KEY;
       - name: import_gpg_key
         if: steps.release-please.outputs.version
         id: import_gpg_key
         env:
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
-          GPG_KEY: ${{ secrets.GPG_KEY }}
+          GPG_PASSPHRASE: ${{ env.GPG_PASSPHRASE }}
+          GPG_KEY_ID: ${{ env.GPG_KEY_ID }}
+          GPG_KEY: ${{ env.GPG_KEY }}
         run: |
           cleanup() {
             # clear history just in case
             history -c
           }
           trap cleanup EXIT TERM
-
           # sanitize variables
           if [ -z "${GPG_PASSPHRASE}" ]; then echo "gpg passphrase empty"; exit 1; fi
           if [ -z "${GPG_KEY_ID}" ]; then echo "key id empty"; exit 1; fi
           if [ -z "${GPG_KEY}" ]; then echo "key contents empty"; exit 1; fi
-
           echo "Importing gpg key"
           echo "${GPG_KEY}" | gpg --import --batch > /dev/null || { echo "Failed to import GPG key"; exit 1; }
       - name: Run GoReleaser
@@ -115,5 +119,5 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEY_ID: ${{ env.GPG_KEY_ID }}
+          GPG_PASSPHRASE: ${{ env.GPG_PASSPHRASE }}
