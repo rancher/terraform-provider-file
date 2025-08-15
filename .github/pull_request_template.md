@@ -1,16 +1,30 @@
+## Backport
+
+Is this a cherry-picked backport from the default branch?
+If so, please delete all other sections and complete the sentence below:
+
+Cherry-pick #1236 (main PR) to release/v1 (release branch)
+Addresses #1235 (backport issue) for #1234 (main issue)
+
+
 ## Related Issue
 
-Fixes # <!-- INSERT ISSUE NUMBER -->
+If this PR will target main,
+please complete the below sentence and add labels for each version this should be released to.
+
+Addresses #1234 (main issue)
+This should be backported to release/v0, release/v1 (comma separated list of target release branches)
 
 ## Description
 
-In plain English, describe your approach to addressing the issue linked above. For example, if you made a particular design decision, let us know why you chose this path instead of another solution.
+Describe your approach to addressing the issue linked above.
+For example, if you made a particular design decision, let us know why you chose this path.
 
-<!-- heimdall_github_prtemplate:grc-pci_dss-2024-01-05 -->
-## Rollback Plan
+## Testing
 
-- [ ] If a change needs to be reverted, we will roll out an update to the code within 7 days.
+Please describe how you verified this change or why testing isn't relevant.
 
-## Changes to Security Controls
+## Breaking
 
-Are there any changes to security controls (access controls, encryption, logging) in this pull request? If so, explain.
+Does this change alter an interface that users of the provider will need to adjust to?
+Will there be any existing configurations broken by this change?
