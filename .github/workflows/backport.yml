@@ -1,0 +1,50 @@
+name: Backports
+
+on:
+  issues:
+    types: [labeled] # triggered when any label is added to an issue
+
+jobs:
+  create-issue:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.label.name == 'version/v0' }}
+    steps:
+      - name: Create GitHub Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const parentIssueNumber = context.payload.issue.number;
+
+            // Fetch repository and parent issue details
+            const { repository } = await github.graphql(`
+              query($owner: String!, $repo: String!, $issueNumber: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  id
+                  issue(number: $issueNumber) {
+                    id
+                  }
+                }
+              }
+            `, { owner, repo, issueNumber: parentIssueNumber });
+
+            const repositoryId = repository.id;
+
+            // Create the sub-issue
+            const { createIssue } = await github.graphql(`
+              mutation($repositoryId: ID!, $title: String!, $body: String!) {
+                createIssue(input: {repositoryId: $repositoryId, title: $title, body: $body}) {
+                  issue {
+                    id
+                    number
+                  }
+                }
+              }
+            `, {
+              repositoryId,
+              title: "Backport #" + parentIssueNumber + " to release/v0",
+              body:  "Backport #" + parentIssueNumber + " to release/v0"
+            });
+
+            // const subIssueId = createIssue.issue.id;
+            // const subIssueNumber = createIssue.issue.number;
