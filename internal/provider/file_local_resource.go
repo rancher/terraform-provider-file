@@ -34,20 +34,73 @@ import (
 var _ resource.Resource = &LocalResource{}
 var _ resource.ResourceWithImportState = &LocalResource{}
 
-// type FileClient struct{}
+// An interface for defining custom file managers.
+type fileClient interface {
+	Create(directory string, name string, data string, permissions string) error
+	// If file isn't found the error message must have err.Error() == "file not found"
+	Read(directory string, name string) (string, string, error) // permissions, contents, error
+	Update(currentDirectory string, currentName string, newDirectory string, newName string, data string, permissions string) error
+	Delete(directory string, name string) error
+}
 
-// func (f *FileClient) Create() {}
-// func (f *FileClient) Read() {}
-// func (f *FileClient) Update() {}
-// func (f *FileClient) Delete() {}
+// The default fileClient, using the os package.
+type osFileClient struct{}
+
+var _ fileClient = &osFileClient{} // make sure the osFileClient implements the fileClient
+func (c *osFileClient) Create(directory string, name string, data string, permissions string) error {
+	path := filepath.Join(directory, name)
+	modeInt, err := strconv.ParseUint(permissions, 8, 32)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(data), os.FileMode(modeInt))
+}
+func (c *osFileClient) Read(directory string, name string) (string, string, error) {
+	path := filepath.Join(directory, name)
+	info, err := os.Stat(path)
+	if err != nil && os.IsNotExist(err) {
+		return "", "", fmt.Errorf("file not found")
+	}
+	if err != nil {
+		return "", "", err
+	}
+	mode := fmt.Sprintf("%#o", info.Mode().Perm())
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		return "", "", err
+	}
+	return mode, string(contents), nil
+}
+func (c *osFileClient) Update(currentDirectory string, currentName string, newDirectory string, newName string, data string, permissions string) error {
+	currentPath := filepath.Join(currentDirectory, currentName)
+	newPath := filepath.Join(newDirectory, newName)
+	if currentPath != newPath {
+		err := os.Rename(currentPath, newPath)
+		if err != nil {
+			return err
+		}
+	}
+	modeInt, err := strconv.ParseUint(permissions, 8, 32)
+	if err != nil {
+		return err
+	}
+	if err = os.WriteFile(newPath, []byte(data), os.FileMode(modeInt)); err != nil {
+		return err
+	}
+	return nil
+}
+func (c *osFileClient) Delete(directory string, name string) error {
+	path := filepath.Join(directory, name)
+	return os.Remove(path)
+}
 
 func NewLocalResource() resource.Resource {
 	return &LocalResource{}
 }
 
-// LocalResource defines the resource implementation.
-// This facilitates the LocalResource class, it can now be used in functions with *LocalResource.
-type LocalResource struct{}
+type LocalResource struct {
+	client fileClient
+}
 
 // LocalResourceModel describes the resource data model.
 type LocalResourceModel struct {
@@ -55,10 +108,9 @@ type LocalResourceModel struct {
 	Name          types.String `tfsdk:"name"`
 	Contents      types.String `tfsdk:"contents"`
 	Directory     types.String `tfsdk:"directory"`
-	Mode          types.String `tfsdk:"mode"`
+	Permissions   types.String `tfsdk:"permissions"`
 	HmacSecretKey types.String `tfsdk:"hmac_secret_key"`
 	Protected     types.Bool   `tfsdk:"protected"`
-	// Fake          types.Bool   `tfsdk:"fake"`
 }
 
 func (r *LocalResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -84,7 +136,7 @@ func (r *LocalResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				Computed:            true, // whenever an argument has a default value it should have Computed: true
 				Default:             stringdefault.StaticString("."),
 			},
-			"mode": schema.StringAttribute{
+			"permissions": schema.StringAttribute{
 				MarkdownDescription: "The file permissions to assign to the file, defaults to '0600'.",
 				Optional:            true,
 				Computed:            true,
@@ -141,6 +193,10 @@ func (r *LocalResource) Configure(ctx context.Context, req resource.ConfigureReq
 	if req.ProviderData == nil {
 		return
 	}
+	// Allow the ability to inject a file client, but use the osFileClient by default.
+	if r.client == nil {
+		r.client = &osFileClient{}
+	}
 }
 
 // We should:
@@ -161,7 +217,7 @@ func (r *LocalResource) Create(ctx context.Context, req resource.CreateRequest, 
 	name := plan.Name.ValueString()
 	directory := plan.Directory.ValueString()
 	contents := plan.Contents.ValueString()
-	modeString := plan.Mode.ValueString()
+	permString := plan.Permissions.ValueString()
 	hmacSecretKey := plan.HmacSecretKey.ValueString()
 	protected := plan.Protected.ValueBool()
 
@@ -190,14 +246,8 @@ func (r *LocalResource) Create(ctx context.Context, req resource.CreateRequest, 
 		plan.HmacSecretKey = types.StringValue("")
 	}
 
-	localFilePath := filepath.Join(directory, name)
-	modeInt, err := strconv.ParseUint(modeString, 8, 32)
-	if err != nil {
-		resp.Diagnostics.AddError("Error reading file mode from config: ", err.Error())
-		return
-	}
-	if err = os.WriteFile(localFilePath, []byte(contents), os.FileMode(modeInt)); err != nil {
-		resp.Diagnostics.AddError("Error writing file: ", err.Error())
+	if err = r.client.Create(directory, name, contents, permString); err != nil {
+		resp.Diagnostics.AddError("Error creating file: ", err.Error())
 		return
 	}
 
@@ -220,28 +270,24 @@ func (r *LocalResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	sName := state.Name.ValueString()
 	sDirectory := state.Directory.ValueString()
 	sContents := state.Contents.ValueString()
-	sMode := state.Mode.ValueString()
+	sPerm := state.Permissions.ValueString()
 	sHmacSecretKey := state.HmacSecretKey.ValueString()
-
-	sFilePath := filepath.Join(sDirectory, sName)
 
 	// If Possible, we should avoid reading the file into memory
 
 	// The "real" (non-calculated) parts of the file are the path, the contents, and the mode
 
 	// If the file doesn't exist at the path, then we need to (re)create it
-	if _, err := os.Stat(sFilePath); os.IsNotExist(err) {
+	perm, contents, err := r.client.Read(sDirectory, sName)
+	if err != nil && err.Error() == "File not found." {
 		resp.State.RemoveResource(ctx)
 		return
 	}
-
-	// If the file's contents have changed, then we need to update the state
-	c, err := os.ReadFile(sFilePath)
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading file: ", err.Error())
 		return
 	}
-	contents := string(c)
+
 	if contents != sContents {
 		// update state with actual contents
 		state.Contents = types.StringValue(contents)
@@ -260,16 +306,9 @@ func (r *LocalResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		state.Id = types.StringValue(id)
 	}
 
-	// If the file's mode has changed, then we need to update the state
-	inf, err := os.Stat(sFilePath)
-	if err != nil {
-		resp.Diagnostics.AddError("Error reading file stat: ", err.Error())
-		return
-	}
-	mode := fmt.Sprintf("%#o", inf.Mode().Perm())
-	if mode != sMode {
+	if perm != sPerm {
 		// update the state with the actual mode
-		state.Mode = types.StringValue(mode)
+		state.Permissions = types.StringValue(perm)
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -292,11 +331,9 @@ func (r *LocalResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	cName := config.Name.ValueString()
 	cContents := config.Contents.ValueString()
 	cDirectory := config.Directory.ValueString()
-	cMode := config.Mode.ValueString()
+	cPerm := config.Permissions.ValueString()
 	cHmacSecretKey := config.HmacSecretKey.ValueString()
 	cProtected := config.Protected.ValueBool()
-
-	cFilePath := filepath.Join(cDirectory, cName)
 
 	cKey := cHmacSecretKey
 	if cKey == "" {
@@ -318,6 +355,7 @@ func (r *LocalResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		config.HmacSecretKey = types.StringValue("")
 	}
 
+	// Read updates state with reality, so state = reality
 	var reality LocalResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &reality)...)
 	if resp.Diagnostics.HasError() {
@@ -325,47 +363,13 @@ func (r *LocalResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	}
 
 	rName := reality.Name.ValueString()
-	rContents := reality.Contents.ValueString()
 	rDirectory := reality.Directory.ValueString()
-	rMode := reality.Mode.ValueString()
 
-	rFilePath := filepath.Join(rDirectory, rName)
-
-	if rFilePath != cFilePath {
-		// config is changing the file path, we need to move the file
-		err := os.Rename(rFilePath, cFilePath)
-		if err != nil {
-			resp.Diagnostics.AddError("Error moving file: ", err.Error())
-			return
-		}
-	} // the config's file path (cFilePath) is now accurate
-
-	if rMode != cMode {
-		// the config is changing the mode
-		modeInt, err := strconv.ParseUint(cMode, 8, 32)
-		if err != nil {
-			resp.Diagnostics.AddError("Error reading file mode from config: ", err.Error())
-			return
-		}
-		err = os.Chmod(cFilePath, os.FileMode(modeInt))
-		if err != nil {
-			resp.Diagnostics.AddError("Error changing file mode: ", err.Error())
-			return
-		}
-	} // the config's mode (cMode) is now accurate
-
-	if cContents != rContents {
-		// config is changing the contents
-		modeInt, err := strconv.ParseUint(cMode, 8, 32)
-		if err != nil {
-			resp.Diagnostics.AddError("Error reading file mode from config: ", err.Error())
-			return
-		}
-		if err = os.WriteFile(cFilePath, []byte(cContents), os.FileMode(modeInt)); err != nil {
-			resp.Diagnostics.AddError("Error writing file: ", err.Error())
-			return
-		}
-	} // the config's contents (cContents) are now accurate
+	err := r.client.Update(rDirectory, rName, cDirectory, cName, cContents, cPerm)
+	if err != nil {
+		resp.Diagnostics.AddError("Error updating file: ", err.Error())
+		return
+	}
 
 	// the path, mode, and contents are all of the "real" parts of the file
 	// the id is calculated from the secret key and contents,
@@ -396,8 +400,6 @@ func (r *LocalResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	}
 	contents := state.Contents.ValueString()
 
-	localFilePath := filepath.Join(directory, name)
-
 	// we need to validate the id before we can delete a protected file
 	if protected {
 		err := validateProtected(protected, id, key, contents)
@@ -407,7 +409,7 @@ func (r *LocalResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 		}
 	}
 
-	if err := os.Remove(localFilePath); err != nil {
+	if err := r.client.Delete(directory, name); err != nil {
 		tflog.Error(ctx, "Failed to delete file: "+err.Error())
 		return
 	}
