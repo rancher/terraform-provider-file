@@ -11,3 +11,4 @@ terraform
 tflint
 gorelease
 repo
+pr
