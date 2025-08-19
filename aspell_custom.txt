@@ -12,3 +12,4 @@ tflint
 gorelease
 repo
 pr
+assignees

@@ -18,6 +18,7 @@ jobs:
             const repo = context.repo.repo;
             const owner = context.repo.owner;
             const pr = context.payload.pull_request;
+            const reviewers = pr.requested_reviewers.map(reviewer => reviewer.login)
 
             // Create the main issue
             const newIssue = await github.rest.issues.create({
@@ -25,8 +26,9 @@ jobs:
               repo: repo,
               title: pr.title,
               body:  "This is the main issue tracking #" + pr.number + " \n\n" +
-                "Please add labels indicating the release versions eg. 'version/v0' \n" +
-                "Please add comments for user issues which this issue addresses. \n" +
+                "Please add labels indicating the release versions eg. 'version/v0' \n\n" +
+                "Please add comments for user issues which this issue addresses. \n\n" +
                 "Description copied from PR: \n" + pr.body,
-              labels: ['internal/main']
+              labels: ['internal/main'],
+              assignees: reviewers
             });
