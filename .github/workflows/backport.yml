@@ -25,6 +25,7 @@ jobs:
               repo: repo,
               title: "Backport #" + parentIssueNumber + " to release/v0",
               body:  "Backport #" + parentIssueNumber + " to release/v0"
+              labels: ['release/v0']
             });
 
             const subIssueId = newIssue.data.id;
