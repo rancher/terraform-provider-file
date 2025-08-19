@@ -30,7 +30,7 @@ jobs:
             const subIssueId = newIssue.data.id;
 
             // Attach the sub-issue to the parent using API request
-            await github.request('POST /repos/{owner}/{repo}/issues/{parentIssueNumber}/sub_issues', {
+            await github.request('POST /repos/{owner}/{repo}/issues/{issue_number}/sub_issues', {
               owner: owner,
               repo: repo,
               issue_number: parentIssueNumber,
