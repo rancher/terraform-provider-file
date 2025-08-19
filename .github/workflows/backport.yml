@@ -13,10 +13,8 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            console.log("The full event context:", JSON.stringify(context, null, 2));
-
-            const parentIssue = context.issue;
-            const parentIssueTitle = context.payload.issue.title;
+            const parentIssue = context.payload.issue;
+            const parentIssueTitle = parentIssue.title;
             const parentIssueNumber = parentIssue.number;
             const repo = parentIssue.repo;
             const owner = parentIssue.owner;
