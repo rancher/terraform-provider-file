@@ -2,13 +2,15 @@ name: MainIssue
 # This workflow generates a "main" issue when a PR is created targeting main.
 on:
   pull_request:
-    branches:
-      - main
+    branches: [main]
+    types: [opened]
 
 jobs:
   generate-issue:
     name: 'Create Main Issue'
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
       - uses: actions/github-script@v7
         with:
@@ -22,8 +24,8 @@ jobs:
               owner: owner,
               repo: repo,
               title: pr.title,
-              body:  "This is the main issue tracking #" + pr.number + "\n\n" +
-                "Please add labels indicating the release versions eg. 'version/v0'\n" +
+              body:  "This is the main issue tracking #" + pr.number + " \n\n" +
+                "Please add labels indicating the release versions eg. 'version/v0' \n" +
                 "Please add comments for user issues which this issue addresses. \n" +
                 "Description copied from PR: \n" + pr.body,
               labels: ['internal/main']
