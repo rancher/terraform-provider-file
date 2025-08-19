@@ -1,5 +1,5 @@
 name: Backports
-
+# This workflow generates "backport" issues when a release branch label is added to an issue
 on:
   issues:
     types: [labeled] # triggered when any label is added to an issue
