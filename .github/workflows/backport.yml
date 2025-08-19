@@ -16,8 +16,8 @@ jobs:
             const parentIssue = context.payload.issue;
             const parentIssueTitle = parentIssue.title;
             const parentIssueNumber = parentIssue.number;
-            const repo = parentIssue.repo;
-            const owner = parentIssue.owner;
+            const repo = context.repo.repo;
+            const owner = context.repo.owner;
 
             // Create the sub-issue
             const newIssue = await github.rest.issues.create({
