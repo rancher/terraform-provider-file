@@ -13,6 +13,8 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            console.log("The full event context:", JSON.stringify(context, null, 2));
+
             const parentIssue = context.issue;
             const parentIssueTitle = context.payload.issue.title;
             const parentIssueNumber = parentIssue.number;
@@ -23,8 +25,8 @@ jobs:
             const newIssue = await github.rest.issues.create({
               owner: owner,
               repo: repo,
-              title: `Backport #" + parentIssueNumber + " to release/v0`,
-              body: `"Backport #" + parentIssueNumber + " to release/v0`
+              title: "Backport #" + parentIssueNumber + " to release/v0",
+              body:  "Backport #" + parentIssueNumber + " to release/v0"
             });
 
             const subIssueId = newIssue.data.id;
