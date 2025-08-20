@@ -18,13 +18,12 @@ jobs:
             const repo = context.repo.repo;
             const owner = context.repo.owner;
             const pr = context.payload.pull_request;
+            const newLabels = ['internal/main']
             const releaseLabel = pr.head.labels.find(label => label.name.startsWith('release/v'));
-            if releaseLabel {
+            if (releaseLabel) {
               const versionLabel = releaseLabel.name.replace('release/', 'version/');
-            } else {
-              const versionLabel = ''
+              newLabels.push(versionLabel)
             }
-
             // Create the main issue
             const newIssue = await github.rest.issues.create({
               owner: owner,
@@ -34,6 +33,6 @@ jobs:
                 "Please add labels indicating the release versions eg. 'version/v0' \n\n" +
                 "Please add comments for user issues which this issue addresses. \n\n" +
                 "Description copied from PR: \n" + pr.body,
-              labels: ['internal/main', versionLabel],
+              labels: newLabels,
               assignees: ['terraform-maintainers']
             });
