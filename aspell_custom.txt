@@ -10,3 +10,8 @@ goreleaser
 terraform
 tflint
 gorelease
+repo
+pr
+assignees
+backport
+url

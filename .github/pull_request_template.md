@@ -1,16 +1,22 @@
 ## Related Issue
 
-Fixes # <!-- INSERT ISSUE NUMBER -->
+Addresses #1234 (main issue)
+
+## Releases
+
+If this PR should be released, please add labels for each release branch it targets.
+Use the 'release/v0' tags, not the 'version/v0' tags.
 
 ## Description
 
-In plain English, describe your approach to addressing the issue linked above. For example, if you made a particular design decision, let us know why you chose this path instead of another solution.
+Describe your change and how it addresses the issue linked above.
 
-<!-- heimdall_github_prtemplate:grc-pci_dss-2024-01-05 -->
-## Rollback Plan
+## Testing
 
-- [ ] If a change needs to be reverted, we will roll out an update to the code within 7 days.
+Please describe how you verified this change or why testing isn't relevant.
 
-## Changes to Security Controls
+## Breaking
 
-Are there any changes to security controls (access controls, encryption, logging) in this pull request? If so, explain.
+Does this change alter an interface that users of the provider will need to adjust to?
+Will there be any existing configurations broken by this change?
+

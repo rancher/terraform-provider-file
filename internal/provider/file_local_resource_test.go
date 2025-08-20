@@ -4,8 +4,7 @@ package provider
 
 import (
 	"context"
-	"os"
-	"path/filepath"
+	"fmt"
 	"slices"
 	"strconv"
 	"testing"
@@ -19,7 +18,7 @@ import (
 const (
 	defaultId            = ""
 	defaultDirectory     = "."
-	defaultMode          = "0600"
+	defaultPerm          = "0600"
 	defaultProtected     = "false"
 	defaultHmacSecretKey = ""
 )
@@ -73,21 +72,20 @@ func TestLocalSchema(t *testing.T) {
 func TestLocalResourceCreate(t *testing.T) {
 	t.Run("Create function", func(t *testing.T) {
 		testCases := []struct {
-			name         string
-			fit          LocalResource
-			have         resource.CreateRequest
-			want         resource.CreateResponse
-			tearDownPath string
+			name string
+			fit  LocalResource
+			have resource.CreateRequest
+			want resource.CreateResponse
 		}{
 			{
 				"Basic",
-				LocalResource{},
+				LocalResource{client: &memoryFileClient{}},
 				// have
 				getCreateRequest(t, map[string]string{
 					"id":              defaultId,
 					"name":            "test_basic.tmp",
 					"directory":       defaultDirectory,
-					"mode":            defaultMode,
+					"permissions":     defaultPerm,
 					"contents":        "this is a basic test",
 					"protected":       defaultProtected,
 					"hmac_secret_key": defaultHmacSecretKey, // this should use the hard coded hmac secret key for unprotected files
@@ -97,22 +95,21 @@ func TestLocalResourceCreate(t *testing.T) {
 					"id":              "3de642fb91d2fb0ce02fe66c3d19ebdf44cbc6a2ebcc2dad22f1950b67c1217f",
 					"name":            "test_basic.tmp",
 					"directory":       defaultDirectory,
-					"mode":            defaultMode,
+					"permissions":     defaultPerm,
 					"contents":        "this is a basic test",
 					"protected":       defaultProtected,
 					"hmac_secret_key": defaultHmacSecretKey,
 				}),
-				filepath.Join(defaultDirectory, "test_basic.tmp"),
 			},
 			{
 				"Protected",
-				LocalResource{},
+				LocalResource{client: &osFileClient{}},
 				// have
 				getCreateRequest(t, map[string]string{
 					"id":              "4ccd8ec7ea24e0524c8aba459fbf3a2649ec3cd96a1c8f9dfb326cc57a9d3127",
 					"name":            "test_protected.tmp",
 					"directory":       defaultDirectory,
-					"mode":            defaultMode,
+					"permissions":     defaultPerm,
 					"contents":        "this is a test",
 					"protected":       "true",
 					"hmac_secret_key": "this-is-a-test-key",
@@ -122,22 +119,21 @@ func TestLocalResourceCreate(t *testing.T) {
 					"id":              "4ccd8ec7ea24e0524c8aba459fbf3a2649ec3cd96a1c8f9dfb326cc57a9d3127",
 					"name":            "test_protected.tmp",
 					"directory":       defaultDirectory,
-					"mode":            defaultMode,
+					"permissions":     defaultPerm,
 					"contents":        "this is a test",
 					"protected":       "true",
 					"hmac_secret_key": "this-is-a-test-key",
 				}),
-				filepath.Join(defaultDirectory, "test_protected.tmp"),
 			},
 			{
 				"Protected using key from environment",
-				LocalResource{},
+				LocalResource{client: &memoryFileClient{}},
 				// have
 				getCreateRequest(t, map[string]string{
 					"id":              "59fed8691a76c7693fc9dcd4fda28390a1fd3090114bc64f3e5a3abe312a92f5",
 					"name":            "test_protected.tmp",
 					"directory":       defaultDirectory,
-					"mode":            defaultMode,
+					"permissions":     defaultPerm,
 					"contents":        "this is a test",
 					"protected":       "true",
 					"hmac_secret_key": defaultHmacSecretKey, // this relies on TF_FILE_HMAC_SECRET_KEY=thisisasupersecretkey in your environment
@@ -147,12 +143,11 @@ func TestLocalResourceCreate(t *testing.T) {
 					"id":              "59fed8691a76c7693fc9dcd4fda28390a1fd3090114bc64f3e5a3abe312a92f5",
 					"name":            "test_protected.tmp",
 					"directory":       defaultDirectory,
-					"mode":            defaultMode,
+					"permissions":     defaultPerm,
 					"contents":        "this is a test",
 					"protected":       "true",
 					"hmac_secret_key": defaultHmacSecretKey,
 				}),
-				filepath.Join(defaultDirectory, "test_protected.tmp"),
 			},
 		}
 		for _, tc := range testCases {
@@ -163,12 +158,18 @@ func TestLocalResourceCreate(t *testing.T) {
 				}
 				plannedProtected := plannedState.Protected.ValueBool()
 				plannedHmacSecretKey := plannedState.HmacSecretKey.ValueString()
+				plannedDirectory := plannedState.Directory.ValueString()
+				plannedName := plannedState.Name.ValueString()
 				if plannedProtected && plannedHmacSecretKey == "" {
 					t.Setenv("TF_FILE_HMAC_SECRET_KEY", "thisisasupersecretkey")
 				}
 				r := getCreateResponseContainer()
 				tc.fit.Create(context.Background(), tc.have, &r)
-				defer teardown(tc.tearDownPath)
+				defer func() {
+					if err := tc.fit.client.Delete(plannedDirectory, plannedName); err != nil {
+						t.Errorf("Error cleaning up: %v", err)
+					}
+				}()
 				got := r
 				if diff := cmp.Diff(tc.want, got); diff != "" {
 					t.Errorf("Create() mismatch (-want +got):\n%s", diff)
@@ -181,22 +182,21 @@ func TestLocalResourceCreate(t *testing.T) {
 func TestLocalResourceRead(t *testing.T) {
 	t.Run("Read function", func(t *testing.T) {
 		testCases := []struct {
-			name         string
-			fit          LocalResource
-			have         resource.ReadRequest
-			want         resource.ReadResponse
-			setup        map[string]string
-			tearDownPath string
+			name  string
+			fit   LocalResource
+			have  resource.ReadRequest
+			want  resource.ReadResponse
+			setup map[string]string
 		}{
 			{
 				"Unprotected",
-				LocalResource{},
+				LocalResource{client: &memoryFileClient{}},
 				// have
 				getReadRequest(t, map[string]string{
 					"id":              "60cef95046105ff4522c0c1f1aeeeba43d0d729dbcabdd8846c317c98cac60a2",
 					"name":            "read.tmp",
 					"directory":       defaultDirectory,
-					"mode":            defaultMode,
+					"permissions":     defaultPerm,
 					"contents":        "this is an unprotected read test",
 					"protected":       defaultProtected,
 					"hmac_secret_key": defaultHmacSecretKey,
@@ -206,27 +206,27 @@ func TestLocalResourceRead(t *testing.T) {
 					"id":              "60cef95046105ff4522c0c1f1aeeeba43d0d729dbcabdd8846c317c98cac60a2",
 					"name":            "read.tmp",
 					"directory":       defaultDirectory,
-					"mode":            defaultMode,
+					"permissions":     defaultPerm,
 					"contents":        "this is an unprotected read test",
 					"protected":       defaultProtected,
 					"hmac_secret_key": defaultHmacSecretKey,
 				}),
 				map[string]string{
-					"mode":     defaultMode,
-					"path":     filepath.Join(defaultDirectory, "read.tmp"),
-					"contents": "this is an unprotected read test",
+					"mode":      defaultPerm,
+					"directory": defaultDirectory,
+					"name":      "read.tmp",
+					"contents":  "this is an unprotected read test",
 				},
-				filepath.Join(defaultDirectory, "read.tmp"),
 			},
 			{
 				"Protected",
-				LocalResource{},
+				LocalResource{client: &memoryFileClient{}},
 				// have
 				getReadRequest(t, map[string]string{
 					"id":              "ec4407ba53b2c40ac2ac18ff7372a6fe6e4f7f8aa04f340503aefc7d9a5fa4e1",
 					"name":            "read_protected.tmp",
 					"directory":       defaultDirectory,
-					"mode":            defaultMode,
+					"permissions":     defaultPerm,
 					"contents":        "this is a protected read test",
 					"protected":       "true",
 					"hmac_secret_key": "this-is-a-test-key",
@@ -236,28 +236,28 @@ func TestLocalResourceRead(t *testing.T) {
 					"id":              "ec4407ba53b2c40ac2ac18ff7372a6fe6e4f7f8aa04f340503aefc7d9a5fa4e1",
 					"name":            "read_protected.tmp",
 					"directory":       defaultDirectory,
-					"mode":            defaultMode,
+					"permissions":     defaultPerm,
 					"contents":        "this is a protected read test",
 					"protected":       "true",
 					"hmac_secret_key": "this-is-a-test-key",
 				}),
 				// reality
 				map[string]string{
-					"mode":     defaultMode,
-					"path":     filepath.Join(defaultDirectory, "read_protected.tmp"),
-					"contents": "this is a protected read test",
+					"mode":      defaultPerm,
+					"directory": defaultDirectory,
+					"name":      "read_protected.tmp",
+					"contents":  "this is a protected read test",
 				},
-				filepath.Join(defaultDirectory, "read_protected.tmp"),
 			},
 			{
 				"Protected with content update",
-				LocalResource{},
+				LocalResource{client: &memoryFileClient{}},
 				// have
 				getReadRequest(t, map[string]string{
 					"id":              "ec4407ba53b2c40ac2ac18ff7372a6fe6e4f7f8aa04f340503aefc7d9a5fa4e1",
 					"name":            "read_protected_content.tmp",
 					"directory":       defaultDirectory,
-					"mode":            defaultMode,
+					"permissions":     defaultPerm,
 					"contents":        "this is a protected read test",
 					"protected":       "true",
 					"hmac_secret_key": "this-is-a-test-key",
@@ -267,28 +267,28 @@ func TestLocalResourceRead(t *testing.T) {
 					"id":              "84326116e261654e44ca3cb73fa026580853794062d472bc817b7ec2c82ff648",
 					"name":            "read_protected_content.tmp",
 					"directory":       defaultDirectory,
-					"mode":            defaultMode,
+					"permissions":     defaultPerm,
 					"contents":        "this is a change in contents in the real file",
 					"protected":       "true",
 					"hmac_secret_key": "this-is-a-test-key",
 				}),
 				// reality
 				map[string]string{
-					"mode":     defaultMode,
-					"path":     filepath.Join(defaultDirectory, "read_protected_content.tmp"),
-					"contents": "this is a change in contents in the real file",
+					"mode":      defaultPerm,
+					"directory": defaultDirectory,
+					"name":      "read_protected_content.tmp",
+					"contents":  "this is a change in contents in the real file",
 				},
-				filepath.Join(defaultDirectory, "read_protected_content.tmp"),
 			},
 			{
 				"Protected with mode update",
-				LocalResource{},
+				LocalResource{client: &memoryFileClient{}},
 				// have
 				getReadRequest(t, map[string]string{
 					"id":              "ec4407ba53b2c40ac2ac18ff7372a6fe6e4f7f8aa04f340503aefc7d9a5fa4e1",
 					"name":            "read_protected_mode.tmp",
 					"directory":       defaultDirectory,
-					"mode":            defaultMode,
+					"permissions":     defaultPerm,
 					"contents":        "this is a protected read test",
 					"protected":       "true",
 					"hmac_secret_key": "this-is-a-test-key",
@@ -298,24 +298,30 @@ func TestLocalResourceRead(t *testing.T) {
 					"id":              "ec4407ba53b2c40ac2ac18ff7372a6fe6e4f7f8aa04f340503aefc7d9a5fa4e1",
 					"name":            "read_protected_mode.tmp",
 					"directory":       defaultDirectory,
-					"mode":            "0755",
+					"permissions":     "0755",
 					"contents":        "this is a protected read test",
 					"protected":       "true",
 					"hmac_secret_key": "this-is-a-test-key",
 				}),
 				// reality
 				map[string]string{
-					"mode":     "0755",
-					"path":     filepath.Join(defaultDirectory, "read_protected_mode.tmp"),
-					"contents": "this is a protected read test",
+					"mode":      "0755",
+					"directory": defaultDirectory,
+					"name":      "read_protected_mode.tmp",
+					"contents":  "this is a protected read test",
 				},
-				filepath.Join(defaultDirectory, "read_protected_mode.tmp"),
 			},
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				setup(tc.setup)
-				defer teardown(tc.tearDownPath)
+				if err := tc.fit.client.Create(tc.setup["directory"], tc.setup["name"], tc.setup["contents"], tc.setup["mode"]); err != nil {
+					t.Errorf("Error setting up: %v", err)
+				}
+				defer func() {
+					if err := tc.fit.client.Delete(tc.setup["directory"], tc.setup["name"]); err != nil {
+						t.Errorf("Error tearing down: %v", err)
+					}
+				}()
 				r := getReadResponseContainer()
 				tc.fit.Read(context.Background(), tc.have, &r)
 				got := r
@@ -326,27 +332,25 @@ func TestLocalResourceRead(t *testing.T) {
 		}
 	})
 }
-
 func TestLocalResourceUpdate(t *testing.T) {
 	t.Run("Update function", func(t *testing.T) {
 		testCases := []struct {
-			name         string
-			fit          LocalResource
-			have         resource.UpdateRequest
-			want         resource.UpdateResponse
-			setup        map[string]string
-			tearDownPath string
+			name  string
+			fit   LocalResource
+			have  resource.UpdateRequest
+			want  resource.UpdateResponse
+			setup map[string]string
 		}{
 			{
 				"Basic test",
-				LocalResource{},
+				LocalResource{client: &memoryFileClient{}},
 				// have
 				getUpdateRequest(t, map[string]map[string]string{
 					"priorState": {
 						"id":              defaultId,
 						"name":            "update_basic.tmp",
 						"directory":       defaultDirectory,
-						"mode":            defaultMode,
+						"permissions":     defaultPerm,
 						"contents":        "this is an update test",
 						"protected":       defaultProtected,
 						"hmac_secret_key": defaultHmacSecretKey,
@@ -355,7 +359,7 @@ func TestLocalResourceUpdate(t *testing.T) {
 						"id":              defaultId,
 						"name":            "update_basic.tmp",
 						"directory":       defaultDirectory,
-						"mode":            defaultMode,
+						"permissions":     defaultPerm,
 						"contents":        "this is a basic update test",
 						"protected":       defaultProtected,
 						"hmac_secret_key": defaultHmacSecretKey,
@@ -366,24 +370,30 @@ func TestLocalResourceUpdate(t *testing.T) {
 					"id":              "0ec41eee6c157a3f7e50b78d586ee2ddb4d6e93b6de8bdf6d9354cf720e89549",
 					"name":            "update_basic.tmp",
 					"directory":       defaultDirectory,
-					"mode":            defaultMode,
+					"permissions":     defaultPerm,
 					"contents":        "this is a basic update test",
 					"protected":       defaultProtected,
 					"hmac_secret_key": defaultHmacSecretKey,
 				}),
 				// setup
 				map[string]string{
-					"mode":     defaultMode,
-					"path":     filepath.Join(defaultDirectory, "update_basic.tmp"),
-					"contents": "this is an update test",
+					"mode":      defaultPerm,
+					"directory": defaultDirectory,
+					"name":      "update_basic.tmp",
+					"contents":  "this is an update test",
 				},
-				filepath.Join(defaultDirectory, "update_basic.tmp"),
 			},
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				setup(tc.setup)
-				defer teardown(tc.tearDownPath)
+				if err := tc.fit.client.Create(tc.setup["directory"], tc.setup["name"], tc.setup["contents"], tc.setup["mode"]); err != nil {
+					t.Errorf("Error setting up: %v", err)
+				}
+				defer func() {
+					if err := tc.fit.client.Delete(tc.setup["directory"], tc.setup["name"]); err != nil {
+						t.Errorf("Error tearing down: %v", err)
+					}
+				}()
 				r := getUpdateResponseContainer()
 				tc.fit.Update(context.Background(), tc.have, &r)
 				got := r
@@ -392,13 +402,12 @@ func TestLocalResourceUpdate(t *testing.T) {
 					t.Errorf("Failed to get planned state: %v", diags)
 				}
 				plannedContents := plannedState.Contents.ValueString()
-				plannedFilePath := filepath.Join(plannedState.Directory.ValueString(), plannedState.Name.ValueString())
-				contentsAfterUpdate, err := os.ReadFile(plannedFilePath)
+				_, contentsAfterUpdate, err := tc.fit.client.Read(plannedState.Directory.ValueString(), plannedState.Name.ValueString())
 				if err != nil {
 					t.Errorf("Failed to read file for update verification: %s", err)
 				}
-				if string(contentsAfterUpdate) != plannedContents {
-					t.Errorf("File content was not updated correctly. Got %q, want %q", string(contentsAfterUpdate), plannedContents)
+				if contentsAfterUpdate != plannedContents {
+					t.Errorf("File content was not updated correctly. Got %q, want %q", contentsAfterUpdate, plannedContents)
 				}
 				if diff := cmp.Diff(tc.want, got); diff != "" {
 					t.Errorf("Update() mismatch (-want +got):\n%s", diff)
@@ -411,22 +420,21 @@ func TestLocalResourceUpdate(t *testing.T) {
 func TestLocalResourceDelete(t *testing.T) {
 	t.Run("Delete function", func(t *testing.T) {
 		testCases := []struct {
-			name         string
-			fit          LocalResource
-			have         resource.DeleteRequest
-			want         resource.DeleteResponse
-			setup        map[string]string
-			tearDownPath string
+			name  string
+			fit   LocalResource
+			have  resource.DeleteRequest
+			want  resource.DeleteResponse
+			setup map[string]string
 		}{
 			{
 				"Basic test",
-				LocalResource{},
+				LocalResource{client: &memoryFileClient{}},
 				// have
 				getDeleteRequest(t, map[string]string{
 					"id":              "fd6fb8621c4850c228190f4d448ce30881a32609d6b4c7341d48d0027e597567",
 					"name":            "delete.tmp",
 					"directory":       defaultDirectory,
-					"mode":            defaultMode,
+					"permissions":     defaultPerm,
 					"contents":        "this is a delete test",
 					"protected":       defaultProtected,
 					"hmac_secret_key": defaultHmacSecretKey,
@@ -435,22 +443,27 @@ func TestLocalResourceDelete(t *testing.T) {
 				getDeleteResponse(),
 				// setup
 				map[string]string{
-					"mode":     defaultMode,
-					"path":     filepath.Join(defaultDirectory, "delete.tmp"),
-					"contents": "this is a delete test",
+					"mode":      defaultPerm,
+					"directory": defaultDirectory,
+					"name":      "delete.tmp",
+					"contents":  "this is a delete test",
 				},
-				filepath.Join(defaultDirectory, "delete.tmp"),
 			},
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				setup(tc.setup)
+				if err := tc.fit.client.Create(tc.setup["directory"], tc.setup["name"], tc.setup["contents"], tc.setup["mode"]); err != nil {
+					t.Errorf("Error setting up: %v", err)
+				}
 				r := getDeleteResponseContainer()
 				tc.fit.Delete(context.Background(), tc.have, &r)
 				got := r
 				// Verify the file was actually deleted from disk
-				if _, err := os.Stat(tc.setup["path"]); !os.IsNotExist(err) {
-					t.Errorf("Expected file to be deleted, but it still exists.")
+				if _, c, err := tc.fit.client.Read(tc.setup["directory"], tc.setup["name"]); err == nil || err.Error() != "file not found" {
+					if err == nil {
+						t.Errorf("Expected file to be delete, but it still exists. File contents: %s", c)
+					}
+					t.Errorf("Expected file to be deleted, but it still exists. Error: %s", err.Error())
 				}
 				// verify that the file was removed from state
 				if diff := cmp.Diff(tc.want, got); diff != "" {
@@ -682,7 +695,7 @@ func getObjectAttributeTypes() tftypes.Object {
 			"id":              tftypes.String,
 			"name":            tftypes.String,
 			"directory":       tftypes.String,
-			"mode":            tftypes.String,
+			"permissions":     tftypes.String,
 			"contents":        tftypes.String,
 			"hmac_secret_key": tftypes.String,
 			"protected":       tftypes.Bool,
@@ -697,11 +710,42 @@ func getLocalResourceSchema() *resource.SchemaResponse {
 	return r
 }
 
-func setup(data map[string]string) {
-	modeInt, _ := strconv.ParseUint(data["mode"], 8, 32)
-	_ = os.WriteFile(data["path"], []byte(data["contents"]), os.FileMode(modeInt))
+// type fileClient interface {
+//   Create(directory string, name string, data string, permissions string) error
+//   // If file isn't found the error message must have err.Error() == "File not found."
+//   Read(directory string, name string) (string, string, error)// permissions, contents, error
+//   Update(currentDirectory string, currentName string, newDirectory string, newName string, data string, permissions string) error
+//   Delete(directory string, name string) error
+// }
+
+type memoryFileClient struct {
+	file map[string]string
 }
 
-func teardown(path string) {
-	os.Remove(path)
+var _ fileClient = &memoryFileClient{} // make sure the memoryFileClient implements the fileClient
+func (c *memoryFileClient) Create(directory string, name string, data string, permissions string) error {
+
+	c.file = make(map[string]string)
+	c.file["directory"] = directory
+	c.file["name"] = name
+	c.file["contents"] = data
+	c.file["permissions"] = permissions
+	return nil
+}
+func (c *memoryFileClient) Read(directory string, name string) (string, string, error) {
+	if c.file["directory"] == "" || c.file["name"] == "" {
+		return "", "", fmt.Errorf("file not found")
+	}
+	return c.file["permissions"], c.file["contents"], nil
+}
+func (c *memoryFileClient) Update(currentDirectory string, currentName string, newDirectory string, newName string, data string, permissions string) error {
+	c.file["directory"] = newDirectory
+	c.file["name"] = newName
+	c.file["contents"] = data
+	c.file["permissions"] = permissions
+	return nil
+}
+func (c *memoryFileClient) Delete(directory string, name string) error {
+	c.file = nil
+	return nil
 }
