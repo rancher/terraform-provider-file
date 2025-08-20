@@ -51,7 +51,6 @@ jobs:
                 'X-GitHub-Api-Version': '2022-11-28'
               }
             });
-            core.info(`Search results: ${searchResults}`)
             if (searchResults.data.total_count === 0) {
               core.info(`No 'internal/main' issue found for PR #${pr.number}. Exiting.`);
               return;
