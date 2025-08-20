@@ -33,7 +33,7 @@ jobs:
             const { data: associatedPrs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
               owner,
               repo,
-              commit_sha: mergeCommitSha,
+              commit_sha: mergeCommitSha
             });
             const pr = associatedPrs.find(p => p.base.ref === 'main' && p.merged_at);
             if (!pr) {
@@ -46,10 +46,12 @@ jobs:
             core.info(`Searching for 'internal/main' issue linked to PR #${pr.number}`);
             const { data: searchResults } = await github.request('GET /search/issues', {
               q: `is:issue label:"internal/main" repo:${owner}/${repo} in:body #${pr.number}`,
+              advanced_search: true,
               headers: {
                 'X-GitHub-Api-Version': '2022-11-28'
               }
             });
+            core.info(`Search results: ${searchResults}`)
             if (searchResults.data.total_count === 0) {
               core.info(`No 'internal/main' issue found for PR #${pr.number}. Exiting.`);
               return;

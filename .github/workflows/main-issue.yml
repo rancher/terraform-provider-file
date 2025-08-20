@@ -18,13 +18,22 @@ jobs:
             const repo = context.repo.repo;
             const owner = context.repo.owner;
             const pr = context.payload.pull_request;
-            const newLabels = ['internal/main']
+            const newLabels = ['internal/main'];
             const releaseLabel = pr.labels.find(label => label.name.startsWith('release/v'));
             if (releaseLabel) {
               const versionLabel = releaseLabel.name.replace('release/', 'version/');
-              newLabels.push(versionLabel)
+              newLabels.push(versionLabel);
             }
+            // Get terraform-maintainers team
+            const { data: teamMembers } = await github.rest.teams.listMembersInOrg({
+              org: "rancher",
+              team_slug: "terraform-maintainers"
+            });
+            const newAssignees = teamMembers.map(member => member.login);
+
             // Create the main issue
+            // https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#create-an-issue
+            // Note: issues can't have teams assigned to them
             const newIssue = await github.rest.issues.create({
               owner: owner,
               repo: repo,
@@ -34,5 +43,5 @@ jobs:
                 "Please add comments for user issues which this issue addresses. \n\n" +
                 "Description copied from PR: \n" + pr.body,
               labels: newLabels,
-              assignees: ['terraform-maintainers']
+              assignees: newAssignees // assign terraform-maintainers to issue
             });

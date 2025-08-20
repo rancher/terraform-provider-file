@@ -19,14 +19,21 @@ jobs:
             const repo = context.repo.repo;
             const owner = context.repo.owner;
 
+            // Get terraform-maintainers team
+            const { data: teamMembers } = await github.rest.teams.listMembersInOrg({
+              org: "rancher",
+              team_slug: "terraform-maintainers"
+            });
+            const newAssignees = teamMembers.map(member => member.login);
+
             // Create the sub-issue
             const newIssue = await github.rest.issues.create({
               owner: owner,
               repo: repo,
               title: "Backport #" + parentIssueNumber + " to release/v0",
-              body:  "Backport #" + parentIssueNumber + " to release/v0"
-              labels: ['release/v0']
-              assignees: ['terraform-maintainers']
+              body:  "Backport #" + parentIssueNumber + " to release/v0",
+              labels: ['release/v0'],
+              assignees: newAssignees // assign terraform-maintainers to sub-issue
             });
 
             const subIssueId = newIssue.data.id;
