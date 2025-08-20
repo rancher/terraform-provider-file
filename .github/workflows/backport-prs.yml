@@ -51,7 +51,6 @@ jobs:
                 'X-GitHub-Api-Version': '2022-11-28'
               }
             });
-            console.log("The search results:", JSON.stringify(searchResults, null, 2));
             if (searchResults.total_count === 0) {
               core.info(`No 'internal/main' issue found for PR #${pr.number}. Exiting.`);
               return;
@@ -61,7 +60,7 @@ jobs:
 
             // https://docs.github.com/en/rest/issues/sub-issues?apiVersion=2022-11-28#add-sub-issue
             core.info(`Fetching sub-issues for main issue #${mainIssue.number}`);
-            const { data: subIssues } = await github.request('GET /repos/{owner}/{repo}/issues/{issue_number}/sub-issues', {
+            const { data: subIssues } = await github.request('GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues', {
               owner: owner,
               repo: repo,
               issue_number: mainIssue.number,
