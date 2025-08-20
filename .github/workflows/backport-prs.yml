@@ -15,11 +15,12 @@ jobs:
       actions: read 
 
     steps:
+      - name: 'Wait for merge to settle'
+        run: sleep 10
       - name: 'Checkout Repository'
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: 'Find Issues and Create Cherry-Pick PRs'
         uses: actions/github-script@v7
         with:
@@ -41,18 +42,22 @@ jobs:
             }
             core.info(`Found associated PR: #${pr.number}`);
 
+            // https://docs.github.com/en/rest/search/search?apiVersion=2022-11-28#search-issues-and-pull-requests
             core.info(`Searching for 'internal/main' issue linked to PR #${pr.number}`);
             const { data: searchResults } = await github.request('GET /search/issues', {
               q: `is:issue label:"internal/main" repo:${owner}/${repo} in:body #${pr.number}`,
-              advanced_search: true
+              headers: {
+                'X-GitHub-Api-Version': '2022-11-28'
+              }
             });
-            if (searchResults.data.items.length === 0) {
+            if (searchResults.data.total_count === 0) {
               core.info(`No 'internal/main' issue found for PR #${pr.number}. Exiting.`);
               return;
             }
             const mainIssue = searchResults.data.items[0];
             core.info(`Found main issue: #${mainIssue.number}`);
 
+            // https://docs.github.com/en/rest/issues/sub-issues?apiVersion=2022-11-28#add-sub-issue
             core.info(`Fetching sub-issues for main issue #${mainIssue.number}`);
             const { data: subIssues } = await github.request('GET /repos/{owner}/{repo}/issues/{issue_number}/sub-issues', {
               owner: owner,
@@ -70,7 +75,6 @@ jobs:
 
             for (const subIssue of subIssues) {
               const subIssueNumber = subIssue.number;
-              
               // Find the release label directly on the sub-issue object
               const releaseLabel = subIssue.labels.find(label => label.name.startsWith('release/v'));
               if (!releaseLabel) {
@@ -78,7 +82,6 @@ jobs:
                 continue;
               }
               const targetBranch = releaseLabel.name
-
               core.info(`Processing sub-issue #${subIssueNumber} for target branch: ${targetBranch}`);
               const newBranchName = `backport-${pr.number}-${targetBranch.replace(/\//g, '-')}`;
               execSync(`git config user.name "github-actions[bot]"`);
