@@ -52,11 +52,11 @@ jobs:
               }
             });
             console.log("The search results:", JSON.stringify(searchResults, null, 2));
-            if (searchResults.data.total_count === 0) {
+            if (searchResults.total_count === 0) {
               core.info(`No 'internal/main' issue found for PR #${pr.number}. Exiting.`);
               return;
             }
-            const mainIssue = searchResults.data.items[0];
+            const mainIssue = searchResults.items[0];
             core.info(`Found main issue: #${mainIssue.number}`);
 
             // https://docs.github.com/en/rest/issues/sub-issues?apiVersion=2022-11-28#add-sub-issue
