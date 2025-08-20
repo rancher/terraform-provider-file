@@ -19,13 +19,7 @@ jobs:
             const repo = context.repo.repo;
             const owner = context.repo.owner;
 
-            // Get terraform-maintainers team
-            const { data: teamMembers } = await github.rest.teams.listMembersInOrg({
-              org: "rancher",
-              team_slug: "terraform-maintainers"
-            });
-            const newAssignees = teamMembers.map(member => member.login);
-
+            // Note: can't get terraform-maintainers team, the default token can't access org level objects
             // Create the sub-issue
             const newIssue = await github.rest.issues.create({
               owner: owner,
@@ -33,7 +27,7 @@ jobs:
               title: "Backport #" + parentIssueNumber + " to release/v0",
               body:  "Backport #" + parentIssueNumber + " to release/v0",
               labels: ['release/v0'],
-              assignees: newAssignees // assign terraform-maintainers to sub-issue
+              assignees: ['matttrach']
             });
 
             const subIssueId = newIssue.data.id;
