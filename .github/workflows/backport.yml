@@ -26,6 +26,7 @@ jobs:
               title: "Backport #" + parentIssueNumber + " to release/v0",
               body:  "Backport #" + parentIssueNumber + " to release/v0"
               labels: ['release/v0']
+              assignees: ['terraform-maintainers']
             });
 
             const subIssueId = newIssue.data.id;

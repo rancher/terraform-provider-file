@@ -41,7 +41,7 @@ jobs:
               return;
             }
             core.info(`Found associated PR: #${pr.number}`);
-            
+
             core.info(`Searching for 'internal/main' issue linked to PR #${pr.number}`);
             const searchResults = await github.rest.search.issuesAndPullRequests({
               q: `is:issue label:"internal/main" repo:${owner}/${repo} in:body #${pr.number}`
@@ -53,7 +53,7 @@ jobs:
             }
             const mainIssue = searchResults.data.items[0];
             core.info(`Found main issue: #${mainIssue.number}`);
-            
+
             core.info(`Fetching sub-issues for main issue #${mainIssue.number}`);
             const { data: subIssues } = await github.rest.issues.listSubIssues({
               owner,
@@ -66,41 +66,35 @@ jobs:
               return;
             }
             core.info(`Found ${subIssues.length} sub-issues.`);
-            
+
             for (const subIssue of subIssues) {
-              try {
-                const subIssueNumber = subIssue.number;
-                
-                // Find the release label directly on the sub-issue object
-                const releaseLabel = subIssue.labels.find(label => label.name.startsWith('release/v'));
-                if (!releaseLabel) {
-                  core.warning(`Sub-issue #${subIssueNumber} has no 'release/v...' label. Skipping.`);
-                  continue;
-                }
-                const targetBranch = releaseLabel.name
-                core.info(`Processing sub-issue #${subIssueNumber} for target branch: ${targetBranch}`);
-
-                const newBranchName = `backport-${pr.number}-${targetBranch.replace(/\//g, '-')}`;
-                execSync(`git config user.name "github-actions[bot]"`);
-                execSync(`git config user.email "github-actions[bot]@users.noreply.github.com"`);
-                execSync(`git fetch origin ${targetBranch}`);
-                execSync(`git checkout -b ${newBranchName} origin/${targetBranch}`);
-
-                core.info(`Cherry-picking commit ${mergeCommitSha}...`);
-                execSync(`git cherry-pick -x ${mergeCommitSha}`);
-
-                core.info(`Pushing new branch ${newBranchName}...`);
-                execSync(`git push origin ${newBranchName}`);
-                
-                core.info(`Creating pull request for branch ${newBranchName} targeting ${targetBranch}...`);
-
-                const { data: newPr } = await github.rest.pulls.create({
-                  owner,
-                  repo,
-                  title: pr.title,
-                  head: newBranchName,
-                  base: targetBranch,
-                  body: "This pull request cherry-picks the changes from #" + pr.number + " into " + targetBranch,
-                });
+              const subIssueNumber = subIssue.number;
+              
+              // Find the release label directly on the sub-issue object
+              const releaseLabel = subIssue.labels.find(label => label.name.startsWith('release/v'));
+              if (!releaseLabel) {
+                core.warning(`Sub-issue #${subIssueNumber} has no 'release/v...' label. Skipping.`);
+                continue;
               }
+              const targetBranch = releaseLabel.name
+              core.info(`Processing sub-issue #${subIssueNumber} for target branch: ${targetBranch}`);
+
+              const newBranchName = `backport-${pr.number}-${targetBranch.replace(/\//g, '-')}`;
+              execSync(`git config user.name "github-actions[bot]"`);
+              execSync(`git config user.email "github-actions[bot]@users.noreply.github.com"`);
+              execSync(`git fetch origin ${targetBranch}`);
+              execSync(`git checkout -b ${newBranchName} origin/${targetBranch}`);
+              execSync(`git cherry-pick -x ${mergeCommitSha}`);
+              execSync(`git push origin ${newBranchName}`);
+
+              core.info(`Creating pull request for branch ${newBranchName} targeting ${targetBranch}...`);
+              const { data: newPr } = await github.rest.pulls.create({
+                owner,
+                repo,
+                title: pr.title,
+                head: newBranchName,
+                base: targetBranch,
+                body: "This pull request cherry-picks the changes from #" + pr.number + " into " + targetBranch,
+                assignees: ['terraform-maintainers']
+              });
             }

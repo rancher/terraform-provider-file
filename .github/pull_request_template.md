@@ -1,12 +1,13 @@
 ## Related Issue
 
-If this PR will target main, please complete the below sentence.
+If this PR will target main, please correct the below sentence.
 
 Addresses #1234 (main issue)
 
 ## Releases
 
 If this PR should be released, please add labels for each release branch it targets.
+Use the 'release/v0' tags, not the 'version/v0' tags.
 
 ## Description
 
