@@ -1,7 +1,5 @@
 ## Related Issue
 
-If this PR will target main, please correct the below sentence.
-
 Addresses #1234 (main issue)
 
 ## Releases
@@ -22,10 +20,3 @@ Please describe how you verified this change or why testing isn't relevant.
 Does this change alter an interface that users of the provider will need to adjust to?
 Will there be any existing configurations broken by this change?
 
-## Backport
-
-Is this a cherry-picked backport from the default branch?
-If so, please delete all other sections and complete the sentence below:
-
-Cherry-pick #1236 (main PR) to release/v1 (release branch)
-Addresses #1235 (backport issue) for #1234 (main issue)
