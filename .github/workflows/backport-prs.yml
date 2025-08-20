@@ -42,7 +42,7 @@ jobs:
             core.info(`Found associated PR: #${pr.number}`);
 
             core.info(`Searching for 'internal/main' issue linked to PR #${pr.number}`);
-            const searchResults = await github.rest.search.issuesAndPullRequests({
+            const searchResults = await github.rest.search.issues({
               q: `is:issue label:"internal/main" repo:${owner}/${repo} in:body #${pr.number}`
             });
             if (searchResults.data.items.length === 0) {
