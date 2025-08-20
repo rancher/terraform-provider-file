@@ -89,7 +89,7 @@ jobs:
               execSync(`git config user.email "github-actions[bot]@users.noreply.github.com"`);
               execSync(`git fetch origin ${targetBranch}`);
               execSync(`git checkout -b ${newBranchName} origin/${targetBranch}`);
-              execSync(`git cherry-pick -x ${mergeCommitSha}`);
+              execSync(`git cherry-pick -x ${mergeCommitSha} -X theirs`);
               execSync(`git push origin ${newBranchName}`);
 
               core.info(`Creating pull request for branch ${newBranchName} targeting ${targetBranch}...`);
@@ -99,7 +99,9 @@ jobs:
                 title: pr.title,
                 head: newBranchName,
                 base: targetBranch,
-                body: "This pull request cherry-picks the changes from #" + pr.number + " into " + targetBranch,
+                body: "This pull request cherry-picks the changes from #" + pr.number + " into " + targetBranch + "\n" +
+                  "WARNING!: to avoid having to resolve merge conflicts this PR is generated with `git cherry-pick -X theirs`.\n" +
+                  "Please make sure to carefully inspect this PR so that you don't revert anything!",
                 assignees: ['terraform-maintainers']
               });
             }
