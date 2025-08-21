@@ -39,3 +39,30 @@ jobs:
               labels: newLabels,
               assignees: ['matttrach']
             });
+            if (versionLabel) {
+              // if version label detected, then add appropriate sub-issues
+              const parentIssue = newIssue.data;
+              const parentIssueTitle = parentIssue.title;
+              const parentIssueNumber = parentIssue.number;
+              // Note: can't get terraform-maintainers team, the default token can't access org level objects
+              // Create the sub-issue
+              const newSubIssue = await github.rest.issues.create({
+                owner: owner,
+                repo: repo,
+                title: "Backport #" + parentIssueNumber + " to release/v0",
+                body:  "Backport #" + parentIssueNumber + " to release/v0",
+                labels: ['release/v0'],
+                assignees: ['matttrach']
+              });
+              const subIssueId = newSubIssue.data.id;
+              // Attach the sub-issue to the parent using API request
+              await github.request('POST /repos/{owner}/{repo}/issues/{issue_number}/sub_issues', {
+                owner: owner,
+                repo: repo,
+                issue_number: parentIssueNumber,
+                sub_issue_id: subIssueId,
+                headers: {
+                  'X-GitHub-Api-Version': '2022-11-28'
+                }
+              });
+            }

@@ -6,7 +6,12 @@ on:
     - release/v0
     - release/v1
 
-permissions: write-all
+permissions:
+  contents: write
+  id-token: write
+  issues: write
+  pull-requests: write
+  actions: read
 
 jobs:
   release:
@@ -81,7 +86,7 @@ jobs:
         uses: rancher-eio/read-vault-secrets@main
         with:
           secrets: |
-            secret/data/github/repo/rancher/${{ github.repository }}/signing/gpg passphrase | GPG_PASSPHRASE ;
+            secret/data/github/repo/rancher/${{ github.repository }}/signing/gpg passphrase | GPG_PASSPHRASE;
             secret/data/github/repo/rancher/${{ github.repository }}/signing/gpg privateKeyId | GPG_KEY_ID;
             secret/data/github/repo/rancher/${{ github.repository }}/signing/gpg privateKey | GPG_KEY;
       - name: import_gpg_key
@@ -113,7 +118,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_KEY_ID: ${{ env.GPG_KEY_ID }}
           GPG_PASSPHRASE: ${{ env.GPG_PASSPHRASE }}
-
 
       # These run after release-please generates a release, so when the release PR is merged
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
