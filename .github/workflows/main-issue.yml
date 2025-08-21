@@ -39,7 +39,7 @@ jobs:
               labels: newLabels,
               assignees: ['matttrach']
             });
-            if (versionLabel) {
+            if (releaseLabel) {
               // if version label detected, then add appropriate sub-issues
               const parentIssue = newIssue.data;
               const parentIssueTitle = parentIssue.title;
