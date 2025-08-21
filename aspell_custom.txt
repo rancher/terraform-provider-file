@@ -15,3 +15,4 @@ pr
 assignees
 backport
 url
+gpg
