@@ -12,8 +12,7 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
-      workflows: write
-      actions: read 
+      actions: write
 
     steps:
       - name: 'Wait for merge to settle'
