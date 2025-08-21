@@ -100,8 +100,9 @@ jobs:
                 head: newBranchName,
                 base: targetBranch,
                 body: "This pull request cherry-picks the changes from #" + pr.number + " into " + targetBranch + "\n" +
-                  "WARNING!: to avoid having to resolve merge conflicts this PR is generated with `git cherry-pick -X theirs`.\n" +
-                  "Please make sure to carefully inspect this PR so that you don't revert anything!",
+                  "Addresses #" + subIssueNumber + "for #" + mainIssue.number + " \n\n" +
+                  "**WARNING!**: to avoid having to resolve merge conflicts this PR is generated with `git cherry-pick -X theirs`.\n" +
+                  "Please make sure to carefully inspect this PR so that you don't accidentally revert anything!",
                 assignees: ['terraform-maintainers']
               });
             }
