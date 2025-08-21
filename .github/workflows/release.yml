@@ -134,6 +134,7 @@ jobs:
           go-version-file: 'go.mod'
           cache: true
       - name: retrieve GPG Credentials
+        if: steps.release-please.outputs.version
         uses: rancher-eio/read-vault-secrets@main
         with:
           secrets: |
