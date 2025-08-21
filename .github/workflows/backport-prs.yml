@@ -45,7 +45,7 @@ jobs:
             // https://docs.github.com/en/rest/search/search?apiVersion=2022-11-28#search-issues-and-pull-requests
             core.info(`Searching for 'internal/main' issue linked to PR #${pr.number}`);
             const { data: searchResults } = await github.request('GET /search/issues', {
-              q: `is:issue label:"internal/main" repo:${owner}/${repo} in:body #${pr.number}`,
+              q: `is:issue state:open label:"internal/main" repo:${owner}/${repo} in:body #${pr.number}`,
               advanced_search: true,
               headers: {
                 'X-GitHub-Api-Version': '2022-11-28'
