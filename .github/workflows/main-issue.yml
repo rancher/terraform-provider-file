@@ -24,6 +24,14 @@ jobs:
               const versionLabel = releaseLabel.name.replace('release/', 'version/');
               newLabels.push(versionLabel);
             }
+            const fs = require('fs'); // Import the Node.js file system module
+            const fileContent = fs.readFileSync('.github/terraform-maintainers', 'utf8');
+            const assignees = fileContent.split('\n').map(u => u.trim()).filter(Boolean);
+            if (assignees.length === 0) {
+              console.log('No assignees found in the team file.');
+              return;
+            }
+
             // Note: can't get terraform-maintainers team, the default token can't access org level objects
             // Create the main issue
             // https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#create-an-issue
@@ -37,10 +45,10 @@ jobs:
                 "Please add comments for user issues which this issue addresses. \n\n" +
                 "Description copied from PR: \n" + pr.body,
               labels: newLabels,
-              assignees: ['matttrach']
+              assignees: assignees
             });
             if (releaseLabel) {
-              // if version label detected, then add appropriate sub-issues
+              // if release label detected, then add appropriate sub-issues
               const parentIssue = newIssue.data;
               const parentIssueTitle = parentIssue.title;
               const parentIssueNumber = parentIssue.number;
@@ -49,10 +57,10 @@ jobs:
               const newSubIssue = await github.rest.issues.create({
                 owner: owner,
                 repo: repo,
-                title: "Backport #" + parentIssueNumber + " to release/v0",
-                body:  "Backport #" + parentIssueNumber + " to release/v0",
+                title: `Backport #${pr.number} to release/v0`,
+                body:  `Backport #${pr.number} to release/v0 for #${parentIssueNumber}`,
                 labels: ['release/v0'],
-                assignees: ['matttrach']
+                assignees: assignees
               });
               const subIssueId = newSubIssue.data.id;
               // Attach the sub-issue to the parent using API request
