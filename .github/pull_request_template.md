@@ -1,6 +1,6 @@
 ## Related Issue
 
-Addresses # (main issue)
+Addresses #
 
 <!--- Add release labels (eg. release/v0) for each target release --->
 
