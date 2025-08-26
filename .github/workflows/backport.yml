@@ -19,14 +19,7 @@ jobs:
             const repo = context.repo.repo;
             const owner = context.repo.owner;
             const parentIssueBody = parentIssue.body;
-
-            const fs = require('fs'); // Import the Node.js file system module
-            const fileContent = fs.readFileSync('.github/terraform-maintainers', 'utf8');
-            const assignees = fileContent.split('\n').map(u => u.trim()).filter(Boolean);
-            if (assignees.length === 0) {
-              console.log('No assignees found in the team file.');
-              return;
-            }
+            const assignees = ['matttrach', 'jiaqiluo', 'HarrisonWAffel']
 
             if (!parentIssueBody) {
               core.setFailed('Issue body is empty.');
