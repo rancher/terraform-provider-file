@@ -21,16 +21,9 @@ jobs:
             const newLabels = ['internal/main'];
             const releaseLabel = pr.labels.find(label => label.name.startsWith('release/v'));
             if (releaseLabel) {
-              const versionLabel = releaseLabel.name.replace('release/', 'version/');
-              newLabels.push(versionLabel);
+              newLabels.push(releaseLabel);
             }
-            const fs = require('fs'); // Import the Node.js file system module
-            const fileContent = fs.readFileSync('.github/terraform-maintainers', 'utf8');
-            const assignees = fileContent.split('\n').map(u => u.trim()).filter(Boolean);
-            if (assignees.length === 0) {
-              console.log('No assignees found in the team file.');
-              return;
-            }
+            const assignees = ['matttrach', 'jiaqiluo', 'HarrisonWAffel']
 
             // Note: can't get terraform-maintainers team, the default token can't access org level objects
             // Create the main issue
@@ -57,9 +50,9 @@ jobs:
               const newSubIssue = await github.rest.issues.create({
                 owner: owner,
                 repo: repo,
-                title: `Backport #${pr.number} to release/v0`,
-                body:  `Backport #${pr.number} to release/v0 for #${parentIssueNumber}`,
-                labels: ['release/v0'],
+                title: `Backport #${pr.number} to ${releaseLabel}`,
+                body:  `Backport #${pr.number} to ${releaseLabel} for #${parentIssueNumber}`,
+                labels: [releaseLabel],
                 assignees: assignees
               });
               const subIssueId = newSubIssue.data.id;
