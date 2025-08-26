@@ -23,6 +23,9 @@ jobs:
         id: release-please
         with:
           release-type: go
+          target-branch: ${{ github.ref_name }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
       # These run only if a release PR was opened or modified, so not when the PR is merged
       - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1 https://github.com/actions/github-script/commits/main
         name: wait-for-e2e
