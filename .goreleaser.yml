@@ -50,10 +50,6 @@ signs:
       - "${signature}"
       - "--sign"
       - "${artifact}"
-snapshot:
-  # "snapshot" is the type of release we use for release candidates
-  #  that are generated when a release branch gets a new merge
-  name_template: "{{ .ProjectName }}_{{ .ShortCommit }}"
 release:
   extra_files:
     - glob: 'terraform-registry-manifest.json'

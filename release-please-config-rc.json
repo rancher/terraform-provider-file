@@ -6,7 +6,8 @@
       "include-v-in-tag": true,
       "include-component-in-tag": false,
       "always-update": true,
-      "initial-version": "v0.1.0"
+      "skip-changelog": true,
+      "versioning": "prerelease"
     }
   },
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"
