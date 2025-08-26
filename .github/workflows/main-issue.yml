@@ -23,7 +23,7 @@ jobs:
             if (releaseLabel) {
               newLabels.push(releaseLabel);
             }
-            const assignees = ['matttrach', 'jiaqiluo', 'HarrisonWAffel']
+            const assignees = ['matttrach', 'jiaqiluo', 'HarrisonWAffel'];
 
             // Note: can't get terraform-maintainers team, the default token can't access org level objects
             // Create the main issue
