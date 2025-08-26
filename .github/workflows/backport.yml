@@ -42,7 +42,7 @@ jobs:
             const repo = context.repo.repo;
             const owner = context.repo.owner;
             const parentIssueBody = parentIssue.body;
-            const assignees = ['matttrach', 'jiaqiluo', 'HarrisonWAffel']
+            const assignees = ['matttrach', 'jiaqiluo', 'HarrisonWAffel'];
 
             const prNumber = ${{ steps.extract_pr.outputs.result }};
 

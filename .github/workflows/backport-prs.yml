@@ -28,6 +28,7 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const mergeCommitSha = context.payload.head_commit.id;
+            const assignees = ['matttrach', 'jiaqiluo', 'HarrisonWAffel'];
 
             const { data: associatedPrs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
               owner,
@@ -99,9 +100,9 @@ jobs:
                 head: newBranchName,
                 base: targetBranch,
                 body: "This pull request cherry-picks the changes from #" + pr.number + " into " + targetBranch + "\n" +
-                  "Addresses #" + subIssueNumber + "for #" + mainIssue.number + " \n\n" +
+                  "Addresses #" + subIssueNumber + " for #" + mainIssue.number + " \n\n" +
                   "**WARNING!**: to avoid having to resolve merge conflicts this PR is generated with `git cherry-pick -X theirs`.\n" +
                   "Please make sure to carefully inspect this PR so that you don't accidentally revert anything!",
-                assignees: ['terraform-maintainers']
+                assignees: assignees
               });
             }
