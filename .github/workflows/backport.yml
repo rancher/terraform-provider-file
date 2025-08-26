@@ -7,12 +7,13 @@ on:
 jobs:
   create-issue:
     runs-on: ubuntu-latest
-    if: ${{ github.event.label.name == 'version/v0' }}
+    if: ${{ startsWith(github.event.label.name, 'release/v') }}
     steps:
       - name: Create GitHub Issue
         uses: actions/github-script@v7
         with:
           script: |
+            const labelName = context.payload.label.name;
             const parentIssue = context.payload.issue;
             const parentIssueTitle = parentIssue.title;
             const parentIssueNumber = parentIssue.number;
@@ -39,9 +40,9 @@ jobs:
             const newIssue = await github.rest.issues.create({
               owner: owner,
               repo: repo,
-              title: `Backport #${prNumber} to release/v0`,
-              body:  `Backport #${prNumber} to release/v0 for #${parentIssueNumber}`,
-              labels: ['release/v0'],
+              title: `Backport #${prNumber} to ${labelName}`,
+              body:  `Backport #${prNumber} to ${labelName} for #${parentIssueNumber}`,
+              labels: [labelName],
               assignees: assignees
             });
 

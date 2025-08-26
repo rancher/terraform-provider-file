@@ -21,8 +21,7 @@ jobs:
             const newLabels = ['internal/main'];
             const releaseLabel = pr.labels.find(label => label.name.startsWith('release/v'));
             if (releaseLabel) {
-              const versionLabel = releaseLabel.name.replace('release/', 'version/');
-              newLabels.push(versionLabel);
+              newLabels.push(releaseLabel);
             }
             const assignees = ['matttrach', 'jiaqiluo', 'HarrisonWAffel']
 
@@ -51,9 +50,9 @@ jobs:
               const newSubIssue = await github.rest.issues.create({
                 owner: owner,
                 repo: repo,
-                title: `Backport #${pr.number} to release/v0`,
-                body:  `Backport #${pr.number} to release/v0 for #${parentIssueNumber}`,
-                labels: ['release/v0'],
+                title: `Backport #${pr.number} to ${releaseLabel}`,
+                body:  `Backport #${pr.number} to ${releaseLabel} for #${parentIssueNumber}`,
+                labels: [releaseLabel],
                 assignees: assignees
               });
               const subIssueId = newSubIssue.data.id;
