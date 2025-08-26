@@ -34,7 +34,7 @@ jobs:
               repo: repo,
               title: pr.title,
               body:  "This is the main issue tracking #" + pr.number + " \n\n" +
-                "Please add labels indicating the release versions eg. 'version/v0' \n\n" +
+                "Please add labels indicating the release versions eg. 'release/v0' \n\n" +
                 "Please add comments for user issues which this issue addresses. \n\n" +
                 "Description copied from PR: \n" + pr.body,
               labels: newLabels,
@@ -50,8 +50,8 @@ jobs:
               const newSubIssue = await github.rest.issues.create({
                 owner: owner,
                 repo: repo,
-                title: `Backport #${pr.number} to ${releaseLabel}`,
-                body:  `Backport #${pr.number} to ${releaseLabel} for #${parentIssueNumber}`,
+                title: `Backport #${pr.number} to ${releaseLabel.name}`,
+                body:  `Backport #${pr.number} to ${releaseLabel.name} for #${parentIssueNumber}`,
                 labels: [releaseLabel],
                 assignees: assignees
               });
