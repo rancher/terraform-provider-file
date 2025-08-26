@@ -17,7 +17,7 @@ jobs:
     outputs:
       release_pr: ${{ steps.release-please.outputs.pr }}
     steps:
-      - uses: googleapis/release-please-action@a02a34c4d625f9be7cb89156071d8567266a2445 # v4.2.0 https://github.com/googleapis/release-please-action/commits/main/
+      - uses: googleapis/release-please-action@c2a5a2bd6a758a0937f1ddb1e8950609867ed15c # v4.3.0 https://github.com/googleapis/release-please-action/commits/main/
         name: release-please
         id: release-please
         with:
@@ -38,9 +38,9 @@ jobs:
               repo: "${{ github.event.repository.name }}",
               body: "Please make sure e2e tests pass before merging this PR! \n ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             })
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0 https://github.com/actions/checkout
         if: steps.release-please.outputs.pr
-      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0 https://github.com/actions/setup-go
         if: steps.release-please.outputs.pr
         with:
           go-version-file: 'go.mod'
@@ -126,11 +126,11 @@ jobs:
           GPG_PASSPHRASE: ${{ env.GPG_PASSPHRASE }}
 
       # These run after release-please generates a release, so when the release PR is merged
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0 https://github.com/actions/checkout
         if: steps.release-please.outputs.version
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0 https://github.com/actions/setup-go
         if: steps.release-please.outputs.version
         with:
           go-version-file: 'go.mod'
