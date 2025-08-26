@@ -20,6 +20,7 @@ jobs:
         id: release-please
         with:
           skip-github-pull-request: true
+          skip-github-release: false
           config-file: release-please-config-rc.json
           manifest-file: .release-please-manifest.json
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0 https://github.com/actions/checkout
