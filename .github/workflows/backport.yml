@@ -44,7 +44,12 @@ jobs:
             const parentIssueBody = parentIssue.body;
             const assignees = ['matttrach', 'jiaqiluo', 'HarrisonWAffel'];
 
-            const prNumber = ${{ steps.extract_pr.outputs.result }};
+            const { data: pr } = await github.rest.issues.get({
+              owner: owner,
+              repo: repo,
+              issue_number: ${{ steps.extract_pr.outputs.result }}
+            });
+            const prNumber = pr.number;
 
             // Note: can't get terraform-maintainers team, the default token can't access org level objects
             // Create the sub-issue
@@ -52,7 +57,11 @@ jobs:
               owner: owner,
               repo: repo,
               title: `Backport #${prNumber} to ${labelName}`,
-              body:  `Backport #${prNumber} to ${labelName} for #${parentIssueNumber}`,
+              body:  [
+                `Backport #${prNumber} to ${labelName} for #${parentIssueNumber}`,
+                `Copied from PR:`,
+                `${pr.body}`
+              ].join("\n\n")
               labels: [labelName],
               assignees: assignees
             });

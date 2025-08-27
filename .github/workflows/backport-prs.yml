@@ -99,10 +99,21 @@ jobs:
                 title: pr.title,
                 head: newBranchName,
                 base: targetBranch,
-                body: "This pull request cherry-picks the changes from #" + pr.number + " into " + targetBranch + "\n" +
-                  "Addresses #" + subIssueNumber + " for #" + mainIssue.number + " \n\n" +
-                  "**WARNING!**: to avoid having to resolve merge conflicts this PR is generated with `git cherry-pick -X theirs`.\n" +
-                  "Please make sure to carefully inspect this PR so that you don't accidentally revert anything!",
+                body: [
+                  `This pull request cherry-picks the changes from #${pr.number} into ${targetBranch}`,
+                  `Addresses #${subIssueNumber} for #${mainIssue.number}`,
+                  `**WARNING!**: to avoid having to resolve merge conflicts this PR is generated with 'git cherry-pick -X theirs'.`,
+                  `Please make sure to carefully inspect this PR so that you don't accidentally revert anything!`,
+                  `Please add the proper milestone to this PR`,
+                  `Copied from main PR:`,
+                  `${pr.body}`
+                ].join("\n\n")
+              });
+              const prNumber = newPR.number
+              await github.rest.issues.addAssignees({
+                owner,
+                repo,
+                issue_number: prNumber,
                 assignees: assignees
               });
             }
