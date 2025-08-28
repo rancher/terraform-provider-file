@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/rancher/terraform-provider-file/compare/v0.1.2...v0.1.3) (2025-08-28)
+
+
+### Bug Fixes
+
+* correct the rc calculation ([#121](https://github.com/rancher/terraform-provider-file/issues/121)) ([#124](https://github.com/rancher/terraform-provider-file/issues/124)) ([8d7fae6](https://github.com/rancher/terraform-provider-file/commit/8d7fae6cddd41a742fb50fca4cb4ffa9f5d2529b))
+
 ## [0.1.2](https://github.com/rancher/terraform-provider-file/compare/v0.1.1...v0.1.2) (2025-08-28)
 
 
