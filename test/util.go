@@ -91,3 +91,14 @@ func GetOwner() string {
 func GetRepoRoot(t *testing.T) (string, error) {
 	return filepath.Abs(git.GetRepoRoot(t))
 }
+
+func CheckFileExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return true, err
+	}
+	return true, nil
+}
