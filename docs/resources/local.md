@@ -47,7 +47,7 @@ resource "file_local" "protected_example" {
 ### Optional
 
 - `directory` (String) The directory where the file will be placed, defaults to the current working directory.
-- `hmac_secret_key` (String, Sensitive) A string used to generate the file identifier, you can pass this value in the environment variable `TF_FILE_HMAC_SECRET_KEY`. The provider will use a hard coded value as the secret key for unprotected files.
+- `hmac_secret_key` (String, Sensitive) A string used to generate the file identifier, you can pass this value in the environment variable `TF_FILE_HMAC_SECRET_KEY`. The provider will use a hard coded value as the secret key for unprotected files. As this is used to calculate the id of the file, it can't be updated, any change will force a recreate. Since this also protects delete operations, you will need to first remove the old resource from your configuration with the old key, then add a new resource with the new key.
 - `id` (String) Identifier derived from sha256+HMAC hash of file contents. When setting 'protected' to true this argument is required. However, when 'protected' is false then this should be left empty (computed by the provider).
 - `permissions` (String) The file permissions to assign to the file, defaults to '0600'.
 - `protected` (Boolean) Whether or not to fail update or create if the calculated id doesn't match the given id. When this is true, the 'id' field is required and must match what we calculate as the hash at both create and update times. If the 'id' configured doesn't match what we calculate then the provider will error rather than updating or creating the file. When setting this to true, you will need to either set the `TF_FILE_HMAC_SECRET_KEY` environment variable or set the hmac_secret_key argument.

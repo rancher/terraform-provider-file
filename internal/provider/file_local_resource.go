@@ -146,14 +146,19 @@ func (r *LocalResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 			"hmac_secret_key": schema.StringAttribute{
 				MarkdownDescription: "A string used to generate the file identifier, " +
 					"you can pass this value in the environment variable `TF_FILE_HMAC_SECRET_KEY`. " +
-					"The provider will use a hard coded value as the secret key for unprotected files.",
+					"The provider will use a hard coded value as the secret key for unprotected files. " +
+					"As this is used to calculate the id of the file, it can't be updated, any change will force a recreate. " +
+					"Since this also protects delete operations, you will need to first remove the old resource from your " +
+					"configuration with the old key, then add a new resource with the new key.",
 				Optional:  true,
 				Computed:  true,
 				Sensitive: true,
 				// This is for arguments that may be calculated by the provider if left empty.
 				// It tells the Plan that this argument, if unspecified, can eventually be whatever is in state.
+				// Modifying this is not possible as it is used to calculate the id of the file, update forces recreate.
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"id": schema.StringAttribute{
@@ -394,7 +399,7 @@ func (r *LocalResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	if rProtected {
 		// if the key was previously coded into the config then this only verifies that it was used to calculate the id properly
 		// if the key is being given in the environment variable, this validates that the given key can calculate the previous id
-		err := validateProtected(rProtected, rId, rKey, rContents)
+		err := validateProtected(rProtected, rId, rKey, rContents) // how do I rotate keys? you can't, just remake the file, an id should be variable
 		if err != nil {
 			resp.Diagnostics.AddError("Error updating file: ", err.Error())
 			return
