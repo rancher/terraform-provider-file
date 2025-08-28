@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.2](https://github.com/rancher/terraform-provider-file/compare/v0.1.1...v0.1.2) (2025-08-28)
+
+
+### Bug Fixes
+
+* add a new workflow for release candidates ([#93](https://github.com/rancher/terraform-provider-file/issues/93)) ([#96](https://github.com/rancher/terraform-provider-file/issues/96)) ([fe4bdc6](https://github.com/rancher/terraform-provider-file/commit/fe4bdc6dce3069c1a65098cc4e78732dcadf544f))
+* add checkout action before release please ([#101](https://github.com/rancher/terraform-provider-file/issues/101)) ([#104](https://github.com/rancher/terraform-provider-file/issues/104)) ([376aab0](https://github.com/rancher/terraform-provider-file/commit/376aab0bb2988af94db8d894379fdbdee364f2c7))
+* backport PR need individual assignees ([#88](https://github.com/rancher/terraform-provider-file/issues/88)) ([#91](https://github.com/rancher/terraform-provider-file/issues/91)) ([911c134](https://github.com/rancher/terraform-provider-file/commit/911c134974b725231b17e1372f4de76b9a414ea5))
+* get version properly ([#109](https://github.com/rancher/terraform-provider-file/issues/109)) ([#112](https://github.com/rancher/terraform-provider-file/issues/112)) ([70b7da9](https://github.com/rancher/terraform-provider-file/commit/70b7da9780764fe35c1c6b22001eff1751f185f0))
+* manually generate release candidate tag ([#105](https://github.com/rancher/terraform-provider-file/issues/105)) ([#108](https://github.com/rancher/terraform-provider-file/issues/108)) ([3ec02c3](https://github.com/rancher/terraform-provider-file/commit/3ec02c34195e19620e0dea66e69aa0990aafa328))
+* resolve client and protection flaws ([#113](https://github.com/rancher/terraform-provider-file/issues/113)) ([#116](https://github.com/rancher/terraform-provider-file/issues/116)) ([0291bc4](https://github.com/rancher/terraform-provider-file/commit/0291bc4c6bb0592e98393d8bf9617935ad568891))
+* tell release please not to skip the release ([#97](https://github.com/rancher/terraform-provider-file/issues/97)) ([#100](https://github.com/rancher/terraform-provider-file/issues/100)) ([e9320a4](https://github.com/rancher/terraform-provider-file/commit/e9320a4ddbed9fcabff7ea62cd2820f623408049))
+* typo in backport pr script ([#117](https://github.com/rancher/terraform-provider-file/issues/117)) ([#120](https://github.com/rancher/terraform-provider-file/issues/120)) ([41f239a](https://github.com/rancher/terraform-provider-file/commit/41f239af5a4253d3ea211477552d6ceb3842b4ca))
+
 ## [0.1.1](https://github.com/rancher/terraform-provider-file/compare/v0.1.0...v0.1.1) (2025-08-26)
 
 
