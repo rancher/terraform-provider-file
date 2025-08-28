@@ -109,7 +109,7 @@ jobs:
                   `${pr.body}`
                 ].join("\n\n")
               });
-              const prNumber = newPR.number
+              const prNumber = newPr.number
               await github.rest.issues.addAssignees({
                 owner,
                 repo,
