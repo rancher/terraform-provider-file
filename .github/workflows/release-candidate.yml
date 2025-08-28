@@ -21,9 +21,16 @@ jobs:
           echo "Base version is: $BASE_VERSION" # gets v0 from release/v0 in branch name
           git fetch --tags
           LATEST_MINOR_NUM=$(git tag | grep "^${BASE_VERSION}\." | awk -F. '{print $2}' | sort -n | tail -1)
-          LATEST_PATCH_NUM=$(git tag | grep "^${BASE_VERSION}\.${LATEST_MINOR_NUM}\." | awk -F. '{print $3}' | sort -n | tail -1)
-          LATEST_RC_NUM=$(git tag | grep "^${BASE_VERSION}\.${LATEST_MINOR_NUM}\.${LATEST_PATCH_NUM}-rc\." | sed 's/.*-rc.//' | sort -n | tail -1)
+          echo "Latest minor num: $LATEST_MINOR_NUM"
+          LATEST_PATCH_NUM=$(git tag | grep "^${BASE_VERSION}\.${LATEST_MINOR_NUM}\." | awk -F- '{print $1}' | awk -F. '{print $3}' | sort -n | tail -1)
+          echo "Latest patch num: $LATEST_PATCH_NUM"
+          LATEST_RC_NUM=$(git tag | grep "^${BASE_VERSION}\.${LATEST_MINOR_NUM}\.${LATEST_PATCH_NUM}-rc\." | awk -F. '{print $4}' | grep -v '^$' | sort -n | tail -1)
+          echo "Latest rc num: $LATEST_RC_NUM"
           if [ -z "$LATEST_RC_NUM" ]; then
+            # the last minor was a full release, we need to start the next minor release candidate
+            # this sort of assumes there wont be a patch release
+            LATEST_MINOR_NUM=$((LATEST_MINOR_NUM + 1))
+            LATEST_PATCH_NUM=0
             NEXT_RC_NUM=0
           else
             NEXT_RC_NUM=$((LATEST_RC_NUM + 1))
