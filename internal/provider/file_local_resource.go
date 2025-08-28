@@ -47,6 +47,7 @@ type fileClient interface {
 type osFileClient struct{}
 
 var _ fileClient = &osFileClient{} // make sure the osFileClient implements the fileClient
+
 func (c *osFileClient) Create(directory string, name string, data string, permissions string) error {
 	path := filepath.Join(directory, name)
 	modeInt, err := strconv.ParseUint(permissions, 8, 32)
@@ -144,15 +145,20 @@ func (r *LocalResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 			},
 			"hmac_secret_key": schema.StringAttribute{
 				MarkdownDescription: "A string used to generate the file identifier, " +
-					"you can pass this value in the environment variable `TF_FILE_HMAC_SECRET_KEY`." +
-					"The provider will use a hard coded value as the secret key for unprotected files.",
+					"you can pass this value in the environment variable `TF_FILE_HMAC_SECRET_KEY`. " +
+					"The provider will use a hard coded value as the secret key for unprotected files. " +
+					"As this is used to calculate the id of the file, it can't be updated, any change will force a recreate. " +
+					"Since this also protects delete operations, you will need to first remove the old resource from your " +
+					"configuration with the old key, then add a new resource with the new key.",
 				Optional:  true,
 				Computed:  true,
 				Sensitive: true,
 				// This is for arguments that may be calculated by the provider if left empty.
 				// It tells the Plan that this argument, if unspecified, can eventually be whatever is in state.
+				// Modifying this is not possible as it is used to calculate the id of the file, update forces recreate.
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"id": schema.StringAttribute{
@@ -163,10 +169,10 @@ func (r *LocalResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				Computed: true,
 			},
 			"protected": schema.BoolAttribute{
-				MarkdownDescription: "Whether or not to fail update or create if the calculated id doesn't match the given id." +
-					"When this is true, the 'id' field is required and must match what we calculate as the hash at both create and update times." +
-					"If the 'id' configured doesn't match what we calculate then the provider will error rather than updating or creating the file." +
-					"When setting this to true, you will need to either set the `TF_FILE_HMAC_SECRET_KEY` environment variable or set the hmac_secret_key argument.",
+				MarkdownDescription: "Whether or not to fail update or create if the calculated id doesn't match the given id. " +
+					"When this is true, the 'id' field is required and must match what we calculate as the hash at both create and update times. " +
+					"If the 'id' configured doesn't match what we calculate then the provider will error rather than updating or creating the file. " +
+					"When setting this to true, you will need to either set the `TF_FILE_HMAC_SECRET_KEY` environment variable or set the hmac_secret_key argument. ",
 				Optional: true,
 				Computed: true,
 				// This tells Terraform that if this argument is changed, then we need to recreate the resource rather than updating it.
@@ -193,21 +199,24 @@ func (r *LocalResource) Configure(ctx context.Context, req resource.ConfigureReq
 	if req.ProviderData == nil {
 		return
 	}
-	// Allow the ability to inject a file client, but use the osFileClient by default.
-	if r.client == nil {
-		r.client = &osFileClient{}
-	}
 }
 
 // We should:
 // - generate reality and state in the Create function
 // - update state to match reality in the Read function
-// - update state to config and update reality to config in the Update function by looking for differences in the state and the config
+// - update state to config and update reality to config in the Update function by looking for differences in the state and the config (trust read to collect reality)
 // - destroy reality and state in the Destroy function
 
 func (r *LocalResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	tflog.Debug(ctx, fmt.Sprintf("Request Object: %v", req))
+	tflog.Debug(ctx, fmt.Sprintf("Request Object: %#v", req))
 	var err error
+
+	// Allow the ability to inject a file client, but use the osFileClient by default.
+	if r.client == nil {
+		tflog.Debug(ctx, "Configuring client with default osFileClient.")
+		r.client = &osFileClient{}
+	}
+
 	var plan LocalResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -246,13 +255,14 @@ func (r *LocalResource) Create(ctx context.Context, req resource.CreateRequest, 
 		plan.HmacSecretKey = types.StringValue("")
 	}
 
+	tflog.Debug(ctx, fmt.Sprintf("Client: #%v", r.client))
 	if err = r.client.Create(directory, name, contents, permString); err != nil {
 		resp.Diagnostics.AddError("Error creating file: ", err.Error())
 		return
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
-	tflog.Debug(ctx, fmt.Sprintf("Response Object: %v", *resp))
+	tflog.Debug(ctx, fmt.Sprintf("Response Object: %#v", *resp))
 }
 
 // Read runs at refresh time, which happens before all other functions and every time a function would be called.
@@ -260,7 +270,13 @@ func (r *LocalResource) Create(ctx context.Context, req resource.CreateRequest, 
 // After Read, if the contents of the state don't match the contents of the plan, then the resource will be reconciled.
 // We want to update the state to match reality so that differences can be detected.
 func (r *LocalResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	tflog.Debug(ctx, fmt.Sprintf("Request Object: %v", req))
+	tflog.Debug(ctx, fmt.Sprintf("Request Object: %#v", req))
+
+	// Allow the ability to inject a file client, but use the osFileClient by default.
+	if r.client == nil {
+		tflog.Debug(ctx, "Configuring client with default osFileClient.")
+		r.client = &osFileClient{}
+	}
 
 	var state LocalResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -312,14 +328,20 @@ func (r *LocalResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
-	tflog.Debug(ctx, fmt.Sprintf("Response Object: %v", *resp))
+	tflog.Debug(ctx, fmt.Sprintf("Response Object: %#v", *resp))
 }
 
 // For now, we are assuming Terraform has complete control over the file
 // This means we don't need know anything about the actual file for updates, we just change the file if the plan doesn't match the state.
 // The plan has the authority here, state and reality needs to match the plan.
 func (r *LocalResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	tflog.Debug(ctx, fmt.Sprintf("Request Object: %v", req))
+	tflog.Debug(ctx, fmt.Sprintf("Request Object: %#v", req))
+
+	// Allow the ability to inject a file client, but use the osFileClient by default.
+	if r.client == nil {
+		tflog.Debug(ctx, "Configuring client with default osFileClient.")
+		r.client = &osFileClient{}
+	}
 
 	var config LocalResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &config)...)
@@ -340,6 +362,7 @@ func (r *LocalResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		cKey = os.Getenv("TF_FILE_HMAC_SECRET_KEY")
 	}
 	if cProtected {
+		// this only validates that the key given was correctly used to generate the id, it doesn't actually protect the file
 		err := validateProtected(cProtected, cId, cKey, cContents)
 		if err != nil {
 			resp.Diagnostics.AddError("Error updating file: ", err.Error())
@@ -362,8 +385,32 @@ func (r *LocalResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
+	rId := reality.Id.ValueString()
 	rName := reality.Name.ValueString()
+	rContents := reality.Contents.ValueString()
 	rDirectory := reality.Directory.ValueString()
+	rHmacSecretKey := reality.HmacSecretKey.ValueString()
+	rProtected := reality.Protected.ValueBool()
+
+	rKey := rHmacSecretKey
+	if rKey == "" {
+		rKey = os.Getenv("TF_FILE_HMAC_SECRET_KEY")
+	}
+	if rProtected {
+		// if the key was previously coded into the config then this only verifies that it was used to calculate the id properly
+		// if the key is being given in the environment variable, this validates that the given key can calculate the previous id
+		err := validateProtected(rProtected, rId, rKey, rContents) // how do I rotate keys? you can't, just remake the file, an id should be variable
+		if err != nil {
+			resp.Diagnostics.AddError("Error updating file: ", err.Error())
+			return
+		}
+	} else {
+		_, err := calculateId(rContents, "this-is-the-hmac-secret-key-that-will-be-used-to-calculate-the-hash-of-unprotected-files")
+		if err != nil {
+			resp.Diagnostics.AddError("Error updating file: ", "Problem calculating id from hard coded key: "+err.Error())
+			return
+		}
+	}
 
 	err := r.client.Update(rDirectory, rName, cDirectory, cName, cContents, cPerm)
 	if err != nil {
@@ -377,11 +424,17 @@ func (r *LocalResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	//   and there isn't anything to change in reality
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &config)...)
-	tflog.Debug(ctx, fmt.Sprintf("Response Object: %v", *resp))
+	tflog.Debug(ctx, fmt.Sprintf("Response Object: %#v", *resp))
 }
 
 func (r *LocalResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	tflog.Debug(ctx, fmt.Sprintf("Request Object: %v", req))
+	tflog.Debug(ctx, fmt.Sprintf("Request Object: %#v", req))
+
+	// Allow the ability to inject a file client, but use the osFileClient by default.
+	if r.client == nil {
+		tflog.Debug(ctx, "Configuring client with default osFileClient.")
+		r.client = &osFileClient{}
+	}
 
 	var state LocalResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -410,11 +463,11 @@ func (r *LocalResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	}
 
 	if err := r.client.Delete(directory, name); err != nil {
-		tflog.Error(ctx, "Failed to delete file: "+err.Error())
+		resp.Diagnostics.AddError("Failed to delete file: ", err.Error())
 		return
 	}
 
-	tflog.Debug(ctx, fmt.Sprintf("Response Object: %v", *resp))
+	tflog.Debug(ctx, fmt.Sprintf("Response Object: %#v", *resp))
 }
 
 func (r *LocalResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

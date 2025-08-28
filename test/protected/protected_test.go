@@ -10,7 +10,7 @@ import (
 	util "github.com/rancher/terraform-provider-file/test"
 )
 
-func TestProtectedBasic(t *testing.T) {
+func TestProtectedProtects(t *testing.T) {
 	t.Parallel()
 	id := util.GetId()
 	directory := "protected"
@@ -80,11 +80,21 @@ func TestProtectedBasic(t *testing.T) {
 		t.Fail()
 	}
 
+	t.Log("testing file name change")
+	terraformOptions.EnvVars["TF_FILE_HMAC_SECRET_KEY"] = "this-is-the-wrong-key"
+	terraformOptions.Vars["name"] = "wrong_key_test.txt" // if plan doesn't detect a change, then the resource's update func is never called.
+	_, err = terraform.InitAndApplyE(t, terraformOptions)
+	if err != nil {
+		t.Log("Apply failed as expected, test passed...")
+	}
+
 	if t.Failed() {
 		t.Log("Test failed...")
 	} else {
 		t.Log("Test passed...")
 	}
 	t.Log("Test complete, tearing down...")
+	terraformOptions.EnvVars["TF_FILE_HMAC_SECRET_KEY"] = "thisisasupersecretkey"
+	terraformOptions.Vars["name"] = "protected_test.txt"
 	util.TearDown(t, testDir, terraformOptions)
 }
