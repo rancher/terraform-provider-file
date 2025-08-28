@@ -31,7 +31,10 @@ func TestBasic(t *testing.T) {
 	statePath := filepath.Join(testDir, "tfstate")
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir: exampleDir,
-		Vars:         map[string]interface{}{},
+		Vars: map[string]interface{}{
+			"directory": testDir,
+			"name":      "basic_test.txt",
+		},
 		BackendConfig: map[string]interface{}{
 			"path": statePath,
 		},
@@ -53,7 +56,17 @@ func TestBasic(t *testing.T) {
 	if err != nil {
 		t.Log("Test failed, tearing down...")
 		util.TearDown(t, testDir, terraformOptions)
-		t.Fatalf("Error creating cluster: %s", err)
+		t.Fatalf("Error creating file: %s", err)
+	}
+
+	fileExists, err := util.CheckFileExists(filepath.Join(testDir, "basic_test.txt"))
+	if err != nil {
+		t.Log("Test failed, tearing down...")
+		util.TearDown(t, testDir, terraformOptions)
+		t.Fatalf("Error checking file: %s", err)
+	}
+	if !fileExists {
+		t.Fail()
 	}
 
 	if t.Failed() {
@@ -61,5 +74,6 @@ func TestBasic(t *testing.T) {
 	} else {
 		t.Log("Test passed...")
 	}
+	t.Log("Test complete, tearing down...")
 	util.TearDown(t, testDir, terraformOptions)
 }

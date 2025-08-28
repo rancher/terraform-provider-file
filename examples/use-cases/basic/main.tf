@@ -2,7 +2,13 @@
 
 provider "file" {}
 
+locals {
+  directory = (var.directory == "" ? "." : var.directory)
+  name      = (var.name == "" ? "basic_example.txt" : var.name)
+}
+
 resource "file_local" "basic" {
-  name     = "basic_example.txt"
-  contents = "An example of the \"most basic\" implementation writing a local file."
+  name      = local.name
+  directory = local.directory
+  contents  = "An example of the \"most basic\" implementation writing a local file."
 }
