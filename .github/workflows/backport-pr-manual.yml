@@ -1,4 +1,4 @@
-name: 'Auto Cherry-Pick to Release Branches'
+name: 'Manually Cherry-Pick to Release Branches'
 
 on:
   workflow_dispatch:
@@ -29,8 +29,8 @@ jobs:
         with:
           script: |
             const execSync = require('child_process').execSync;
-            const owner = github.repository_owner;
-            const repo = github.repository;
+            const owner = "rancher";
+            const repo = "terraform-provider-file";
             const mergeCommitSha = process.env.MERGE_COMMIT_SHA;
             const assignees = ['matttrach', 'jiaqiluo', 'HarrisonWAffel'];
 
