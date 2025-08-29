@@ -61,7 +61,7 @@ jobs:
                 `Backport #${prNumber} to ${labelName} for #${parentIssueNumber}`,
                 `Copied from PR:`,
                 `${pr.body}`
-              ].join("\n\n")
+              ].join("\n\n"),
               labels: [labelName],
               assignees: assignees
             });
