@@ -1,4 +1,4 @@
-# Copyright (c) HashiCorp, Inc.
+
 
 provider "file" {}
 
@@ -25,4 +25,9 @@ resource "file_local" "protected_env" {
   name      = join("_", ["b", local.name])
   directory = local.directory
   contents  = "An example implementation of a protected file."
+}
+
+data "file_local" "protected" {
+  name      = file_local.protected.name
+  directory = file_local.protected.directory
 }

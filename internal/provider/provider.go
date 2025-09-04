@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/rancher/terraform-provider-file/internal/provider/local"
 )
 
 // The `var _` is a special Go construct that results in an unusable variable.
@@ -48,13 +49,13 @@ func (p *FileProvider) Configure(ctx context.Context, req provider.ConfigureRequ
 
 func (p *FileProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewLocalResource,
+		local.NewLocalResource,
 	}
 }
 
 func (p *FileProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		// NewExampleDataSource,
+		local.NewLocalDataSource,
 	}
 }
 

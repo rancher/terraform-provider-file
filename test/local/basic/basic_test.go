@@ -1,6 +1,4 @@
-// Copyright (c) HashiCorp, Inc.
-
-package protected
+package basic
 
 import (
 	"path/filepath"
@@ -10,10 +8,11 @@ import (
 	util "github.com/rancher/terraform-provider-file/test"
 )
 
-func TestProtectedBasic(t *testing.T) {
+func TestBasic(t *testing.T) {
 	t.Parallel()
+
 	id := util.GetId()
-	directory := "protected"
+	directory := "local/basic"
 	repoRoot, err := util.GetRepoRoot(t)
 	if err != nil {
 		t.Fatalf("Error getting git root directory: %v", err)
@@ -27,30 +26,30 @@ func TestProtectedBasic(t *testing.T) {
 		util.TearDown(t, testDir, &terraform.Options{})
 		t.Fatalf("Error creating test data directories: %s", err)
 	}
-
 	statePath := filepath.Join(testDir, "tfstate")
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir: exampleDir,
 		Vars: map[string]interface{}{
 			"directory": testDir,
-			"name":      "protected_test.txt",
+			"name":      "basic_test.txt",
 		},
 		BackendConfig: map[string]interface{}{
 			"path": statePath,
 		},
 		EnvVars: map[string]string{
-			"TF_DATA_DIR":             testDir,
-			"TF_FILE_HMAC_SECRET_KEY": "thisisasupersecretkey",
-			"TF_IN_AUTOMATION":        "1",
-			"TF_CLI_ARGS_init":        "-no-color",
-			"TF_CLI_ARGS_plan":        "-no-color",
-			"TF_CLI_ARGS_apply":       "-no-color",
-			"TF_CLI_ARGS_destroy":     "-no-color",
-			"TF_CLI_ARGS_output":      "-no-color",
+			"TF_DATA_DIR":         testDir,
+			"TF_CLI_CONFIG_FILE":  filepath.Join(repoRoot, "test", ".terraformrc"),
+			"TF_IN_AUTOMATION":    "1",
+			"TF_CLI_ARGS_init":    "-no-color",
+			"TF_CLI_ARGS_plan":    "-no-color",
+			"TF_CLI_ARGS_apply":   "-no-color",
+			"TF_CLI_ARGS_destroy": "-no-color",
+			"TF_CLI_ARGS_output":  "-no-color",
 		},
 		RetryableTerraformErrors: util.GetRetryableTerraformErrors(),
 		NoColor:                  true,
 		Upgrade:                  true,
+		// ExtraArgs:                terraform.ExtraArgs{ Output: []string{"-json"} },
 	})
 
 	_, err = terraform.InitAndApplyE(t, terraformOptions)
@@ -59,24 +58,18 @@ func TestProtectedBasic(t *testing.T) {
 		util.TearDown(t, testDir, terraformOptions)
 		t.Fatalf("Error creating file: %s", err)
 	}
+	_, err = terraform.OutputAllE(t, terraformOptions)
+	if err != nil {
+		t.Log("Output failed, moving along...")
+	}
 
-	fileAExists, err := util.CheckFileExists(filepath.Join(testDir, "a_protected_test.txt"))
+	fileExists, err := util.CheckFileExists(filepath.Join(testDir, "basic_test.txt"))
 	if err != nil {
 		t.Log("Test failed, tearing down...")
 		util.TearDown(t, testDir, terraformOptions)
 		t.Fatalf("Error checking file: %s", err)
 	}
-	if !fileAExists {
-		t.Fail()
-	}
-
-	fileBExists, err := util.CheckFileExists(filepath.Join(testDir, "b_protected_test.txt"))
-	if err != nil {
-		t.Log("Test failed, tearing down...")
-		util.TearDown(t, testDir, terraformOptions)
-		t.Fatalf("Error checking file: %s", err)
-	}
-	if !fileBExists {
+	if !fileExists {
 		t.Fail()
 	}
 

@@ -13,8 +13,6 @@ Local File resource
 ## Example Usage
 
 ```terraform
-# Copyright (c) HashiCorp, Inc.
-
 resource "file_local" "basic_example" {
   name     = "example.txt"
   contents = "An example implementation writing a local file."
@@ -59,8 +57,6 @@ Import is supported using the following syntax:
 The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
 
 ```shell
-# Copyright (c) HashiCorp, Inc.
-
 # echo "Test data" > data.txt
 # FILEPATH="./data.txt"
 # TF_FILE_HMAC_SECRET_KEY="super-secret-key"

@@ -98,12 +98,23 @@ jobs:
       matrix:
         # list whatever Terraform versions here you would like to support
         terraform:
-          - '1.8.*'
-          - '1.9.*'
-          - '1.10.*'
-          - '1.11.*'
-          - '1.12.*'
+          # the latest patch of each version will be used
+          - '1.5.0'
+          - '1.6.0'
+          - '1.7.0'
+          - '1.8.0'
+          - '1.9.0'
+          - '1.10.0'
+          - '1.11.0'
+          - '1.12.0'
+          - '1.13.0'
     steps:
+      - name: install-nix
+        run: |
+          curl -L https://nixos.org/nix/install | sh
+          source /home/runner/.nix-profile/etc/profile.d/nix.sh
+          nix --version
+          which nix
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0 https://github.com/actions/checkout
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0 https://github.com/actions/setup-go
         with:
@@ -113,9 +124,12 @@ jobs:
         with:
           terraform_version: ${{ matrix.terraform }}
           terraform_wrapper: false
-      - run: go mod download
-      - run: go install gotest.tools/gotestsum@ddd0b05a6878e2e8257a2abe6e7df66cebc53d0e # v1.12.3
-      - run: make test
-      - run: terraform fmt -check -recursive
-      - run: pushd ./examples/use-cases/basic; terraform init -input=false; popd
-      - run: pushd ./examples/use-cases/basic; terraform validate -no-color; popd
+      - name: run tests
+        shell: /home/runner/.nix-profile/bin/nix develop --ignore-environment --extra-experimental-features nix-command --extra-experimental-features flakes --keep HOME --keep NIX_SSL_CERT_FILE --keep NIX_ENV_LOADED --keep TERM --command bash -e {0}
+        run: |
+          go mod download
+          go install gotest.tools/gotestsum@ddd0b05a6878e2e8257a2abe6e7df66cebc53d0e # v1.12.3
+          terraform fmt -check -recursive
+          tfswitch -s ${{ matrix.terraform }}
+          make test
+          make testacc

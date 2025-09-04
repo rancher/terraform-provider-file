@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright (c) HashiCorp, Inc.
+
 
 # summarize.sh - reads report.json and prints a summary
 
