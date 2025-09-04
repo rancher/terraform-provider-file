@@ -13,6 +13,7 @@ Local File DataSource
 ## Example Usage
 
 ```terraform
+# tflint-ignore: terraform_unused_declarations
 data "file_local" "basic_example" {
   name      = "example.txt"
   directory = "."
