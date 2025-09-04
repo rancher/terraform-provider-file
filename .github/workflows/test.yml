@@ -116,6 +116,5 @@ jobs:
       - run: go mod download
       - run: go install gotest.tools/gotestsum@ddd0b05a6878e2e8257a2abe6e7df66cebc53d0e # v1.12.3
       - run: make test
+      - run: make testacc
       - run: terraform fmt -check -recursive
-      - run: pushd ./examples/use-cases/local/basic; terraform init -input=false; popd
-      - run: pushd ./examples/use-cases/local/basic; terraform validate -no-color; popd
