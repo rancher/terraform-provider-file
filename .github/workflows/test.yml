@@ -98,11 +98,16 @@ jobs:
       matrix:
         # list whatever Terraform versions here you would like to support
         terraform:
-          - '1.8.*'
-          - '1.9.*'
-          - '1.10.*'
-          - '1.11.*'
-          - '1.12.*'
+          # the latest patch of each version will be used
+          - '1.5.0'
+          - '1.6.0'
+          - '1.7.0'
+          - '1.8.0'
+          - '1.9.0'
+          - '1.10.0'
+          - '1.11.0'
+          - '1.12.0'
+          - '1.13.0'
     steps:
       - name: install-nix
         run: |
@@ -125,5 +130,6 @@ jobs:
           go mod download
           go install gotest.tools/gotestsum@ddd0b05a6878e2e8257a2abe6e7df66cebc53d0e # v1.12.3
           terraform fmt -check -recursive
+          tfswitch -s=${{ matrix.terraform }}
           make test
           make testacc
