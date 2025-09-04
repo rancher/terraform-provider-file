@@ -1,4 +1,4 @@
-# Copyright (c) HashiCorp, Inc.
+
 
 variable "directory" {
   type    = string
@@ -7,5 +7,5 @@ variable "directory" {
 
 variable "name" {
   type    = string
-  default = "protected_example.txt"
+  default = "basic_example.txt"
 }

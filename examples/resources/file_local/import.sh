@@ -1,4 +1,4 @@
-# Copyright (c) HashiCorp, Inc.
+
 
 # echo "Test data" > data.txt
 # FILEPATH="./data.txt"

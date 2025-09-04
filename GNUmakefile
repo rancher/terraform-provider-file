@@ -20,14 +20,12 @@ test:
 
 testacc: build
 	export REPO_ROOT="../../../."; \
-	export TF_CLI_CONFIG_FILE="../../../test/.terraformrc"; \
 	pushd ./test; \
 	gotestsum --format standard-verbose --jsonfile report.json --post-run-command "./summarize.sh" -- ./... -v -p=1 -timeout=300s; \
 	popd;
 
 debug: build
 	export REPO_ROOT="../../../."; \
-	export TF_CLI_CONFIG_FILE="../../../test/.terraformrc"; \
 	export TF_LOG=DEBUG; \
 	pushd ./test; \
 	gotestsum --format standard-verbose --jsonfile report.json --post-run-command "./summarize.sh" -- ./... -v -p=1 -timeout=300s; \
