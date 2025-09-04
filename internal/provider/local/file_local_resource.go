@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
-package provider
+package local
 
 import (
 	"context"
@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/boolvalidator"
@@ -34,6 +32,8 @@ import (
 var _ resource.Resource = &LocalResource{}
 var _ resource.ResourceWithImportState = &LocalResource{}
 
+const unprotectedHmacSecret = "this-is-the-hmac-secret-key-that-will-be-used-to-calculate-the-hash-of-unprotected-files"
+
 // An interface for defining custom file managers.
 type fileClient interface {
 	Create(directory string, name string, data string, permissions string) error
@@ -41,58 +41,6 @@ type fileClient interface {
 	Read(directory string, name string) (string, string, error) // permissions, contents, error
 	Update(currentDirectory string, currentName string, newDirectory string, newName string, data string, permissions string) error
 	Delete(directory string, name string) error
-}
-
-// The default fileClient, using the os package.
-type osFileClient struct{}
-
-var _ fileClient = &osFileClient{} // make sure the osFileClient implements the fileClient
-
-func (c *osFileClient) Create(directory string, name string, data string, permissions string) error {
-	path := filepath.Join(directory, name)
-	modeInt, err := strconv.ParseUint(permissions, 8, 32)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, []byte(data), os.FileMode(modeInt))
-}
-func (c *osFileClient) Read(directory string, name string) (string, string, error) {
-	path := filepath.Join(directory, name)
-	info, err := os.Stat(path)
-	if err != nil && os.IsNotExist(err) {
-		return "", "", fmt.Errorf("file not found")
-	}
-	if err != nil {
-		return "", "", err
-	}
-	mode := fmt.Sprintf("%#o", info.Mode().Perm())
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		return "", "", err
-	}
-	return mode, string(contents), nil
-}
-func (c *osFileClient) Update(currentDirectory string, currentName string, newDirectory string, newName string, data string, permissions string) error {
-	currentPath := filepath.Join(currentDirectory, currentName)
-	newPath := filepath.Join(newDirectory, newName)
-	if currentPath != newPath {
-		err := os.Rename(currentPath, newPath)
-		if err != nil {
-			return err
-		}
-	}
-	modeInt, err := strconv.ParseUint(permissions, 8, 32)
-	if err != nil {
-		return err
-	}
-	if err = os.WriteFile(newPath, []byte(data), os.FileMode(modeInt)); err != nil {
-		return err
-	}
-	return nil
-}
-func (c *osFileClient) Delete(directory string, name string) error {
-	path := filepath.Join(directory, name)
-	return os.Remove(path)
 }
 
 func NewLocalResource() resource.Resource {
@@ -212,6 +160,7 @@ func (r *LocalResource) Create(ctx context.Context, req resource.CreateRequest, 
 	var err error
 
 	// Allow the ability to inject a file client, but use the osFileClient by default.
+	// see file_os_client.go
 	if r.client == nil {
 		tflog.Debug(ctx, "Configuring client with default osFileClient.")
 		r.client = &osFileClient{}
@@ -245,7 +194,7 @@ func (r *LocalResource) Create(ctx context.Context, req resource.CreateRequest, 
 			return
 		} // at this point we have an id, key, contents, protected is true, and our calculated id matches what was provided
 	} else {
-		id, err = calculateId(contents, "this-is-the-hmac-secret-key-that-will-be-used-to-calculate-the-hash-of-unprotected-files")
+		id, err = calculateId(contents, unprotectedHmacSecret)
 		if err != nil {
 			resp.Diagnostics.AddError("Error creating file: ", "Problem calculating id from hard coded key: "+err.Error())
 			return
@@ -369,7 +318,7 @@ func (r *LocalResource) Update(ctx context.Context, req resource.UpdateRequest, 
 			return
 		}
 	} else {
-		id, err := calculateId(cContents, "this-is-the-hmac-secret-key-that-will-be-used-to-calculate-the-hash-of-unprotected-files")
+		id, err := calculateId(cContents, unprotectedHmacSecret)
 		if err != nil {
 			resp.Diagnostics.AddError("Error updating file: ", "Problem calculating id from hard coded key: "+err.Error())
 			return
@@ -405,7 +354,7 @@ func (r *LocalResource) Update(ctx context.Context, req resource.UpdateRequest, 
 			return
 		}
 	} else {
-		_, err := calculateId(rContents, "this-is-the-hmac-secret-key-that-will-be-used-to-calculate-the-hash-of-unprotected-files")
+		_, err := calculateId(rContents, unprotectedHmacSecret)
 		if err != nil {
 			resp.Diagnostics.AddError("Error updating file: ", "Problem calculating id from hard coded key: "+err.Error())
 			return
