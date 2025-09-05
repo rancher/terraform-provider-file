@@ -13,7 +13,7 @@ import (
 )
 
 const (
-  defaultId = "fake123"
+	defaultId = "fake123"
 )
 
 var boilerplateResourceBooleanFields = []string{}
@@ -91,10 +91,10 @@ func TestBoilerplateResourceCreate(t *testing.T) {
 				}
 				plannedId := plannedState.Id.ValueString()
 				r := getBoilerplateResourceCreateResponseContainer()
-        // run the resource's Create command
+				// run the resource's Create command
 				tc.fit.Create(context.Background(), tc.have, &r)
 				defer func() {
-          // run the client's Delete function
+					// run the client's Delete function
 					if err := tc.fit.client.Delete(plannedId); err != nil {
 						t.Errorf("Error cleaning up: %+v", err)
 					}
@@ -249,14 +249,14 @@ func TestBoilerplateResourceDelete(t *testing.T) {
 				r := getBoilerplateResourceDeleteResponseContainer()
 				tc.fit.Delete(context.Background(), tc.have, &r)
 				got := r
-				// Verify the boilerplate was actually deleted
+				// Verify the boilerplate was actually deleted.
 				if id, err := tc.fit.client.Read(tc.setup["id"]); err == nil || err.Error() != "some obj not found" {
 					if err == nil {
 						t.Errorf("Expected boilerplate to be deleted, but it still exists. Boilerplate id: %+v", id)
 					}
 					t.Errorf("Expected boilerplate to be deleted, but it still exists. Error: %s", err.Error())
 				}
-				// verify that the file was removed from state
+				// Verify that the file was removed from state.
 				if diff := cmp.Diff(tc.want, got); diff != "" {
 					t.Errorf("Update() mismatch (-want +got):\n%+v", diff)
 				}
@@ -266,7 +266,7 @@ func TestBoilerplateResourceDelete(t *testing.T) {
 }
 
 // *** Test Helper Functions *** //
-// Create
+// Create.
 func getBoilerplateResourceCreateRequest(t *testing.T, data map[string]string) resource.CreateRequest {
 	planMap := make(map[string]tftypes.Value)
 	for key, value := range data {
@@ -325,7 +325,7 @@ func getBoilerplateResourceCreateResponse(t *testing.T, data map[string]string) 
 	}
 }
 
-// Read
+// Read.
 func getBoilerplateResourceReadRequest(t *testing.T, data map[string]string) resource.ReadRequest {
 	stateMap := make(map[string]tftypes.Value)
 	for key, value := range data {
@@ -376,7 +376,7 @@ func getBoilerplateResourceReadResponse(t *testing.T, data map[string]string) re
 	}
 }
 
-// Update
+// Update.
 func getBoilerplateResourceUpdateRequest(t *testing.T, data map[string]map[string]string) resource.UpdateRequest {
 	stateMap := make(map[string]tftypes.Value)
 	for key, value := range data["priorState"] {
@@ -454,7 +454,7 @@ func getBoilerplateResourceUpdateResponse(t *testing.T, data map[string]string) 
 	}
 }
 
-// Delete
+// Delete.
 func getBoilerplateResourceDeleteRequest(t *testing.T, data map[string]string) resource.DeleteRequest {
 	stateMap := make(map[string]tftypes.Value)
 	for key, value := range data {
@@ -491,11 +491,11 @@ func getBoilerplateResourceDeleteResponse() resource.DeleteResponse {
 	}
 }
 
-// The helpers helpers
+// The helpers helpers.
 func getBoilerplateResourceAttributeTypes() tftypes.Object {
 	return tftypes.Object{
 		AttributeTypes: map[string]tftypes.Type{
-			"id":              tftypes.String,
+			"id": tftypes.String,
 		},
 	}
 }

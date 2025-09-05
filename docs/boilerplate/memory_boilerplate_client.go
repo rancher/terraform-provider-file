@@ -12,12 +12,8 @@ import (
 // 	Delete(id string) error
 // }
 
-const(
-  memoryBoilerplateClientId = "fake123"
-)
-
-type memoryBoilerplateClient struct{
-  someObject  map[string]string
+type memoryBoilerplateClient struct {
+	someObject map[string]string
 }
 
 var _ boilerplateClient = &memoryBoilerplateClient{} // make sure we implement the boilerplateClient properly
@@ -36,11 +32,11 @@ func (c *memoryBoilerplateClient) Read(id string) (string, error) {
 }
 
 func (c *memoryBoilerplateClient) Update(id string) error {
-  c.someObject["id"] = id
-  return nil
+	c.someObject["id"] = id
+	return nil
 }
 
 func (c *memoryBoilerplateClient) Delete(id string) error {
-  c.someObject = nil
-  return nil
+	c.someObject = nil
+	return nil
 }
