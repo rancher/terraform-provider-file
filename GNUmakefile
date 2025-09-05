@@ -15,6 +15,9 @@ install:
 generate:
 	cd tools; go generate ./...
 
+dt: # run specific unit test
+	gotestsum --format standard-verbose -- $(t)
+
 test:
 	gotestsum --format standard-verbose --jsonfile report.json --post-run-command "./test/summarize.sh" -- ./... -v -p=10 -timeout=300s -cover
 
