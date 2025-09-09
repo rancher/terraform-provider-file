@@ -1,17 +1,19 @@
-package protected
+package basic
 
 import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terratest/modules/terraform"
+  "github.com/gruntwork-io/terratest/modules/terraform"
 	util "github.com/rancher/terraform-provider-file/test"
+  "github.com/stretchr/testify/assert"
 )
 
-func TestProtectedProtects(t *testing.T) {
+func TestSnapshotBasic(t *testing.T) {
 	t.Parallel()
+
 	id := util.GetId()
-	directory := "local_protected"
+	directory := "snapshot_basic"
 	repoRoot, err := util.GetRepoRoot(t)
 	if err != nil {
 		t.Fatalf("Error getting git root directory: %v", err)
@@ -25,27 +27,25 @@ func TestProtectedProtects(t *testing.T) {
 		util.TearDown(t, testDir, &terraform.Options{})
 		t.Fatalf("Error creating test data directories: %s", err)
 	}
-
 	statePath := filepath.Join(testDir, "tfstate")
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir: exampleDir,
 		Vars: map[string]interface{}{
 			"directory": testDir,
-			"name":      "protected_test.txt",
+			"name":      "basic_test.txt",
 		},
 		BackendConfig: map[string]interface{}{
 			"path": statePath,
 		},
 		EnvVars: map[string]string{
-			"TF_DATA_DIR":             testDir,
-			"TF_FILE_HMAC_SECRET_KEY": "thisisasupersecretkey",
-			"TF_CLI_CONFIG_FILE":      filepath.Join(repoRoot, "test", ".terraformrc"),
-			"TF_IN_AUTOMATION":        "1",
-			"TF_CLI_ARGS_init":        "-no-color",
-			"TF_CLI_ARGS_plan":        "-no-color",
-			"TF_CLI_ARGS_apply":       "-no-color",
-			"TF_CLI_ARGS_destroy":     "-no-color",
-			"TF_CLI_ARGS_output":      "-no-color",
+			"TF_DATA_DIR":         testDir,
+			"TF_CLI_CONFIG_FILE":  filepath.Join(repoRoot, "test", ".terraformrc"),
+			"TF_IN_AUTOMATION":    "1",
+			"TF_CLI_ARGS_init":    "-no-color",
+			"TF_CLI_ARGS_plan":    "-no-color",
+			"TF_CLI_ARGS_apply":   "-no-color",
+			"TF_CLI_ARGS_destroy": "-no-color",
+			"TF_CLI_ARGS_output":  "-no-color",
 		},
 		RetryableTerraformErrors: util.GetRetryableTerraformErrors(),
 		NoColor:                  true,
@@ -59,38 +59,30 @@ func TestProtectedProtects(t *testing.T) {
 		util.TearDown(t, testDir, terraformOptions)
 		t.Fatalf("Error creating file: %s", err)
 	}
-	_, err = terraform.OutputAllE(t, terraformOptions)
+	outputs, err := terraform.OutputAllE(t, terraformOptions)
 	if err != nil {
 		t.Log("Output failed, moving along...")
 	}
 
-	fileAExists, err := util.CheckFileExists(filepath.Join(testDir, "a_protected_test.txt"))
+  pesky_id := outputs["pesky_id"]
+  snapshot := outputs["snapshot"]
+  a := assert.New(t)
+  a.Equal(pesky_id, snapshot, "On the first run the snapshot will match the id.")
+
+  _, err = terraform.InitAndApplyE(t, terraformOptions)
 	if err != nil {
 		t.Log("Test failed, tearing down...")
 		util.TearDown(t, testDir, terraformOptions)
-		t.Fatalf("Error checking file: %s", err)
+		t.Fatalf("Error creating file: %s", err)
 	}
-	if !fileAExists {
-		t.Fail()
+	outputs, err = terraform.OutputAllE(t, terraformOptions)
+	if err != nil {
+		t.Log("Output failed, moving along...")
 	}
 
-	fileBExists, err := util.CheckFileExists(filepath.Join(testDir, "b_protected_test.txt"))
-	if err != nil {
-		t.Log("Test failed, tearing down...")
-		util.TearDown(t, testDir, terraformOptions)
-		t.Fatalf("Error checking file: %s", err)
-	}
-	if !fileBExists {
-		t.Fail()
-	}
-
-	t.Log("testing file name change")
-	terraformOptions.EnvVars["TF_FILE_HMAC_SECRET_KEY"] = "this-is-the-wrong-key"
-	terraformOptions.Vars["name"] = "wrong_key_test.txt" // if plan doesn't detect a change, then the resource's update func is never called.
-	_, err = terraform.InitAndApplyE(t, terraformOptions)
-	if err != nil {
-		t.Log("Apply failed as expected, test passed...")
-	}
+  pesky_id = outputs["pesky_id"]
+  snapshot = outputs["snapshot"]
+  a.NotEqual(pesky_id, snapshot, "On subsequent runs the id will change, but the snapshot won't.")
 
 	if t.Failed() {
 		t.Log("Test failed...")
@@ -98,7 +90,5 @@ func TestProtectedProtects(t *testing.T) {
 		t.Log("Test passed...")
 	}
 	t.Log("Test complete, tearing down...")
-	terraformOptions.EnvVars["TF_FILE_HMAC_SECRET_KEY"] = "thisisasupersecretkey"
-	terraformOptions.Vars["name"] = "protected_test.txt"
 	util.TearDown(t, testDir, terraformOptions)
 }

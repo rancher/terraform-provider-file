@@ -11,7 +11,7 @@ import (
 func TestProtectedBasic(t *testing.T) {
 	t.Parallel()
 	id := util.GetId()
-	directory := "local/protected"
+	directory := "local_protected"
 	repoRoot, err := util.GetRepoRoot(t)
 	if err != nil {
 		t.Fatalf("Error getting git root directory: %v", err)

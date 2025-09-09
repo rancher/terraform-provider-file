@@ -1,3 +1,4 @@
+```Go
 package boilerplate
 
 import (
@@ -256,7 +257,7 @@ func TestBoilerplateResourceDelete(t *testing.T) {
 					}
 					t.Errorf("Expected boilerplate to be deleted, but it still exists. Error: %s", err.Error())
 				}
-				// Verify that the file was removed from state.
+				// Verify that the boilerplate was removed from state.
 				if diff := cmp.Diff(tc.want, got); diff != "" {
 					t.Errorf("Update() mismatch (-want +got):\n%+v", diff)
 				}
@@ -506,3 +507,4 @@ func getBoilerplateResourceSchema() *resource.SchemaResponse {
 	testResource.Schema(context.Background(), resource.SchemaRequest{}, r)
 	return r
 }
+```

@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/rancher/terraform-provider-file/internal/provider/local"
+	"github.com/rancher/terraform-provider-file/internal/provider/snapshot"
 )
 
 // The `var _` is a special Go construct that results in an unusable variable.
@@ -50,6 +51,7 @@ func (p *FileProvider) Configure(ctx context.Context, req provider.ConfigureRequ
 func (p *FileProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		local.NewLocalResource,
+		snapshot.NewSnapshotResource,
 	}
 }
 

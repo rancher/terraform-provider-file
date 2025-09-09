@@ -1,3 +1,4 @@
+```Go
 package boilerplate
 
 import (
@@ -11,8 +12,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-// The `var _` is a special Go construct that results in an unusable variable.
-// The purpose of these lines is to make sure our LocalFileResource correctly implements the `resource.Resource“ interface.
+// The "var _" is a special Go construct that results in an unusable variable.
+// The purpose of these lines is to make sure our LocalFileResource correctly implements the "resource.Resource“ interface.
 // These will fail at compilation time if the implementation is not satisfied.
 var _ resource.Resource = &BoilerplateResource{}
 var _ resource.ResourceWithImportState = &BoilerplateResource{}
@@ -167,3 +168,4 @@ func (r *BoilerplateResource) Delete(ctx context.Context, req resource.DeleteReq
 func (r *BoilerplateResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
+```
