@@ -244,7 +244,7 @@ func (r *LocalResource) Read(ctx context.Context, req resource.ReadRequest, resp
 
 	// If the file doesn't exist at the path, then we need to (re)create it
 	perm, contents, err := r.client.Read(sDirectory, sName)
-	if err != nil && err.Error() == "File not found." {
+	if err != nil && err.Error() == "file not found" {
 		resp.State.RemoveResource(ctx)
 		return
 	}

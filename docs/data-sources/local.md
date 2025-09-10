@@ -15,8 +15,7 @@ Local File DataSource
 ```terraform
 # tflint-ignore: terraform_unused_declarations
 data "file_local" "basic_example" {
-  name      = "example.txt"
-  directory = "."
+  name = "example.txt"
 }
 ```
 
@@ -25,11 +24,11 @@ data "file_local" "basic_example" {
 
 ### Required
 
-- `directory` (String) The directory where the file exists.
 - `name` (String) File name, required.
 
 ### Optional
 
+- `directory` (String) The directory where the file exists, if left empty the current local directory will be used.
 - `hmac_secret_key` (String, Sensitive) A string used to generate the file identifier, you can pass this value in the environment variable `TF_FILE_HMAC_SECRET_KEY`.
 
 ### Read-Only
