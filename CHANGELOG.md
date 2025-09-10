@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/rancher/terraform-provider-file/compare/v0.2.1...v0.3.0) (2025-09-10)
+
+
+### Features
+
+* add data sources and organize code ([#148](https://github.com/rancher/terraform-provider-file/issues/148)) ([#151](https://github.com/rancher/terraform-provider-file/issues/151)) ([7a5c59e](https://github.com/rancher/terraform-provider-file/commit/7a5c59e0db30623ac1ab46a63d878bf4d545944d))
+* add snapshots ([#153](https://github.com/rancher/terraform-provider-file/issues/153)) ([#158](https://github.com/rancher/terraform-provider-file/issues/158)) ([3e2c661](https://github.com/rancher/terraform-provider-file/commit/3e2c661fb6005eb5900a6fe3c3ca140cc68a41f3))
+
 ## [0.2.1](https://github.com/rancher/terraform-provider-file/compare/v0.1.3...v0.2.1) (2025-08-29)
 
 
