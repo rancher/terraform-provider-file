@@ -8,16 +8,17 @@ import (
 	util "github.com/rancher/terraform-provider-file/test"
 )
 
-func TestLocalBasic(t *testing.T) {
+// This tests the example we are giving to docs.
+func TestSnapshotExample(t *testing.T) {
 	t.Parallel()
 
 	id := util.GetId()
-	directory := "local_basic"
+	directory := "file_snapshot"
 	repoRoot, err := util.GetRepoRoot(t)
 	if err != nil {
 		t.Fatalf("Error getting git root directory: %v", err)
 	}
-	exampleDir := filepath.Join(repoRoot, "examples", "use-cases", directory)
+	exampleDir := filepath.Join(repoRoot, "examples", "resources", directory)
 	testDir := filepath.Join(repoRoot, "test", "data", id)
 
 	err = util.Setup(t, id, "test/data")
@@ -29,10 +30,7 @@ func TestLocalBasic(t *testing.T) {
 	statePath := filepath.Join(testDir, "tfstate")
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir: exampleDir,
-		Vars: map[string]interface{}{
-			"directory": testDir,
-			"name":      "basic_test.txt",
-		},
+		Vars:         map[string]interface{}{}, // Examples don't need vars.
 		BackendConfig: map[string]interface{}{
 			"path": statePath,
 		},
@@ -49,7 +47,6 @@ func TestLocalBasic(t *testing.T) {
 		RetryableTerraformErrors: util.GetRetryableTerraformErrors(),
 		NoColor:                  true,
 		Upgrade:                  true,
-		// ExtraArgs:                terraform.ExtraArgs{ Output: []string{"-json"} },
 	})
 
 	_, err = terraform.InitAndApplyE(t, terraformOptions)
@@ -62,17 +59,7 @@ func TestLocalBasic(t *testing.T) {
 	if err != nil {
 		t.Log("Output failed, moving along...")
 	}
-
-	fileExists, err := util.CheckFileExists(filepath.Join(testDir, "basic_test.txt"))
-	if err != nil {
-		t.Log("Test failed, tearing down...")
-		util.TearDown(t, testDir, terraformOptions)
-		t.Fatalf("Error checking file: %s", err)
-	}
-	if !fileExists {
-		t.Fail()
-	}
-
+	// if the apply doesn't error then this is good enough for the example
 	if t.Failed() {
 		t.Log("Test failed...")
 	} else {
