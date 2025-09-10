@@ -49,8 +49,9 @@ func (r *LocalDataSource) Schema(ctx context.Context, req datasource.SchemaReque
 				Required:            true,
 			},
 			"directory": schema.StringAttribute{
-				MarkdownDescription: "The directory where the file exists.",
-				Required:            true,
+				MarkdownDescription: "The directory where the file exists, if left empty the current local directory will be used.",
+				Optional:            true,
+				Computed:            true,
 			},
 			"hmac_secret_key": schema.StringAttribute{
 				MarkdownDescription: "A string used to generate the file identifier, " +
@@ -100,6 +101,9 @@ func (r *LocalDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 
 	cName := config.Name.ValueString()
 	cDirectory := config.Directory.ValueString()
+	if cDirectory == "" {
+		cDirectory = "."
+	}
 	cPerm := config.Permissions.ValueString()
 	cHmacSecretKey := config.HmacSecretKey.ValueString()
 
@@ -115,7 +119,7 @@ func (r *LocalDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	}
 
 	perm, contents, err := r.client.Read(cDirectory, cName)
-	if err != nil && err.Error() == "File not found." {
+	if err != nil && err.Error() == "file not found" {
 		resp.State.RemoveResource(ctx)
 		return
 	}
