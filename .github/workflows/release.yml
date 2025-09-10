@@ -27,7 +27,7 @@ jobs:
           manifest-file: .release-please-manifest.json
 
       # These run only if a release PR was opened or modified, so not when the PR is merged
-      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1 https://github.com/actions/github-script/commits/main
+      - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v7.0.1 https://github.com/actions/github-script/commits/main
         name: wait-for-e2e
         if: steps.release-please.outputs.pr
         with:
@@ -41,7 +41,7 @@ jobs:
             })
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0 https://github.com/actions/checkout
         if: steps.release-please.outputs.pr
-      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0 https://github.com/actions/setup-go
+      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v5.5.0 https://github.com/actions/setup-go
         if: steps.release-please.outputs.pr
         with:
           go-version-file: 'go.mod'
@@ -64,7 +64,7 @@ jobs:
         if: steps.release-please.outputs.pr
         shell: /home/runner/.nix-profile/bin/nix develop --ignore-environment --extra-experimental-features nix-command --extra-experimental-features flakes --keep HOME --keep NIX_SSL_CERT_FILE --keep NIX_ENV_LOADED --keep TERM --command bash -e {0}
         run: make testacc
-      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1 https://github.com/actions/github-script/commits/main
+      - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v7.0.1 https://github.com/actions/github-script/commits/main
         name: report-tests-passed
         if: steps.release-please.outputs.pr && always() && (steps.run-unit-tests.conclusion == 'success') && (steps.run-acc-tests.conclusion == 'success')
         with:
@@ -76,7 +76,7 @@ jobs:
               repo: "${{ github.event.repository.name }}",
               body: "Tests Passed!"
             })
-      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1 https://github.com/actions/github-script/commits/main
+      - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v7.0.1 https://github.com/actions/github-script/commits/main
         name: report-tests-failed
         if: steps.release-please.outputs.pr && always() && ((steps.run-unit-tests.conclusion == 'failure') || (steps.run-acc-tests.conclusion == 'failure'))
         with:
@@ -94,7 +94,7 @@ jobs:
         if: steps.release-please.outputs.version
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0 https://github.com/actions/setup-go
+      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v5.5.0 https://github.com/actions/setup-go
         if: steps.release-please.outputs.version
         with:
           go-version-file: 'go.mod'
