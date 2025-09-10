@@ -4,9 +4,9 @@ import (
 	"path/filepath"
 	"testing"
 
-  "github.com/gruntwork-io/terratest/modules/terraform"
+	"github.com/gruntwork-io/terratest/modules/terraform"
 	util "github.com/rancher/terraform-provider-file/test"
-  "github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSnapshotBasic(t *testing.T) {
@@ -64,12 +64,12 @@ func TestSnapshotBasic(t *testing.T) {
 		t.Log("Output failed, moving along...")
 	}
 
-  pesky_id := outputs["pesky_id"]
-  snapshot := outputs["snapshot"]
-  a := assert.New(t)
-  a.Equal(pesky_id, snapshot, "On the first run the snapshot will match the id.")
+	pesky_id := outputs["pesky_id"]
+	snapshot := outputs["snapshot"]
+	a := assert.New(t)
+	a.Equal(pesky_id, snapshot, "On the first run the snapshot will match the id.")
 
-  _, err = terraform.InitAndApplyE(t, terraformOptions)
+	_, err = terraform.InitAndApplyE(t, terraformOptions)
 	if err != nil {
 		t.Log("Test failed, tearing down...")
 		util.TearDown(t, testDir, terraformOptions)
@@ -80,9 +80,9 @@ func TestSnapshotBasic(t *testing.T) {
 		t.Log("Output failed, moving along...")
 	}
 
-  pesky_id = outputs["pesky_id"]
-  snapshot = outputs["snapshot"]
-  a.NotEqual(pesky_id, snapshot, "On subsequent runs the id will change, but the snapshot won't.")
+	pesky_id = outputs["pesky_id"]
+	snapshot = outputs["snapshot"]
+	a.NotEqual(pesky_id, snapshot, "On subsequent runs the id will change, but the snapshot won't.")
 
 	if t.Failed() {
 		t.Log("Test failed...")

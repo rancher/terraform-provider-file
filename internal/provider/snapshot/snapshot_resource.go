@@ -148,9 +148,9 @@ func (r *SnapshotResource) Update(ctx context.Context, req resource.UpdateReques
 
 	if pUpdateTrigger != sUpdateTrigger {
 		tflog.Debug(
-      ctx,
-      fmt.Sprintf("Update trigger has changed from %s to %s, updating snapshot to contents and id.", sUpdateTrigger, pUpdateTrigger),
-    )
+			ctx,
+			fmt.Sprintf("Update trigger has changed from %s to %s, updating snapshot to contents and id.", sUpdateTrigger, pUpdateTrigger),
+		)
 		plan.Snapshot = types.StringValue(pContents)
 		plan.Id = types.StringValue(hexContents)
 	} else {
@@ -158,7 +158,7 @@ func (r *SnapshotResource) Update(ctx context.Context, req resource.UpdateReques
 		plan.Snapshot = types.StringValue(sSnapshot)
 		plan.Id = types.StringValue(sId)
 	}
-  tflog.Debug(ctx, fmt.Sprintf("Setting state to this plan: \n%+v", &plan))
+	tflog.Debug(ctx, fmt.Sprintf("Setting state to this plan: \n%+v", &plan))
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 	tflog.Debug(ctx, fmt.Sprintf("Update Response Object: %+v", *resp))
 }
