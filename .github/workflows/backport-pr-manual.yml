@@ -23,7 +23,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: 'Find Issues and Create Cherry-Pick PRs'
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1 https://github.com/actions/github-script
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v7.0.1 https://github.com/actions/github-script
         env:
           MERGE_COMMIT_SHA: ${{ inputs.merge_commit_sha }}
         with:
