@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
-package local
+package file_local
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	c "github.com/rancher/terraform-provider-file/internal/provider/file_client"
 )
 
 const (
@@ -78,7 +79,7 @@ func TestLocalResourceCreate(t *testing.T) {
 		}{
 			{
 				"Basic",
-				LocalResource{client: &memoryFileClient{}},
+				LocalResource{client: &c.MemoryFileClient{}},
 				// have
 				getCreateRequest(t, map[string]string{
 					"id":              defaultId,
@@ -102,7 +103,7 @@ func TestLocalResourceCreate(t *testing.T) {
 			},
 			{
 				"Protected",
-				LocalResource{client: &osFileClient{}},
+				LocalResource{client: &c.MemoryFileClient{}},
 				// have
 				getCreateRequest(t, map[string]string{
 					"id":              "4ccd8ec7ea24e0524c8aba459fbf3a2649ec3cd96a1c8f9dfb326cc57a9d3127",
@@ -126,7 +127,7 @@ func TestLocalResourceCreate(t *testing.T) {
 			},
 			{
 				"Protected using key from environment",
-				LocalResource{client: &memoryFileClient{}},
+				LocalResource{client: &c.MemoryFileClient{}},
 				// have
 				getCreateRequest(t, map[string]string{
 					"id":              "59fed8691a76c7693fc9dcd4fda28390a1fd3090114bc64f3e5a3abe312a92f5",
@@ -189,7 +190,7 @@ func TestLocalResourceRead(t *testing.T) {
 		}{
 			{
 				"Unprotected",
-				LocalResource{client: &memoryFileClient{}},
+				LocalResource{client: &c.MemoryFileClient{}},
 				// have
 				getReadRequest(t, map[string]string{
 					"id":              "60cef95046105ff4522c0c1f1aeeeba43d0d729dbcabdd8846c317c98cac60a2",
@@ -219,7 +220,7 @@ func TestLocalResourceRead(t *testing.T) {
 			},
 			{
 				"Protected",
-				LocalResource{client: &memoryFileClient{}},
+				LocalResource{client: &c.MemoryFileClient{}},
 				// have
 				getReadRequest(t, map[string]string{
 					"id":              "ec4407ba53b2c40ac2ac18ff7372a6fe6e4f7f8aa04f340503aefc7d9a5fa4e1",
@@ -250,7 +251,7 @@ func TestLocalResourceRead(t *testing.T) {
 			},
 			{
 				"Protected with content update",
-				LocalResource{client: &memoryFileClient{}},
+				LocalResource{client: &c.MemoryFileClient{}},
 				// have
 				getReadRequest(t, map[string]string{
 					"id":              "ec4407ba53b2c40ac2ac18ff7372a6fe6e4f7f8aa04f340503aefc7d9a5fa4e1",
@@ -281,7 +282,7 @@ func TestLocalResourceRead(t *testing.T) {
 			},
 			{
 				"Protected with mode update",
-				LocalResource{client: &memoryFileClient{}},
+				LocalResource{client: &c.MemoryFileClient{}},
 				// have
 				getReadRequest(t, map[string]string{
 					"id":              "ec4407ba53b2c40ac2ac18ff7372a6fe6e4f7f8aa04f340503aefc7d9a5fa4e1",
@@ -342,7 +343,7 @@ func TestLocalResourceUpdate(t *testing.T) {
 		}{
 			{
 				"Basic test",
-				LocalResource{client: &memoryFileClient{}},
+				LocalResource{client: &c.MemoryFileClient{}},
 				// have
 				getUpdateRequest(t, map[string]map[string]string{
 					"priorState": {
@@ -427,7 +428,7 @@ func TestLocalResourceDelete(t *testing.T) {
 		}{
 			{
 				"Basic test",
-				LocalResource{client: &memoryFileClient{}},
+				LocalResource{client: &c.MemoryFileClient{}},
 				// have
 				getDeleteRequest(t, map[string]string{
 					"id":              "fd6fb8621c4850c228190f4d448ce30881a32609d6b4c7341d48d0027e597567",
