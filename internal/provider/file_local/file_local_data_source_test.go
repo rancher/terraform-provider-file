@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
-package local
+package file_local
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	c "github.com/rancher/terraform-provider-file/internal/provider/file_client"
 )
 
 func TestLocalDataSourceMetadata(t *testing.T) {
@@ -47,7 +48,7 @@ func TestLocalDataSourceRead(t *testing.T) {
 		}{
 			{
 				"Unprotected",
-				LocalDataSource{client: &memoryFileClient{}},
+				LocalDataSource{client: &c.MemoryFileClient{}},
 				// have
 				getDataSourceReadRequest(t, map[string]string{
 					"id":              "60cef95046105ff4522c0c1f1aeeeba43d0d729dbcabdd8846c317c98cac60a2",
@@ -66,6 +67,7 @@ func TestLocalDataSourceRead(t *testing.T) {
 					"contents":        "this is an unprotected read test",
 					"hmac_secret_key": defaultHmacSecretKey,
 				}),
+				// setup
 				map[string]string{
 					"mode":      defaultPerm,
 					"directory": defaultDirectory,
@@ -75,7 +77,7 @@ func TestLocalDataSourceRead(t *testing.T) {
 			},
 			{
 				"Protected",
-				LocalDataSource{client: &memoryFileClient{}},
+				LocalDataSource{client: &c.MemoryFileClient{}},
 				// have
 				getDataSourceReadRequest(t, map[string]string{
 					"id":              "ec4407ba53b2c40ac2ac18ff7372a6fe6e4f7f8aa04f340503aefc7d9a5fa4e1",
@@ -104,7 +106,7 @@ func TestLocalDataSourceRead(t *testing.T) {
 			},
 			{
 				"Protected with content update",
-				LocalDataSource{client: &memoryFileClient{}},
+				LocalDataSource{client: &c.MemoryFileClient{}},
 				// have
 				getDataSourceReadRequest(t, map[string]string{
 					"id":              "ec4407ba53b2c40ac2ac18ff7372a6fe6e4f7f8aa04f340503aefc7d9a5fa4e1",
@@ -133,7 +135,7 @@ func TestLocalDataSourceRead(t *testing.T) {
 			},
 			{
 				"Protected with mode update",
-				LocalDataSource{client: &memoryFileClient{}},
+				LocalDataSource{client: &c.MemoryFileClient{}},
 				// have
 				getDataSourceReadRequest(t, map[string]string{
 					"id":              "ec4407ba53b2c40ac2ac18ff7372a6fe6e4f7f8aa04f340503aefc7d9a5fa4e1",

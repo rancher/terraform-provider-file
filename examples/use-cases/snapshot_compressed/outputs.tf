@@ -4,6 +4,6 @@ output "pesky_id" {
 }
 
 output "snapshot" {
-  value     = base64decode(file_snapshot.use_case_basic.snapshot)
+  value     = data.file_snapshot.use_case_compressed.data
   sensitive = true
 }

@@ -1,6 +1,4 @@
 
-
-
 terraform {
   backend "local" {}
 }
