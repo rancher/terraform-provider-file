@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/rancher/terraform-provider-file/compare/v0.4.0...v0.4.1) (2025-09-19)
+
+
+### Bug Fixes
+
+* update actions GitHub script and setup go ([#168](https://github.com/rancher/terraform-provider-file/issues/168)) ([#171](https://github.com/rancher/terraform-provider-file/issues/171)) ([3248bda](https://github.com/rancher/terraform-provider-file/commit/3248bdad4cb318d8437f92c0193c4f0d30590032))
+
 ## [0.4.0](https://github.com/rancher/terraform-provider-file/compare/v0.3.0...v0.4.0) (2025-09-19)
 
 
