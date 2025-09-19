@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/rancher/terraform-provider-file/compare/v1.0.0...v1.1.0) (2025-09-19)
+
+
+### Features
+
+* update flake ([#183](https://github.com/rancher/terraform-provider-file/issues/183)) ([#186](https://github.com/rancher/terraform-provider-file/issues/186)) ([fd8bd23](https://github.com/rancher/terraform-provider-file/commit/fd8bd232cd0b20fca859fc3fe97c8e7494b08f72))
+
 ## [1.0.0](https://github.com/rancher/terraform-provider-file/compare/v0.1.0...v1.0.0) (2025-09-19)
 
 
