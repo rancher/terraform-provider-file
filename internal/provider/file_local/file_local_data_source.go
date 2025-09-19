@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
-package local
+package file_local
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+	c "github.com/rancher/terraform-provider-file/internal/provider/file_client"
 )
 
 // The `var _` is a special Go construct that results in an unusable variable.
@@ -23,7 +24,7 @@ func NewLocalDataSource() datasource.DataSource {
 }
 
 type LocalDataSource struct {
-	client fileClient
+	client c.FileClient
 }
 
 type LocalDataSourceModel struct {
@@ -87,10 +88,10 @@ func (r *LocalDataSource) Configure(ctx context.Context, req datasource.Configur
 func (r *LocalDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	tflog.Debug(ctx, fmt.Sprintf("Request Object: %#v", req))
 
-	// Allow the ability to inject a file client, but use the osFileClient by default.
+	// Allow the ability to inject a file client, but use the OsFileClient by default.
 	if r.client == nil {
-		tflog.Debug(ctx, "Configuring client with default osFileClient.")
-		r.client = &osFileClient{}
+		tflog.Debug(ctx, "Configuring client with default OsFileClient.")
+		r.client = &c.OsFileClient{}
 	}
 
 	var config LocalDataSourceModel
