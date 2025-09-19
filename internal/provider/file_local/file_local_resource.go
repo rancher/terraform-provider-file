@@ -70,6 +70,7 @@ func (r *LocalResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 			"contents": schema.StringAttribute{
 				MarkdownDescription: "File contents, required.",
 				Required:            true,
+				Sensitive:           true,
 			},
 			"directory": schema.StringAttribute{
 				MarkdownDescription: "The directory where the file will be placed, defaults to the current working directory.",

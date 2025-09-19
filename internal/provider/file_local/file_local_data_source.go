@@ -64,6 +64,7 @@ func (r *LocalDataSource) Schema(ctx context.Context, req datasource.SchemaReque
 			"contents": schema.StringAttribute{
 				MarkdownDescription: "The file contents.",
 				Computed:            true,
+				Sensitive:           true,
 			},
 			"permissions": schema.StringAttribute{
 				MarkdownDescription: "The file permissions.",
