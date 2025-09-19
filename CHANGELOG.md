@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/rancher/terraform-provider-file/compare/v0.3.0...v0.4.0) (2025-09-19)
+
+
+### Features
+
+* make file and snapshot contents sensitive ([#163](https://github.com/rancher/terraform-provider-file/issues/163)) ([#166](https://github.com/rancher/terraform-provider-file/issues/166)) ([0a4a1ef](https://github.com/rancher/terraform-provider-file/commit/0a4a1efdef07cde0843143b27ba5c09bafae8ac8))
+
 ## [0.3.0](https://github.com/rancher/terraform-provider-file/compare/v0.2.1...v0.3.0) (2025-09-19)
 
 
