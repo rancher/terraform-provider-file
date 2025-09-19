@@ -33,6 +33,6 @@ data "file_local" "basic_example" {
 
 ### Read-Only
 
-- `contents` (String) The file contents.
+- `contents` (String, Sensitive) The file contents.
 - `id` (String) Identifier derived from sha256+HMAC hash of file contents.
 - `permissions` (String) The file permissions.

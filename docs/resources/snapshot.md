@@ -70,7 +70,8 @@ data "file_local" "snapshot_file_example_after_update" {
 }
 
 output "file" {
-  value = data.file_local.snapshot_file_example_after_update.contents
+  value     = data.file_local.snapshot_file_example_after_update.contents
+  sensitive = true
   # this updates a file that is used to show how snapshots work
 }
 output "snapshot" {
