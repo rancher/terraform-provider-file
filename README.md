@@ -13,10 +13,10 @@
 
 1. Clone the repository
 1. Enter the repository directory
-1. Build the provider using the Go `install` command:
+1. Build the provider using the Make `build` command:
 
 ```shell
-go install
+make build
 ```
 
 ## Adding Dependencies
@@ -33,22 +33,47 @@ go mod tidy
 
 Then commit the changes to `go.mod` and `go.sum`.
 
+There are two levels of dependency, one is for the dev, test, and build environment,
+ the other is the Go dependencies as listed above.
+We use Nix to manage environment dependencies.
+You can install Nix using their scripts: https://nixos.org/download/
+After that you can enter the development environment using the "flake.nix" file in the root of the repo.
+Once Nix is installed source the .envrc and it should manage everything for you.
+If this is your first flake, you may need to initialize flakes for this directory.
+
+To initialize flakes:
+- `mv flake.nix flake.new`
+- `nix --extra-experimental-features flakes --extra-experimental-features nix-command flake init`
+- `mv flake.new flake.nix`
+
 ## Using the provider
 
-Fill this in for each provider
+```terraform
+# this provider has no configuration currently
+provider "file" {}
+
+resource "file_local" "basic_example" {
+  name     = "example.txt"
+  contents = "An example implementation writing a local file."
+}
+```
+
+Please see the docs at https://registry.terraform.io/providers/rancher/file/latest/docs for more information.
 
 ## Developing the Provider
 
 If you wish to work on the provider, you'll first need [Go](http://www.golang.org) installed on your machine (see [Requirements](#requirements) above).
 
-To compile the provider, run `go install`. This will build the provider and put the provider binary in the `$GOPATH/bin` directory.
+To compile the provider, run `make build`. This will build the provider and put the provider binary in the `$GOPATH/bin` directory.
 
 To generate or update documentation, run `make generate`.
 
-In order to run the full suite of Acceptance tests, run `make testacc`.
+In order to run the full suite of Unit tests, run `make test`.
 
-*Note:* Acceptance tests create real resources, and often cost money to run.
+In order to run the full suite of Acceptance tests, run `make testacc`.
 
 ```shell
 make testacc
 ```
+
+To build, generate, and run all tests, run `make`.
