@@ -10,7 +10,7 @@ jobs:
     if: ${{ startsWith(github.event.label.name, 'release/v') }}
     steps:
       - name: Find and Verify PR Number
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1 https://github.com/actions/github-script
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0 https://github.com/actions/github-script
         id: extract_pr
         with:
           script: |
@@ -32,7 +32,7 @@ jobs:
             }
             core.setFailed('No valid PR found.');
       - name: Create GitHub Issue
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1 https://github.com/actions/github-script
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0 https://github.com/actions/github-script
         with:
           script: |
             const labelName = context.payload.label.name;
