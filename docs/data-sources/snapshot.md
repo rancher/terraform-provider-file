@@ -19,7 +19,7 @@ This data source retrieves the contents of a file from the output of a file_snap
 
 ### Required
 
-- `contents` (String) The contents of the snapshot to retrieve. This could be any gzip compressed base64 encoded data. If the data isn't compressed, set the decompress argument to false, or leave it blank. If the decompress argument is false, the data will be the base64 decoded contents.
+- `contents` (String, Sensitive) The contents of the snapshot to retrieve. This could be any gzip compressed base64 encoded data. If the data isn't compressed, set the decompress argument to false, or leave it blank. If the decompress argument is false, the data will be the base64 decoded contents.
 
 ### Optional
 
@@ -27,5 +27,5 @@ This data source retrieves the contents of a file from the output of a file_snap
 
 ### Read-Only
 
-- `data` (String) The resulting data output. This is the plain text representation of the contents attribute. This is computed by first decoding the data from base64, then decompressing the resulting gzip. If decompress is false, then this will be the base64 decoded version of the contents.
+- `data` (String, Sensitive) The resulting data output. This is the plain text representation of the contents attribute. This is computed by first decoding the data from base64, then decompressing the resulting gzip. If decompress is false, then this will be the base64 decoded version of the contents.
 - `id` (String) Unique identifier for the datasource. The SHA256 hash of the contents.

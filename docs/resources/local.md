@@ -39,7 +39,7 @@ resource "file_local" "protected_example" {
 
 ### Required
 
-- `contents` (String) File contents, required.
+- `contents` (String, Sensitive) File contents, required.
 - `name` (String) File name, required.
 
 ### Optional
