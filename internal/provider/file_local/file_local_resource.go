@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
-package local
+package file_local
 
 import (
 	"context"
@@ -24,6 +24,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+	c "github.com/rancher/terraform-provider-file/internal/provider/file_client"
 )
 
 // The `var _` is a special Go construct that results in an unusable variable.
@@ -34,21 +35,12 @@ var _ resource.ResourceWithImportState = &LocalResource{}
 
 const unprotectedHmacSecret = "this-is-the-hmac-secret-key-that-will-be-used-to-calculate-the-hash-of-unprotected-files"
 
-// An interface for defining custom file managers.
-type fileClient interface {
-	Create(directory string, name string, data string, permissions string) error
-	// If file isn't found the error message must have err.Error() == "file not found"
-	Read(directory string, name string) (string, string, error) // permissions, contents, error
-	Update(currentDirectory string, currentName string, newDirectory string, newName string, data string, permissions string) error
-	Delete(directory string, name string) error
-}
-
 func NewLocalResource() resource.Resource {
 	return &LocalResource{}
 }
 
 type LocalResource struct {
-	client fileClient
+	client c.FileClient
 }
 
 // LocalResourceModel describes the resource data model.
@@ -159,11 +151,9 @@ func (r *LocalResource) Create(ctx context.Context, req resource.CreateRequest, 
 	tflog.Debug(ctx, fmt.Sprintf("Request Object: %#v", req))
 	var err error
 
-	// Allow the ability to inject a file client, but use the osFileClient by default.
-	// see file_os_client.go
 	if r.client == nil {
-		tflog.Debug(ctx, "Configuring client with default osFileClient.")
-		r.client = &osFileClient{}
+		tflog.Debug(ctx, "Configuring client with default OsFileClient.")
+		r.client = &c.OsFileClient{}
 	}
 
 	var plan LocalResourceModel
@@ -221,10 +211,10 @@ func (r *LocalResource) Create(ctx context.Context, req resource.CreateRequest, 
 func (r *LocalResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	tflog.Debug(ctx, fmt.Sprintf("Request Object: %#v", req))
 
-	// Allow the ability to inject a file client, but use the osFileClient by default.
+	// Allow the ability to inject a file client, but use the OsFileClient by default.
 	if r.client == nil {
-		tflog.Debug(ctx, "Configuring client with default osFileClient.")
-		r.client = &osFileClient{}
+		tflog.Debug(ctx, "Configuring client with default OsFileClient.")
+		r.client = &c.OsFileClient{}
 	}
 
 	var state LocalResourceModel
@@ -286,10 +276,10 @@ func (r *LocalResource) Read(ctx context.Context, req resource.ReadRequest, resp
 func (r *LocalResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	tflog.Debug(ctx, fmt.Sprintf("Request Object: %#v", req))
 
-	// Allow the ability to inject a file client, but use the osFileClient by default.
+	// Allow the ability to inject a file client, but use the OsFileClient by default.
 	if r.client == nil {
-		tflog.Debug(ctx, "Configuring client with default osFileClient.")
-		r.client = &osFileClient{}
+		tflog.Debug(ctx, "Configuring client with default OsFileClient.")
+		r.client = &c.OsFileClient{}
 	}
 
 	var config LocalResourceModel
@@ -379,10 +369,10 @@ func (r *LocalResource) Update(ctx context.Context, req resource.UpdateRequest, 
 func (r *LocalResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	tflog.Debug(ctx, fmt.Sprintf("Request Object: %#v", req))
 
-	// Allow the ability to inject a file client, but use the osFileClient by default.
+	// Allow the ability to inject a file client, but use the OsFileClient by default.
 	if r.client == nil {
-		tflog.Debug(ctx, "Configuring client with default osFileClient.")
-		r.client = &osFileClient{}
+		tflog.Debug(ctx, "Configuring client with default OsFileClient.")
+		r.client = &c.OsFileClient{}
 	}
 
 	var state LocalResourceModel

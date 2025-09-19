@@ -1,4 +1,4 @@
-package snapshot
+package file_snapshot
 
 import (
 	"context"
@@ -10,19 +10,29 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	c "github.com/rancher/terraform-provider-file/internal/provider/file_client"
 )
 
 const (
-	//
-	// echo -n "these contents are the default for testing" | base64 -w 0 | sha256sum | awk '{print $1}'  // .
-	defaultId       = "ba8cd27d74eb572956e09da49530c5ab2dd66ee946956e9d55a4cd09b76ab527"
-	defaultContents = "these contents are the default for testing"
-	// echo -n "these contents are the default for testing" | base64 -w 0    // .
-	defaultTrigger = "dGhlc2UgY29udGVudHMgYXJlIHRoZSBkZWZhdWx0IGZvciB0ZXN0aW5n"
+	testContents = "these contents are the default for testing"
+	// echo -n "these contents are the default for testing" | base64 -w 0  #.
+	testEncoded = "dGhlc2UgY29udGVudHMgYXJlIHRoZSBkZWZhdWx0IGZvciB0ZXN0aW5n"
+	// echo -n "these contents are the default for testing" | gzip -c | base64 -w 0  #.
+	// testCompressed = "H4sIAAAAAAAAAwXBAQoAIAgDwK/sa1KzglDQ9f/utNnEyBBDDStCm5h0e1fwLIitE+sDr6miHioAAAA="
+	// echo -n "these contents are the default for testing" | base64 -w 0 | sha256sum | awk '{print $1}'  #.
+	testId = "ba8cd27d74eb572956e09da49530c5ab2dd66ee946956e9d55a4cd09b76ab527"
+	// echo -n "these contents are the default for testing" | gzip -c | base64 -w 0 | sha256sum | awk '{print $1}'  #.
+	testCompressedId = "a358aafd3bebe1731735516b321d55bd8a58a64e0e2d92646a6a6fdb63751c5d"
+	testName         = "tmpTestFileName.txt"
 	// You can use any arbitrary string to define the trigger, I chose to use the base64 encoded contents.
+	testTrigger = "dGhlc2UgY29udGVudHMgYXJlIHRoZSBkZWZhdWx0IGZvciB0ZXN0aW5n"
+
+	defaultDirectory   = "."
+	defaultPermissions = "0600"
+	defaultCompress    = "false"
 )
 
-var snapshotResourceBooleanFields = []string{}
+var snapshotResourceBooleanFields = []string{"compress"}
 
 func TestSnapshotResourceMetadata(t *testing.T) {
 	t.Run("Metadata function", func(t *testing.T) {
@@ -71,33 +81,53 @@ func TestSnapshotResourceSchema(t *testing.T) {
 func TestSnapshotResourceCreate(t *testing.T) {
 	t.Run("Create function", func(t *testing.T) {
 		testCases := []struct {
-			name string
-			fit  SnapshotResource
-			have resource.CreateRequest
-			want resource.CreateResponse
+			name  string
+			fit   SnapshotResource
+			have  resource.CreateRequest
+			want  resource.CreateResponse
+			setup map[string]string
 		}{
 			{
 				"Basic",
-				SnapshotResource{},
+				SnapshotResource{client: &c.MemoryFileClient{}},
 				// have
 				getSnapshotResourceCreateRequest(t, map[string]string{
 					"id":             "",
-					"contents":       defaultContents,
 					"snapshot":       "",
-					"update_trigger": defaultTrigger,
+					"name":           testName,
+					"update_trigger": testTrigger,
+					"directory":      defaultDirectory,
+					"compress":       defaultCompress,
 				}),
 				// want
 				getSnapshotResourceCreateResponse(t, map[string]string{
-					"id":             defaultId,
-					"contents":       defaultContents,
-					"snapshot":       defaultContents,
-					"update_trigger": defaultTrigger,
+					"id":             testId,
+					"snapshot":       testEncoded,
+					"name":           testName,
+					"update_trigger": testTrigger,
+					"directory":      defaultDirectory,
+					"compress":       defaultCompress,
 				}),
+				// setup
+				map[string]string{
+					"name":      testName,
+					"directory": defaultDirectory,
+					"contents":  testContents,
+				},
 			},
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
 				r := getSnapshotResourceCreateResponseContainer()
+				if err := tc.fit.client.Create(tc.setup["directory"], tc.setup["name"], tc.setup["contents"], defaultPermissions); err != nil {
+					t.Errorf("Error setting up: %v", err)
+				}
+				defer func() {
+					if err := tc.fit.client.Delete(tc.setup["directory"], tc.setup["name"]); err != nil {
+						t.Errorf("Error tearing down: %v", err)
+					}
+				}()
+
 				tc.fit.Create(context.Background(), tc.have, &r)
 				got := r
 				if diff := cmp.Diff(tc.want, got); diff != "" {
@@ -120,17 +150,21 @@ func TestSnapshotResourceRead(t *testing.T) {
 				SnapshotResource{},
 				// have
 				getSnapshotResourceReadRequest(t, map[string]string{
-					"id":             defaultId,
-					"contents":       defaultContents,
-					"snapshot":       defaultContents,
-					"update_trigger": defaultTrigger,
+					"id":             testId,
+					"snapshot":       testEncoded,
+					"name":           testName,
+					"update_trigger": testTrigger,
+					"directory":      defaultDirectory,
+					"compress":       defaultCompress,
 				}),
 				// want
 				getSnapshotResourceReadResponse(t, map[string]string{
-					"id":             defaultId,
-					"contents":       defaultContents,
-					"snapshot":       defaultContents,
-					"update_trigger": defaultTrigger,
+					"id":             testId,
+					"snapshot":       testEncoded,
+					"name":           testName,
+					"update_trigger": testTrigger,
+					"directory":      defaultDirectory,
+					"compress":       defaultCompress,
 				}),
 			},
 		}
@@ -150,93 +184,139 @@ func TestSnapshotResourceRead(t *testing.T) {
 func TestSnapshotResourceUpdate(t *testing.T) {
 	t.Run("Update function", func(t *testing.T) {
 		testCases := []struct {
-			name string
-			fit  SnapshotResource
-			have resource.UpdateRequest
-			want resource.UpdateResponse
+			name  string
+			fit   SnapshotResource
+			have  resource.UpdateRequest
+			want  resource.UpdateResponse
+			setup map[string]string
 		}{
 			{
-				"Basic test",
-				SnapshotResource{},
+				"Basic",
+				SnapshotResource{client: &c.MemoryFileClient{}},
 				// have
 				getSnapshotResourceUpdateRequest(t, map[string]map[string]string{
 					"priorState": {
-						"id":             defaultId,
-						"contents":       defaultContents,
-						"snapshot":       defaultContents,
-						"update_trigger": defaultTrigger,
+						"id":             testId,
+						"snapshot":       testEncoded,
+						"name":           testName,
+						"update_trigger": testTrigger,
+						"directory":      defaultDirectory,
+						"compress":       defaultCompress,
 					},
 					"plan": {
 						"id":             "",
-						"contents":       defaultContents,
 						"snapshot":       "",
-						"update_trigger": defaultTrigger,
+						"name":           testName,
+						"update_trigger": testTrigger,
+						"directory":      defaultDirectory,
+						"compress":       defaultCompress,
 					},
 				}),
 				// want
 				getSnapshotResourceUpdateResponse(t, map[string]string{
-					"id":             defaultId,
-					"contents":       defaultContents,
-					"snapshot":       defaultContents,
-					"update_trigger": defaultTrigger,
+					"id":             testId,
+					"snapshot":       testEncoded,
+					"name":           testName,
+					"update_trigger": testTrigger,
+					"directory":      defaultDirectory,
+					"compress":       defaultCompress,
 				}),
+				// setup
+				map[string]string{
+					"name":      testName,
+					"directory": defaultDirectory,
+					"contents":  testContents,
+				},
 			},
 			{
 				"Updates when trigger changes",
-				SnapshotResource{},
+				SnapshotResource{client: &c.MemoryFileClient{}},
 				// have
 				getSnapshotResourceUpdateRequest(t, map[string]map[string]string{
 					"priorState": {
-						"id":             defaultId,
-						"contents":       defaultContents,
-						"snapshot":       defaultContents,
-						"update_trigger": defaultTrigger,
+						"id":             testId,
+						"snapshot":       testEncoded,
+						"name":           testName,
+						"update_trigger": testTrigger,
+						"directory":      defaultDirectory,
+						"compress":       defaultCompress,
 					},
 					"plan": {
 						"id":             "",
-						"contents":       "these contents are updated for testing",
 						"snapshot":       "",
-						"update_trigger": "dGhlc2UgY29udGVudHMgYXJlIHVwZGF0ZWQgZm9yIHRlc3Rpbmc=",
+						"name":           testName,
+						"update_trigger": "updated-trigger",
+						"directory":      defaultDirectory,
+						"compress":       defaultCompress,
 					},
 				}),
 				// want
 				getSnapshotResourceUpdateResponse(t, map[string]string{
-					"id":             "688722c152590a53e3297277d723453a476da8331d5de2478a36673da9cb1c09",
-					"contents":       "these contents are updated for testing",
-					"snapshot":       "these contents are updated for testing",
-					"update_trigger": "dGhlc2UgY29udGVudHMgYXJlIHVwZGF0ZWQgZm9yIHRlc3Rpbmc=",
+					"id":             testId,                                                 // id shouldn't change
+					"snapshot":       "dGhlc2UgY29udGVudHMgYXJlIHVwZGF0ZWQgZm9yIHRlc3Rpbmc=", // echo -n "these contents are updated for testing" | base64 -w 0 #.
+					"name":           testName,
+					"update_trigger": "updated-trigger",
+					"directory":      defaultDirectory,
+					"compress":       defaultCompress,
 				}),
+				// setup
+				map[string]string{
+					"name":      testName,
+					"directory": defaultDirectory,
+					"contents":  "these contents are updated for testing",
+				},
 			},
 			{
 				"Doesn't update when trigger stays the same",
-				SnapshotResource{},
+				SnapshotResource{client: &c.MemoryFileClient{}},
 				// have
 				getSnapshotResourceUpdateRequest(t, map[string]map[string]string{
 					"priorState": {
-						"id":             defaultId,
-						"contents":       defaultContents,
-						"snapshot":       defaultContents,
-						"update_trigger": defaultTrigger,
+						"id":             testId,
+						"snapshot":       testEncoded,
+						"name":           testName,
+						"update_trigger": testTrigger,
+						"directory":      defaultDirectory,
+						"compress":       defaultCompress,
 					},
 					"plan": {
 						"id":             "",
-						"contents":       "these contents are updated for testing",
 						"snapshot":       "",
-						"update_trigger": defaultTrigger,
+						"name":           testName,
+						"update_trigger": testTrigger,
+						"directory":      defaultDirectory,
+						"compress":       defaultCompress,
 					},
 				}),
 				// want
 				getSnapshotResourceUpdateResponse(t, map[string]string{
-					"id":             defaultId,
-					"contents":       "these contents are updated for testing",
-					"snapshot":       defaultContents,
-					"update_trigger": defaultTrigger,
+					"id":             testId,
+					"snapshot":       testEncoded,
+					"name":           testName,
+					"update_trigger": testTrigger,
+					"directory":      defaultDirectory,
+					"compress":       defaultCompress,
 				}),
+				// setup
+				map[string]string{
+					"name":      testName,
+					"directory": defaultDirectory,
+					"contents":  "these contents are updated for testing",
+				},
 			},
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
 				r := getSnapshotResourceUpdateResponseContainer()
+				if err := tc.fit.client.Create(tc.setup["directory"], tc.setup["name"], tc.setup["contents"], defaultPermissions); err != nil {
+					t.Errorf("Error setting up: %v", err)
+				}
+				defer func() {
+					if err := tc.fit.client.Delete(tc.setup["directory"], tc.setup["name"]); err != nil {
+						t.Errorf("Error tearing down: %v", err)
+					}
+				}()
+
 				tc.fit.Update(context.Background(), tc.have, &r)
 				got := r
 				if diff := cmp.Diff(tc.want, got); diff != "" {
@@ -257,13 +337,15 @@ func TestSnapshotResourceDelete(t *testing.T) {
 		}{
 			{
 				"Basic test",
-				SnapshotResource{},
+				SnapshotResource{client: &c.MemoryFileClient{}},
 				// have
 				getSnapshotResourceDeleteRequest(t, map[string]string{
-					"id":             defaultId,
-					"contents":       defaultContents,
-					"snapshot":       defaultContents,
-					"update_trigger": defaultTrigger,
+					"id":             testId,
+					"name":           testName,
+					"directory":      defaultDirectory,
+					"snapshot":       testContents,
+					"update_trigger": testTrigger,
+					"compress":       defaultCompress,
 				}),
 				// want
 				getSnapshotResourceDeleteResponse(),
@@ -513,9 +595,11 @@ func getSnapshotResourceAttributeTypes() tftypes.Object {
 	return tftypes.Object{
 		AttributeTypes: map[string]tftypes.Type{
 			"id":             tftypes.String,
-			"contents":       tftypes.String,
+			"name":           tftypes.String,
+			"directory":      tftypes.String,
 			"snapshot":       tftypes.String,
 			"update_trigger": tftypes.String,
+			"compress":       tftypes.Bool,
 		},
 	}
 }

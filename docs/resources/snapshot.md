@@ -4,29 +4,40 @@ page_title: "file_snapshot Resource - file"
 subcategory: ""
 description: |-
   File Snapshot resource.
-  This resource saves some content in state and doesn't update it until the trigger argument changes. Importantly, this resource ignores changes in the configuration for the contents argument.The refresh phase doesn't update state, instead the state can only change on create or update and only when the update_trigger argument changes.
+  This resource saves some content in state and doesn't update it until the trigger argument changes. The refresh phase doesn't update state, instead the state can only change on create or update and only when the update_trigger argument changes.
 ---
 
 # file_snapshot (Resource)
 
 File Snapshot resource. 
-This resource saves some content in state and doesn't update it until the trigger argument changes. Importantly, this resource ignores changes in the configuration for the contents argument.The refresh phase doesn't update state, instead the state can only change on create or update and only when the update_trigger argument changes.
+This resource saves some content in state and doesn't update it until the trigger argument changes. The refresh phase doesn't update state, instead the state can only change on create or update and only when the update_trigger argument changes.
 
 ## Example Usage
 
 ```terraform
+# basic use case
+resource "file_local" "snapshot_file_basic_example" {
+  name     = "snapshot_resource_basic_example.txt"
+  contents = "this is an example file that is used to show how snapshots work"
+}
 resource "file_snapshot" "basic_example" {
-  contents       = "An example implementation, saving contents to state."
+  depends_on = [
+    file_local.snapshot_file_basic_example,
+  ]
+  name           = "snapshot_resource_basic_example.txt"
   update_trigger = "an arbitrary string"
 }
-
+output "snapshot_basic" {
+  value     = file_snapshot.basic_example.snapshot
+  sensitive = true
+}
 
 # A more advanced use case:
-# We use a terraform_data resource to write a file
+# We use a file_local resource to write a local file in the current directory
 #   then we create a snapshot of the file using file_snapshot
 #   then we update the file using a terraform_data resource
-#   then we get the contents of the file using a file_local resource
-#   then we output both the file_local and file_snapshot, observing that they are different
+#   then we get the contents of the file using a file_local datasource
+#   then we output both the file_local datasource and file_snapshot resource, observing that they are different
 resource "file_local" "snapshot_file_example" {
   name     = "snapshot_resource_test.txt"
   contents = "this is an example file that is used to show how snapshots work"
@@ -35,7 +46,7 @@ resource "file_snapshot" "file_example" {
   depends_on = [
     file_local.snapshot_file_example,
   ]
-  contents       = file_local.snapshot_file_example.contents
+  name           = "snapshot_resource_test.txt"
   update_trigger = "code-change-necessary"
 }
 resource "terraform_data" "update_file" {
@@ -55,8 +66,7 @@ data "file_local" "snapshot_file_example_after_update" {
     file_snapshot.file_example,
     terraform_data.update_file,
   ]
-  name      = "snapshot_resource_test.txt"
-  directory = "."
+  name = "snapshot_resource_test.txt"
 }
 
 output "file" {
@@ -64,7 +74,8 @@ output "file" {
   # this updates a file that is used to show how snapshots work
 }
 output "snapshot" {
-  value = file_snapshot.file_example.contents
+  value     = base64decode(file_snapshot.file_example.snapshot)
+  sensitive = true
   # this is an example file that is used to show how snapshots work
 }
 ```
@@ -74,13 +85,18 @@ output "snapshot" {
 
 ### Required
 
-- `contents` (String) Contents to save. While this argument is exposed, you shouldn't use its output. Instead use the snapshot attribute to get the data saved in the snapshot.
-- `update_trigger` (String) When this argument changes the snapshot will be updated to whatever is in the contents.
+- `name` (String) Name of the file to save. Changing this forces recreate, moving the file isn't supported.
+- `update_trigger` (String) When this argument changes the snapshot will be updated.
+
+### Optional
+
+- `compress` (Boolean) Whether the provider should compress the contents and snapshot or not. Defaults to 'false'. When set to 'true' the provider will compress the contents and snapshot attributes using the gzip compression algorithm. Changing this attribute forces recreate, compressing snapshots which are already saved in state isn't supported. Warning! To prevent memory errors the provider generates temporary files to facilitate encoding and compression.
+- `directory` (String) Path of the file to save. Changing this forces recreate, moving the file isn't supported.
 
 ### Read-Only
 
 - `id` (String) Unique identifier for the resource. The SHA256 hash of the base64 encoded contents.
-- `snapshot` (String) Saved contents. This will match the contents during create and whenever the update_trigger changes.
+- `snapshot` (String, Sensitive) Base64 encoded contents of the file specified in the name and directory fields. This data will be added on create and only updated when the update_trigger field changes. Warning! To prevent memory errors the provider generates temporary files to facilitate encoding and compression.
 
 ## Import
 
@@ -90,7 +106,6 @@ The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/c
 
 ```shell
 # IDENTIFIER="$(echo -n "these contents are the default for testing" | base64 -w 0 | sha256sum | awk '{print $1}')"
-
 terraform import file_snapshot.example "IDENTIFIER"
 
 # after this is run you will need to refine the resource more by defining the contents and update_trigger
