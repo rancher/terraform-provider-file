@@ -50,7 +50,8 @@ func (r *SnapshotDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 					"This could be any gzip compressed base64 encoded data. " +
 					"If the data isn't compressed, set the decompress argument to false, or leave it blank. " +
 					"If the decompress argument is false, the data will be the base64 decoded contents.",
-				Required: true,
+				Required:  true,
+				Sensitive: true,
 			},
 			"decompress": schema.BoolAttribute{
 				MarkdownDescription: "Whether or not to decompress the contents. " +
@@ -66,7 +67,8 @@ func (r *SnapshotDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 				MarkdownDescription: "The resulting data output. This is the plain text representation of the contents attribute. " +
 					"This is computed by first decoding the data from base64, then decompressing the resulting gzip. " +
 					"If decompress is false, then this will be the base64 decoded version of the contents.",
-				Computed: true,
+				Computed:  true,
+				Sensitive: true,
 			},
 		},
 	}
