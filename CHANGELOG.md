@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/rancher/terraform-provider-file/compare/v1.1.0...v1.1.1) (2025-09-20)
+
+
+### Bug Fixes
+
+* goreleaser tag race condition ([#188](https://github.com/rancher/terraform-provider-file/issues/188)) ([#191](https://github.com/rancher/terraform-provider-file/issues/191)) ([9a652a5](https://github.com/rancher/terraform-provider-file/commit/9a652a5d22f7e5019f691b3b436e784318050c58))
+
 ## [1.1.0](https://github.com/rancher/terraform-provider-file/compare/v1.0.0...v1.1.0) (2025-09-19)
 
 
