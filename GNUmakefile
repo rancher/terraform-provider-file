@@ -27,11 +27,10 @@ testacc: build
 	gotestsum --format standard-verbose --jsonfile report.json --post-run-command "./summarize.sh" -- ./... -v -p=1 -timeout=300s; \
 	popd;
 
-debug: build
+et: build
 	export REPO_ROOT="../../../."; \
-	export TF_LOG=DEBUG; \
 	pushd ./test; \
-	gotestsum --format standard-verbose --jsonfile report.json --post-run-command "./summarize.sh" -- ./... -v -p=1 -timeout=300s; \
+	gotestsum --format standard-verbose --jsonfile report.json --post-run-command "./summarize.sh" -- ./... -v -p=1 -timeout=300s -run=$(t); \
 	popd;
 
 .PHONY: fmt lint build install generate test testacc debug
