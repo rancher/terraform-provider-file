@@ -5,6 +5,6 @@ type DirectoryClient interface {
 	// If directory isn't found the error message must have err.Error() == "directory not found"
 	Read(path string) (string, map[string]map[string]string, error) // permissions, files info map, error
 	Update(path string, permissions string) error
-	Delete(path string) error // "path" should be the return from Create
+	Delete(path string) error                                                           // "path" should be the return from Create
 	CreateFile(path string, data string, permissions string, lastModified string) error // create a file in the given directory
 }

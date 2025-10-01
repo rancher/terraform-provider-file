@@ -16,13 +16,13 @@ import (
 )
 
 const (
-  defaultId      = ""
+	defaultId      = ""
 	defaultPerm    = "0700"
-  defaultCreated = ""
-  testPath       = "path/to/new/directory"
-  // echo -n "path/to/new/directory" | sha256sum | awk '{print $1}' #.
-  testId         = "2d020a0327fe0a114bf587a2b24894d67654203b0bd4428546ad5bf4ed7ed6a7"
-  testCreated    = "path"
+	defaultCreated = ""
+	testPath       = "path/to/new/directory"
+	// echo -n "path/to/new/directory" | sha256sum | awk '{print $1}' #.
+	testId      = "2d020a0327fe0a114bf587a2b24894d67654203b0bd4428546ad5bf4ed7ed6a7"
+	testCreated = "path"
 )
 
 var booleanFields = []string{"fake"}
@@ -43,7 +43,7 @@ func TestLocalDirectoryResourceMetadata(t *testing.T) {
 				got := res
 				if got != tc.want {
 					t.Errorf("%#v.Metadata() is %v; want %v", tc.fit, got, tc.want)
-          return
+					return
 				}
 			})
 		}
@@ -66,7 +66,7 @@ func TestLocalDirectorySchema(t *testing.T) {
 				got := r
 				if diff := cmp.Diff(tc.want, got); diff != "" {
 					t.Errorf("Schema() mismatch (-want +got):\n%s", diff)
-          return
+					return
 				}
 			})
 		}
@@ -88,15 +88,15 @@ func TestLocalDirectoryResourceCreate(t *testing.T) {
 				getCreateRequest(t, map[string]string{
 					"path":        testPath,
 					"permissions": defaultPerm,
-          "id":          defaultId,
-          "created":     defaultCreated,
+					"id":          defaultId,
+					"created":     defaultCreated,
 				}),
 				// want
 				getCreateResponse(t, map[string]string{
-          "path":        testPath,
+					"path":        testPath,
 					"permissions": defaultPerm,
 					"id":          testId,
-          "created":     testCreated,
+					"created":     testCreated,
 				}),
 			},
 		}
@@ -105,7 +105,7 @@ func TestLocalDirectoryResourceCreate(t *testing.T) {
 				var plannedState LocalDirectoryResourceModel
 				if diags := tc.have.Plan.Get(context.Background(), &plannedState); diags.HasError() {
 					t.Errorf("Failed to get planned state: %v", diags)
-          return
+					return
 				}
 				plannedPath := plannedState.Path.ValueString()
 				r := getCreateResponseContainer()
@@ -113,13 +113,13 @@ func TestLocalDirectoryResourceCreate(t *testing.T) {
 				defer func() {
 					if err := tc.fit.client.Delete(plannedPath); err != nil {
 						t.Errorf("Error cleaning up: %v", err)
-            return
+						return
 					}
 				}()
 				got := r
 				if diff := cmp.Diff(tc.want, got); diff != "" {
 					t.Errorf("Create() mismatch (-want +got):\n%s", diff)
-          return
+					return
 				}
 			})
 		}
@@ -141,18 +141,18 @@ func TestLocalDirectoryResourceRead(t *testing.T) {
 				// have
 				getReadRequest(t, map[string]string{
 					"id":          testId,
-          "path":        testPath,
-          "created":     testCreated,
+					"path":        testPath,
+					"created":     testCreated,
 					"permissions": defaultPerm,
 				}),
 				// want
 				getReadResponse(t, map[string]string{
 					"id":          testId,
-          "path":        testPath,
-          "created":     testCreated,
+					"path":        testPath,
+					"created":     testCreated,
 					"permissions": defaultPerm,
-        }),
-        // setup
+				}),
+				// setup
 				map[string]string{
 					"path":        testPath,
 					"permissions": defaultPerm,
@@ -164,35 +164,35 @@ func TestLocalDirectoryResourceRead(t *testing.T) {
 				// have
 				getReadRequest(t, map[string]string{
 					"id":          testId,
-          "path":        testPath,
-          "created":     testCreated,
+					"path":        testPath,
+					"created":     testCreated,
 					"permissions": defaultPerm,
 				}),
 				// want
 				getReadResponse(t, map[string]string{
 					"id":          testId,
-          "path":        testPath,
-          "created":     testCreated,
+					"path":        testPath,
+					"created":     testCreated,
 					"permissions": "0777",
-        }),
-        // setup
+				}),
+				// setup
 				map[string]string{
 					"path":        testPath,
 					"permissions": "0777",
 				},
 			},
-    }
+		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-        created, err := tc.fit.client.Create(tc.setup["path"], tc.setup["permissions"])
-        if err != nil {
-          t.Errorf("Error setting up: %v", err)
-          return
-        }
+				created, err := tc.fit.client.Create(tc.setup["path"], tc.setup["permissions"])
+				if err != nil {
+					t.Errorf("Error setting up: %v", err)
+					return
+				}
 				defer func() {
 					if err := tc.fit.client.Delete(created); err != nil {
 						t.Errorf("Error tearing down: %v", err)
-            return
+						return
 					}
 				}()
 				r := getReadResponseContainer()
@@ -200,7 +200,7 @@ func TestLocalDirectoryResourceRead(t *testing.T) {
 				got := r
 				if diff := cmp.Diff(tc.want, got); diff != "" {
 					t.Errorf("Read() mismatch (-want +got):\n%s", diff)
-          return
+					return
 				}
 			})
 		}
@@ -277,18 +277,18 @@ func TestLocalDirectoryResourceUpdate(t *testing.T) {
 					"permissions": defaultPerm,
 				},
 			},
-    }
+		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-        created, err := tc.fit.client.Create(tc.setup["path"],tc.setup["permissions"])
-        if err != nil {
-          t.Errorf("Error setting up: %v", err)
-          return
-        }
+				created, err := tc.fit.client.Create(tc.setup["path"], tc.setup["permissions"])
+				if err != nil {
+					t.Errorf("Error setting up: %v", err)
+					return
+				}
 				defer func() {
 					if err := tc.fit.client.Delete(created); err != nil {
 						t.Errorf("Error tearing down: %v", err)
-            return
+						return
 					}
 				}()
 				r := getUpdateResponseContainer()
@@ -297,22 +297,22 @@ func TestLocalDirectoryResourceUpdate(t *testing.T) {
 				var plannedState LocalDirectoryResourceModel
 				if diags := tc.have.Plan.Get(context.Background(), &plannedState); diags.HasError() {
 					t.Errorf("Failed to get planned state: %v", diags)
-          return
+					return
 				}
-        plannedPath        := plannedState.Path.ValueString()
+				plannedPath := plannedState.Path.ValueString()
 				plannedPermissions := plannedState.Permissions.ValueString()
 				permissionsAfterUpdate, _, err := tc.fit.client.Read(plannedPath)
 				if err != nil {
 					t.Errorf("Failed to read directory for update verification: %s", err)
-          return
+					return
 				}
 				if permissionsAfterUpdate != plannedPermissions {
 					t.Errorf("Directory permissions were not updated correctly. Got %q, want %q", permissionsAfterUpdate, plannedPermissions)
-          return
+					return
 				}
 				if diff := cmp.Diff(tc.want, got); diff != "" {
 					t.Errorf("Update() mismatch (-want +got):\n%s", diff)
-          return
+					return
 				}
 			})
 		}
@@ -349,10 +349,10 @@ func TestLocalDirectoryResourceDelete(t *testing.T) {
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-        _, err := tc.fit.client.Create(tc.setup["path"], tc.setup["permissions"])
+				_, err := tc.fit.client.Create(tc.setup["path"], tc.setup["permissions"])
 				if err != nil {
 					t.Errorf("Error setting up: %v", err)
-          return
+					return
 				}
 				r := getDeleteResponseContainer()
 				tc.fit.Delete(context.Background(), tc.have, &r)
@@ -361,15 +361,15 @@ func TestLocalDirectoryResourceDelete(t *testing.T) {
 				if _, _, err := tc.fit.client.Read(tc.setup["path"]); err == nil || err.Error() != "directory not found" {
 					if err == nil {
 						t.Errorf("Expected directory to be deleted, but it still exists.")
-            return
+						return
 					}
 					t.Errorf("Expected directory to be deleted, but it still exists. Error: %s", err.Error())
-          return
+					return
 				}
 				// verify that the directory was removed from state
 				if diff := cmp.Diff(tc.want, got); diff != "" {
 					t.Errorf("Update() mismatch (-want +got):\n%s", diff)
-          return
+					return
 				}
 			})
 		}
@@ -388,7 +388,7 @@ func getCreateRequest(t *testing.T, data map[string]string) resource.CreateReque
 				v, err := strconv.ParseBool(value)
 				if err != nil {
 					t.Errorf("Error converting %s to bool %s: ", value, err.Error())
-          return resource.CreateRequest{}
+					return resource.CreateRequest{}
 				}
 				planMap[key] = tftypes.NewValue(tftypes.Bool, v)
 			}
@@ -420,7 +420,7 @@ func getCreateResponse(t *testing.T, data map[string]string) resource.CreateResp
 			v, err := strconv.ParseBool(value)
 			if err != nil {
 				t.Errorf("Error converting %s to bool %s: ", value, err.Error())
-        return resource.CreateResponse{}
+				return resource.CreateResponse{}
 			}
 			stateMap[key] = tftypes.NewValue(tftypes.Bool, v)
 		} else {
@@ -443,7 +443,7 @@ func getReadRequest(t *testing.T, data map[string]string) resource.ReadRequest {
 			v, err := strconv.ParseBool(value)
 			if err != nil {
 				t.Errorf("Error converting %s to bool %s: ", value, err.Error())
-        return resource.ReadRequest{}
+				return resource.ReadRequest{}
 			}
 			stateMap[key] = tftypes.NewValue(tftypes.Bool, v)
 		} else {
@@ -470,7 +470,7 @@ func getReadResponse(t *testing.T, data map[string]string) resource.ReadResponse
 			v, err := strconv.ParseBool(value)
 			if err != nil {
 				t.Errorf("Error converting %s to bool %s: ", value, err.Error())
-        return resource.ReadResponse{}
+				return resource.ReadResponse{}
 			}
 			stateMap[key] = tftypes.NewValue(tftypes.Bool, v)
 		} else {
@@ -493,7 +493,7 @@ func getUpdateRequest(t *testing.T, data map[string]map[string]string) resource.
 			v, err := strconv.ParseBool(value)
 			if err != nil {
 				t.Errorf("Error converting %s to bool %s: ", value, err.Error())
-        return resource.UpdateRequest{}
+				return resource.UpdateRequest{}
 			}
 			stateMap[key] = tftypes.NewValue(tftypes.Bool, v)
 		} else {
@@ -511,7 +511,7 @@ func getUpdateRequest(t *testing.T, data map[string]map[string]string) resource.
 				v, err := strconv.ParseBool(value)
 				if err != nil {
 					t.Errorf("Error converting %s to bool %s: ", value, err.Error())
-          return resource.UpdateRequest{}
+					return resource.UpdateRequest{}
 				}
 				planMap[key] = tftypes.NewValue(tftypes.Bool, v)
 			}
@@ -548,7 +548,7 @@ func getUpdateResponse(t *testing.T, data map[string]string) resource.UpdateResp
 			v, err := strconv.ParseBool(value)
 			if err != nil {
 				t.Errorf("Error converting %s to bool %s: ", value, err.Error())
-        return resource.UpdateResponse{}
+				return resource.UpdateResponse{}
 			}
 			stateMap[key] = tftypes.NewValue(tftypes.Bool, v)
 		} else {
@@ -571,7 +571,7 @@ func getDeleteRequest(t *testing.T, data map[string]string) resource.DeleteReque
 			v, err := strconv.ParseBool(value)
 			if err != nil {
 				t.Errorf("Error converting %s to bool %s: ", value, err.Error())
-        return resource.DeleteRequest{}
+				return resource.DeleteRequest{}
 			}
 			stateMap[key] = tftypes.NewValue(tftypes.Bool, v)
 		} else {

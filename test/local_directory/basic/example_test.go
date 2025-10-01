@@ -18,7 +18,7 @@ func TestLocalDirectoryExample(t *testing.T) {
 		t.Fatalf("Error getting git root directory: %v", err)
 	}
 	exampleDir := filepath.Join(repoRoot, "examples", "resources", directory)
-	testDir    := filepath.Join(repoRoot, "test", "data", id)
+	testDir := filepath.Join(repoRoot, "test", "data", id)
 
 	err = util.Setup(t, id, "test/data")
 	if err != nil {
@@ -29,8 +29,7 @@ func TestLocalDirectoryExample(t *testing.T) {
 	statePath := filepath.Join(testDir, "tfstate")
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
 		TerraformDir: exampleDir,
-		Vars: map[string]interface{}{
-		},
+		Vars:         map[string]interface{}{},
 		BackendConfig: map[string]interface{}{
 			"path": statePath,
 		},

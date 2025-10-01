@@ -18,8 +18,8 @@ func TestLocalDirectorySubdirectory(t *testing.T) {
 		t.Fatalf("Error getting git root directory: %v", err)
 	}
 	exampleDir := filepath.Join(repoRoot, "examples", "use-cases", directory)
-	testDir    := filepath.Join(repoRoot, "test", "data", id)
-  newDir     := filepath.Join(repoRoot, "test", "data", id, "newDirectory", "newSubdirectory")
+	testDir := filepath.Join(repoRoot, "test", "data", id)
+	newDir := filepath.Join(repoRoot, "test", "data", id, "newDirectory", "newSubdirectory")
 
 	err = util.Setup(t, id, "test/data")
 	if err != nil {
@@ -70,11 +70,11 @@ func TestLocalDirectorySubdirectory(t *testing.T) {
 		t.Fatalf("Error checking file: %s", err)
 	}
 	if !directoryExists {
-    t.Log("Directory doesn't exist")
+		t.Log("Directory doesn't exist")
 		t.Fail()
 	} else {
-    t.Log("Directory exists")
-  }
+		t.Log("Directory exists")
+	}
 
 	if t.Failed() {
 		t.Log("Test failed...")

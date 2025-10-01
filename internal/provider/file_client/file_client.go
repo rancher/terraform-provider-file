@@ -7,7 +7,7 @@ type FileClient interface {
 	Update(currentDirectory string, currentName string, newDirectory string, newName string, data string, permissions string) error
 	Delete(directory string, name string) error
 
-  Compress(directory string, name string, compressedName string) error
+	Compress(directory string, name string, compressedName string) error
 	Encode(directory string, name string, encodedName string) error
 	Hash(directory string, name string) (string, error) // Sha256Hash, error
 }

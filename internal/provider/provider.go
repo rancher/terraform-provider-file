@@ -10,8 +10,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/rancher/terraform-provider-file/internal/provider/file_local"
-	"github.com/rancher/terraform-provider-file/internal/provider/file_local_snapshot"
 	"github.com/rancher/terraform-provider-file/internal/provider/file_local_directory"
+	"github.com/rancher/terraform-provider-file/internal/provider/file_local_snapshot"
 )
 
 // The `var _` is a special Go construct that results in an unusable variable.
@@ -53,7 +53,7 @@ func (p *FileProvider) Resources(ctx context.Context) []func() resource.Resource
 	return []func() resource.Resource{
 		file_local.NewLocalResource,
 		file_local_snapshot.NewLocalSnapshotResource,
-    file_local_directory.NewLocalDirectoryResource,
+		file_local_directory.NewLocalDirectoryResource,
 	}
 }
 
@@ -61,7 +61,7 @@ func (p *FileProvider) DataSources(ctx context.Context) []func() datasource.Data
 	return []func() datasource.DataSource{
 		file_local.NewLocalDataSource,
 		file_local_snapshot.NewLocalSnapshotDataSource,
-    file_local_directory.NewLocalDirectoryDataSource,
+		file_local_directory.NewLocalDirectoryDataSource,
 	}
 }
 

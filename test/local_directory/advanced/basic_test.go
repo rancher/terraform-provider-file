@@ -18,8 +18,8 @@ func TestLocalDirectoryAdvanced(t *testing.T) {
 		t.Fatalf("Error getting git root directory: %v", err)
 	}
 	exampleDir := filepath.Join(repoRoot, "examples", "use-cases", directory)
-	testDir    := filepath.Join(repoRoot, "test", "data", id)
-  newDir     := filepath.Join(repoRoot, "test", "data", id, "newDirectory", "subDirectory")
+	testDir := filepath.Join(repoRoot, "test", "data", id)
+	newDir := filepath.Join(repoRoot, "test", "data", id, "newDirectory", "subDirectory")
 
 	err = util.Setup(t, id, "test/data")
 	if err != nil {

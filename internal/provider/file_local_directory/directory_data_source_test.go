@@ -107,9 +107,18 @@ func TestLocalDirectoryDataSourceRead(t *testing.T) {
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				path := tc.setup["path"].(string)
-				permissions := tc.setup["permissions"].(string)
-				files := tc.setup["files"].([]map[string]string)
+				path, ok := tc.setup["path"].(string)
+				if !ok {
+					t.Fatalf("path is not a string")
+				}
+				permissions, ok := tc.setup["permissions"].(string)
+				if !ok {
+					t.Fatalf("permissions is not a string")
+				}
+				files, ok := tc.setup["files"].([]map[string]string)
+				if !ok {
+					t.Fatalf("files is not a []map[string]string")
+				}
 				created, err := tc.fit.client.Create(path, permissions)
 				if err != nil {
 					t.Errorf("Error setting up: %v", err)
@@ -143,26 +152,26 @@ func TestLocalDirectoryDataSourceRead(t *testing.T) {
 				r := getReadDataSourceResponseContainer()
 				tc.fit.Read(context.Background(), tc.have, &r)
 				got := r
-        val := map[string]tftypes.Value{}
-        err = tc.want.State.Raw.As(&val)
-        if err != nil {
-          t.Errorf("Error converting tc.want.State.Raw to map: %v", err)
-          return
-        }
-        rawWantFiles := val["files"]
+				val := map[string]tftypes.Value{}
+				err = tc.want.State.Raw.As(&val)
+				if err != nil {
+					t.Errorf("Error converting tc.want.State.Raw to map: %v", err)
+					return
+				}
+				rawWantFiles := val["files"]
 
-        err = got.State.Raw.As(&val)
-        if err != nil {
-          t.Errorf("Error converting got.State.Raw to map: %v", err)
-          return
-        }
-        rawGotFiles := val["files"]
+				err = got.State.Raw.As(&val)
+				if err != nil {
+					t.Errorf("Error converting got.State.Raw to map: %v", err)
+					return
+				}
+				rawGotFiles := val["files"]
 
-        if diff := cmp.Diff(rawWantFiles, rawGotFiles); diff != "" {
-          t.Errorf("Read() mismatch (-want +got):\n%s", diff)
-          return
-        }
-        if diff := cmp.Diff(tc.want, got); diff != "" {
+				if diff := cmp.Diff(rawWantFiles, rawGotFiles); diff != "" {
+					t.Errorf("Read() mismatch (-want +got):\n%s", diff)
+					return
+				}
+				if diff := cmp.Diff(tc.want, got); diff != "" {
 					t.Errorf("Read() mismatch (-want +got):\n%s", diff)
 					return
 				}

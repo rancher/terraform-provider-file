@@ -36,7 +36,7 @@ type LocalSnapshotResourceModel struct {
 	Id            types.String `tfsdk:"id"`
 	Name          types.String `tfsdk:"name"`
 	Directory     types.String `tfsdk:"directory"`
-	LocalSnapshot      types.String `tfsdk:"snapshot"`
+	LocalSnapshot types.String `tfsdk:"snapshot"`
 	UpdateTrigger types.String `tfsdk:"update_trigger"`
 	Compress      types.Bool   `tfsdk:"compress"`
 }

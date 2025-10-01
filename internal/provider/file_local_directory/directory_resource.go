@@ -35,10 +35,10 @@ type LocalDirectoryResource struct {
 
 // LocalDirectoryResourceModel describes the resource data model.
 type LocalDirectoryResourceModel struct {
-	Id            types.String                  `tfsdk:"id"`
-	Path          types.String                  `tfsdk:"path"`
-	Permissions   types.String                  `tfsdk:"permissions"`
-  Created       types.String                  `tfsdk:"created"`
+	Id          types.String `tfsdk:"id"`
+	Path        types.String `tfsdk:"path"`
+	Permissions types.String `tfsdk:"permissions"`
+	Created     types.String `tfsdk:"created"`
 }
 
 func (r *LocalDirectoryResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -56,27 +56,27 @@ func (r *LocalDirectoryResource) Schema(ctx context.Context, req resource.Schema
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
-      },
+			},
 			"permissions": schema.StringAttribute{
 				MarkdownDescription: "The directory permissions to assign to the directory, defaults to '0700'. " +
-          "In order to automatically create subdirectories the owner must have execute access, " +
-          "ie. '0600' or less prevents the provider from creating subdirectories.",
-				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString("0700"),
+					"In order to automatically create subdirectories the owner must have execute access, " +
+					"ie. '0600' or less prevents the provider from creating subdirectories.",
+				Optional: true,
+				Computed: true,
+				Default:  stringdefault.StaticString("0700"),
 			},
 			"id": schema.StringAttribute{
 				MarkdownDescription: "Identifier derived from sha256 hash of path. ",
-				Computed: true,
+				Computed:            true,
 			},
-      "created": schema.StringAttribute{
+			"created": schema.StringAttribute{
 				MarkdownDescription: "The top level directory created. " +
-          "eg. if 'path' = '/path/to/new/directory' and '/path/to' already exists, "+ 
-          "but the rest doesn't, then 'created' will be '/path/to/new'. " +
-          "This path will be recursively removed during destroy and recreate actions.",
+					"eg. if 'path' = '/path/to/new/directory' and '/path/to' already exists, " +
+					"but the rest doesn't, then 'created' will be '/path/to/new'. " +
+					"This path will be recursively removed during destroy and recreate actions.",
 				Computed: true,
 			},
-    },
+		},
 	}
 }
 
@@ -111,17 +111,17 @@ func (r *LocalDirectoryResource) Create(ctx context.Context, req resource.Create
 	path := plan.Path.ValueString()
 	permString := plan.Permissions.ValueString()
 
-  hasher := sha256.New()
-  hasher.Write([]byte(path))
-  id := hex.EncodeToString(hasher.Sum(nil))
+	hasher := sha256.New()
+	hasher.Write([]byte(path))
+	id := hex.EncodeToString(hasher.Sum(nil))
 	plan.Id = types.StringValue(id)
 
-	cutPath, err := r.client.Create(path, permString);
-  if err != nil {
+	cutPath, err := r.client.Create(path, permString)
+	if err != nil {
 		resp.Diagnostics.AddError("Error creating file: ", err.Error())
 		return
 	}
-  plan.Created = types.StringValue(cutPath)
+	plan.Created = types.StringValue(cutPath)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 	tflog.Debug(ctx, fmt.Sprintf("Response Object: %#v", *resp))
@@ -141,24 +141,24 @@ func (r *LocalDirectoryResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 	sPath := state.Path.ValueString()
-  sPerm := state.Permissions.ValueString()
+	sPerm := state.Permissions.ValueString()
 
 	perm, data, err := r.client.Read(sPath)
 	if err != nil && err.Error() == "directory not found" {
-    // force recreate if directory not found
+		// force recreate if directory not found
 		resp.State.RemoveResource(ctx)
 		return
 	}
-  tflog.Debug(ctx, fmt.Sprintf("Read data: %#v", data))
+	tflog.Debug(ctx, fmt.Sprintf("Read data: %#v", data))
 
 	if perm != sPerm {
 		// update the state with the actual mode
 		state.Permissions = types.StringValue(perm)
 	}
 
-  // Only update permissions because id, path, and created should never change.
-  // The directory resource manages a new directory, it is not meant to pull file information.
-  // To retrieve file information in a directory, use the directory data source.
+	// Only update permissions because id, path, and created should never change.
+	// The directory resource manages a new directory, it is not meant to pull file information.
+	// To retrieve file information in a directory, use the directory data source.
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 	tflog.Debug(ctx, fmt.Sprintf("Response Object: %#v", *resp))
@@ -172,7 +172,7 @@ func (r *LocalDirectoryResource) Update(ctx context.Context, req resource.Update
 		r.client = &c.OsDirectoryClient{}
 	}
 
-  // Plan represents what is in the config, so plan = config
+	// Plan represents what is in the config, so plan = config
 	var config LocalDirectoryResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
@@ -180,7 +180,7 @@ func (r *LocalDirectoryResource) Update(ctx context.Context, req resource.Update
 	}
 
 	cPath := config.Path.ValueString()
-  cPerm := config.Permissions.ValueString()
+	cPerm := config.Permissions.ValueString()
 
 	// Read updates state with reality, so state = reality
 	var reality LocalDirectoryResourceModel
@@ -190,14 +190,14 @@ func (r *LocalDirectoryResource) Update(ctx context.Context, req resource.Update
 	}
 	rPerm := reality.Permissions.ValueString()
 
-  if cPerm != rPerm {
-    // Only update permissions because id, path, and created should never change.
-    err := r.client.Update(cPath, cPerm)
-    if err != nil {
-      resp.Diagnostics.AddError("Error updating directory permissions: ", err.Error())
-      return
-    }
-  }
+	if cPerm != rPerm {
+		// Only update permissions because id, path, and created should never change.
+		err := r.client.Update(cPath, cPerm)
+		if err != nil {
+			resp.Diagnostics.AddError("Error updating directory permissions: ", err.Error())
+			return
+		}
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &config)...)
 	tflog.Debug(ctx, fmt.Sprintf("Response Object: %#v", *resp))
