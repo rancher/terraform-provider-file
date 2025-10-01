@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/rancher/terraform-provider-file/compare/v1.1.1...v2.0.0) (2025-10-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* Add local directory management ([#201](https://github.com/rancher/terraform-provider-file/issues/201)) (#204)
+
+### Features
+
+* Add local directory management ([#201](https://github.com/rancher/terraform-provider-file/issues/201)) ([#204](https://github.com/rancher/terraform-provider-file/issues/204)) ([6a781ea](https://github.com/rancher/terraform-provider-file/commit/6a781ea7fd67723bbfd9ab99a2db38d59df734e8))
+
 ## [1.1.1](https://github.com/rancher/terraform-provider-file/compare/v1.1.0...v1.1.1) (2025-09-20)
 
 
