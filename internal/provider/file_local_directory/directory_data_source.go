@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -139,7 +140,7 @@ func (r *LocalDirectoryDataSource) Read(ctx context.Context, req datasource.Read
 	}
 	config.Permissions = types.StringValue(perm)
 
-	config.Files = []LocalDirectoryFileInfoModel{}
+	fileList := []LocalDirectoryFileInfoModel{}
 	for fileName, fileData := range files {
 		fileInfo := LocalDirectoryFileInfoModel{
 			Name:         types.StringValue(fileName),
@@ -148,8 +149,14 @@ func (r *LocalDirectoryDataSource) Read(ctx context.Context, req datasource.Read
 			LastModified: types.StringValue(fileData["ModTime"]),
 			IsDirectory:  types.StringValue(fileData["IsDir"]),
 		}
-		config.Files = append(config.Files, fileInfo)
+		fileList = append(fileList, fileInfo)
 	}
+	// Sort files by name (alphabetically)
+	sort.Slice(fileList, func(i, j int) bool {
+		return fileList[i].Name.ValueString() < fileList[j].Name.ValueString()
+	})
+
+	config.Files = fileList
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &config)...)
 	tflog.Debug(ctx, fmt.Sprintf("Response Object: %#v", *resp))
