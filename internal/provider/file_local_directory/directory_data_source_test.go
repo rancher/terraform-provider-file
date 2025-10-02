@@ -6,6 +6,7 @@ import (
 	"context"
 	"math/rand"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -119,24 +120,18 @@ func TestLocalDirectoryDataSourceRead(t *testing.T) {
 				if !ok {
 					t.Fatalf("files is not a []map[string]string")
 				}
+
 				created, err := tc.fit.client.Create(path, permissions)
 				if err != nil {
 					t.Errorf("Error setting up: %v", err)
 					return
 				}
-				characterSet := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-				rand := rand.New(rand.NewSource(time.Now().UnixNano()))
 				for _, file := range files {
-					size, err := strconv.Atoi(file["size"])
+					contents, err := getRandomString(file["size"])
 					if err != nil {
-						t.Errorf("could not convert size '%s' to an integer: %v", file["size"], err)
+						t.Errorf("Error generating random string: %v", err)
 						return
 					}
-					b := make([]byte, size)
-					for i := range b {
-						b[i] = characterSet[rand.Intn(len(characterSet))]
-					}
-					contents := string(b)
 					err = tc.fit.client.CreateFile(filepath.Join(path, file["name"]), contents, file["permissions"], file["lastModified"])
 					if err != nil {
 						t.Errorf("Error setting up: %v", err)
@@ -152,26 +147,27 @@ func TestLocalDirectoryDataSourceRead(t *testing.T) {
 				r := getReadDataSourceResponseContainer()
 				tc.fit.Read(context.Background(), tc.have, &r)
 				got := r
-				val := map[string]tftypes.Value{}
-				err = tc.want.State.Raw.As(&val)
-				if err != nil {
-					t.Errorf("Error converting tc.want.State.Raw to map: %v", err)
-					return
-				}
-				rawWantFiles := val["files"]
 
-				err = got.State.Raw.As(&val)
-				if err != nil {
-					t.Errorf("Error converting got.State.Raw to map: %v", err)
-					return
+				var wantState LocalDirectoryDataSourceModel
+				diags := tc.want.State.Get(context.Background(), &wantState)
+				if diags.HasError() {
+					t.Fatalf("error getting want state: %v", diags)
 				}
-				rawGotFiles := val["files"]
 
-				if diff := cmp.Diff(rawWantFiles, rawGotFiles); diff != "" {
-					t.Errorf("Read() mismatch (-want +got):\n%s", diff)
-					return
+				var gotState LocalDirectoryDataSourceModel
+				diags = got.State.Get(context.Background(), &gotState)
+				if diags.HasError() {
+					t.Fatalf("error getting got state: %v", diags)
 				}
-				if diff := cmp.Diff(tc.want, got); diff != "" {
+
+				sort.Slice(wantState.Files, func(i, j int) bool {
+					return wantState.Files[i].Name.ValueString() < wantState.Files[j].Name.ValueString()
+				})
+				sort.Slice(gotState.Files, func(i, j int) bool {
+					return gotState.Files[i].Name.ValueString() < gotState.Files[j].Name.ValueString()
+				})
+
+				if diff := cmp.Diff(wantState, gotState); diff != "" {
 					t.Errorf("Read() mismatch (-want +got):\n%s", diff)
 					return
 				}
@@ -302,4 +298,18 @@ func getLocalDirectoryDataSourceSchema() *datasource.SchemaResponse {
 	r := &datasource.SchemaResponse{}
 	testResource.Schema(context.Background(), datasource.SchemaRequest{}, r)
 	return r
+}
+
+func getRandomString(n string) (string, error) {
+	size, err := strconv.Atoi(n)
+	if err != nil {
+		return "", err
+	}
+	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	b := make([]byte, size)
+	for i := 0; i < size; i++ {
+		b[i] = letterBytes[r.Intn(len(letterBytes))]
+	}
+	return string(b), nil
 }
