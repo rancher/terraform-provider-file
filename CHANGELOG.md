@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/rancher/terraform-provider-file/compare/v2.0.0...v2.0.1) (2025-10-02)
+
+
+### Bug Fixes
+
+* sort directory file info objects ([#209](https://github.com/rancher/terraform-provider-file/issues/209)) ([#212](https://github.com/rancher/terraform-provider-file/issues/212)) ([0772272](https://github.com/rancher/terraform-provider-file/commit/07722727ecdd0fff83afdb55d1a3a4d0bff758e1))
+
 ## [2.0.0](https://github.com/rancher/terraform-provider-file/compare/v1.1.1...v2.0.0) (2025-10-01)
 
 
