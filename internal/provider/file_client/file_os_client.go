@@ -64,7 +64,7 @@ func (c *OsFileClient) Update(currentDirectory string, currentName string, newDi
 
 func (c *OsFileClient) Delete(directory string, name string) error {
 	path := filepath.Join(directory, name)
-	return os.Remove(path)
+	return os.RemoveAll(path)
 }
 
 func (c *OsFileClient) Compress(directory string, name string, outputName string) error {
