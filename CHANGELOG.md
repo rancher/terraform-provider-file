@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.1](https://github.com/rancher/terraform-provider-file/compare/v2.2.0...v2.2.1) (2025-10-04)
+
+
+### Bug Fixes
+
+* restrict goreleaser generating rc releases ([#230](https://github.com/rancher/terraform-provider-file/issues/230)) ([#233](https://github.com/rancher/terraform-provider-file/issues/233)) ([43ab008](https://github.com/rancher/terraform-provider-file/commit/43ab008336f2bd397f8752b17cef8596596a1e50))
+
 ## [2.2.0](https://github.com/rancher/terraform-provider-file/compare/v2.0.2...v2.2.0) (2025-10-04)
 
 
