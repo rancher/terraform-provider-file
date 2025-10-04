@@ -142,3 +142,24 @@ func (c *OsFileClient) Hash(directory string, name string) (string, error) {
 	hexContents := hex.EncodeToString(contentsHash)
 	return hexContents, nil
 }
+
+func (c *OsFileClient) Copy(currentPath string, newPath string) error {
+	srcFile, err := os.Open(currentPath)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	destFile, err := os.Create(newPath)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, srcFile)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
