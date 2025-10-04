@@ -3,7 +3,10 @@ package file_local_snapshot
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -132,9 +135,24 @@ func (r *LocalSnapshotResource) Create(ctx context.Context, req resource.CreateR
 	pDir := plan.Directory.ValueString()
 	pCompress := plan.Compress.ValueBool()
 
+	tempDir := filepath.Join(os.TempDir(), "terraform-provider-file", "snapshot", uuid.New().String())
+	err := os.MkdirAll(tempDir, os.ModePerm)
+	if err != nil {
+		resp.Diagnostics.AddError("Error creating temporary directory: ", err.Error())
+		return
+	}
+	defer os.RemoveAll(tempDir)
+
+	// copy the file to a temporary directory to prevent issues with encoding and compressing large files
+	err = r.client.Copy(filepath.Join(pDir, pName), filepath.Join(tempDir, pName))
+	if err != nil {
+		resp.Diagnostics.AddError("Error copying file to temporary directory: ", err.Error())
+		return
+	}
+
 	name := pName
 	if pCompress {
-		err := r.client.Compress(pDir, pName, "compressed_"+pName)
+		err := r.client.Compress(tempDir, pName, "compressed_"+pName)
 		if err != nil {
 			resp.Diagnostics.AddError("Error compressing file: ", err.Error())
 			return
@@ -142,19 +160,19 @@ func (r *LocalSnapshotResource) Create(ctx context.Context, req resource.CreateR
 		name = "compressed_" + pName
 	}
 
-	err := r.client.Encode(pDir, name, "encoded_"+pName)
+	err = r.client.Encode(tempDir, name, "encoded_"+pName)
 	if err != nil {
 		resp.Diagnostics.AddError("Error encoding file: ", err.Error())
 		return
 	}
-	_, encodedContents, err := r.client.Read(pDir, "encoded_"+pName)
+	_, encodedContents, err := r.client.Read(tempDir, "encoded_"+pName)
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading encoded file: ", err.Error())
 		return
 	}
 	plan.LocalSnapshot = types.StringValue(encodedContents)
 
-	hash, err := r.client.Hash(pDir, pName)
+	hash, err := r.client.Hash(tempDir, name)
 	if err != nil {
 		resp.Diagnostics.AddError("Error hashing file: ", err.Error())
 		return

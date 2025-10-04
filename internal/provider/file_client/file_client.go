@@ -10,4 +10,5 @@ type FileClient interface {
 	Compress(directory string, name string, compressedName string) error
 	Encode(directory string, name string, encodedName string) error
 	Hash(directory string, name string) (string, error) // Sha256Hash, error
+	Copy(currentPath string, newPath string) error
 }
