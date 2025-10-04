@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"path/filepath"
 )
 
 type MemoryFileClient struct {
@@ -82,4 +83,10 @@ func (c *MemoryFileClient) Hash(directory string, name string) (string, error) {
 	hashString := hex.EncodeToString(hashBytes)
 
 	return hashString, nil
+}
+
+func (c *MemoryFileClient) Copy(currentPath string, newPath string) error {
+	c.file["directory"] = filepath.Dir(newPath)
+	c.file["name"] = filepath.Base(newPath)
+	return nil
 }
