@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.2](https://github.com/rancher/terraform-provider-file/compare/v2.2.1...v2.2.2) (2025-10-04)
+
+
+### Bug Fixes
+
+* temp file collisions ([#235](https://github.com/rancher/terraform-provider-file/issues/235)) ([#238](https://github.com/rancher/terraform-provider-file/issues/238)) ([2f47cb2](https://github.com/rancher/terraform-provider-file/commit/2f47cb2e08e2e6b1466ec20890a9fb6485cf1945))
+
 ## [2.2.1](https://github.com/rancher/terraform-provider-file/compare/v2.2.0...v2.2.1) (2025-10-04)
 
 
