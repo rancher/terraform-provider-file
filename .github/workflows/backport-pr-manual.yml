@@ -93,7 +93,7 @@ jobs:
               execSync(`git config user.email "github-actions[bot]@users.noreply.github.com"`);
               execSync(`git fetch origin ${targetBranch}`);
               execSync(`git checkout -b ${newBranchName} origin/${targetBranch}`);
-              execSync(`git cherry-pick -x ${mergeCommitSha} -X theirs`);
+              execSync(`git cherry-pick --allow-empty -x ${mergeCommitSha} -X theirs`);
               execSync(`git push origin ${newBranchName}`);
 
               core.info(`Creating pull request for branch ${newBranchName} targeting ${targetBranch}...`);
