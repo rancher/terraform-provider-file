@@ -1,12 +1,8 @@
-# Basic Snapshot Use Case
+# Multiple Snapshot Use Case
 
-This is an example of how you could use the file_snapshot resource.
-WARNING! Please remember that Terraform must load the entire state into memory,
- ensure you have enough memory on the server running Terraform to store or retrieve the data you are storing.
-For larger files, please see the snapshot_compressed use-case for more details.
-
-We use the uuid() function for testing purposes.
-Every update, the file will be changed and the snapshot will remain the same.
+This is an example of snapshotting the same file multiple times.
+This show the same operations as the basic example,
+ but it shows that you can have multiple snapshots working in parallel on the same file without collisions.
 
 # Updating the snapshot
 

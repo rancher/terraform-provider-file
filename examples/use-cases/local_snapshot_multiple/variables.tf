@@ -11,5 +11,5 @@ variable "directory" {
 
 variable "name" {
   type    = string
-  default = "snapshot_resource_basic_use_case.txt"
+  default = "snapshot_resource_use_case_multiple.txt"
 }
