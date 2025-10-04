@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.2.0](https://github.com/rancher/terraform-provider-file/compare/v2.0.2...v2.2.0) (2025-10-04)
+
+
+### Bug Fixes
+
+* fix release and release candidate race ([#221](https://github.com/rancher/terraform-provider-file/issues/221)) ([#224](https://github.com/rancher/terraform-provider-file/issues/224)) ([5e03c25](https://github.com/rancher/terraform-provider-file/commit/5e03c25da8e9e3c20ceb5f678f81bc4a9d97fe65))
+
+
+### Miscellaneous Chores
+
+* release v2.2.0 ([#226](https://github.com/rancher/terraform-provider-file/issues/226)) ([#229](https://github.com/rancher/terraform-provider-file/issues/229)) ([6b4623a](https://github.com/rancher/terraform-provider-file/commit/6b4623a6e0de5c8cca33ec72382f1ccd76c276f2))
+
 ## [2.0.2](https://github.com/rancher/terraform-provider-file/compare/v2.0.1...v2.0.2) (2025-10-03)
 
 
