@@ -1,7 +1,7 @@
 ---
 name: Feature request
 about: Suggest an idea for this project
-title: '[RFE] '
+title: '[Feature] '
 labels: 
 - 'kind/enhancement'
 - 'internal/user'

@@ -5,6 +5,10 @@ on:
     branches:
     - release/v*
 
+env:
+  NIX_INSTALL_SHA: de490f61fcbaf9a5cabf2fa621ddb9ef93ad35d9a23a04e7d51b26e092b63691
+  NIX_INSTALL_VERSION: 2.34.4
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -55,7 +59,10 @@ jobs:
       - name: install-nix
         if: steps.release-please.outputs.pr
         run: |
-          curl -L https://nixos.org/nix/install | sh
+          curl -L -o install.sh "https://releases.nixos.org/nix/nix-${NIX_INSTALL_VERSION}/install"
+          echo "${NIX_INSTALL_SHA} install.sh" | sha256sum -c -
+          chmod +x install.sh
+          ./install.sh
           source /home/runner/.nix-profile/etc/profile.d/nix.sh
           nix --version
           which nix
