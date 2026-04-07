@@ -9,9 +9,6 @@ lint:
 build:
 	go build -o ./bin/ -v ./...
 
-install:
-	go install -v ./...
-
 generate:
 	cd tools; go generate ./...
 

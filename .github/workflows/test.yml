@@ -20,7 +20,10 @@ jobs:
           fetch-depth: 0
       - name: install-nix
         run: |
-          curl -L https://nixos.org/nix/install | sh
+          curl -L -o install.sh "https://releases.nixos.org/nix/nix-${NIX_INSTALL_VERSION}/install"
+          echo "${NIX_INSTALL_SHA} install.sh" | sha256sum -c -
+          chmod +x install.sh
+          ./install.sh
           source /home/runner/.nix-profile/etc/profile.d/nix.sh
           nix --version
           which nix
@@ -38,7 +41,10 @@ jobs:
           fetch-depth: 0
       - name: install-nix
         run: |
-          curl -L https://nixos.org/nix/install | sh
+          curl -L -o install.sh "https://releases.nixos.org/nix/nix-${NIX_INSTALL_VERSION}/install"
+          echo "${NIX_INSTALL_SHA} install.sh" | sha256sum -c -
+          chmod +x install.sh
+          ./install.sh
           source /home/runner/.nix-profile/etc/profile.d/nix.sh
           nix --version
           which nix
@@ -111,7 +117,10 @@ jobs:
     steps:
       - name: install-nix
         run: |
-          curl -L https://nixos.org/nix/install | sh
+          curl -L -o install.sh "https://releases.nixos.org/nix/nix-${NIX_INSTALL_VERSION}/install"
+          echo "${NIX_INSTALL_SHA} install.sh" | sha256sum -c -
+          chmod +x install.sh
+          ./install.sh
           source /home/runner/.nix-profile/etc/profile.d/nix.sh
           nix --version
           which nix
