@@ -1,14 +1,11 @@
 name: release
-
 on:
   push:
     branches:
-    - release/v*
-
+      - release/v*
 env:
   NIX_INSTALL_SHA: de490f61fcbaf9a5cabf2fa621ddb9ef93ad35d9a23a04e7d51b26e092b63691
   NIX_INSTALL_VERSION: 2.34.4
-
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -29,7 +26,6 @@ jobs:
           target-branch: ${{ github.ref_name }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
-
       # These run only if a release PR was opened or modified, so not when the PR is merged
       - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0 https://github.com/actions/github-script/commits/main
         name: wait-for-e2e
@@ -95,7 +91,6 @@ jobs:
               repo: "${{ github.event.repository.name }}",
               body: "Tests Failed!"
             })
-
       # If the e2e tests pass we automatically generate an RC release
       #   this shouldn't happen when the release PR is merged, only when it's opened or updated
       - name: Create and Push RC Tag with Git
@@ -160,16 +155,59 @@ jobs:
 
           echo "Importing gpg key"
           echo "${GPG_KEY}" | gpg --import --batch > /dev/null || { echo "Failed to import GPG key"; exit 1; }
+      - name: Setup goreleaser
+        shell: bash
+        run: |-
+          OS="Linux"
+          if [[ ${RUNNER_OS} != "Linux" ]]; then
+          	echo "Unsupported OS: ${RUNNER_OS}"
+          	exit 1
+          fi
+
+          # renovate-local: goreleaser-x86_64
+          GORELEASER_VERSION="v2.15.2"
+          # renovate-local: goreleaser-x86_64=v2.15.2
+          GORELEASER_CHECKSUM_x86_64="0ebdbf0353aba566b969dde746cc4e4806f96c27aa2f3971b229a9df7611fedc"
+
+          ARCH=$(uname -m)
+          CHECKSUM="${GORELEASER_CHECKSUM_x86_64}"
+          if [[ "${ARCH}" != "x86_64" ]]; then
+          	echo "Unsupported architecture: ${ARCH}"
+          	exit 1
+          fi
+
+          FILE="goreleaser_${OS}_${ARCH}.tar.gz"
+
+          echo "Installing ${FILE}"
+          curl -LO "https://github.com/goreleaser/goreleaser/releases/download/${GORELEASER_VERSION}/${FILE}"
+          echo "${CHECKSUM} ${FILE}" | sha256sum -c
+          tar -xf "${FILE}" goreleaser
+
+          if sudo -n true &> /dev/null; then
+          	sudo install -m 755 goreleaser /usr/local/bin/goreleaser
+          else
+          	install -m 755 goreleaser /usr/local/bin/goreleaser
+          fi
+          rm -f "${FILE}" goreleaser
       - name: Run GoReleaser
         if: steps.release-please.outputs.pr && always() && (steps.run-unit-tests.conclusion == 'success') && (steps.run-acc-tests.conclusion == 'success') && (steps.create-push-rc-tag.conclusion == 'success') && (steps.retrieve-gpg-credentials.conclusion == 'success') && (steps.import-gpg-key.conclusion == 'success')
-        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0 https://github.com/goreleaser/goreleaser-action
-        with:
-          args: release --clean --config .goreleaser_rc.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_KEY_ID: ${{ env.GPG_KEY_ID }}
           GPG_PASSPHRASE: ${{ env.GPG_PASSPHRASE }}
-
+        shell: bash
+        run: |-
+          goreleaser release --clean --config .goreleaser_rc.yml
+          if [[ ! -f dist/metadata.json ]] || [[ ! -s dist/metadata.json ]]; then
+            echo "Missing required file: dist/metadata.json"
+            exit 1
+          fi
+          if [[ ! -f dist/artifacts.json ]] || [[ ! -s dist/artifacts.json ]]; then
+            echo "Missing required file: dist/artifacts.json"
+            exit 1
+          fi
+          echo "metadata=$(tr -d '\n\r' < dist/metadata.json)" >> "${GITHUB_OUTPUT}"
+          echo "artifacts=$(tr -d '\n\r' < dist/artifacts.json)" >> "${GITHUB_OUTPUT}"
       # These run after release-please generates a release, so when the release PR is merged
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0 https://github.com/actions/checkout
         if: steps.release-please.outputs.version
@@ -208,12 +246,56 @@ jobs:
 
           echo "Importing gpg key"
           echo "${GPG_KEY}" | gpg --import --batch > /dev/null || { echo "Failed to import GPG key"; exit 1; }
+      - name: Setup goreleaser
+        shell: bash
+        run: |-
+          OS="Linux"
+          if [[ ${RUNNER_OS} != "Linux" ]]; then
+          	echo "Unsupported OS: ${RUNNER_OS}"
+          	exit 1
+          fi
+
+          # renovate-local: goreleaser-x86_64
+          GORELEASER_VERSION="v2.15.2"
+          # renovate-local: goreleaser-x86_64=v2.15.2
+          GORELEASER_CHECKSUM_x86_64="0ebdbf0353aba566b969dde746cc4e4806f96c27aa2f3971b229a9df7611fedc"
+
+          ARCH=$(uname -m)
+          CHECKSUM="${GORELEASER_CHECKSUM_x86_64}"
+          if [[ "${ARCH}" != "x86_64" ]]; then
+          	echo "Unsupported architecture: ${ARCH}"
+          	exit 1
+          fi
+
+          FILE="goreleaser_${OS}_${ARCH}.tar.gz"
+
+          echo "Installing ${FILE}"
+          curl -LO "https://github.com/goreleaser/goreleaser/releases/download/${GORELEASER_VERSION}/${FILE}"
+          echo "${CHECKSUM} ${FILE}" | sha256sum -c
+          tar -xf "${FILE}" goreleaser
+
+          if sudo -n true &> /dev/null; then
+          	sudo install -m 755 goreleaser /usr/local/bin/goreleaser
+          else
+          	install -m 755 goreleaser /usr/local/bin/goreleaser
+          fi
+          rm -f "${FILE}" goreleaser
       - name: Run GoReleaser
         if: steps.release-please.outputs.version
-        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0 https://github.com/goreleaser/goreleaser-action
-        with:
-          args: release --clean --config .goreleaser.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_KEY_ID: ${{ env.GPG_KEY_ID }}
           GPG_PASSPHRASE: ${{ env.GPG_PASSPHRASE }}
+        shell: bash
+        run: |-
+          goreleaser release --clean --config .goreleaser.yml
+          if [[ ! -f dist/metadata.json ]] || [[ ! -s dist/metadata.json ]]; then
+            echo "Missing required file: dist/metadata.json"
+            exit 1
+          fi
+          if [[ ! -f dist/artifacts.json ]] || [[ ! -s dist/artifacts.json ]]; then
+            echo "Missing required file: dist/artifacts.json"
+            exit 1
+          fi
+          echo "metadata=$(tr -d '\n\r' < dist/metadata.json)" >> "${GITHUB_OUTPUT}"
+          echo "artifacts=$(tr -d '\n\r' < dist/artifacts.json)" >> "${GITHUB_OUTPUT}"
