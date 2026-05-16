@@ -164,6 +164,7 @@ func TestLocalResourceCreate(t *testing.T) {
 					t.Setenv("TF_FILE_HMAC_SECRET_KEY", "thisisasupersecretkey")
 				}
 				r := getCreateResponseContainer()
+				t.Logf("Creating file with: %+v", tc.have)
 				tc.fit.Create(context.Background(), tc.have, &r)
 				defer func() {
 					if err := tc.fit.client.Delete(plannedDirectory, plannedName); err != nil {

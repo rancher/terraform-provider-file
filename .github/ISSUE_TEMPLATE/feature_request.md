@@ -1,9 +1,9 @@
 ---
 name: Feature request
 about: Suggest an idea for this project
-title: '[RFE] '
+title: '[FEATURE] '
 labels: 
-- 'kind/enhancement'
+- 'kind/feature'
 - 'internal/user'
 assignees: 'matttrach'
 
