@@ -1,15 +1,12 @@
 ---
-name: Bug report
+name: Problem
 about: Create a report to help us improve
-title: '[BUG]'
+title: '[Problem] '
 labels: 
-- 'kind/bug'
+- 'kind/problem'
 - 'internal/user'
 assignees:
 - 'matttrach'
-- 'jiaqiluo'
-- 'HarrisonWAffel'
-
 ---
 
 ### Environment Information

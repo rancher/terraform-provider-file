@@ -36,7 +36,9 @@ var _ resource.ResourceWithImportState = &LocalResource{}
 const unprotectedHmacSecret = "this-is-the-hmac-secret-key-that-will-be-used-to-calculate-the-hash-of-unprotected-files"
 
 func NewLocalResource() resource.Resource {
-	return &LocalResource{}
+	return &LocalResource{
+		client: &c.OsFileClient{},
+	}
 }
 
 type LocalResource struct {
@@ -152,11 +154,6 @@ func (r *LocalResource) Create(ctx context.Context, req resource.CreateRequest, 
 	tflog.Debug(ctx, fmt.Sprintf("Request Object: %#v", req))
 	var err error
 
-	if r.client == nil {
-		tflog.Debug(ctx, "Configuring client with default OsFileClient.")
-		r.client = &c.OsFileClient{}
-	}
-
 	var plan LocalResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -211,12 +208,6 @@ func (r *LocalResource) Create(ctx context.Context, req resource.CreateRequest, 
 // We want to update the state to match reality so that differences can be detected.
 func (r *LocalResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	tflog.Debug(ctx, fmt.Sprintf("Request Object: %#v", req))
-
-	// Allow the ability to inject a file client, but use the OsFileClient by default.
-	if r.client == nil {
-		tflog.Debug(ctx, "Configuring client with default OsFileClient.")
-		r.client = &c.OsFileClient{}
-	}
 
 	var state LocalResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -276,12 +267,6 @@ func (r *LocalResource) Read(ctx context.Context, req resource.ReadRequest, resp
 // The plan has the authority here, state and reality needs to match the plan.
 func (r *LocalResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	tflog.Debug(ctx, fmt.Sprintf("Request Object: %#v", req))
-
-	// Allow the ability to inject a file client, but use the OsFileClient by default.
-	if r.client == nil {
-		tflog.Debug(ctx, "Configuring client with default OsFileClient.")
-		r.client = &c.OsFileClient{}
-	}
 
 	var config LocalResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &config)...)
@@ -369,12 +354,6 @@ func (r *LocalResource) Update(ctx context.Context, req resource.UpdateRequest, 
 
 func (r *LocalResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	tflog.Debug(ctx, fmt.Sprintf("Request Object: %#v", req))
-
-	// Allow the ability to inject a file client, but use the OsFileClient by default.
-	if r.client == nil {
-		tflog.Debug(ctx, "Configuring client with default OsFileClient.")
-		r.client = &c.OsFileClient{}
-	}
 
 	var state LocalResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)

@@ -20,7 +20,9 @@ import (
 var _ datasource.DataSource = &LocalDataSource{}
 
 func NewLocalDataSource() datasource.DataSource {
-	return &LocalDataSource{}
+	return &LocalDataSource{
+		client: &c.OsFileClient{},
+	}
 }
 
 type LocalDataSource struct {
@@ -88,12 +90,6 @@ func (r *LocalDataSource) Configure(ctx context.Context, req datasource.Configur
 // Read runs before all other resources are run, datasources only get the Read function.
 func (r *LocalDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	tflog.Debug(ctx, fmt.Sprintf("Request Object: %#v", req))
-
-	// Allow the ability to inject a file client, but use the OsFileClient by default.
-	if r.client == nil {
-		tflog.Debug(ctx, "Configuring client with default OsFileClient.")
-		r.client = &c.OsFileClient{}
-	}
 
 	var config LocalDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
