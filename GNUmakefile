@@ -9,8 +9,8 @@ lint:
 build:
 	go build -o ./bin/ -v ./...
 
-install:
-	go install -v ./...
+buildrace:
+	go build -race -o ./bin/ -v ./...
 
 generate:
 	cd tools; go generate ./...
@@ -27,10 +27,22 @@ testacc: build
 	gotestsum --format standard-verbose --jsonfile report.json --post-run-command "./summarize.sh" -- ./... -v -p=1 -timeout=300s; \
 	popd;
 
+testracc: buildrace
+	export REPO_ROOT="../../../."; \
+	pushd ./test; \
+	gotestsum --format standard-verbose --jsonfile report.json --post-run-command "./summarize.sh" -- ./... -v -p=100 -timeout=3000s; \
+	popd;
+
 et: build
 	export REPO_ROOT="../../../."; \
 	pushd ./test; \
 	gotestsum --format standard-verbose --jsonfile report.json --post-run-command "./summarize.sh" -- ./... -v -p=1 -timeout=300s -run=$(t); \
+	popd;
+
+rt: buildrace
+	export REPO_ROOT="../../../."; \
+	pushd ./test; \
+	gotestsum --format standard-verbose --jsonfile report.json --post-run-command "./summarize.sh" -- ./... -v -p=100 -timeout=3000s -run=$(t); \
 	popd;
 
 .PHONY: fmt lint build install generate test testacc debug
