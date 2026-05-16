@@ -74,60 +74,60 @@ func TestLocalDirectoryBasic(t *testing.T) {
 		t.Fail()
 	}
 
-  if !t.Failed() {
-    t.Log("Passing so far, try removing directory and rebuild from state.")
-    os.RemoveAll(filepath.Join(newDir))
+	if !t.Failed() {
+		t.Log("Passing so far, try removing directory and rebuild from state.")
+		os.RemoveAll(filepath.Join(newDir))
 
-    _, err = terraform.InitAndApplyE(t, terraformOptions)
-    if err != nil {
-      t.Log("Test failed, tearing down...")
-      util.TearDown(t, testDir, terraformOptions)
-      t.Fatalf("Error creating file: %s", err)
-    }
-    _, err = terraform.OutputAllE(t, terraformOptions)
-    if err != nil {
-      t.Log("Output failed, moving along...")
-    }
-    directoryExists, err := util.CheckFileExists(filepath.Join(newDir))
-    if err != nil {
-      t.Log("Test failed, tearing down...")
-      util.TearDown(t, testDir, terraformOptions)
-      t.Fatalf("Error checking file: %s", err)
-    }
-    if !directoryExists {
-      t.Fail()
-    }
-  }
+		_, err = terraform.InitAndApplyE(t, terraformOptions)
+		if err != nil {
+			t.Log("Test failed, tearing down...")
+			util.TearDown(t, testDir, terraformOptions)
+			t.Fatalf("Error creating file: %s", err)
+		}
+		_, err = terraform.OutputAllE(t, terraformOptions)
+		if err != nil {
+			t.Log("Output failed, moving along...")
+		}
+		directoryExists, err := util.CheckFileExists(filepath.Join(newDir))
+		if err != nil {
+			t.Log("Test failed, tearing down...")
+			util.TearDown(t, testDir, terraformOptions)
+			t.Fatalf("Error checking file: %s", err)
+		}
+		if !directoryExists {
+			t.Fail()
+		}
+	}
 
-  if !t.Failed() {
-    t.Log("Passing so far, try removing directory, adding a fake directory, and rebuild from state.")
-    os.RemoveAll(filepath.Join(newDir))
+	if !t.Failed() {
+		t.Log("Passing so far, try removing directory, adding a fake directory, and rebuild from state.")
+		os.RemoveAll(filepath.Join(newDir))
 		err = os.Mkdir(newDir, 0755)
 		if err != nil && !os.IsExist(err) {
-      t.Log("Test failed, tearing down...")
-      util.TearDown(t, testDir, terraformOptions)
-      t.Fatalf("Error creating file: %s", err)
+			t.Log("Test failed, tearing down...")
+			util.TearDown(t, testDir, terraformOptions)
+			t.Fatalf("Error creating file: %s", err)
 		}
-    _, err = terraform.InitAndApplyE(t, terraformOptions)
-    if err != nil {
-      t.Log("Test failed, tearing down...")
-      util.TearDown(t, testDir, terraformOptions)
-      t.Fatalf("Error creating file: %s", err)
-    }
-    _, err = terraform.OutputAllE(t, terraformOptions)
-    if err != nil {
-      t.Log("Output failed, moving along...")
-    }
-    directoryExists, err := util.CheckFileExists(filepath.Join(newDir))
-    if err != nil {
-      t.Log("Test failed, tearing down...")
-      util.TearDown(t, testDir, terraformOptions)
-      t.Fatalf("Error checking file: %s", err)
-    }
-    if !directoryExists {
-      t.Fail()
-    }
-  }
+		_, err = terraform.InitAndApplyE(t, terraformOptions)
+		if err != nil {
+			t.Log("Test failed, tearing down...")
+			util.TearDown(t, testDir, terraformOptions)
+			t.Fatalf("Error creating file: %s", err)
+		}
+		_, err = terraform.OutputAllE(t, terraformOptions)
+		if err != nil {
+			t.Log("Output failed, moving along...")
+		}
+		directoryExists, err := util.CheckFileExists(filepath.Join(newDir))
+		if err != nil {
+			t.Log("Test failed, tearing down...")
+			util.TearDown(t, testDir, terraformOptions)
+			t.Fatalf("Error checking file: %s", err)
+		}
+		if !directoryExists {
+			t.Fail()
+		}
+	}
 
 	if t.Failed() {
 		t.Log("Test failed...")
