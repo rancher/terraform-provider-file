@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 // The default FileClient, using the os package.
@@ -17,16 +18,34 @@ type OsFileClient struct{}
 
 var _ FileClient = &OsFileClient{} // make sure the OsFileClient implements the FileClient
 
-func (c *OsFileClient) Create(directory string, name string, data string, permissions string) error {
+func (c *OsFileClient) Create(directory string, name string, data string, permissions string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic during file creation: %v", r)
+		}
+	}()
+
 	path := filepath.Join(directory, name)
 	modeInt, err := strconv.ParseUint(permissions, 8, 32)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, []byte(data), os.FileMode(modeInt))
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.FileMode(modeInt))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = io.WriteString(f, data)
+	return err
 }
 
-func (c *OsFileClient) Read(directory string, name string) (string, string, error) {
+func (c *OsFileClient) Read(directory string, name string) (rMode string, rContents string, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic during file read: %v", r)
+		}
+	}()
+
 	path := filepath.Join(directory, name)
 	info, err := os.Stat(path)
 	if err != nil && os.IsNotExist(err) {
@@ -36,18 +55,30 @@ func (c *OsFileClient) Read(directory string, name string) (string, string, erro
 		return "", "", err
 	}
 	mode := fmt.Sprintf("%#o", info.Mode().Perm())
-	contents, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return "", "", err
 	}
-	return mode, string(contents), nil
+	defer f.Close()
+	var builder strings.Builder
+	builder.Grow(int(info.Size()))
+	if _, err = io.Copy(&builder, f); err != nil {
+		return "", "", err
+	}
+	return mode, builder.String(), nil
 }
 
-func (c *OsFileClient) Update(currentDirectory string, currentName string, newDirectory string, newName string, data string, permissions string) error {
+func (c *OsFileClient) Update(currentDirectory string, currentName string, newDirectory string, newName string, data string, permissions string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic during file update: %v", r)
+		}
+	}()
+
 	currentPath := filepath.Join(currentDirectory, currentName)
 	newPath := filepath.Join(newDirectory, newName)
 	if currentPath != newPath {
-		err := os.Rename(currentPath, newPath)
+		err = os.Rename(currentPath, newPath)
 		if err != nil {
 			return err
 		}
@@ -56,18 +87,34 @@ func (c *OsFileClient) Update(currentDirectory string, currentName string, newDi
 	if err != nil {
 		return err
 	}
-	if err = os.WriteFile(newPath, []byte(data), os.FileMode(modeInt)); err != nil {
+	f, err := os.OpenFile(newPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.FileMode(modeInt))
+	if err != nil {
 		return err
 	}
-	return nil
+	defer f.Close()
+
+	_, err = io.WriteString(f, data)
+	return err
 }
 
-func (c *OsFileClient) Delete(directory string, name string) error {
+func (c *OsFileClient) Delete(directory string, name string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic during file deletion: %v", r)
+		}
+	}()
+
 	path := filepath.Join(directory, name)
 	return os.RemoveAll(path)
 }
 
-func (c *OsFileClient) Compress(directory string, name string, outputName string) error {
+func (c *OsFileClient) Compress(directory string, name string, outputName string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic during file compression: %v", r)
+		}
+	}()
+
 	inFilePath := filepath.Join(directory, name)
 	inFile, err := os.Open(inFilePath)
 	if err != nil {
@@ -98,7 +145,13 @@ func (c *OsFileClient) Compress(directory string, name string, outputName string
 }
 
 // base64 encodes a file.
-func (c *OsFileClient) Encode(directory string, name string, outputName string) error {
+func (c *OsFileClient) Encode(directory string, name string, outputName string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic during file encoding: %v", r)
+		}
+	}()
+
 	inFilePath := filepath.Join(directory, name)
 	inFile, err := os.Open(inFilePath)
 	if err != nil {
@@ -125,7 +178,13 @@ func (c *OsFileClient) Encode(directory string, name string, outputName string) 
 }
 
 // get the sha256 hash of the file, formatted as hex.
-func (c *OsFileClient) Hash(directory string, name string) (string, error) {
+func (c *OsFileClient) Hash(directory string, name string) (hashStr string, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic during file hashing: %v", r)
+		}
+	}()
+
 	filePath := filepath.Join(directory, name)
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -143,7 +202,13 @@ func (c *OsFileClient) Hash(directory string, name string) (string, error) {
 	return hexContents, nil
 }
 
-func (c *OsFileClient) Copy(currentPath string, newPath string) error {
+func (c *OsFileClient) Copy(currentPath string, newPath string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic during file copy: %v", r)
+		}
+	}()
+
 	srcFile, err := os.Open(currentPath)
 	if err != nil {
 		return err

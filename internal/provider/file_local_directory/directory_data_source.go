@@ -22,7 +22,9 @@ import (
 var _ datasource.DataSource = &LocalDirectoryDataSource{}
 
 func NewLocalDirectoryDataSource() datasource.DataSource {
-	return &LocalDirectoryDataSource{}
+	return &LocalDirectoryDataSource{
+		client: &c.OsDirectoryClient{},
+	}
 }
 
 type LocalDirectoryDataSource struct {
@@ -108,11 +110,6 @@ func (r *LocalDirectoryDataSource) Configure(ctx context.Context, req datasource
 // Read runs before all other resources are run, datasources only get the Read function.
 func (r *LocalDirectoryDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	tflog.Debug(ctx, fmt.Sprintf("Request Object: %#v", req))
-
-	if r.client == nil {
-		tflog.Debug(ctx, "Configuring client with default OsDirectoryClient.")
-		r.client = &c.OsDirectoryClient{}
-	}
 
 	var config LocalDirectoryDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)

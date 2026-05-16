@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -26,7 +27,9 @@ var _ resource.Resource = &LocalDirectoryResource{}
 var _ resource.ResourceWithImportState = &LocalDirectoryResource{}
 
 func NewLocalDirectoryResource() resource.Resource {
-	return &LocalDirectoryResource{}
+	return &LocalDirectoryResource{
+		client: &c.OsDirectoryClient{},
+	}
 }
 
 type LocalDirectoryResource struct {
@@ -68,6 +71,9 @@ func (r *LocalDirectoryResource) Schema(ctx context.Context, req resource.Schema
 			"id": schema.StringAttribute{
 				MarkdownDescription: "Identifier derived from sha256 hash of path. ",
 				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"created": schema.StringAttribute{
 				MarkdownDescription: "The top level directory created. " +
@@ -75,6 +81,9 @@ func (r *LocalDirectoryResource) Schema(ctx context.Context, req resource.Schema
 					"but the rest doesn't, then 'created' will be '/path/to/new'. " +
 					"This path will be recursively removed during destroy and recreate actions.",
 				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
@@ -97,11 +106,6 @@ func (r *LocalDirectoryResource) Configure(ctx context.Context, req resource.Con
 func (r *LocalDirectoryResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	tflog.Debug(ctx, fmt.Sprintf("Request Object: %#v", req))
 	var err error
-
-	if r.client == nil {
-		tflog.Debug(ctx, "Configuring client with default OsDirectoryClient.")
-		r.client = &c.OsDirectoryClient{}
-	}
 
 	var plan LocalDirectoryResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -130,11 +134,6 @@ func (r *LocalDirectoryResource) Create(ctx context.Context, req resource.Create
 func (r *LocalDirectoryResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	tflog.Debug(ctx, fmt.Sprintf("Request Object: %#v", req))
 
-	if r.client == nil {
-		tflog.Debug(ctx, "Configuring client with default OsDirectoryClient.")
-		r.client = &c.OsDirectoryClient{}
-	}
-
 	var state LocalDirectoryResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -142,10 +141,26 @@ func (r *LocalDirectoryResource) Read(ctx context.Context, req resource.ReadRequ
 	}
 	sPath := state.Path.ValueString()
 	sPerm := state.Permissions.ValueString()
+  sCreated := state.Created.ValueString()
+  sId := state.Id.ValueString()
+
+  if (state.Id.IsUnknown() || state.Id.IsNull()) && sId == "" {
+    tflog.Debug(ctx, "Unknown or null state Id.")
+  	hasher := sha256.New()
+  	hasher.Write([]byte(sPath))
+  	id := hex.EncodeToString(hasher.Sum(nil))
+  	state.Id = types.StringValue(id)
+  }
+
+  if (state.Created.IsUnknown() || state.Created.IsNull()) && sCreated == "" {
+    resp.Diagnostics.AddError("Bad State", "Unknown or null state for Created attribute.")
+    return
+  }
 
 	perm, data, err := r.client.Read(sPath)
-	if err != nil && err.Error() == "directory not found" {
+	if err != nil && os.IsNotExist(err) {
 		// force recreate if directory not found
+    tflog.Debug(ctx, fmt.Sprintf("Directory not found: %#v", err))
 		resp.State.RemoveResource(ctx)
 		return
 	}
@@ -167,12 +182,6 @@ func (r *LocalDirectoryResource) Read(ctx context.Context, req resource.ReadRequ
 func (r *LocalDirectoryResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	tflog.Debug(ctx, fmt.Sprintf("Request Object: %#v", req))
 
-	if r.client == nil {
-		tflog.Debug(ctx, "Configuring client with default OsDirectoryClient.")
-		r.client = &c.OsDirectoryClient{}
-	}
-
-	// Plan represents what is in the config, so plan = config
 	var config LocalDirectoryResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
@@ -205,12 +214,6 @@ func (r *LocalDirectoryResource) Update(ctx context.Context, req resource.Update
 
 func (r *LocalDirectoryResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	tflog.Debug(ctx, fmt.Sprintf("Request Object: %#v", req))
-
-	// Allow the ability to inject a file client, but use the OsDirectoryClient by default.
-	if r.client == nil {
-		tflog.Debug(ctx, "Configuring client with default OsDirectoryClient.")
-		r.client = &c.OsDirectoryClient{}
-	}
 
 	var state LocalDirectoryResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
