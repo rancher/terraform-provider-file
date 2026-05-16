@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.3](https://github.com/rancher/terraform-provider-file/compare/v2.2.2...v2.2.3) (2026-05-16)
+
+
+### Bug Fixes
+
+* upgrade CI, improve file handling in client ([#263](https://github.com/rancher/terraform-provider-file/issues/263)) ([#266](https://github.com/rancher/terraform-provider-file/issues/266)) ([343a4aa](https://github.com/rancher/terraform-provider-file/commit/343a4aa1df3c0b38db82054a5fa22ece1b21db7b))
+
 ## [2.2.2](https://github.com/rancher/terraform-provider-file/compare/v2.2.1...v2.2.2) (2025-10-04)
 
 
