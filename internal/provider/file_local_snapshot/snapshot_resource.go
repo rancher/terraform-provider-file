@@ -27,7 +27,9 @@ var _ resource.Resource = &LocalSnapshotResource{}
 var _ resource.ResourceWithImportState = &LocalSnapshotResource{}
 
 func NewLocalSnapshotResource() resource.Resource {
-	return &LocalSnapshotResource{}
+	return &LocalSnapshotResource{
+		client: &c.OsFileClient{},
+	}
 }
 
 type LocalSnapshotResource struct {
@@ -121,11 +123,6 @@ func (r *LocalSnapshotResource) Configure(ctx context.Context, req resource.Conf
 func (r *LocalSnapshotResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	tflog.Debug(ctx, fmt.Sprintf("Create Request Object: %+v", req))
 
-	if r.client == nil {
-		tflog.Debug(ctx, "Configuring client with default OsFileClient.")
-		r.client = &c.OsFileClient{}
-	}
-
 	var plan LocalSnapshotResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -218,11 +215,6 @@ func (r *LocalSnapshotResource) Read(ctx context.Context, req resource.ReadReque
 // our snapshot will only update if the update trigger has changed.
 func (r *LocalSnapshotResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	tflog.Debug(ctx, fmt.Sprintf("Update Request Object: %+v", req))
-
-	if r.client == nil {
-		tflog.Debug(ctx, "Configuring client with default OsFileClient.")
-		r.client = &c.OsFileClient{}
-	}
 
 	var plan LocalSnapshotResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
