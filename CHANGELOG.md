@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.3.0](https://github.com/rancher/terraform-provider-file/compare/v2.2.3...v2.3.0) (2026-05-19)
+
+
+### Features
+
+* fix immutable release ([#268](https://github.com/rancher/terraform-provider-file/issues/268)) ([#274](https://github.com/rancher/terraform-provider-file/issues/274)) ([c3af611](https://github.com/rancher/terraform-provider-file/commit/c3af6113fb7e7ba5f1a9ff6baaccf49f34fde6d4))
+
+
+### Bug Fixes
+
+* backport [#263](https://github.com/rancher/terraform-provider-file/issues/263), update, and format ([#277](https://github.com/rancher/terraform-provider-file/issues/277)) ([2dfdb32](https://github.com/rancher/terraform-provider-file/commit/2dfdb32474a870fcf230a8df734ad1c72d87fce0))
+
 ## [2.2.3](https://github.com/rancher/terraform-provider-file/compare/v2.2.2...v2.2.3) (2026-05-16)
 
 
