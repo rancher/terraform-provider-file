@@ -2,7 +2,7 @@ name: TrackingIssue
 # This workflow generates a "tracking" issue when a PR is found targeting main and isn't already tracked.
 on:
   schedule:
-    - cron: '*/30 * * * *' # Every 30 minutes
+    - cron: '0 */6 * * *' # Every 6 hours
   workflow_dispatch: {} # Allows manual triggering
 
 env :
