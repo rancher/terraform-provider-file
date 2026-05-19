@@ -183,14 +183,15 @@ jobs:
           GPG_PASSPHRASE: ${{ env.GPG_PASSPHRASE }}
         run: |-
           goreleaser release --clean --config .goreleaser_rc.yml
-      - name: Publish RC Release
-        if: steps.release-please.outputs.pr && always() && (steps.run-unit-tests.conclusion == 'success') && (steps.run-acc-tests.conclusion == 'success') && (steps.create-push-rc-tag.conclusion == 'success') && (steps.retrieve-gpg-credentials.conclusion == 'success')
-        # https://github.com/actions/github-script/releases
+      - name: Publish RC
+        if: steps.release-please.outputs.pr && always() && (steps.run-unit-tests.conclusion == 'success') && (steps.run-acc-tests.conclusion == 'success') && (steps.create-push-rc-tag.conclusion == 'success') && (steps.retrieve-gpg-credentials.conclusion == 'success')        # https://github.com/actions/github-script/releases
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          VERSION: ${{ env.RC_TAG }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const version = process.env.RC_TAG;
+            const version = process.env.VERSION;
             const tag = version.startsWith('v') ? version : `v${version}`;
 
             const { data: releases } = await github.rest.repos.listReleases({
@@ -215,7 +216,6 @@ jobs:
             } else {
               core.info(`Release for tag ${tag} is already published.`);
             }
-
 
         # These run after release-please generates a release, so when the release PR is merged
         # https://github.com/actions/checkout/releases
@@ -278,18 +278,18 @@ jobs:
           script: |
             const version = process.env.VERSION;
             const tag = version.startsWith('v') ? version : `v${version}`;
-            
+
             const { data: releases } = await github.rest.repos.listReleases({
               owner: context.repo.owner,
               repo: context.repo.repo,
             });
-            
+
             const release = releases.find(r => r.tag_name === tag);
             if (!release) {
               core.setFailed(`Could not find release for tag ${tag}`);
               return;
             }
-            
+
             if (release.draft) {
               core.info(`Publishing release ID ${release.id} for tag ${tag}`);
               await github.rest.repos.updateRelease({
