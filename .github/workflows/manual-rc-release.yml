@@ -33,9 +33,10 @@ jobs:
         id: check-user-in-maintainers
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TERRAFORM_MAINTAINERS: '["matttrach"]'
         with:
           script: |
-            const isMaintainer = ${{ vars.TERRAFORM_MAINTAINERS }}.includes(context.actor);
+            const isMaintainer = ${{ env.TERRAFORM_MAINTAINERS }}.includes(context.actor);
             return isMaintainer;
       - run: |
           # if the tag doesn't contain "rc" we should not be in this workflow
@@ -140,6 +141,39 @@ jobs:
         run: |-
           cd ${{ github.workspace }}/tags/$TAG
           goreleaser release --clean --skip=validate --config ../../.goreleaser_rc.yml
+      - name: Publish RC
+        # https://github.com/actions/github-script/releases
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          VERSION: ${{ inputs.tag }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const version = process.env.VERSION;
+            const tag = version.startsWith('v') ? version : `v${version}`;
+
+            const { data: releases } = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+
+            const release = releases.find(r => r.tag_name === tag);
+            if (!release) {
+              core.setFailed(`Could not find release for tag ${tag}`);
+              return;
+            }
+
+            if (release.draft) {
+              core.info(`Publishing release ID ${release.id} for tag ${tag}`);
+              await github.rest.repos.updateRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release.id,
+                draft: false
+              });
+            } else {
+              core.info(`Release for tag ${tag} is already published.`);
+            }
       - name: 'Find Issues and Create Comments'
         # https://github.com/actions/github-script
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
