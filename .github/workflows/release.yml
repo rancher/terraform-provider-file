@@ -72,13 +72,6 @@ jobs:
           # https://github.com/gotestyourself/gotestsum/releases
           go install gotest.tools/gotestsum@c4a0df2e75a225d979a444342dd3db752b53619f # v1.13.0
           make test
-      - name: install-nix
-        if: steps.release-please.outputs.pr
-        run: |
-          curl -L https://nixos.org/nix/install | sh
-          source /home/runner/.nix-profile/etc/profile.d/nix.sh
-          nix --version
-          which nix
       - name: run-acc-tests
         id: run-acc-tests
         if: steps.release-please.outputs.pr
@@ -190,40 +183,6 @@ jobs:
           GPG_PASSPHRASE: ${{ env.GPG_PASSPHRASE }}
         run: |-
           goreleaser release --clean --config .goreleaser_rc.yml
-      - name: Publish RC Release
-        if: steps.release-please.outputs.pr && always() && (steps.run-unit-tests.conclusion == 'success') && (steps.run-acc-tests.conclusion == 'success') && (steps.create-push-rc-tag.conclusion == 'success') && (steps.retrieve-gpg-credentials.conclusion == 'success')
-        # https://github.com/actions/github-script/releases
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const version = process.env.RC_TAG;
-            const tag = version.startsWith('v') ? version : `v${version}`;
-
-            const { data: releases } = await github.rest.repos.listReleases({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-            });
-
-            const release = releases.find(r => r.tag_name === tag);
-            if (!release) {
-              core.setFailed(`Could not find release for tag ${tag}`);
-              return;
-            }
-
-            if (release.draft) {
-              core.info(`Publishing release ID ${release.id} for tag ${tag}`);
-              await github.rest.repos.updateRelease({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                release_id: release.id,
-                draft: false
-              });
-            } else {
-              core.info(`Release for tag ${tag} is already published.`);
-            }
-
-
         # These run after release-please generates a release, so when the release PR is merged
         # https://github.com/actions/checkout/releases
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
