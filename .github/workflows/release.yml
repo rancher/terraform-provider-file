@@ -119,8 +119,10 @@ jobs:
           echo "Latest patch num: $LATEST_PATCH_NUM"
           LATEST_RC_NUM=$(git tag | grep "^${BASE_VERSION}\.${LATEST_MINOR_NUM}\.${LATEST_PATCH_NUM}-rc\." | awk -F. '{print $4}' | grep -v '^$' | sort -n | tail -1)
           echo "Latest rc num: $LATEST_RC_NUM"
-          if [ -z "$LATEST_RC_NUM" ]; then
-            # the last minor was a full release, we need to start the next minor release candidate
+          LATEST_FULL_RELEASE=$(git tag | grep "^${BASE_VERSION}\.${LATEST_MINOR_NUM}\.${LATEST_PATCH_NUM}$")
+          echo "Detected a full release for latest rc: $LATEST_FULL_RELEASE"
+          if [ -z "$LATEST_FULL_RELEASE" ]; then
+            # the last minor has a full release, we need to start the next minor release candidate
             if [ -z "$LATEST_MINOR_NUM" ]; then
               # this is a new minor branch
               LATEST_MINOR_NUM=0
