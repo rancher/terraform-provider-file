@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.1](https://github.com/rancher/terraform-provider-file/compare/v2.4.0...v2.4.1) (2026-05-20)
+
+
+### Bug Fixes
+
+* use existing draft go release config ([#308](https://github.com/rancher/terraform-provider-file/issues/308)) ([#311](https://github.com/rancher/terraform-provider-file/issues/311)) ([02b80c2](https://github.com/rancher/terraform-provider-file/commit/02b80c2659c78ca3fe6075c62ed70281b97bd5bd))
+
 ## [2.4.0](https://github.com/rancher/terraform-provider-file/compare/v2.4.0...v2.4.0) (2026-05-20)
 
 
