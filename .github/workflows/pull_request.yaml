@@ -86,7 +86,7 @@ jobs:
           while read -r file; do
             echo "checking $file..."
             shellcheck -x "$file"
-          done <<<"$(grep -Rl -e '^#!' | grep -v '.terraform'| grep -v '.git' | grep -v '*.md')"
+          done <<<"$(grep -Rl -e '^#!' | grep -v '.terraform'| grep -v '.git' | grep -v '^.*\.md$')"
 
   validate-commit-message:
     runs-on: ubuntu-latest
