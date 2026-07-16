@@ -56,4 +56,5 @@ sudo -E -u suse /home/suse/.nix-profile/bin/nix develop \
   --keep IDENTIFIER \
   --keep ZONE \
   --keep ACME_SERVER_URL \
+  --keep PR_NUMBER \
   --command bash -e .nix-script.sh
