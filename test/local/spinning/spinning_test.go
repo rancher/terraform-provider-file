@@ -357,7 +357,7 @@ func remoteFindProviderPID(t *testing.T, user, ip, keyPath string) (int, error) 
 	}
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	if len(lines) == 0 || lines[0] == "" {
-    t.Logf("Remote provider process not found on %s@%s", user, ip)
+		t.Logf("Remote provider process not found on %s@%s", user, ip)
 		return 0, fmt.Errorf("remote provider process not found")
 	}
 	return strconv.Atoi(strings.TrimSpace(lines[0]))
@@ -371,19 +371,19 @@ func remoteGetProcessCPU(t *testing.T, user, ip, keyPath string, pid int) (float
 	}
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	if len(lines) < 2 {
-    t.Logf("Unexpected remote ps output for PID %d on %s@%s: %s", pid, user, ip, string(output))
+		t.Logf("Unexpected remote ps output for PID %d on %s@%s: %s", pid, user, ip, string(output))
 		return 0, fmt.Errorf("unexpected remote ps output: %s", string(output))
 	}
 	val := strings.TrimSpace(lines[1])
 	if val == "" {
-    t.Logf("No CPU value found in remote ps output for PID %d on %s@%s", pid, user, ip)
+		t.Logf("No CPU value found in remote ps output for PID %d on %s@%s", pid, user, ip)
 		return 0, fmt.Errorf("no cpu value found in remote ps output")
 	}
 	return strconv.ParseFloat(val, 64)
 }
 
 func remoteGetProcessWchan(t *testing.T, user, ip, keyPath string, pid int) (string, error) {
-  t.Logf("Retrieving thread-level wait channels (WCHAN) for remote PID %d on %s@%s", pid, user, ip)
+	t.Logf("Retrieving thread-level wait channels (WCHAN) for remote PID %d on %s@%s", pid, user, ip)
 	cmd := exec.Command("ssh", "-i", keyPath, "-o", "StrictHostKeyChecking=no", fmt.Sprintf("%s@%s", user, ip), fmt.Sprintf("ps -L -p %d -o lwp,wchan", pid))
 	output, err := cmd.Output()
 	if err != nil {
@@ -393,6 +393,7 @@ func remoteGetProcessWchan(t *testing.T, user, ip, keyPath string, pid int) (str
 }
 
 func remoteKillProcess(t *testing.T, user, ip, keyPath string, pid int, sig int) {
+	t.Logf("Sending signal %d to remote PID %d on %s@%s", sig, pid, user, ip)
 	cmd := exec.Command("ssh", "-i", keyPath, "-o", "StrictHostKeyChecking=no", fmt.Sprintf("%s@%s", user, ip), fmt.Sprintf("kill -%d %d", sig, pid))
 	_ = cmd.Run()
 }
