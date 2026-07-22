@@ -308,12 +308,12 @@ func TestAWSRelaySpinningConcurrency(t *testing.T) {
 
 	// Wait for the background apply to fully exit (which it will now do since we killed the remote process)
 	t.Log("Waiting for remote apply to fully terminate...")
-	_ = <-applyErrChan
+	<-applyErrChan
 
 	t.Log("SUCCESS: Remote Go 1.26 Scheduler/gRPC spinning deadlock successfully verified on AWS!")
 }
 
-// findProviderPID searches the process list for the file provider plugin process
+// findProviderPID searches the process list for the file provider plugin process.
 func findProviderPID() (int, error) {
 	// We search for process names starting with "terraform-prov" to uniquely match the executed binary
 	// and completely avoid matching the "go build" compiler process.
@@ -329,7 +329,7 @@ func findProviderPID() (int, error) {
 	return strconv.Atoi(strings.TrimSpace(lines[0]))
 }
 
-// getProcessCPU retrieves the current CPU utilization of a PID using ps
+// getProcessCPU retrieves the current CPU utilization of a PID using ps.
 func getProcessCPU(pid int) (float64, error) {
 	cmd := exec.Command("ps", "-p", strconv.Itoa(pid), "-o", "%cpu")
 	output, err := cmd.Output()
@@ -357,6 +357,7 @@ func remoteFindProviderPID(t *testing.T, user, ip, keyPath string) (int, error) 
 	}
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	if len(lines) == 0 || lines[0] == "" {
+    t.Logf("Remote provider process not found on %s@%s", user, ip)
 		return 0, fmt.Errorf("remote provider process not found")
 	}
 	return strconv.Atoi(strings.TrimSpace(lines[0]))
@@ -370,16 +371,19 @@ func remoteGetProcessCPU(t *testing.T, user, ip, keyPath string, pid int) (float
 	}
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	if len(lines) < 2 {
+    t.Logf("Unexpected remote ps output for PID %d on %s@%s: %s", pid, user, ip, string(output))
 		return 0, fmt.Errorf("unexpected remote ps output: %s", string(output))
 	}
 	val := strings.TrimSpace(lines[1])
 	if val == "" {
+    t.Logf("No CPU value found in remote ps output for PID %d on %s@%s", pid, user, ip)
 		return 0, fmt.Errorf("no cpu value found in remote ps output")
 	}
 	return strconv.ParseFloat(val, 64)
 }
 
 func remoteGetProcessWchan(t *testing.T, user, ip, keyPath string, pid int) (string, error) {
+  t.Logf("Retrieving thread-level wait channels (WCHAN) for remote PID %d on %s@%s", pid, user, ip)
 	cmd := exec.Command("ssh", "-i", keyPath, "-o", "StrictHostKeyChecking=no", fmt.Sprintf("%s@%s", user, ip), fmt.Sprintf("ps -L -p %d -o lwp,wchan", pid))
 	output, err := cmd.Output()
 	if err != nil {
