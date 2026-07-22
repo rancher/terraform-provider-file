@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/terratest/modules/terraform"
 	"github.com/gruntwork-io/terratest/modules/ssh"
+	"github.com/gruntwork-io/terratest/modules/terraform"
 	util "github.com/rancher/terraform-provider-file/test"
 )
 
@@ -39,7 +39,7 @@ func TestLocalSpinningConcurrency(t *testing.T) {
 		t.Fatalf("Error creating test data directories: %s", err)
 	}
 	statePath := filepath.Join(testDir, "tfstate")
-	
+
 	resourceCount := 40
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
@@ -109,17 +109,17 @@ func TestLocalSpinningConcurrency(t *testing.T) {
 
 			if cpu > 40.0 {
 				t.Logf("WARNING: High CPU detected (%.1f%%) on provider PID %d! Verifying sustained lockup...", cpu, pid)
-				
+
 				time.Sleep(2 * time.Second)
 				cpu2, err := getProcessCPU(pid)
 				if err == nil && cpu2 > 40.0 {
 					t.Logf("SUCCESS: Sustained CPU lockup confirmed! CPU usage was %.1f%%, now %.1f%%", cpu, cpu2)
 					detectedLockup = true
-					
+
 					t.Logf("Sending SIGQUIT (signal 3) to PID %d to generate goroutine traces...", pid)
 					_ = syscall.Kill(pid, syscall.SIGQUIT)
 					time.Sleep(500 * time.Millisecond)
-					
+
 					t.Logf("Killing provider process %d with SIGKILL (signal 9)...", pid)
 					_ = syscall.Kill(pid, syscall.SIGKILL)
 					break
@@ -268,13 +268,13 @@ func TestAWSRelaySpinningConcurrency(t *testing.T) {
 
 			if cpu > 40.0 {
 				t.Logf("WARNING: High remote CPU detected (%.1f%%) on PID %d! Confirming lockup...", cpu, pid)
-				
+
 				// Verify sustained spinning
 				time.Sleep(3 * time.Second)
 				cpu2, err := remoteGetProcessCPU(t, serverInfo.User, serverInfo.IP, tempPrivateKeyPath, pid)
 				if err == nil && cpu2 > 40.0 {
 					t.Logf("SUCCESS: Remote CPU lockup confirmed! Sustained CPU usage: %.1f%% -> %.1f%%", cpu, cpu2)
-					
+
 					// Retrieve and print thread-level Wait Channels (WCHAN) to validate futex locking/blocks
 					wchan, err := remoteGetProcessWchan(t, serverInfo.User, serverInfo.IP, tempPrivateKeyPath, pid)
 					if err == nil {
@@ -284,12 +284,12 @@ func TestAWSRelaySpinningConcurrency(t *testing.T) {
 					}
 
 					detectedLockup = true
-					
+
 					// Force a remote goroutine dump
 					t.Logf("Sending SIGQUIT (signal 3) to remote provider PID %d to generate traces...", pid)
 					remoteKillProcess(t, serverInfo.User, serverInfo.IP, tempPrivateKeyPath, pid, 3)
 					time.Sleep(1 * time.Second)
-					
+
 					// Terminate the remote lockup so the remote script can exit and apply can wrap up
 					t.Logf("Killing remote provider PID %d to unblock apply...", pid)
 					remoteKillProcess(t, serverInfo.User, serverInfo.IP, tempPrivateKeyPath, pid, 9)
