@@ -20,6 +20,10 @@
 - **Date:** 2026-07-29
 - **Purpose:** Ensure the Full Release job triggers properly when a release pull request is merged by correctly capturing the `release_created` output from the `release-please` action in manifest mode.
 
+## FixShallowCloneTagCheckout
+- **Date:** 2026-07-30
+- **Purpose:** Prevent GoReleaser from creating `untagged` releases by ensuring the `Checkout New Tag` step clones the repository with its complete git tag history.
+
 ## FixManualWorkflowTagCreation
 - **Date:** 2026-07-29
 - **Purpose:** Update `.github/workflows/scripts/create-push-tag.js` to correctly handle pre-existing tags (with SHA validation) and re-introduce optional tag creation for manual workflows using a `CREATE_REF` environment variable.
