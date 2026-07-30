@@ -20,8 +20,8 @@ git config --global user.name "github-actions[bot]"
 git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
 echo "Checking if tag ${TAG} exists..."
-# Check if the tag exists locally or on the remote origin
-if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1 || (git ls-remote --tags origin 2>/dev/null | grep -q "refs/tags/${TAG}"); then
+# Check if the tag exists locally or on the remote origin using exact matching
+if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1 || [[ -n "$(git ls-remote --tags origin "refs/tags/${TAG}" 2>/dev/null)" ]]; then
   echo "Tag ${TAG} already exists (locally or on remote). Verifying commit SHA..."
   
   # Quietly fetch the tag ref from remote if we don't have it locally or to ensure it's up to date
