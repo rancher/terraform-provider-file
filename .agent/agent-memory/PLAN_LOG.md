@@ -36,6 +36,10 @@
 - **Date:** 2026-07-30
 - **Purpose:** Create a dedicated GoReleaser configuration for the `manual-release.yml` workflow to prevent failures caused by missing release note files.
 
+## FixGoReleaserTagContext
+- **Date:** 2026-07-30
+- **Purpose:** Update `.github/workflows/scripts/prepare-release-dir.sh` to ensure GoReleaser can correctly identify the current local tag (preventing `untagged` releases) and compare against previous tags (preventing full-history changelogs).
+
 ## FixGoReleaserGPGMismatch
 - **Date:** 2026-07-29
 - **Purpose:** Resolve the release workflow failure (`gpg: error reading key: No secret key`) caused by GPG_KEY_ID pointing to an encryption-only subkey or being mismatched with the imported primary secret signing key.
