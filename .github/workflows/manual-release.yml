@@ -93,7 +93,7 @@ jobs:
           TAG: ${{ inputs.tag }}
           WORKING_DIR: ${{ github.workspace }}/tags/${{ inputs.tag }}
           SKIP_VALIDATE: true
-          GORELEASER_CONFIG: ../../.goreleaser.yml
+          GORELEASER_CONFIG: ../../.goreleaser_manual.yml
         run: .github/workflows/scripts/nix-run.sh bash .github/workflows/scripts/goreleaser.sh
       - name: 'Publish Release'
         id: publish-release
