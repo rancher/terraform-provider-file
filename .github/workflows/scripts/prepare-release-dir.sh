@@ -6,11 +6,13 @@ START_DIR="$(pwd)"
 
 cd "${WORKSPACE}/tags/${TAG}"
 
-# Remove local tags except for the targeted release tag to avoid GoReleaser confusion
-tags_to_delete=$(git tag | grep -v -e "^${TAG}$" || true)
-if [[ -n "${tags_to_delete}" ]]; then
-  echo "${tags_to_delete}" | xargs git tag -d
-fi
+# Fetch all tags from the remote origin so GoReleaser can find the previous tag for changelogs
+echo "Fetching all tags from remote origin..."
+git fetch origin --tags --quiet || true
+
+# Force tag HEAD with the current release tag locally so GoReleaser knows exactly what version it is building
+echo "Locally tagging HEAD with ${TAG}..."
+git tag "${TAG}" HEAD -f
 
 # Ensure manifest exists for the registry
 if [[ ! -f "terraform-registry-manifest.json" ]]; then
