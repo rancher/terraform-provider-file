@@ -53,20 +53,12 @@ jobs:
           TAG: ${{ inputs.tag }}
           EXPECTED_TYPE: rc
         run: .github/workflows/scripts/nix-run.sh bash .github/workflows/scripts/validate-tag.sh
-      - name: Create and Push RC Tag via API
+      - name: 'Create and Push RC Tag'
         id: create-push-rc-tag
-        # https://github.com/actions/github-script/releases
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           TAG: ${{ inputs.tag }}
-          SHA: ${{ inputs.sha }}
-          CREATE_REF: 'true'
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const scriptPath = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/create-push-tag.js`;
-            const { default: script } = await import(scriptPath);
-            await script({github, context, core, process});
+          SHA: ${{ inputs.sha || github.sha }}
+        run: .github/workflows/scripts/nix-run.sh bash .github/workflows/scripts/create-push-tag.sh
       - name: 'Checkout New Tag'
         id: checkout-new-tag
         # https://github.com/actions/checkout/releases

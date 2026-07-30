@@ -40,6 +40,19 @@ jobs:
           release-type: simple
           skip-github-release: true
 
+      - name: Verify Release Please Action
+        id: verify-release-please
+        env:
+          RELEASE_CREATED: ${{ steps.release-please.outputs.release_created || steps.release-please.outputs['.--release_created'] }}
+          PR: ${{ steps.release-please.outputs.pr || steps.release-please.outputs['.--pr'] }}
+        run: |
+          if [[ "${RELEASE_CREATED}" != "true" && -z "${PR}" ]]; then
+            echo "Error: Release Please did not create a release and did not create or update any pull request." >&2
+            echo "This usually indicates that release-please aborted internally or encountered an issue (e.g. outstanding untagged merged PRs)." >&2
+            exit 1
+          fi
+          echo "Release Please completed successfully (Release Created: ${RELEASE_CREATED}, PR: ${PR})"
+
   # These run after release-please generates a release
   release:
     name: 'Full Release'
