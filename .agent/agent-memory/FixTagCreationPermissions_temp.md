@@ -5,10 +5,10 @@
 
 ## Checklist
 
-- [ ] Write a new Bash script `.github/workflows/scripts/create-push-tag.sh` that uses `git ls-remote` and `git push origin <tag>` to create/verify tags.
-- [ ] Ensure the script enforces the same pre-existing tag SHA validation rules as the Javascript version.
-- [ ] Replace the `Create and Push Tag via API` step in `.github/workflows/manual-release.yml` with a step executing the new bash script.
-- [ ] Replace the `Create and Push RC Tag via API` step in `.github/workflows/manual-rc-release.yml` with a step executing the new bash script.
-- [ ] Revert `create-push-tag.js` back to its original state (as it was after PR #354) since manual workflows will no longer use it for tag creation.
-- [ ] Run `shellcheck` on the new bash script.
-- [ ] Run `actionlint` on the updated YAML workflows.
+- [x] Write a new Bash script `.github/workflows/scripts/create-push-tag.sh` that uses `git ls-remote` and `git push origin <tag>` to create/verify tags.
+- [x] Ensure the script enforces the same pre-existing tag SHA validation rules as the Javascript version.
+- [x] Replace the `Create and Push Tag via API` step in `.github/workflows/manual-release.yml` with a step executing the new bash script.
+- [x] Replace the `Create and Push RC Tag via API` step in `.github/workflows/manual-rc-release.yml` with a step executing the new bash script.
+- [x] Revert `create-push-tag.js` back to its original state (as it was after PR #354) since manual workflows will no longer use it for tag creation.
+- [x] Run `shellcheck` on the new bash script.
+- [x] Run `actionlint` on the updated YAML workflows.
