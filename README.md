@@ -106,3 +106,27 @@ Since development in this repository takes place on personal forks, maintainers 
    - `release-please` runs, detects the merged PR, and generates the perfect release notes.
    - Since the tag already exists on `upstream`, the workflow **gracefully skips tag pushing** (preventing any GITHUB_TOKEN authentication failures).
    - GoReleaser cleanly compiles the binaries, signs them with GPG, and publishes the official release with the perfect release-please notes under your manually created tag!
+
+### What if the release PR has already merged?
+
+You will need to use the manual release process, but again you will need to manually tag.
+
+1. **Manually Tag Main:**
+   ```shell
+   # 1. Add the upstream remote if you haven't already
+   git remote add upstream git@github.com:rancher/terraform-provider-file.git
+
+   # 2. Fetch latest changes from upstream
+   git fetch upstream
+
+   # 3. Create the tag locally pointing to upstream/main
+   git tag vX.Y.Z upstream/main
+
+   # 4. Push the tag directly to the upstream repository
+   git push upstream vX.Y.Z
+   ```
+
+2. **Trigger the "Manually Create Full Release" Workflow:**
+   Set the tag to the tag you created, set the sha to the sha of the tag.
+   GoReleaser will pick things up and create the release for you, but the release notes won't be as pretty.
+
