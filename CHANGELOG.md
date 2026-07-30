@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.4.16](https://github.com/rancher/terraform-provider-file/compare/v2.4.15...v2.4.16) (2026-07-30)
+
+
+### Bug Fixes
+
+* add a new goreleaser config for manual releases ([#368](https://github.com/rancher/terraform-provider-file/issues/368)) ([1d18a97](https://github.com/rancher/terraform-provider-file/commit/1d18a976dd313703cb52e5ea90b2ce753ea529ff))
+* fix full release by properly collecting release please output ([#363](https://github.com/rancher/terraform-provider-file/issues/363)) ([00314b2](https://github.com/rancher/terraform-provider-file/commit/00314b24816b3668cc2ef37f528dec980e69d634))
+* fix tag verification in tag creation for manual release ([#367](https://github.com/rancher/terraform-provider-file/issues/367)) ([95c85a9](https://github.com/rancher/terraform-provider-file/commit/95c85a9d3ec34cbc7de55b41ddb5f155786f4e7a))
+* give goreleaser full tag history ([#369](https://github.com/rancher/terraform-provider-file/issues/369)) ([b9628ff](https://github.com/rancher/terraform-provider-file/commit/b9628ffcc2f00c0580b85b2fd983651464d9723d))
+* move checkout higher in the manual release steps ([#364](https://github.com/rancher/terraform-provider-file/issues/364)) ([c2f3714](https://github.com/rancher/terraform-provider-file/commit/c2f37140a88b9eee888e2b522494eb3053322130))
+* push tag in separate script for manual release ([#366](https://github.com/rancher/terraform-provider-file/issues/366)) ([ad3faa5](https://github.com/rancher/terraform-provider-file/commit/ad3faa59a0dba601bfa23c777cd6b4b977ec6097))
+* resolve tagging issues in the manual release workflow ([#365](https://github.com/rancher/terraform-provider-file/issues/365)) ([de70615](https://github.com/rancher/terraform-provider-file/commit/de706151d9d26bea1fe4a3cf5c682f4b55936909))
+
 ## [2.4.15](https://github.com/rancher/terraform-provider-file/compare/v2.4.14...v2.4.15) (2026-07-29)
 
 
