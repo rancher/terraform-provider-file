@@ -220,3 +220,29 @@ jobs:
       - name: Run Acceptance Tests
         id: run-acc-tests
         run: .github/workflows/scripts/nix-run.sh bash .github/workflows/scripts/test.sh acc
+
+  verify-pr-requirements:
+    name: 'Verify PR Requirements'
+    needs: enforce-fork-contribution
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout Repository
+        id: checkout-repository
+        # https://github.com/actions/checkout/releases
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify Requirements
+        id: verify-requirements
+        # https://github.com/actions/github-script/releases
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          AUTO_MERGE: 'false'
+        with:
+          script: |
+            const scriptPath = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/verify-pr-requirements.js`;
+            const { default: script } = await import(scriptPath);
+            await script({github, context, core, process});
+

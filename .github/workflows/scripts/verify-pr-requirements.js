@@ -1,0 +1,493 @@
+import { execSync } from 'child_process';
+
+const COMMENT_SIGNATURE = '<!-- scheduled-pr-verification-signature -->';
+
+export default async ({ github, context, core, process }) => {
+  const owner = context.repo.owner;
+  const repo = context.repo.repo;
+  const isAutoMerge = process.env.AUTO_MERGE === 'true';
+
+  try {
+    if (!isAutoMerge) {
+      // Running inside pull_request.yaml (single PR context)
+      const prNumber = context.payload.pull_request?.number || context.issue.number;
+      if (!prNumber) {
+        throw new Error('Could not determine pull request number from context');
+      }
+
+      core.info(`Running verification for PR #${prNumber} (Dry-Run / Contributor Feedback mode)`);
+      const { data: pr } = await withRetry(core, () => github.rest.pulls.get({
+        owner,
+        repo,
+        pull_number: prNumber,
+      }));
+
+      if (pr.draft) {
+        core.info(`PR #${prNumber} is a draft. Skipping verification.`);
+        return;
+      }
+
+      const { success, reasons } = await verifyPullRequest({ github, context, core, pr, owner, repo, checkCI: false });
+      if (!success) {
+        const errorMsg = `PR Verification Failed:\n\n${reasons.join('\n\n')}`;
+        core.error(errorMsg);
+        core.setFailed('PR requirements not met. See detailed logs and check comments above.');
+      } else {
+        core.info(`PR #${prNumber} meets all requirements!`);
+      }
+    } else {
+      // Running inside scheduled-pr-verification.yml (cron polling mode)
+      core.info('Running PR verification and scheduled auto-merge polling...');
+
+      const openPRs = await withRetry(core, () => github.paginate(github.rest.pulls.list, {
+        owner,
+        repo,
+        state: 'open',
+        base: 'main',
+      }));
+
+      core.info(`Found ${openPRs.length} open pull request(s) targeting main`);
+
+      for (const pr of openPRs) {
+        if (pr.draft) {
+          core.info(`PR #${pr.number} is a draft. Skipping.`);
+          continue;
+        }
+
+        core.info(`--------------------------------------------------`);
+        core.info(`Processing PR #${pr.number}: "${pr.title}"`);
+
+        const { success, reasons, ciPending } = await verifyPullRequest({ github, context, core, pr, owner, repo, checkCI: true });
+
+        if (success) {
+          // All requirements met + CI checks completed successfully -> Merge!
+          await deleteBotCommentIfExists({ github, core, owner, repo, prNumber: pr.number });
+          await mergePullRequest({ github, core, owner, repo, prNumber: pr.number, sha: pr.head.sha });
+        } else {
+          if (ciPending) {
+            core.info(`PR #${pr.number} has in-progress CI check runs. Postponing merge and skipping comments until CI completes.`);
+          } else {
+            // Requirements failed and CI is not pending -> Post/update a feedback comment for the author on 12:00 PM CST (18:00 UTC) or manual runs
+            const isScheduled = context.eventName === 'schedule';
+            const currentHour = new Date().getUTCHours();
+            const shouldComment = !isScheduled || currentHour === 18;
+
+            if (shouldComment) {
+              const commentBody = `### 🤖 Scheduled Auto-Merge Status
+
+Thank you for your contribution! The scheduled auto-merge job ran, but this PR cannot be merged yet because the following requirements are missing:
+
+${reasons.join('\n\n')}
+
+*Please resolve these items so that the scheduled job can automatically merge your PR.*`;
+
+              await updateOrPostComment({ github, core, owner, repo, prNumber: pr.number, message: commentBody });
+            } else {
+              core.info(`PR #${pr.number} requirements missing, but skipping status comment (it is currently Hour ${currentHour} UTC, not the 12:00 PM CST / 18:00 UTC run).`);
+            }
+          }
+        }
+      }
+    }
+  } catch (error) {
+    core.setFailed(`Workflow execution failed: ${error.message}`);
+  }
+};
+
+/**
+ * Performs verification on a single Pull Request.
+ */
+async function verifyPullRequest({ github, context, core, pr, owner, repo, checkCI }) {
+  const reasons = [];
+  let ciPending = false;
+
+  // 1. Verify CI Check Runs (Only during active polling/auto-merge)
+  if (checkCI) {
+    core.info(`Checking CI status for PR #${pr.number} at SHA ${pr.head.sha}...`);
+    const { data: checks } = await withRetry(core, () => github.rest.checks.listForRef({
+      owner,
+      repo,
+      ref: pr.head.sha,
+    }));
+
+    const totalRuns = checks.check_runs.length;
+    const completedRuns = checks.check_runs.filter(r => r.status === 'completed');
+    const failedRuns = checks.check_runs.filter(r => r.status === 'completed' && r.conclusion !== 'success' && r.conclusion !== 'skipped');
+
+    core.info(`CI check runs: ${completedRuns.length}/${totalRuns} completed. Failed: ${failedRuns.length}`);
+
+    if (totalRuns === 0) {
+      reasons.push('- **CI Checks**: No CI check runs have started yet.');
+    } else if (completedRuns.length < totalRuns) {
+      ciPending = true;
+      reasons.push(`- **CI Checks**: ${totalRuns - completedRuns.length} check run(s) are still in-progress.`);
+    } else if (failedRuns.length > 0) {
+      reasons.push(`- **CI Checks**: Some CI check runs failed:\n` + failedRuns.map(r => `  - \`${r.name}\` (${r.conclusion})`).join('\n'));
+    }
+  }
+
+  // 2. Verify Commits
+  core.info(`Checking commit signatures for PR #${pr.number}...`);
+  const commits = await withRetry(core, () => github.paginate(github.rest.pulls.listCommits, {
+    owner,
+    repo,
+    pull_number: pr.number,
+  }));
+
+  const unverifiedCommits = commits.filter(c => !c.commit.verification?.verified);
+  if (unverifiedCommits.length > 0) {
+    reasons.push(`- **Verified Commits**: The following commit(s) are not signed or verified:\n` +
+      unverifiedCommits.map(c => `  - \`${c.sha.substring(0, 7)}\` - ${c.commit.message.split('\n')[0]}`).join('\n')
+    );
+  } else {
+    core.info(`All ${commits.length} commit(s) are verified.`);
+  }
+
+  // 3. Verify Reviews & Approvals
+  core.info(`Checking reviewer approvals for PR #${pr.number}...`);
+  const reviews = await withRetry(core, () => github.paginate(github.rest.pulls.listReviews, {
+    owner,
+    repo,
+    pull_number: pr.number,
+  }));
+
+  const latestReviews = {};
+  for (const review of reviews) {
+    if (review.user) {
+      latestReviews[review.user.login] = review;
+    }
+  }
+
+  const approvingHumans = [];
+  const aiAgents = [];
+
+  for (const [login, review] of Object.entries(latestReviews)) {
+    const isBot = review.user.type === 'Bot' ||
+                  login.endsWith('[bot]') ||
+                  login.toLowerCase().includes('copilot') ||
+                  login.toLowerCase().includes('agent');
+
+    if (isBot) {
+      aiAgents.push(login);
+    } else if (review.state === 'APPROVED') {
+      approvingHumans.push(login);
+    }
+  }
+
+  core.info(`Approving humans: ${approvingHumans.join(', ') || 'None'}`);
+  core.info(`AI agents: ${aiAgents.join(', ') || 'None'}`);
+
+  const hasTwoHumans = approvingHumans.length >= 2;
+  const hasOneHumanOneAI = approvingHumans.length >= 1 && aiAgents.length >= 1;
+
+  if (!hasTwoHumans && !hasOneHumanOneAI) {
+    reasons.push(`- **Reviews**: Requirements not met. PR requires either **2 human approvals** OR **1 human approval + 1 AI agent review**.\n` +
+      `  - Approving humans: ${approvingHumans.map(u => `@${u}`).join(', ') || '_None_'}\n` +
+      `  - AI reviewers: ${aiAgents.map(u => `@${u}`).join(', ') || '_None_'}`
+    );
+
+    // Automatically trigger a review from Copilot/AI reviewer if needed
+    await triggerAIReviewIfNeeded({ github, core, owner, repo, prNumber: pr.number });
+  }
+
+  // 4. Verify Resolved Comments (GraphQL)
+  core.info(`Checking for unresolved review comment threads for PR #${pr.number}...`);
+  const gqlQuery = `
+    query($owner: String!, $repo: String!, $pullNumber: Int!) {
+      repository(owner: $owner, name: $repo) {
+        pullRequest(number: $pullNumber) {
+          reviewThreads(first: 100) {
+            nodes {
+              isResolved
+              comments(first: 1) {
+                nodes {
+                  body
+                  author {
+                    login
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const gqlResult = await withRetry(core, () => github.graphql(gqlQuery, {
+    owner,
+    repo,
+    pullNumber: pr.number,
+  }));
+
+  const threads = gqlResult.repository?.pullRequest?.reviewThreads?.nodes || [];
+  const unresolvedThreads = threads.filter(t => !t.isResolved);
+
+  if (unresolvedThreads.length > 0) {
+    reasons.push(`- **Review Comments**: All review comments must be resolved. There are currently ${unresolvedThreads.length} unresolved thread(s):\n` +
+      unresolvedThreads.map(t => {
+        const firstComment = t.comments?.nodes?.[0];
+        const author = firstComment?.author?.login ? `@${firstComment.author.login}` : 'unknown';
+        const body = firstComment?.body ? firstComment.body.replace(/\r?\n/g, ' ').substring(0, 60) + '...' : 'No comment body';
+        return `  - Thread by ${author}: "${body}"`;
+      }).join('\n')
+    );
+  } else {
+    core.info(`All review comment threads are resolved.`);
+  }
+
+  return {
+    success: reasons.length === 0,
+    reasons,
+    ciPending,
+  };
+}
+
+/**
+ * Posts or updates a single warning comment on the PR.
+ */
+async function updateOrPostComment({ github, core, owner, repo, prNumber, message }) {
+  const comments = await withRetry(core, () => github.paginate(github.rest.issues.listComments, {
+    owner,
+    repo,
+    issue_number: prNumber,
+  }));
+
+  const botComment = comments.find(c => c.body && c.body.includes(COMMENT_SIGNATURE));
+  const fullBody = `${message}\n\n${COMMENT_SIGNATURE}`;
+
+  if (botComment) {
+    if (botComment.body !== fullBody) {
+      core.info(`Updating existing status comment on PR #${prNumber}`);
+      await withRetry(core, () => github.rest.issues.updateComment({
+        owner,
+        repo,
+        comment_id: botComment.id,
+        body: fullBody,
+      }));
+    } else {
+      core.info(`Status comment on PR #${prNumber} is already up to date`);
+    }
+  } else {
+    core.info(`Posting new status comment on PR #${prNumber}`);
+    await withRetry(core, () => github.rest.issues.createComment({
+      owner,
+      repo,
+      issue_number: prNumber,
+      body: fullBody,
+    }));
+  }
+}
+
+/**
+ * Deletes the warning comment if it exists (run before merge).
+ */
+async function deleteBotCommentIfExists({ github, core, owner, repo, prNumber }) {
+  const comments = await withRetry(core, () => github.paginate(github.rest.issues.listComments, {
+    owner,
+    repo,
+    issue_number: prNumber,
+  }));
+
+  const botComment = comments.find(c => c.body && c.body.includes(COMMENT_SIGNATURE));
+  if (botComment) {
+    core.info(`Deleting old auto-merge warning comment on PR #${prNumber} before merging`);
+    try {
+      await withRetry(core, () => github.rest.issues.deleteComment({
+        owner,
+        repo,
+        comment_id: botComment.id,
+      }));
+    } catch (error) {
+      core.warning(`Could not delete comment ${botComment.id}: ${error.message}`);
+    }
+  }
+}
+
+/**
+ * Executes squash-merge on the PR, dynamically generating a clean Conventional Commit message via Copilot.
+ */
+async function mergePullRequest({ github, core, owner, repo, prNumber, sha }) {
+  core.info(`Fetching PR #${prNumber} changed files list to evaluate product scope...`);
+  const files = await withRetry(core, () => github.paginate(github.rest.pulls.listFiles, {
+    owner,
+    repo,
+    pull_number: prNumber,
+  }));
+
+  const affectsProduct = files.some(f => f.filename.startsWith('internal/'));
+  core.info(`PR #${prNumber} affects product (contains changes inside 'internal/'): ${affectsProduct}`);
+
+  core.info(`Fetching PR #${prNumber} commits to craft squash message...`);
+  const commits = await withRetry(core, () => github.paginate(github.rest.pulls.listCommits, {
+    owner,
+    repo,
+    pull_number: prNumber,
+  }));
+
+  const commitsList = commits.map(c => `- ${c.commit.message}`).join('\n');
+  const conventionalMsg = await craftSquashCommitMessage({ core, commitsList, affectsProduct });
+
+  const mergeParams = {
+    owner,
+    repo,
+    pull_number: prNumber,
+    merge_method: 'squash',
+    sha,
+  };
+
+  const CONVENTIONAL_COMMIT_REGEXP = /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(?:\([^)]+\))?(!?): .+/i;
+
+  let isValid = false;
+  if (conventionalMsg && CONVENTIONAL_COMMIT_REGEXP.test(conventionalMsg.commitTitle)) {
+    isValid = true;
+
+    // Enforce strict product-boundary check for semver safety (non-product changes cannot use feat, refactor, or '!')
+    if (!affectsProduct) {
+      const typeMatch = conventionalMsg.commitTitle.match(/^([a-z]+)(?:\([^)]+\))?(!?):/i);
+      if (typeMatch) {
+        const type = typeMatch[1].toLowerCase();
+        const hasExclamation = typeMatch[2] === '!';
+
+        if (type === 'feat' || type === 'refactor' || hasExclamation) {
+          core.warning(`AI-generated commit title "${conventionalMsg.commitTitle}" is INVALID for non-product changes. ` +
+            `Changes outside 'internal/' must NOT use 'feat', 'refactor', or '!' (which incorrectly trigger minor/major semver bumps).`);
+          isValid = false;
+        }
+      }
+    }
+  }
+
+  if (isValid && conventionalMsg) {
+    mergeParams.commit_title = conventionalMsg.commitTitle;
+    mergeParams.commit_message = conventionalMsg.commitMessage;
+    core.info(`Generated AI Conventional Squash Message is VALID:\nTitle: ${mergeParams.commit_title}\nBody:\n${mergeParams.commit_message}`);
+  } else {
+    // If invalid (or failed validation), use a safe, programmatic conventional commit default that won't bump minor/major semver
+    const defaultTitle = affectsProduct
+      ? `fix(merge): squash PR #${prNumber} (automated fallback)`
+      : `chore(merge): squash PR #${prNumber} (non-product fallback)`;
+    const defaultBody = `Automated fallback merge commit message.\n\nOriginal Commits:\n${commitsList}`;
+
+    mergeParams.commit_title = defaultTitle;
+    mergeParams.commit_message = defaultBody;
+    core.info(`Using safe, programmatic conventional fallback message:\nTitle: ${mergeParams.commit_title}\nBody:\n${mergeParams.commit_message}`);
+  }
+
+  core.info(`🚀 Merging PR #${prNumber} with Squash method...`);
+  await withRetry(core, () => github.rest.pulls.merge(mergeParams));
+  core.info(`PR #${prNumber} merged successfully!`);
+}
+
+/**
+ * Invokes the Copilot CLI inside the Nix environment to consolidate commit history into a high-quality Conventional Commit.
+ */
+async function craftSquashCommitMessage({ core, commitsList, affectsProduct }) {
+  core.info('Invoking Copilot Agent CLI to craft Conventional Squash Commit Message...');
+
+  let safetyDirective = '';
+  if (!affectsProduct) {
+    safetyDirective = `CRITICAL REGULATORY CONSTRAINT: None of the files modified in this PR are inside the 'internal/' folder. This is a non-product change (e.g. docs, tests, CI workflows).
+Therefore, you MUST NOT use the 'feat' or 'refactor' commit types, and you MUST NOT use the '!' breaking-change indicator (which incorrectly trigger minor/major semver bumps on release-please).
+Instead, you MUST use 'chore', 'ci', 'docs', 'style', 'test', or 'fix' as the commit type (e.g. 'chore: update workflows' or 'test: add unit coverage').`;
+  } else {
+    safetyDirective = `Allowed types include: 'fix', 'feat', 'refactor', 'chore', 'docs', 'style', 'test'.
+Use 'feat' for new features, 'fix' for bug fixes, and 'refactor' for code restructurings. Use '!' (e.g. 'feat!:') if there is a breaking change.`;
+  }
+
+  const prompt = `You are an expert Conventional Commits writer.
+Given the following list of commits from a pull request, draft a clean, high-quality, consolidated Conventional Commit title and body for the final squash merge commit on main.
+
+The first line of your response MUST be exactly the subject line matching the Conventional Commits format: 'type: description' (e.g. 'feat: support dynamic login').
+
+${safetyDirective}
+
+Don't use component scopes, just use 'type: description' or 'type!: description'.
+Subject lines must not exceed 70 characters due to a GitHub limitation.
+The rest of your response must be a clean, bulleted explanation of the detailed changes, separated from the title by a blank line. Do not output any markdown code blocks, prefixes like "Commit message:", or other conversational filler. Just the direct title and body.
+
+Commits in PR:
+${commitsList}
+`;
+
+  try {
+    const escapedPrompt = JSON.stringify(prompt);
+    // Execute copilot in Nix env using nix-run.sh
+    const cmd = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/nix-run.sh copilot -s --yolo -p ${escapedPrompt}`;
+    const output = execSync(cmd, { env: { ...process.env, GITHUB_TOKEN: process.env.GITHUB_TOKEN } }).toString().trim();
+
+    if (!output) {
+      throw new Error('Copilot returned an empty response');
+    }
+
+    const lines = output.split('\n');
+    const commitTitle = lines[0].trim();
+    const commitMessage = lines.slice(1).join('\n').trim();
+
+    return { commitTitle, commitMessage };
+  } catch (error) {
+    core.warning(`Copilot message generation failed: ${error.message}. Falling back to default.`);
+    return null;
+  }
+}
+
+/**
+ * Automatically requests a review from GitHub Copilot if the PR lacks sufficient reviews and no AI review is active or pending.
+ */
+async function triggerAIReviewIfNeeded({ github, core, owner, repo, prNumber }) {
+  try {
+    const aiReviewer = process.env.AI_REVIEWER_NAME || 'github-copilot';
+    core.info(`PR #${prNumber} lacks sufficient reviews. Checking if AI review is already requested...`);
+
+    // Fetch current PR details to inspect requested reviewers
+    const { data: prDetails } = await withRetry(core, () => github.rest.pulls.get({
+      owner,
+      repo,
+      pull_number: prNumber,
+    }));
+
+    const alreadyRequested = prDetails.requested_reviewers?.some(r => r.login === aiReviewer);
+
+    if (!alreadyRequested) {
+      core.info(`Requesting review from AI reviewer '${aiReviewer}' for PR #${prNumber} to satisfy reviewer thresholds...`);
+      await withRetry(core, () => github.rest.pulls.requestReviewers({
+        owner,
+        repo,
+        pull_number: prNumber,
+        reviewers: [aiReviewer],
+      }));
+      core.info(`Successfully triggered AI review from '${aiReviewer}'!`);
+    } else {
+      core.info(`AI review from '${aiReviewer}' is already pending on PR #${prNumber}.`);
+    }
+  } catch (error) {
+    core.warning(`Could not trigger automated AI review: ${error.message}`);
+  }
+}
+
+/**
+ * Executes an asynchronous function with retries and exponential backoff.
+ */
+async function withRetry(core, apiCall, maxRetries = 3, initialDelay = 1000) {
+  let lastError;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await apiCall();
+    } catch (error) {
+      lastError = error;
+      const status = error.status;
+
+      // Retry on network errors, rate limiting (403, 429), or 5xx server errors
+      const isRetryable = !status || status === 403 || status === 429 || status >= 500;
+
+      if (!isRetryable || attempt === maxRetries) {
+        throw error;
+      }
+
+      const backoffDelay = initialDelay * Math.pow(2, attempt - 1);
+      core.warning(`GitHub API call failed (Status: ${status || 'Network Error'}). Retrying attempt ${attempt}/${maxRetries} in ${backoffDelay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, backoffDelay));
+    }
+  }
+  throw lastError;
+}
