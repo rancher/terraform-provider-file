@@ -52,13 +52,24 @@ export default async ({ github, context, core, process }) => {
 
     // Check if tag already exists using the API
     let tagExists = false;
+    let existingSha = "";
     try {
-      await github.rest.git.getRef({
+      const existingRef = await github.rest.git.getRef({
         owner,
         repo,
         ref: `tags/${targetTag}`,
       });
       tagExists = true;
+      existingSha = existingRef.data.object.sha;
+      if (existingRef.data.object.type === 'tag') {
+        core.info(`Tag ${targetTag} is annotated. Fetching target commit SHA...`);
+        const annotatedTag = await github.rest.git.getTag({
+          owner,
+          repo,
+          tag_sha: existingRef.data.object.sha,
+        });
+        existingSha = annotatedTag.data.object.sha;
+      }
     } catch (error) {
       if (error.status !== 404) {
         throw error;
@@ -66,11 +77,30 @@ export default async ({ github, context, core, process }) => {
     }
 
     if (tagExists) {
-      core.info(`Tag ${targetTag} already exists on remote.`);
+      core.info(`Tag ${targetTag} already exists on remote pointing to SHA ${existingSha}.`);
+      if (sha) {
+        if (existingSha !== sha) {
+          throw new Error(`Tag ${targetTag} already exists on remote pointing to SHA ${existingSha}, but requested SHA is ${sha}. Mismatch!`);
+        } else {
+          core.info(`Existing tag SHA matches the requested SHA ${sha}. Proceeding gracefully.`);
+        }
+      }
       if (calculateNextRc) {
         throw new Error(`Calculated RC tag ${targetTag} already exists on remote. This should not happen.`);
       }
-      return;
+    } else {
+      if (process.env.CREATE_REF === 'true') {
+        core.info(`Creating tag ref refs/tags/${targetTag} pointing to ${sha}...`);
+        await github.rest.git.createRef({
+          owner,
+          repo,
+          ref: `refs/tags/${targetTag}`,
+          sha,
+        });
+        core.info(`Successfully created tag ${targetTag}`);
+      } else {
+        core.info(`Tag ${targetTag} does not exist on remote and CREATE_REF is not true. Skipping tag creation.`);
+      }
     }
 
     // Set outputs for downstream steps if needed
