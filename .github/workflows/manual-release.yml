@@ -60,6 +60,7 @@ jobs:
         with:
           ref: ${{ inputs.tag }}
           path: tags/${{ inputs.tag }}
+          fetch-depth: 0
       - name: 'Prepare Release Directory'
         id: prepare-release-dir
         env:
