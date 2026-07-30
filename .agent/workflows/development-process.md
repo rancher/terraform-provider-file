@@ -63,5 +63,9 @@ This workflow defines the standard, step-by-step procedure that all AI agents mu
 * Run local linters (e.g. `golangci-lint`) to ensure code compliance.
 * Resolve any static analysis warnings.
 
-### 2. Summary
+### 2. Manual Git Inspection (Mandatory)
+* Remind the developer that they **must** manually inspect all modifications in Git (using `git status` and `git diff`) before anything is committed or pushed.
+* Explicitly reinforce that AI agents are strictly forbidden from pushing to any "rancher" (upstream) remote. AI agents may stage, commit, or push code to user-owned forks *only* under explicit developer guidance following this manual inspection.
+
+### 3. Summary
 * Provide a concise summary of the changes made, the tests executed, and the results achieved against the plan.
