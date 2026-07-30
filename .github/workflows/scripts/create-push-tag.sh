@@ -24,8 +24,9 @@ echo "Checking if tag ${TAG} exists..."
 if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1 || [[ -n "$(git ls-remote --tags origin "refs/tags/${TAG}" 2>/dev/null)" ]]; then
   echo "Tag ${TAG} already exists (locally or on remote). Verifying commit SHA..."
   
-  # Quietly fetch the tag ref from remote if we don't have it locally or to ensure it's up to date
-  git fetch origin "refs/tags/${TAG}:refs/tags/${TAG}" --depth=1 --no-tags --quiet || true
+  # Quietly fetch the tag ref from remote if we don't have it locally or to ensure it's up to date.
+  # We do not use --depth=1 as shallow fetching a tag ref directly is unsupported on some Git servers/versions.
+  git fetch origin "refs/tags/${TAG}:refs/tags/${TAG}" --no-tags --quiet || true
   
   existing_sha=$(git rev-list -n 1 "${TAG}")
   target_sha=$(git rev-list -n 1 "${SHA}")
