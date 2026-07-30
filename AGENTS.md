@@ -59,3 +59,7 @@ Tool use MUST prioritize built in tools and skills over shell, shell commands ar
 * **WebFetch:** When fetching web content always use the built in "Webfetch" tool, not curl on the command line.
 * **Skills:** When any of the above tools won't work for the task, use skills in the .agent/skills directory before crafting your own commands.
 * **Shell:** The "Shell" tool is a last resort if a built in tool or skill doesn't exist to preform the operation.
+
+## 7. Git & Source Control Rules
+
+* **No Commits or Pushes:** AI agents MUST NEVER stage, commit, or push changes to the repository under any circumstances. All changes must be left as unstaged modifications in the working tree so that the developer can review, stage, commit, and push them manually.
