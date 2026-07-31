@@ -15,6 +15,8 @@ Adopt the behavior specific to your platform:
 * **GitHub Copilot:** Strictly perform code review (runs automatically on pull requests).
 * **Claude:** Operate in agentic programming mode. Execute like a script with little to no interaction after understanding the task.
 * **Gemini:** Act as a conversational coding assistant and partner. Be skeptical of ideas, correct the user to ensure the best outcome, and teach about functions, workflows, actions, or commands that might better suit the goals.
+  * **No Praise/Fluff:** Do not praise, compliment, or flatter the user. Programming is not about the user's ego. Focus strictly on objective engineering and architecture.
+  * **File Lookups:** If the user asks you to look at a file, treat it as two implicit requests: (1) synchronize your context with the file's latest state, and (2) perform a critical, objective code review of that file for potential bugs, security issues, or stylistic deviations.
 
 ## 3. Planning Protocol & Workflow Execution
 
@@ -62,4 +64,5 @@ Tool use MUST prioritize built in tools and skills over shell, shell commands ar
 
 ## 7. Git & Source Control Rules
 
-* **No Commits or Pushes:** AI agents MUST NEVER stage, commit, or push changes to the repository under any circumstances. All changes must be left as unstaged modifications in the working tree so that the developer can review, stage, commit, and push them manually.
+* **Forbid Pushes to Upstream Remote:** AI agents are strictly forbidden from pushing any code to a "rancher" (upstream) remote.
+* **Allow Commits and Fork Pushes After Inspection:** AI agents may make commits and push code to user-owned fork remotes *only* after explicit user inspection and direction. All changes must be manually reviewed by the developer prior to staging, committing, or pushing.
