@@ -1,15 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Read hook input from stdin (unused but recommended to consume)
-_=$(cat)
+# Consume and discard hook input from stdin to prevent broken pipes
+cat > /dev/null
 
 # Log diagnostics to stderr to comply with the silence rule on stdout
 echo "Loading session-start workspace context..." >&2
 
 combined_context=""
+combined_context+=$'###############################################################################\n'
+combined_context+=$'#                           CRITICAL AGENT MANDATES                           #\n'
+combined_context+=$'#                                                                             #\n'
+combined_context+=$'# 1. YOU MUST FOLLOW THE DEVELOPMENT PROCESS IN \'development-process.md\'.     #\n'
+combined_context+=$'# 2. YOU MUST NEVER COMMIT OR PUSH WITHOUT EXPLICIT APPROVAL AND THE          #\n'
+combined_context+=$'#    \'APPROVED_BY_USER=1\' PREFIX.                                             #\n'
+combined_context+=$'# 3. FOR ALL TASKS, YOU MUST DEFINE A SEQUENTIAL IMPLEMENTATION CHECKLIST AT  #\n'
+combined_context+=$'#    THE BOTTOM OF YOUR PLAN IN \'.agent/plans/<PlanName>.md\'.                 #\n'
+combined_context+=$'#                                                                             #\n'
+combined_context+=$'# FAILURE TO COMPLY WILL TRIGGER SECURITY BLOCKS AND PROCESS TERMINATION.     #\n'
+combined_context+=$'###############################################################################\n\n'
 
-if [ -f "AGENTS.md" ]; then
+if [[ -f "AGENTS.md" ]]; then
   combined_context+=$'# Context from AGENTS.md\n\n'
   combined_context+=$(cat AGENTS.md)
   combined_context+=$'\n\n'
@@ -18,7 +29,7 @@ else
   echo "Warning: AGENTS.md not found" >&2
 fi
 
-if [ -f ".agent/workflows/development-process.md" ]; then
+if [[ -f ".agent/workflows/development-process.md" ]]; then
   combined_context+=$'# Context from .agent/workflows/development-process.md\n\n'
   combined_context+=$(cat .agent/workflows/development-process.md)
   combined_context+=$'\n\n'

@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+#
+# Skill: generate-plan-log.sh
+# Description: Extracts the Purpose and executed dates of plans in .agent/plans and compiles a Plan Log.
+# Usage: .agent/skills/generate-plan-log.sh
+
 set -euo pipefail
 
 # This skill script extracts the "Purpose" and execution dates of all plans
@@ -134,7 +139,41 @@ generate_plan_log() {
     rm -rf "${tmp_dir}"
 }
 
+show_help() {
+    cat <<EOF
+Usage: generate-plan-log.sh [options]
+
+Extracts the "Purpose" and execution dates of all plans in the .agent/plans directory
+(excluding README.md) and outputs them as a sorted, combined Plan Log.
+
+Options:
+  -h, --help           Show this help message and exit.
+
+Examples:
+  .agent/skills/generate-plan-log.sh
+EOF
+}
+
 main() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            -*)
+                echo "Error: Unknown option: $1" >&2
+                show_help
+                exit 1
+                ;;
+            *)
+                echo "Error: Unexpected argument: $1" >&2
+                show_help
+                exit 1
+                ;;
+        esac
+    done
+
     if [[ ! -d "${PLANS_DIR}" ]]; then
         echo "Error: Directory ${PLANS_DIR} does not exist." >&2
         exit 1

@@ -18,7 +18,7 @@ verify_git_env() {
     exit 1
   fi
 
-  if [ "$(git status --porcelain=v1 2>/dev/null | wc -l)" -gt 0 ]; then
+  if [[ "$(git status --porcelain=v1 2>/dev/null | wc -l)" -gt 0 ]]; then
     echo "Error: Your working tree has uncommitted or untracked changes." >&2
     echo "       Please commit or stash your work before running this sync." >&2
     exit 1
@@ -84,36 +84,32 @@ get_origin_owner() {
 }
 
 get_upstream_owner() {
-  local owner=""
-  if command -v get_repo_owner &>/dev/null; then
-    owner="$(get_repo_owner)"
-  elif [ -f "go.mod" ]; then
-    owner=$(grep -E "^module " go.mod | awk '{print $2}' | cut -d'/' -f2 || true)
-  fi
-  if [ -z "${owner:-}" ]; then
-    owner="rancher"
-  fi
-  echo "$owner"
+  # The parent repository owner is always "rancher"
+  echo "rancher"
 }
 
 get_upstream_repo() {
-  local repo=""
-  if [ -f "go.mod" ]; then
-    repo=$(grep -E "^module " go.mod | awk '{print $2}' | cut -d'/' -f3 || true)
+  # Parse repository name from origin remote url
+  local origin_url
+  origin_url=$(git remote get-url origin 2>/dev/null || true)
+  
+  if [[ "$origin_url" =~ github\.com[:/][^/]+/([^/]+)\.git ]]; then
+    echo "${BASH_REMATCH[1]}"
+  elif [[ "$origin_url" =~ github\.com[:/][^/]+/([^/]+) ]]; then
+    echo "${BASH_REMATCH[1]}"
+  else
+    # Fallback to the local directory name
+    basename "$(git rev-parse --show-toplevel)"
   fi
-  if [ -z "${repo:-}" ]; then
-    repo=$(basename "$(git rev-parse --show-toplevel)")
-  fi
-  echo "$repo"
 }
 
 get_default_branch() {
   local default_branch=""
   default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || true)
-  if [ -z "$default_branch" ]; then
+  if [[ -z "$default_branch" ]]; then
     default_branch=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | cut -d' ' -f5 || true)
   fi
-  if [ -z "$default_branch" ]; then
+  if [[ -z "$default_branch" ]]; then
     echo "Error: Could not determine the default branch for the origin remote." >&2
     exit 1
   fi
@@ -159,7 +155,7 @@ ORIGINAL_BRANCH=""
 
 cleanup() {
   local exit_code=$?
-  if [ $exit_code -ne 0 ]; then
+  if [[ $exit_code -ne 0 ]]; then
     echo "⚠️ Script interrupted or failed. Running cleanup..." >&2
     git remote rm upstream 2>/dev/null || true
     if [[ -n "$ORIGINAL_BRANCH" ]]; then
@@ -170,10 +166,49 @@ cleanup() {
   exit "$exit_code"
 }
 
+show_help() {
+  cat <<EOF
+Usage: git-sync.sh [options] [stay]
+
+Safely syncs the default branch, tags, and optionally the current branch of a local fork with the upstream parent repository.
+
+Options:
+  stay                 Sync and checkout the current branch in addition to the default branch.
+  -h, --help           Show this help message and exit.
+
+Examples:
+  .agent/skills/git-sync.sh
+  .agent/skills/git-sync.sh stay
+EOF
+}
+
 main() {
   trap cleanup EXIT
 
-  local stay="${1:-}"
+  local stay=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h|--help)
+        show_help
+        exit 0
+        ;;
+      stay)
+        stay="true"
+        shift
+        ;;
+      -*)
+        echo "Error: Unknown option: $1" >&2
+        show_help
+        exit 1
+        ;;
+      *)
+        echo "Error: Unexpected argument: $1" >&2
+        show_help
+        exit 1
+        ;;
+    esac
+  done
 
   verify_git_env
 
@@ -198,7 +233,7 @@ main() {
   upstream_repo=$(get_upstream_repo)
   echo "Found upstream repo name: $upstream_repo..."
 
-  if [ "$origin_owner" == "$upstream_owner" ]; then
+  if [[ "$origin_owner" == "$upstream_owner" ]]; then
     echo "Origin is already the upstream repository ($upstream_owner), nothing to sync."
     exit 0
   fi
@@ -218,7 +253,7 @@ main() {
   git reset --hard
   sync_branch "$default_branch" "$upstream_url" true
 
-  if [ -n "$stay" ]; then
+  if [[ -n "$stay" ]]; then
     echo "User requested to stay on current branch. Syncing '$ORIGINAL_BRANCH'..."
     sync_branch "$ORIGINAL_BRANCH" "$upstream_url" false
   fi

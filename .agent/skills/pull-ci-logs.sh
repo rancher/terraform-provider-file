@@ -1,227 +1,306 @@
 #!/usr/bin/env bash
-
-# pull-ci-logs.sh - Retrieve GitHub CI workflow logs and save to a temporary file.
-# Conforms to shell-scripts.instructions.md guidelines.
+#
+# Skill: pull-ci-logs.sh
+# Description: Retrieve GitHub CI workflow logs and save to a temporary file, supporting listing failed runs and jobs.
+#              Conforms to shell-scripts.instructions.md guidelines.
+# Usage: .agent/skills/pull-ci-logs.sh [run-id] [options]
 
 set -euo pipefail
 
 show_help() {
-    cat <<EOF
+  cat <<EOF
 Usage: pull-ci-logs.sh [run-id] [options]
 
-Downloads workflow logs from a GitHub Actions run to a temporary file.
+Downloads workflow logs from a GitHub Actions run or specific job to a temporary file.
 
 Arguments:
   run-id                  Optional. The database ID of the run. If omitted,
-                          you will be prompted to select from the most recent runs.
+                          the single most recent run matching the criteria is used.
 
 Options:
-  -r, --repo OWNER/REPO   The GitHub repository (default: rancher/terraform-provider-file)
-  -l, --limit LIMIT       Number of recent runs to fetch for selection (default: 10)
-  -w, --workflow NAME     Filter runs by workflow name (e.g., "Release", "pull_request", "FOSSA Scanning")
-  -s, --status STATUS     Filter runs by status (e.g., "completed", "failure", "success")
-  -f, --failed-only       Only fetch logs for failed steps
-  -o, --output FILE       The file path to save logs (default: /tmp/gh-run-<run-id>.log)
-  -h, --help              Show this help message and exit
+  -r, --repo OWNER/REPO   The GitHub repository (default: rancher/terraform-provider-file).
+  -w, --workflow NAME     Filter runs by workflow name (e.g., "Release", "pull_request").
+  -s, --status STATUS     Filter runs by status (e.g., "completed", "failure").
+  -f, --failed-only       Only fetch logs for failed steps.
+  -o, --output FILE       The file path to save logs (default: /tmp/gh-run-<run-id>.log or /tmp/gh-job-<job-id>.log).
+  --list-failed           List recently failed workflow runs and exit.
+  --list-jobs RUN_ID      List failed jobs inside a specific workflow run and exit.
+  -j, --job JOB_ID        Download/view logs for a specific job ID instead of the full run.
+  -h, --help              Show this help message and exit.
 
 Examples:
-  # Interactively select a run and download full logs
+  # List recently failed workflow runs
+  $ .agent/skills/pull-ci-logs.sh --list-failed
+
+  # List failed jobs within workflow run 123456789
+  $ .agent/skills/pull-ci-logs.sh --list-jobs 123456789
+
+  # Download logs for the most recent run
   $ .agent/skills/pull-ci-logs.sh
 
-  # Interactively select from recently failed "Release" workflow runs
-  $ .agent/skills/pull-ci-logs.sh -w Release -s failure
-
-  # Download full logs for a specific run ID
-  $ .agent/skills/pull-ci-logs.sh 30394694424
-
-  # Download only failed step logs for a run
-  $ .agent/skills/pull-ci-logs.sh 30394694424 --failed-only
-
-  # Download logs from a different repository
-  $ .agent/skills/pull-ci-logs.sh -r some-org/some-repo
+  # Download logs from a specific failed job ID
+  $ .agent/skills/pull-ci-logs.sh --job 987654321
 EOF
 }
 
-select_run() {
-    local repo="$1"
-    local limit="$2"
-    local workflow="$3"
-    local status="$4"
+# Safely executes a command with retry and exponential backoff
+# Usage: run_with_retry cmd args...
+run_with_retry() {
+  local max_attempts=5
+  local base_delay=2
+  local attempt=1
+  local exit_code=0
 
-    local msg="Fetching the $limit most recent runs"
-    if [[ -n "$workflow" ]]; then
-        msg="$msg for workflow '$workflow'"
-    fi
-    if [[ -n "$status" ]]; then
-        msg="$msg with status '$status'"
-    fi
-    msg="$msg for $repo..."
-    echo "$msg" >&2
-
-    local extra_args=()
-    if [[ -n "$workflow" ]]; then
-        extra_args+=("-w" "$workflow")
-    fi
-    if [[ -n "$status" ]]; then
-        extra_args+=("-s" "$status")
+  while true; do
+    if "$@"; then
+      return 0
+    else
+      exit_code=$?
     fi
 
-    local run_data
-    run_data=$(gh run list -R "$repo" --limit "$limit" "${extra_args[@]+"${extra_args[@]}"}" --json databaseId,workflowName,headBranch,displayTitle,status,conclusion 2>/dev/null | jq -r '.[] | "\(.databaseId)\t[\(.status)/\(.conclusion)] \(.workflowName) on \(.headBranch) - \(.displayTitle)"' || true)
-
-    if [[ -z "$run_data" ]]; then
-        echo "Error: No recent runs found matching the criteria or unable to access repository '$repo'." >&2
-        exit 1
+    if [[ ${attempt} -ge ${max_attempts} ]]; then
+      echo "Error: Command '$*' failed after ${max_attempts} attempts." >&2
+      return ${exit_code}
     fi
 
-    # Read lines using mapfile
-    local lines=()
-    mapfile -t lines <<< "$run_data"
+    local delay
+    delay=$(( base_delay * (2 ** (attempt - 1)) ))
+    echo "Warning: Command failed (exit code ${exit_code}). Retrying in ${delay} seconds (attempt ${attempt}/${max_attempts})..." >&2
+    sleep "${delay}"
+    attempt=$((attempt + 1))
+  done
+}
 
-    echo "Select a workflow run to view/download logs:" >&2
-    local i
-    for i in "${!lines[@]}"; do
-        local line="${lines[i]}"
-        local desc="${line#*$'\t'}"
-        printf "%2d) %s\n" "$((i + 1))" "$desc" >&2
-    done
+list_failed_runs() {
+  local repo="$1"
+  echo "Fetching recently failed runs for $repo..." >&2
 
-    local selection
-    while true; do
-        read -rp "Enter number (1-${#lines[@]}) or 'q' to quit: " selection < /dev/tty
-        if [[ "$selection" == "q" ]]; then
-            echo "Aborted by user." >&2
-            exit 0
-        fi
-        if [[ "$selection" =~ ^[0-9]+$ ]] && (( selection >= 1 && selection <= ${#lines[@]} )); then
-            break
-        fi
-        echo "Invalid selection. Please try again." >&2
-    done
+  local run_data
+  run_data=$(run_with_retry gh run list -R "$repo" -s failure --limit 10 --json databaseId,workflowName,headBranch,createdAt,displayTitle 2>/dev/null)
 
-    local selected_line="${lines[$((selection - 1))]}"
-    local run_id="${selected_line%%$'\t'*}"
-    echo "$run_id"
+  if [[ -z "$run_data" || "$run_data" == "[]" ]]; then
+    echo "No recently failed workflow runs found for $repo." >&2
+    return 0
+  fi
+
+  echo -e "RUN ID\t\tWORKFLOW / DETAILS"
+  echo "================================================================================"
+  echo "$run_data" | jq -r '.[] | "\(.databaseId)\t\(.workflowName) (\(.headBranch)) - \(.displayTitle) (\(.createdAt))"'
+}
+
+list_failed_jobs() {
+  local repo="$1"
+  local run_id="$2"
+  echo "Fetching failed jobs for run $run_id in $repo..." >&2
+
+  local jobs_data
+  jobs_data=$(run_with_retry gh api "repos/${repo}/actions/runs/${run_id}/jobs" 2>/dev/null)
+
+  if [[ -z "$jobs_data" ]]; then
+    echo "Error: Could not retrieve jobs for run $run_id." >&2
+    exit 1
+  fi
+
+  local failed_jobs
+  failed_jobs=$(echo "$jobs_data" | jq -r '.jobs[] | select(.conclusion == "failure") | "\(.id)\t\(.name)"' || true)
+
+  if [[ -z "$failed_jobs" ]]; then
+    echo "No failed jobs found for run $run_id (all jobs passed or are pending)." >&2
+    return 0
+  fi
+
+  echo -e "JOB ID\t\tFAILED JOB NAME"
+  echo "================================================================================"
+  echo "$failed_jobs"
+}
+
+get_latest_run_id() {
+  local repo="$1"
+  local workflow="$2"
+  local status="$3"
+
+  local msg="Fetching the latest run ID"
+  if [[ -n "$workflow" ]]; then
+    msg="$msg for workflow '$workflow'"
+  fi
+  if [[ -n "$status" ]]; then
+    msg="$msg with status '$status'"
+  fi
+  msg="$msg from $repo..."
+  echo "$msg" >&2
+
+  local extra_args=()
+  if [[ -n "$workflow" ]]; then
+    extra_args+=("-w" "$workflow")
+  fi
+  if [[ -n "$status" ]]; then
+    extra_args+=("-s" "$status")
+  fi
+
+  local run_id
+  run_id=$(run_with_retry gh run list -R "$repo" --limit 1 "${extra_args[@]+"${extra_args[@]}"}" --json databaseId --jq '.[0].databaseId' 2>/dev/null || echo "")
+
+  if [[ -z "$run_id" || "$run_id" == "null" ]]; then
+    echo "Error: No recent workflow runs found matching the criteria for repository '$repo'." >&2
+    exit 1
+  fi
+
+  echo "$run_id"
 }
 
 main() {
-    local repo="rancher/terraform-provider-file"
-    local limit="10"
-    local failed_only=false
-    local output_file=""
-    local run_id=""
-    local workflow=""
-    local status=""
+  local repo="rancher/terraform-provider-file"
+  local failed_only=false
+  local output_file=""
+  local run_id=""
+  local workflow=""
+  local status=""
+  local job_id=""
+  
+  local action="download"
+  local target_run_id=""
 
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            -h|--help)
-                show_help
-                exit 0
-                ;;
-            -r|--repo)
-                if [[ -z "${2:-}" ]]; then
-                    echo "Error: --repo requires an argument." >&2
-                    exit 1
-                fi
-                repo="$2"
-                shift 2
-                ;;
-            -l|--limit)
-                if [[ -z "${2:-}" ]] || ! [[ "$2" =~ ^[0-9]+$ ]]; then
-                    echo "Error: --limit requires a numeric argument." >&2
-                    exit 1
-                fi
-                limit="$2"
-                shift 2
-                ;;
-            -w|--workflow)
-                if [[ -z "${2:-}" ]]; then
-                    echo "Error: --workflow requires an argument." >&2
-                    exit 1
-                fi
-                workflow="$2"
-                shift 2
-                ;;
-            -s|--status)
-                if [[ -z "${2:-}" ]]; then
-                    echo "Error: --status requires an argument." >&2
-                    exit 1
-                fi
-                status="$2"
-                shift 2
-                ;;
-            -f|--failed-only)
-                failed_only=true
-                shift
-                ;;
-            -o|--output)
-                if [[ -z "${2:-}" ]]; then
-                    echo "Error: --output requires an argument." >&2
-                    exit 1
-                fi
-                output_file="$2"
-                shift 2
-                ;;
-            -*)
-                echo "Error: Unknown option: $1" >&2
-                show_help
-                exit 1
-                ;;
-            *)
-                if [[ -n "$run_id" ]]; then
-                    echo "Error: Only one run-id can be specified." >&2
-                    exit 1
-                fi
-                if ! [[ "$1" =~ ^[0-9]+$ ]]; then
-                    echo "Error: Invalid run-id '$1'. Run-id must be a number." >&2
-                    exit 1
-                fi
-                run_id="$1"
-                shift
-                ;;
-        esac
-    done
-
-    # Ensure gh CLI is installed
-    if ! command -v gh &>/dev/null; then
-        echo "Error: The GitHub CLI (gh) is not installed or not in PATH." >&2
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h|--help)
+        show_help
+        exit 0
+        ;;
+      -r|--repo)
+        if [[ -z "${2:-}" ]]; then
+          echo "Error: --repo requires an argument." >&2
+          exit 1
+        fi
+        repo="$2"
+        shift 2
+        ;;
+      -w|--workflow)
+        if [[ -z "${2:-}" ]]; then
+          echo "Error: --workflow requires an argument." >&2
+          exit 1
+        fi
+        workflow="$2"
+        shift 2
+        ;;
+      -s|--status)
+        if [[ -z "${2:-}" ]]; then
+          echo "Error: --status requires an argument." >&2
+          exit 1
+        fi
+        status="$2"
+        shift 2
+        ;;
+      -f|--failed-only)
+        failed_only=true
+        shift
+        ;;
+      -o|--output)
+        if [[ -z "${2:-}" ]]; then
+          echo "Error: --output requires an argument." >&2
+          exit 1
+        fi
+        output_file="$2"
+        shift 2
+        ;;
+      -j|--job)
+        if [[ -z "${2:-}" ]]; then
+          echo "Error: --job requires a job ID." >&2
+          exit 1
+        fi
+        job_id="$2"
+        shift 2
+        ;;
+      --list-failed)
+        action="list-failed"
+        shift
+        ;;
+      --list-jobs)
+        if [[ -z "${2:-}" ]]; then
+          echo "Error: --list-jobs requires a run ID argument." >&2
+          exit 1
+        fi
+        action="list-jobs"
+        target_run_id="$2"
+        shift 2
+        ;;
+      -*)
+        echo "Error: Unknown option: $1" >&2
+        show_help
         exit 1
-    fi
+        ;;
+      *)
+        if [[ -n "$run_id" ]]; then
+          echo "Error: Only one run-id can be specified." >&2
+          exit 1
+        fi
+        if ! [[ "$1" =~ ^[0-9]+$ ]]; then
+          echo "Error: Invalid run-id '$1'. Run-id must be a number." >&2
+          exit 1
+        fi
+        run_id="$1"
+        shift
+        ;;
+    esac
+  done
 
-    # Ensure jq is installed
-    if ! command -v jq &>/dev/null; then
-        echo "Error: jq is required but not installed or not in PATH." >&2
-        exit 1
-    fi
+  # Ensure gh CLI is installed
+  if ! command -v gh &>/dev/null; then
+    echo "Error: The GitHub CLI (gh) is not installed or not in PATH." >&2
+    exit 1
+  fi
 
-    if [[ -z "$run_id" ]]; then
-        run_id=$(select_run "$repo" "$limit" "$workflow" "$status")
-    fi
+  # Ensure jq is installed
+  if ! command -v jq &>/dev/null; then
+    echo "Error: jq is required but not installed or not in PATH." >&2
+    exit 1
+  fi
 
+  # Execute requested action
+  if [[ "$action" == "list-failed" ]]; then
+    list_failed_runs "$repo"
+    exit 0
+  fi
+
+  if [[ "$action" == "list-jobs" ]]; then
+    list_failed_jobs "$repo" "$target_run_id"
+    exit 0
+  fi
+
+  # Retrieve logs path (for downloading logs)
+  local view_flags=()
+  if [[ "$failed_only" == "true" ]]; then
+    view_flags+=("--log-failed")
+  else
+    view_flags+=("--log")
+  fi
+
+  if [[ -n "$job_id" ]]; then
     if [[ -z "$output_file" ]]; then
-        output_file="/tmp/gh-run-${run_id}.log"
+      output_file="/tmp/gh-job-${job_id}.log"
     fi
-
-    # Create the parent directory for output if it doesn't exist
     mkdir -p "$(dirname "$output_file")"
-
+    echo "Downloading logs for job $job_id from $repo..."
+    if ! run_with_retry gh run view --job "$job_id" -R "$repo" "${view_flags[@]}" > "$output_file"; then
+      echo "Error: Failed to fetch logs for job $job_id." >&2
+      exit 1
+    fi
+  else
+    if [[ -z "$run_id" ]]; then
+      run_id=$(get_latest_run_id "$repo" "$workflow" "$status")
+    fi
+    if [[ -z "$output_file" ]]; then
+      output_file="/tmp/gh-run-${run_id}.log"
+    fi
+    mkdir -p "$(dirname "$output_file")"
     echo "Downloading logs for run $run_id from $repo..."
-    local view_flags=()
-    if [[ "$failed_only" == "true" ]]; then
-        view_flags+=("--log-failed")
-    else
-        view_flags+=("--log")
+    if ! run_with_retry gh run view "$run_id" -R "$repo" "${view_flags[@]}" > "$output_file"; then
+      echo "Error: Failed to fetch logs for run $run_id." >&2
+      exit 1
     fi
+  fi
 
-    # Retrieve logs and write to file
-    if ! gh run view "$run_id" -R "$repo" "${view_flags[@]}" > "$output_file"; then
-        echo "Error: Failed to fetch logs for run $run_id." >&2
-        exit 1
-    fi
-
-    echo "Logs successfully written to: $output_file"
-    echo "You can view them using: less -R \"$output_file\" or code \"$output_file\""
+  echo "Logs successfully written to: $output_file"
+  echo "You can view them using: less -R \"$output_file\" or code \"$output_file\""
 }
 
 main "$@"
