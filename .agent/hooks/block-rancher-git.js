@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-const fs = require('fs');
-const { execSync } = require('child_process');
-const path = require('path');
+import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 function main() {
   let inputData;
@@ -23,15 +23,49 @@ function main() {
 
   const command = tool_input.command.trim();
 
+  // Strip leading env var assignments (e.g. KEY=value or KEY="value" or KEY='value') and optional sudo
+  let commandClean = command;
+  while (true) {
+    const next = commandClean.replace(/^[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"[^"]*"|\S+)\s+/, '');
+    if (next === commandClean) break;
+    commandClean = next;
+  }
+
+  // Check for unauthorized git commit or push operations
+  const isCommitOrPush = /\bgit\s+(commit|push)\b/.test(commandClean);
+  if (isCommitOrPush) {
+    const segments = command.split(/\s*(?:&&|;|\|\|)\s*/);
+    const hasUserApproval = segments.every(segment => {
+      const isSegmentCommitOrPush = /\bgit\s+(commit|push)\b/.test(segment);
+      if (!isSegmentCommitOrPush) return true;
+      const segmentClean = segment.trim();
+      return /^(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"[^"]*"|\S+)\s+)*APPROVED_BY_USER=1\b/.test(segmentClean);
+    });
+    if (!hasUserApproval) {
+      console.log(JSON.stringify({
+        decision: "deny",
+        reason: "Security Policy Violation: Automated git commits and pushes are strictly prohibited without manual developer review and sign-off.\n\n" +
+                "To proceed with a commit or push, you MUST:\n" +
+                "1. Invite the developer in the chat to review the unstaged changes in their IDE.\n" +
+                "2. Obtain their explicit manual approval to perform the commit or push.\n" +
+                "3. Prefix your git command with APPROVED_BY_USER=1 (e.g., `APPROVED_BY_USER=1 git commit -m ...` or `APPROVED_BY_USER=1 git push ...`).",
+        systemMessage: "🔒 Security Block: Unauthorized automated git commit/push detected. Explicit developer approval required."
+      }));
+      process.exit(0);
+    }
+  }
+
   // Check if it is a git command and performs a remote-interacting operation
-  const isGitCmd = /^git\s/.test(command);
-  const isRemoteOp = /\b(push|pull|fetch|clone|remote)\b/.test(command);
+  const isGitCmd = /^(?:sudo\s+)?git\b/.test(commandClean);
+  const isRemoteOp = /\b(push|pull|fetch|clone|remote)\b/.test(commandClean);
 
   if (isGitCmd && isRemoteOp) {
     const targetDir = tool_input.dir_path || cwd || process.cwd();
 
     // Check command string directly to catch inline URL references or remote additions
-    if (/rancher/i.test(command)) {
+    // Ignore false positives from the filename "block-rancher-git.js"
+    const hasRancherRef = /rancher/i.test(command.replace(/block-rancher-git\.js/g, ''));
+    if (hasRancherRef) {
       console.log(JSON.stringify({
         decision: "deny",
         reason: "Security Policy Violation: Git command contains references to Rancher remote/URLs, which is strictly blocked.",
@@ -56,7 +90,7 @@ function main() {
         }));
         process.exit(0);
       }
-    } catch (err) {
+    } catch {
       // Ignore git command execution failures (e.g. not in a git repo) and proceed safely
     }
   }

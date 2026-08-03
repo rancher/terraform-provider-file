@@ -4,14 +4,28 @@ This workflow defines the procedure that AI agents must follow when investigatin
 
 ## Phase 1: Log Retrieval & Triage
 
-### 1. Fetch Workflow Logs
-* Use the log retrieval skill (`.agent/skills/pull-ci-logs.sh`) to download the logs from the failed run:
+### 1. Identify Failed Runs and Jobs
+* **Identify Failed Workflow Runs:** If the user reports a pipeline failure but does not provide a specific run ID, the agent MUST query the repository for recently failed workflow runs to identify the failure:
   ```bash
-  .agent/skills/pull-ci-logs.sh -w <workflow-name> -s failure --failed-only
+  .agent/skills/pull-ci-logs.sh --list-failed
   ```
-* Inspect the tail of the log file or search for critical errors to isolate the failing job and step.
+* **Identify Failed Jobs:** Once the correct failed workflow run ID is identified (e.g., `123456789`), query the Actions API to list all individual jobs that failed in that specific run:
+  ```bash
+  .agent/skills/pull-ci-logs.sh --list-jobs 123456789
+  ```
 
-### 2. Reproduce Environment Settings
+### 2. Fetch Workflow Logs
+* **Download Specific Job Logs:** Rather than downloading full logs for the entire workflow (which can be massive), download ONLY the logs for the specific failed job ID (e.g., `987654321`) to isolate the failure quickly:
+  ```bash
+  .agent/skills/pull-ci-logs.sh --job 987654321
+  ```
+* **Fallback (Full/Failed logs):** Alternatively, download logs for the entire run filtered by failed steps:
+  ```bash
+  .agent/skills/pull-ci-logs.sh <run-id> --failed-only
+  ```
+* Inspect the downloaded log file to isolate the exact step that failed.
+
+### 3. Reproduce Environment Settings
 * Examine the failing job's container image and step environment variables.
 * Identify if the failure is code-related, script-related, or infrastructure-related (e.g., missing API secrets, network failures, or GPG agent lockups).
 
@@ -37,7 +51,7 @@ This workflow defines the procedure that AI agents must follow when investigatin
 * Avoid quick-and-dirty hacks (like bypassing static checks or disabling safety flags) unless explicitly requested.
 
 ### 2. Document the Resolution Plan
-* Write a plan file under `.agent/plans/` and a checklist in `.agent/agent-memory/` detailing what needs to be changed.
+* Write a unified plan and implementation checklist under `.agent/plans/<PlanName>.md` detailing what needs to be changed following the guidelines in `.agent/rules/plans.instructions.md`.
 * Get approval from the user before applying edits.
 
 ---
