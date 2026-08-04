@@ -198,10 +198,11 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 - [x] Update `.github/workflows/review-trigger.yml` to trigger on comment events (`pull_request_review_comment` and `issue_comment` types: `created, edited, deleted`) to support the comment-based re-evaluation ("poke") mechanism.
 - [x] Refactor `.github/workflows/scripts/verify-pr-requirements.js` to change the review threshold from requiring `2 humans OR 1 human + 1 AI` to **at least 1 human approval** (with trusted access), since AI review is natively triggered at the repository level now.
 - [x] Refactor `.github/workflows/scripts/verify-pr-requirements.js` to fail the verification check run if the PR is in draft mode in non-auto-merge mode.
+- [x] Rename `verify-pr-requirements.js` to `verify-pr-requirements.mjs` and update `pull_request.yaml` and `pr-executor.yml` references to ESM `.mjs` extension to resolve runner syntax error.
 
 ### Phase 4: Testing, Verification & Proactive Review (Quality Gate 1)
-- [x] Run `actionlint` locally to verify that `.github/workflows/review-trigger.yml` syntax remains valid.
-- [x] Run `node --check` to verify that `.github/workflows/scripts/verify-pr-requirements.js` syntax remains valid.
+- [x] Run `actionlint` locally to verify that `.github/workflows/review-trigger.yml`, `pull_request.yaml` and `pr-executor.yml` syntax remains valid.
+- [x] Run `node --check` to verify that `.github/workflows/scripts/verify-pr-requirements.mjs` syntax remains valid.
 - [x] Verify that markdown formatting and hyperlinks are valid in both `RELEASING.md` and `README.md`.
 - [x] Enter Proactive Review Mode on the written code diff to proactively resolve any issues human or Copilot automated reviews might flag.
 
