@@ -23,7 +23,7 @@ export default async ({ github, context, core, process }) => {
       }));
 
       if (pr.draft) {
-        core.info(`PR #${prNumber} is a draft. Skipping verification.`);
+        core.setFailed(`PR #${prNumber} is currently in draft mode. Verification cannot proceed until the PR is marked as ready for review.`);
         return;
       }
 

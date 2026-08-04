@@ -197,6 +197,7 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 - [x] Add a prominent section/link in `README.md` pointing to `RELEASING.md`.
 - [x] Update `.github/workflows/review-trigger.yml` to trigger on comment events (`pull_request_review_comment` and `issue_comment` types: `created, edited, deleted`) to support the comment-based re-evaluation ("poke") mechanism.
 - [x] Refactor `.github/workflows/scripts/verify-pr-requirements.js` to change the review threshold from requiring `2 humans OR 1 human + 1 AI` to **at least 1 human approval** (with trusted access), since AI review is natively triggered at the repository level now.
+- [x] Refactor `.github/workflows/scripts/verify-pr-requirements.js` to fail the verification check run if the PR is in draft mode in non-auto-merge mode.
 
 ### Phase 4: Testing, Verification & Proactive Review (Quality Gate 1)
 - [x] Run `actionlint` locally to verify that `.github/workflows/review-trigger.yml` syntax remains valid.
