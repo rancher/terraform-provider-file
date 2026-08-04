@@ -209,12 +209,13 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 - [x] Solicit manual developer review and obtain explicit approval in the chat.
 
 ### Phase 6: Authorized Commit & PR Generation (Quality Gate 3)
-- [ ] Stage only the specific modified/created files (no `git add .` or `-A`).
-- [ ] Commit changes locally with a conventional prefix (e.g., `ci: implement standard release process and documentation`) and `APPROVED_BY_USER=1`.
-- [ ] Push the branch `feature/document-standard-release` to the user's origin fork.
-- [ ] Generate a Draft Pull Request targeting upstream `main` in draft mode (`--draft`) using the `create-pr.sh` skill.
-- [ ] Graduate the draft PR to ready-for-review using `create-pr.sh --ready`.
+- [x] Stage only the specific modified/created files (no `git add .` or `-A`).
+- [x] Commit changes locally with a conventional prefix (e.g., `ci: implement standard release process and documentation`) and `APPROVED_BY_USER=1`.
+- [x] Push the branch `feature/document-standard-release` to the user's origin fork.
+- [x] Generate a Draft Pull Request targeting upstream `main` in draft mode (`--draft`) using the `create-pr.sh` skill.
+- [x] Graduate the draft PR to ready-for-review using `create-pr.sh --ready`.
 
 ### Phase 7: Verification, Copilot Compliance & Iteration
-- [ ] Trigger/wait for GitHub Copilot automated review on the PR.
-- [ ] Address and resolve any findings by committing necessary refinements.
+- [x] Trigger/wait for GitHub Copilot automated review on the PR.
+- [x] Address and resolve any findings by committing necessary refinements.
+s.
