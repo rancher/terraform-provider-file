@@ -162,57 +162,6 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
   const trustedApprovals = Object.values(latestReviews).filter(review => {
     const login = review.user?.login;
     if (!login) return false;
-  // 3.5. Proxy Approval Logic
-  const isAutoMerge = process.env.AUTO_MERGE === 'true';
-  if (isAutoMerge) {
-    const trustedApprovals = Object.values(latestReviews).filter(review => {
-      const login = review.user?.login;
-      if (!login) return false;
-      const isBot = review.user.type === 'Bot' ||
-                    login.endsWith('[bot]') ||
-                    login.toLowerCase().includes('copilot') ||
-                    login.toLowerCase().includes('agent');
-      if (isBot) return false;
-
-      const assoc = review.author_association;
-      const isTrusted = assoc === 'OWNER' || assoc === 'MEMBER' || assoc === 'COLLABORATOR';
-      return review.state === 'APPROVED' && isTrusted;
-    });
-
-    if (trustedApprovals.length > 0) {
-      const botApproved = Object.values(latestReviews).some(review => {
-        const login = review.user?.login;
-        return login === 'github-actions[bot]' && review.state === 'APPROVED';
-      });
-
-      if (!botApproved) {
-        core.info(`🤖 Proxy Approval: PR #${pr.number} has approvals from trusted human reviewers (${trustedApprovals.map(r => r.user.login).join(', ')}), but lacks a Write-level bot approval. Submitting proxy approval...`);
-        try {
-          await withRetry(core, () => github.rest.pulls.createReview({
-            owner,
-            repo,
-            pull_number: pr.number,
-            event: 'APPROVE',
-            body: '🤖 Proxy approval: trusted human reviewer approved this PR.',
-          }));
-          core.info(`🤖 Proxy approval submitted successfully!`);
-
-          // Inject bot approved review locally so the rest of the script processes it immediately
-          latestReviews['github-actions[bot]'] = {
-            user: { login: 'github-actions[bot]', type: 'Bot' },
-            state: 'APPROVED'
-          };
-        } catch (error) {
-          core.warning(`Could not submit proxy approval: ${error.message}`);
-        }
-      }
-    }
-  }
-
-  const approvingHumans = [];
-  const aiAgents = [];
-
-  for (const [login, review] of Object.entries(latestReviews)) {
     const isBot = review.user.type === 'Bot' ||
                   login.endsWith('[bot]') ||
                   login.toLowerCase().includes('copilot') ||

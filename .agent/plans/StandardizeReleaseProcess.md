@@ -199,6 +199,7 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 - [x] Refactor `.github/workflows/scripts/verify-pr-requirements.js` to change the review threshold from requiring `2 humans OR 1 human + 1 AI` to **at least 1 human approval** (with trusted access), since AI review is natively triggered at the repository level now.
 - [x] Refactor `.github/workflows/scripts/verify-pr-requirements.js` to fail the verification check run if the PR is in draft mode in non-auto-merge mode.
 - [x] Rename `verify-pr-requirements.js` to `verify-pr-requirements.mjs` and update `pull_request.yaml` and `pr-executor.yml` references to ESM `.mjs` extension to resolve runner syntax error.
+- [x] Resolve syntax error in `verify-pr-requirements.mjs` caused by hybrid code replacement.
 
 ### Phase 4: Testing, Verification & Proactive Review (Quality Gate 1)
 - [x] Run `actionlint` locally to verify that `.github/workflows/review-trigger.yml`, `pull_request.yaml` and `pr-executor.yml` syntax remains valid.
