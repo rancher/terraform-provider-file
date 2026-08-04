@@ -1,0 +1,20 @@
+name: pull_request_review_trigger
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions: {}
+
+jobs:
+  trigger:
+    name: 'Trigger Executor on Review'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Log Review Submission
+        run: echo "Review submitted by ${ACTOR} with state ${STATE}"
+        env:
+          ACTOR: ${{ github.event.review.user.login }}
+          STATE: ${{ github.event.review.state }}
