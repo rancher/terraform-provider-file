@@ -1,9 +1,10 @@
-name: Scheduled PR Verification and Auto-Merge
+name: PR Executor and Auto-Merge
 
 on:
-  schedule:
-    # Runs at 8:00 AM (14:00 UTC), 12:00 PM (18:00 UTC), and 5:00 PM (23:00 UTC) CST, Monday through Friday
-    - cron: '0 14,18,23 * * 1-5'
+  workflow_run:
+    workflows: ["pull_request", "pull_request_review_trigger"]
+    types:
+      - completed
   workflow_dispatch:
 
 permissions: {}
@@ -19,6 +20,7 @@ jobs:
       contents: write
       pull-requests: write
       checks: read
+      copilot-requests: write
     steps:
       - name: Checkout Repository
         id: checkout-repository

@@ -11,7 +11,7 @@ run_terraform() {
 
 run_actionlint() {
   echo "==> Linting GitHub workflows..."
-  actionlint
+  actionlint -ignore 'unknown permission scope "copilot-requests"'
 }
 
 run_shellcheck() {
