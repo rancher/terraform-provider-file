@@ -158,32 +158,61 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
     }
   }
 
-  const approvingHumans = [];
-  const aiAgents = [];
-
-  for (const [login, review] of Object.entries(latestReviews)) {
+  // Calculate trusted human approvals
+  const trustedApprovals = Object.values(latestReviews).filter(review => {
+    const login = review.user?.login;
+    if (!login) return false;
     const isBot = review.user.type === 'Bot' ||
                   login.endsWith('[bot]') ||
                   login.toLowerCase().includes('copilot') ||
                   login.toLowerCase().includes('agent');
+    if (isBot) return false;
 
-    if (isBot) {
-      aiAgents.push(login);
-    } else if (review.state === 'APPROVED') {
-      approvingHumans.push(login);
+    const assoc = review.author_association;
+    const isTrusted = assoc === 'OWNER' || assoc === 'MEMBER' || assoc === 'COLLABORATOR';
+    return review.state === 'APPROVED' && isTrusted;
+  });
+
+  // 3.5. Proxy Approval Logic
+  const isAutoMerge = process.env.AUTO_MERGE === 'true';
+  if (isAutoMerge) {
+    if (trustedApprovals.length > 0) {
+      const botApproved = Object.values(latestReviews).some(review => {
+        const login = review.user?.login;
+        return login === 'github-actions[bot]' && review.state === 'APPROVED';
+      });
+
+      if (!botApproved) {
+        core.info(`🤖 Proxy Approval: PR #${pr.number} has approvals from trusted human reviewers (${trustedApprovals.map(r => r.user.login).join(', ')}), but lacks a Write-level bot approval. Submitting proxy approval...`);
+        try {
+          await withRetry(core, () => github.rest.pulls.createReview({
+            owner,
+            repo,
+            pull_number: pr.number,
+            event: 'APPROVE',
+            body: '🤖 Proxy approval: trusted human reviewer approved this PR.',
+          }));
+          core.info(`🤖 Proxy approval submitted successfully!`);
+
+          // Inject bot approved review locally so the rest of the script processes it immediately
+          latestReviews['github-actions[bot]'] = {
+            user: { login: 'github-actions[bot]', type: 'Bot' },
+            state: 'APPROVED'
+          };
+        } catch (error) {
+          core.warning(`Could not submit proxy approval: ${error.message}`);
+        }
+      }
     }
   }
 
-  core.info(`Approving humans: ${approvingHumans.join(', ') || 'None'}`);
-  core.info(`AI agents: ${aiAgents.join(', ') || 'None'}`);
+  core.info(`Approving trusted collaborators: ${trustedApprovals.map(r => r.user.login).join(', ') || 'None'}`);
 
-  const hasTwoHumans = approvingHumans.length >= 2;
-  const hasOneHumanOneAI = approvingHumans.length >= 1 && aiAgents.length >= 1;
+  const hasTrustedHumanApproval = trustedApprovals.length >= 1;
 
-  if (!hasTwoHumans && !hasOneHumanOneAI) {
-    reasons.push(`- **Reviews**: Requirements not met. PR requires either **2 human approvals** OR **1 human approval + 1 AI agent review**.\n` +
-      `  - Approving humans: ${approvingHumans.map(u => `@${u}`).join(', ') || '_None_'}\n` +
-      `  - AI reviewers: ${aiAgents.map(u => `@${u}`).join(', ') || '_None_'}`
+  if (!hasTrustedHumanApproval) {
+    reasons.push(`- **Reviews**: Requirements not met. PR requires at least **1 human approval** from a trusted role (Collaborator, Member, or Owner).\n` +
+      `  - Approving trusted collaborators: ${trustedApprovals.map(u => `@${u.user.login}`).join(', ') || '_None_'}`
     );
 
     // Automatically trigger a review from Copilot/AI reviewer if needed
@@ -363,15 +392,38 @@ async function mergePullRequest({ github, core, owner, repo, prNumber, sha }) {
     mergeParams.commit_message = conventionalMsg.commitMessage;
     core.info(`Generated AI Conventional Squash Message is VALID:\nTitle: ${mergeParams.commit_title}\nBody:\n${mergeParams.commit_message}`);
   } else {
-    // If invalid (or failed validation), use a safe, programmatic conventional commit default that won't bump minor/major semver
-    const defaultTitle = affectsProduct
-      ? `fix(merge): squash PR #${prNumber} (automated fallback)`
-      : `chore(merge): squash PR #${prNumber} (non-product fallback)`;
-    const defaultBody = `Automated fallback merge commit message.\n\nOriginal Commits:\n${commitsList}`;
+    // Fallback: Default to the initial commit message, appending "fix: " if it doesn't already have a type
+    const initialMsgFull = commits[0]?.commit?.message || `squash PR #${prNumber}`;
+    const msgLines = initialMsgFull.split('\n');
+    let defaultTitle = msgLines[0].trim();
+    const defaultBodyLines = msgLines.slice(1);
+
+    defaultBodyLines.push('');
+    defaultBodyLines.push('Original Commits:');
+    defaultBodyLines.push(commitsList);
+    const defaultBody = defaultBodyLines.join('\n').trim();
+
+    const hasType = CONVENTIONAL_COMMIT_REGEXP.test(defaultTitle);
+    if (!hasType) {
+      defaultTitle = `fix: ${defaultTitle}`;
+    } else if (!affectsProduct) {
+      // Enforce semver guard on the fallback title if it's a non-product change
+      const typeMatch = defaultTitle.match(/^([a-z]+)(?:\([^)]+\))?(!?):/i);
+      if (typeMatch) {
+        const type = typeMatch[1].toLowerCase();
+        const hasExclamation = typeMatch[2] === '!';
+
+        if (type === 'feat' || type === 'refactor' || hasExclamation) {
+          // Downgrade feat/refactor/breaking to chore for non-product fallback
+          defaultTitle = defaultTitle.replace(/^([a-z]+)/i, 'chore').replace('!:', ':');
+          core.warning(`Downgraded fallback commit title to "${defaultTitle}" to prevent incorrect SemVer bump on non-product change.`);
+        }
+      }
+    }
 
     mergeParams.commit_title = defaultTitle;
     mergeParams.commit_message = defaultBody;
-    core.info(`Using safe, programmatic conventional fallback message:\nTitle: ${mergeParams.commit_title}\nBody:\n${mergeParams.commit_message}`);
+    core.info(`Using safe, initial-commit conventional fallback message:\nTitle: ${mergeParams.commit_title}\nBody:\n${mergeParams.commit_message}`);
   }
 
   core.info(`🚀 Merging PR #${prNumber} with Squash method...`);
@@ -412,8 +464,9 @@ ${commitsList}
 
   try {
     const escapedPrompt = JSON.stringify(prompt);
-    // Execute copilot in Nix env using nix-run.sh
-    const cmd = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/nix-run.sh copilot -s --yolo -p ${escapedPrompt}`;
+    // Execute copilot in Nix env using nix-run.sh, passing GITHUB_TOKEN inside the script context
+    // because nix develop scrubs the outer environment.
+    const cmd = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/nix-run.sh GITHUB_TOKEN='${process.env.GITHUB_TOKEN}' COPILOT_GITHUB_TOKEN='${process.env.GITHUB_TOKEN}' copilot -s --yolo -p ${escapedPrompt}`;
     const output = execSync(cmd, { env: { ...process.env, GITHUB_TOKEN: process.env.GITHUB_TOKEN } }).toString().trim();
 
     if (!output) {

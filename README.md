@@ -78,6 +78,10 @@ make testacc
 
 To build, generate, and run all tests, run `make`.
 
+## Release Process
+
+This repository utilizes a fully automated, event-driven PR verification and release lifecycle. For a comprehensive overview of how changes are checked, proxy-approved, squash-merged, and published (including our secure Nix tooling and GoReleaser signing workflows), please see our authoritative project standard: **[RELEASING.md](RELEASING.md)**.
+
 ## Releasing Workflow Changes (Enterprise Security Compliance)
 
 Due to GitHub's server-side push validation and security model, the standard `GITHUB_TOKEN` is prevented from possessing `workflows: write` privileges. This means that if any release contains modifications to GitHub Actions workflow files (under `.github/workflows/`), automated pipelines (including `release-please` and `GoReleaser`) will be rejected by GitHub when attempting to create and push the release tag.

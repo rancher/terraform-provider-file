@@ -1,0 +1,25 @@
+name: pull_request_review_trigger
+
+on:
+  pull_request_review:
+    types: [submitted]
+  pull_request_review_comment:
+    types: [created, edited, deleted]
+  issue_comment:
+    types: [created, edited, deleted]
+
+permissions: {}
+
+jobs:
+  trigger:
+    name: 'Trigger Executor on Event'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Log Trigger Event
+        run: |
+          echo "Trigger event: ${EVENT_NAME} by ${ACTOR}"
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
