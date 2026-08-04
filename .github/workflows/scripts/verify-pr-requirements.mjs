@@ -215,8 +215,7 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
       `  - Approving trusted collaborators: ${trustedApprovals.map(u => `@${u.user.login}`).join(', ') || '_None_'}`
     );
 
-    // Automatically trigger a review from Copilot/AI reviewer if needed
-    await triggerAIReviewIfNeeded({ github, core, owner, repo, prNumber: pr.number });
+
   }
 
   // 4. Verify Resolved Comments (GraphQL)
@@ -484,39 +483,7 @@ ${commitsList}
   }
 }
 
-/**
- * Automatically requests a review from GitHub Copilot if the PR lacks sufficient reviews and no AI review is active or pending.
- */
-async function triggerAIReviewIfNeeded({ github, core, owner, repo, prNumber }) {
-  try {
-    const aiReviewer = process.env.AI_REVIEWER_NAME || 'github-copilot';
-    core.info(`PR #${prNumber} lacks sufficient reviews. Checking if AI review is already requested...`);
 
-    // Fetch current PR details to inspect requested reviewers
-    const { data: prDetails } = await withRetry(core, () => github.rest.pulls.get({
-      owner,
-      repo,
-      pull_number: prNumber,
-    }));
-
-    const alreadyRequested = prDetails.requested_reviewers?.some(r => r.login === aiReviewer);
-
-    if (!alreadyRequested) {
-      core.info(`Requesting review from AI reviewer '${aiReviewer}' for PR #${prNumber} to satisfy reviewer thresholds...`);
-      await withRetry(core, () => github.rest.pulls.requestReviewers({
-        owner,
-        repo,
-        pull_number: prNumber,
-        reviewers: [aiReviewer],
-      }));
-      core.info(`Successfully triggered AI review from '${aiReviewer}'!`);
-    } else {
-      core.info(`AI review from '${aiReviewer}' is already pending on PR #${prNumber}.`);
-    }
-  } catch (error) {
-    core.warning(`Could not trigger automated AI review: ${error.message}`);
-  }
-}
 
 /**
  * Executes an asynchronous function with retries and exponential backoff.
