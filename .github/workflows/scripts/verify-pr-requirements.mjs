@@ -23,7 +23,7 @@ export default async ({ github, context, core, process }) => {
       }));
 
       if (pr.draft) {
-        core.info(`PR #${prNumber} is a draft. Skipping verification.`);
+        core.setFailed(`PR #${prNumber} is currently in draft mode. Verification cannot proceed until the PR is marked as ready for review.`);
         return;
       }
 
@@ -110,11 +110,25 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
       ref: pr.head.sha,
     }));
 
-    const totalRuns = checks.check_runs.length;
-    const completedRuns = checks.check_runs.filter(r => r.status === 'completed');
-    const failedRuns = checks.check_runs.filter(r => r.status === 'completed' && r.conclusion !== 'success' && r.conclusion !== 'skipped');
+    core.info(`Total check runs found on GitHub: ${checks.check_runs.length}`);
+    for (const r of checks.check_runs) {
+      core.info(`  - [${r.status}] Name: "${r.name}", Conclusion: "${r.conclusion || 'pending'}", ID: ${r.id}`);
+    }
 
-    core.info(`CI check runs: ${completedRuns.length}/${totalRuns} completed. Failed: ${failedRuns.length}`);
+    // Filter out requirements verification and event trigger check runs to avoid deadlock
+    const relevantCheckRuns = checks.check_runs.filter(r => {
+      const isIgnored = r.name === 'Verify PR Requirements' || r.name === 'Trigger Executor on Event';
+      if (isIgnored) {
+        core.info(`  -> Ignoring status/trigger check run to prevent deadlock: "${r.name}"`);
+      }
+      return !isIgnored;
+    });
+
+    const totalRuns = relevantCheckRuns.length;
+    const completedRuns = relevantCheckRuns.filter(r => r.status === 'completed');
+    const failedRuns = relevantCheckRuns.filter(r => r.status === 'completed' && r.conclusion !== 'success' && r.conclusion !== 'skipped');
+
+    core.info(`CI check runs processed: ${completedRuns.length}/${totalRuns} completed. Failed: ${failedRuns.length}`);
 
     if (totalRuns === 0) {
       reasons.push('- **CI Checks**: No CI check runs have started yet.');
@@ -122,6 +136,10 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
       ciPending = true;
       reasons.push(`- **CI Checks**: ${totalRuns - completedRuns.length} check run(s) are still in-progress.`);
     } else if (failedRuns.length > 0) {
+      core.info('Failing CI Check Run(s) detected:');
+      for (const r of failedRuns) {
+        core.info(`  - Name: "${r.name}", Conclusion: "${r.conclusion}", ID: ${r.id}, Link: ${r.html_url || 'N/A'}`);
+      }
       reasons.push(`- **CI Checks**: Some CI check runs failed:\n` + failedRuns.map(r => `  - \`${r.name}\` (${r.conclusion})`).join('\n'));
     }
   }
@@ -158,23 +176,61 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
     }
   }
 
+  core.info(`Processed reviews/approvals for PR #${pr.number}:`);
+  for (const [login, review] of Object.entries(latestReviews)) {
+    core.info(`  - User: @${login}, Type: "${review.user?.type || 'Unknown'}", State: "${review.state}", Association: "${review.author_association || 'NONE'}", Submitted At: "${review.submitted_at || 'Unknown'}"`);
+  }
+
+  // Calculate trusted human approvals asynchronously to support querying collaborator permissions
+  const trustedApprovals = [];
+  for (const review of Object.values(latestReviews)) {
+    const login = review.user?.login;
+    if (!login) continue;
+    const isBot = review.user.type === 'Bot' ||
+                  login.endsWith('[bot]') ||
+                  login.toLowerCase().includes('copilot') ||
+                  login.toLowerCase().includes('agent');
+    if (isBot) continue;
+
+    const assoc = review.author_association;
+    const isTrustedAssoc = assoc === 'OWNER' || assoc === 'MEMBER' || assoc === 'COLLABORATOR';
+    const isApproved = review.state === 'APPROVED';
+
+    let isTrusted = isTrustedAssoc;
+
+    // Query collaborator permission level via API as the absolute source of truth
+    // (e.g. to catch users who are granted write access via a team/group),
+    // falling back to author_association if the API call fails or is restricted.
+    try {
+      const { data: permData } = await withRetry(core, () => github.rest.repos.getCollaboratorPermissionLevel({
+        owner,
+        repo,
+        username: login,
+      }));
+      const perm = permData.permission; // admin, write, maintain, triage, read, none
+      const hasTrustedPerm = perm === 'admin' || perm === 'write' || perm === 'maintain' || perm === 'triage';
+      core.info(`  -> User @${login} permission check: "${perm}" (trusted: ${hasTrustedPerm}, association was: "${assoc}")`);
+      isTrusted = hasTrustedPerm;
+    } catch (error) {
+      core.info(`  -> Note: Could not check collaborator permission level for @${login} via API (${error.message}). Falling back to author_association check.`);
+      core.info(`  -> User @${login} author_association check: "${assoc}" (trusted: ${isTrustedAssoc})`);
+    }
+
+    if (isApproved) {
+      if (isTrusted) {
+        core.info(`  -> Trusted approval identified: @${login}`);
+        trustedApprovals.push(review);
+      } else {
+        core.info(`  -> Note: Review from @${login} is APPROVED but they do not have trusted write/maintain/admin/triage access.`);
+      }
+    } else {
+      core.info(`  -> Note: Review from @${login} is NOT active (State: "${review.state}", trusted reviewer: ${isTrusted}).`);
+    }
+  }
+
   // 3.5. Proxy Approval Logic
   const isAutoMerge = process.env.AUTO_MERGE === 'true';
   if (isAutoMerge) {
-    const trustedApprovals = Object.values(latestReviews).filter(review => {
-      const login = review.user?.login;
-      if (!login) return false;
-      const isBot = review.user.type === 'Bot' ||
-                    login.endsWith('[bot]') ||
-                    login.toLowerCase().includes('copilot') ||
-                    login.toLowerCase().includes('agent');
-      if (isBot) return false;
-
-      const assoc = review.author_association;
-      const isTrusted = assoc === 'OWNER' || assoc === 'MEMBER' || assoc === 'COLLABORATOR';
-      return review.state === 'APPROVED' && isTrusted;
-    });
-
     if (trustedApprovals.length > 0) {
       const botApproved = Object.values(latestReviews).some(review => {
         const login = review.user?.login;
@@ -205,36 +261,16 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
     }
   }
 
-  const approvingHumans = [];
-  const aiAgents = [];
+  core.info(`Approving trusted collaborators: ${trustedApprovals.map(r => r.user.login).join(', ') || 'None'}`);
 
-  for (const [login, review] of Object.entries(latestReviews)) {
-    const isBot = review.user.type === 'Bot' ||
-                  login.endsWith('[bot]') ||
-                  login.toLowerCase().includes('copilot') ||
-                  login.toLowerCase().includes('agent');
+  const hasTrustedHumanApproval = trustedApprovals.length >= 1;
 
-    if (isBot) {
-      aiAgents.push(login);
-    } else if (review.state === 'APPROVED') {
-      approvingHumans.push(login);
-    }
-  }
-
-  core.info(`Approving humans: ${approvingHumans.join(', ') || 'None'}`);
-  core.info(`AI agents: ${aiAgents.join(', ') || 'None'}`);
-
-  const hasTwoHumans = approvingHumans.length >= 2;
-  const hasOneHumanOneAI = approvingHumans.length >= 1 && aiAgents.length >= 1;
-
-  if (!hasTwoHumans && !hasOneHumanOneAI) {
-    reasons.push(`- **Reviews**: Requirements not met. PR requires either **2 human approvals** OR **1 human approval + 1 AI agent review**.\n` +
-      `  - Approving humans: ${approvingHumans.map(u => `@${u}`).join(', ') || '_None_'}\n` +
-      `  - AI reviewers: ${aiAgents.map(u => `@${u}`).join(', ') || '_None_'}`
+  if (!hasTrustedHumanApproval) {
+    reasons.push(`- **Reviews**: Requirements not met. PR requires at least **1 human approval** from a trusted role (Collaborator, Member, or Owner).\n` +
+      `  - Approving trusted collaborators: ${trustedApprovals.map(u => `@${u.user.login}`).join(', ') || '_None_'}`
     );
 
-    // Automatically trigger a review from Copilot/AI reviewer if needed
-    await triggerAIReviewIfNeeded({ github, core, owner, repo, prNumber: pr.number });
+
   }
 
   // 4. Verify Resolved Comments (GraphQL)
@@ -502,39 +538,7 @@ ${commitsList}
   }
 }
 
-/**
- * Automatically requests a review from GitHub Copilot if the PR lacks sufficient reviews and no AI review is active or pending.
- */
-async function triggerAIReviewIfNeeded({ github, core, owner, repo, prNumber }) {
-  try {
-    const aiReviewer = process.env.AI_REVIEWER_NAME || 'github-copilot';
-    core.info(`PR #${prNumber} lacks sufficient reviews. Checking if AI review is already requested...`);
 
-    // Fetch current PR details to inspect requested reviewers
-    const { data: prDetails } = await withRetry(core, () => github.rest.pulls.get({
-      owner,
-      repo,
-      pull_number: prNumber,
-    }));
-
-    const alreadyRequested = prDetails.requested_reviewers?.some(r => r.login === aiReviewer);
-
-    if (!alreadyRequested) {
-      core.info(`Requesting review from AI reviewer '${aiReviewer}' for PR #${prNumber} to satisfy reviewer thresholds...`);
-      await withRetry(core, () => github.rest.pulls.requestReviewers({
-        owner,
-        repo,
-        pull_number: prNumber,
-        reviewers: [aiReviewer],
-      }));
-      core.info(`Successfully triggered AI review from '${aiReviewer}'!`);
-    } else {
-      core.info(`AI review from '${aiReviewer}' is already pending on PR #${prNumber}.`);
-    }
-  } catch (error) {
-    core.warning(`Could not trigger automated AI review: ${error.message}`);
-  }
-}
 
 /**
  * Executes an asynchronous function with retries and exponential backoff.

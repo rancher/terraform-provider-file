@@ -229,7 +229,17 @@ jobs:
 
   verify-pr-requirements:
     name: 'Verify PR Requirements'
-    needs: enforce-fork-contribution
+    needs:
+      - enforce-fork-contribution
+      - terraform
+      - actionlint
+      - shellcheck
+      - validate-commit-message
+      - gitleaks
+      - test-compile-check
+      - lint-tests
+      - unit-tests
+      - acceptance-tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -248,7 +258,7 @@ jobs:
           AUTO_MERGE: 'false'
         with:
           script: |
-            const scriptPath = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/verify-pr-requirements.js`;
+            const scriptPath = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/verify-pr-requirements.mjs`;
             const { default: script } = await import(scriptPath);
             await script({github, context, core, process});
 
