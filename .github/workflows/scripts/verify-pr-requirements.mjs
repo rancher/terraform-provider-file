@@ -181,28 +181,50 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
     core.info(`  - User: @${login}, Type: "${review.user?.type || 'Unknown'}", State: "${review.state}", Association: "${review.author_association || 'NONE'}", Submitted At: "${review.submitted_at || 'Unknown'}"`);
   }
 
-  // Calculate trusted human approvals
-  const trustedApprovals = Object.values(latestReviews).filter(review => {
+  // Calculate trusted human approvals asynchronously to support querying collaborator permissions
+  const trustedApprovals = [];
+  for (const review of Object.values(latestReviews)) {
     const login = review.user?.login;
-    if (!login) return false;
+    if (!login) continue;
     const isBot = review.user.type === 'Bot' ||
                   login.endsWith('[bot]') ||
                   login.toLowerCase().includes('copilot') ||
                   login.toLowerCase().includes('agent');
-    if (isBot) return false;
+    if (isBot) continue;
 
     const assoc = review.author_association;
-    const isTrusted = assoc === 'OWNER' || assoc === 'MEMBER' || assoc === 'COLLABORATOR';
+    const isTrustedAssoc = assoc === 'OWNER' || assoc === 'MEMBER' || assoc === 'COLLABORATOR';
     const isApproved = review.state === 'APPROVED';
 
-    if (isApproved && !isTrusted) {
-      core.info(`  -> Note: Review from @${login} is APPROVED but role "${assoc}" is not trusted (requires OWNER, MEMBER, or COLLABORATOR).`);
-    } else if (isApproved && isTrusted) {
-      core.info(`  -> Trusted approval: @${login} with role "${assoc}"`);
-    }
+    if (isApproved) {
+      let isTrusted = isTrustedAssoc;
 
-    return isApproved && isTrusted;
-  });
+      // Query collaborator permission level via API as the absolute source of truth
+      // (e.g. to catch users who are granted write access via a team/group),
+      // falling back to author_association if the API call fails or is restricted.
+      try {
+        const { data: permData } = await withRetry(core, () => github.rest.repos.getCollaboratorPermissionLevel({
+          owner,
+          repo,
+          username: login,
+        }));
+        const perm = permData.permission; // admin, write, maintain, triage, read, none
+        const hasTrustedPerm = perm === 'admin' || perm === 'write' || perm === 'maintain' || perm === 'triage';
+        core.info(`  -> User @${login} permission check: "${perm}" (trusted: ${hasTrustedPerm}, association was: "${assoc}")`);
+        isTrusted = hasTrustedPerm;
+      } catch (error) {
+        core.info(`  -> Note: Could not check collaborator permission level for @${login} via API (${error.message}). Falling back to author_association check.`);
+        core.info(`  -> User @${login} author_association check: "${assoc}" (trusted: ${isTrustedAssoc})`);
+      }
+
+      if (isTrusted) {
+        core.info(`  -> Trusted approval identified: @${login}`);
+        trustedApprovals.push(review);
+      } else {
+        core.info(`  -> Note: Review from @${login} is APPROVED but they do not have trusted write/maintain/admin access.`);
+      }
+    }
+  }
 
   // 3.5. Proxy Approval Logic
   const isAutoMerge = process.env.AUTO_MERGE === 'true';

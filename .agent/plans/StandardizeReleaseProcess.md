@@ -224,4 +224,5 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 - [x] Address and resolve any findings by committing necessary refinements.
 - [x] Resolve CI deadlock by ignoring self-status and event-trigger check runs (`Verify PR Requirements` and `Trigger Executor on Event`).
 - [x] Enhance troubleshooting logging to display detailed information on processed/ignored check runs, all reviewers with their status, type, and author association.
-- [x] Verify changes locally and solicit human approval before staging/committing.
+- [x] Integrate collaborator permission checks via `getCollaboratorPermissionLevel` API to correctly identify team/group-based write or triage access with a graceful fallback.
+- [x] Verify updated code locally and obtain approval.
