@@ -33,10 +33,15 @@ jobs:
             exit 1
           fi
 
-          # Block direct pushes to main from same-repository (except for release-please or dependabot PRs)
-          if [[ "$HEAD_REPO" == "$BASE_REPO" && "$HEAD_REF" != "release-please--branches--main" && "$ACTOR" != "dependabot[bot]" && ! "$HEAD_REF" =~ ^dependabot/ ]]; then
-            echo "Error: Contributions are required to come from forks. Directly pushing branches to the upstream repository is blocked." >&2
-            exit 1
+          # Block direct pushes to main from same-repository (except for release-please or dependabot PRs pushed by dependabot itself)
+          if [[ "$HEAD_REPO" == "$BASE_REPO" && "$HEAD_REF" != "release-please--branches--main" ]]; then
+            if [[ "$HEAD_REF" =~ ^dependabot/ && "$ACTOR" != "dependabot[bot]" ]]; then
+              echo "Error: Only the Dependabot service is allowed to push to dependabot/ branches." >&2
+              exit 1
+            elif [[ ! "$HEAD_REF" =~ ^dependabot/ && "$ACTOR" != "dependabot[bot]" ]]; then
+              echo "Error: Contributions are required to come from forks. Directly pushing branches to the upstream repository is blocked." >&2
+              exit 1
+            fi
           fi
 
   terraform:

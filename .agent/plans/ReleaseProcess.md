@@ -231,4 +231,5 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 - [x] Configure `verify-pr-requirements` in `pull_request.yaml` to depend on all other validation/test jobs (making it the last gate to execute).
 - [x] Update `pull_request.yaml` to allow `dependabot[bot]` actor branch pushes in `Enforce Fork Contributions` check run.
 - [x] Implement Dependabot PR auto-merge rule and proxy approval logic inside `verify-pr-requirements.mjs` (merges Dependabot PRs based on AI review approval).
+- [x] Tighten `pull_request.yaml` to ensure only `dependabot[bot]` can push to `dependabot/` branches inside the same-repository.
 - [x] Verify updated code locally and obtain approval.
