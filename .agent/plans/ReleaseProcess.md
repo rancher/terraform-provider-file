@@ -246,4 +246,4 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 - [x] Run `actionlint` locally to verify that `.github/workflows/release.yml` syntax remains valid.
 - [x] Enter Proactive Review Mode on the written code diff to proactively resolve any issues human or Copilot automated reviews might flag.
 - [x] Present the unstaged diff to the developer in the chat and request their IDE review.
-- [ ] Commit changes locally with a conventional prefix (e.g., `ci: reconcile release-please pr labels after merge`) and `APPROVED_BY_USER=1`.
+- [x] Commit changes locally with a conventional prefix (e.g., `ci: reconcile release-please pr labels after merge`) and `APPROVED_BY_USER=1`.
