@@ -48,6 +48,70 @@ export default async ({ github, context, core, process }) => {
     } else {
       core.info(`Release for tag ${tag} is already published.`);
     }
+
+    // -------------------------------------------------------------
+    // PR Label Reconciliation
+    // -------------------------------------------------------------
+    try {
+      core.info(`Finding pull requests associated with commit ${context.sha}...`);
+      const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        commit_sha: context.sha,
+      });
+
+      const pr = prs.data.find(p => p.state === 'closed' && p.merged_at);
+      if (pr) {
+        core.info(`Found associated merged PR #${pr.number}: "${pr.title}"`);
+        
+        const isReleasePlease = pr.head.ref === 'release-please--branches--main' || pr.head.ref?.startsWith('release-please');
+        if (isReleasePlease) {
+          core.info(`PR #${pr.number} is a release-please PR. Reconciling labels...`);
+          
+          const labels = pr.labels.map(l => l.name);
+          core.info(`Current labels on PR #${pr.number}: ${labels.join(', ')}`);
+
+          const labelsToRemove = ['autorelease: pending', 'ready-to-merge'];
+          for (const label of labelsToRemove) {
+            if (labels.includes(label)) {
+              core.info(`Removing label "${label}" from PR #${pr.number}...`);
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  name: label,
+                });
+                core.info(`Successfully removed label "${label}".`);
+              } catch (err) {
+                core.warning(`Failed to remove label "${label}": ${err.message}`);
+              }
+            }
+          }
+
+          if (!labels.includes('autorelease: tagged')) {
+            core.info(`Adding label "autorelease: tagged" to PR #${pr.number}...`);
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels: ['autorelease: tagged'],
+              });
+              core.info(`Successfully added label "autorelease: tagged".`);
+            } catch (err) {
+              core.warning(`Failed to add label "autorelease: tagged": ${err.message}`);
+            }
+          }
+        } else {
+          core.info(`PR #${pr.number} is not a release-please PR.`);
+        }
+      } else {
+        core.info(`No merged pull request associated with commit ${context.sha} was found.`);
+      }
+    } catch (labelError) {
+      core.warning(`Failed to reconcile PR labels: ${labelError.message}`);
+    }
   } catch (error) {
     core.setFailed(`Failed to publish release: ${error.message}`);
   }
