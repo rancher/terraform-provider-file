@@ -227,4 +227,6 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 - [x] Integrate collaborator permission checks via `getCollaboratorPermissionLevel` API to correctly identify team/group-based write or triage access with a graceful fallback.
 - [x] Enhance logging to check and print collaborator permission level of ALL human reviewers (including inactive ones) to ease debugging.
 - [x] Configure `verify-pr-requirements` in `pull_request.yaml` to depend on all other validation/test jobs (making it the last gate to execute).
+- [x] Update `pull_request.yaml` to allow `dependabot[bot]` actor branch pushes in `Enforce Fork Contributions` check run.
+- [x] Implement Dependabot PR auto-merge rule and proxy approval logic inside `verify-pr-requirements.mjs` (merges Dependabot PRs based on AI review approval).
 - [x] Verify updated code locally and obtain approval.
