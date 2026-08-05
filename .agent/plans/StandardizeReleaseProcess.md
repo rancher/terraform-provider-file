@@ -225,4 +225,6 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 - [x] Resolve CI deadlock by ignoring self-status and event-trigger check runs (`Verify PR Requirements` and `Trigger Executor on Event`).
 - [x] Enhance troubleshooting logging to display detailed information on processed/ignored check runs, all reviewers with their status, type, and author association.
 - [x] Integrate collaborator permission checks via `getCollaboratorPermissionLevel` API to correctly identify team/group-based write or triage access with a graceful fallback.
+- [x] Enhance logging to check and print collaborator permission level of ALL human reviewers (including inactive ones) to ease debugging.
+- [x] Configure `verify-pr-requirements` in `pull_request.yaml` to depend on all other validation/test jobs (making it the last gate to execute).
 - [x] Verify updated code locally and obtain approval.

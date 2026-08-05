@@ -196,33 +196,35 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
     const isTrustedAssoc = assoc === 'OWNER' || assoc === 'MEMBER' || assoc === 'COLLABORATOR';
     const isApproved = review.state === 'APPROVED';
 
+    let isTrusted = isTrustedAssoc;
+
+    // Query collaborator permission level via API as the absolute source of truth
+    // (e.g. to catch users who are granted write access via a team/group),
+    // falling back to author_association if the API call fails or is restricted.
+    try {
+      const { data: permData } = await withRetry(core, () => github.rest.repos.getCollaboratorPermissionLevel({
+        owner,
+        repo,
+        username: login,
+      }));
+      const perm = permData.permission; // admin, write, maintain, triage, read, none
+      const hasTrustedPerm = perm === 'admin' || perm === 'write' || perm === 'maintain' || perm === 'triage';
+      core.info(`  -> User @${login} permission check: "${perm}" (trusted: ${hasTrustedPerm}, association was: "${assoc}")`);
+      isTrusted = hasTrustedPerm;
+    } catch (error) {
+      core.info(`  -> Note: Could not check collaborator permission level for @${login} via API (${error.message}). Falling back to author_association check.`);
+      core.info(`  -> User @${login} author_association check: "${assoc}" (trusted: ${isTrustedAssoc})`);
+    }
+
     if (isApproved) {
-      let isTrusted = isTrustedAssoc;
-
-      // Query collaborator permission level via API as the absolute source of truth
-      // (e.g. to catch users who are granted write access via a team/group),
-      // falling back to author_association if the API call fails or is restricted.
-      try {
-        const { data: permData } = await withRetry(core, () => github.rest.repos.getCollaboratorPermissionLevel({
-          owner,
-          repo,
-          username: login,
-        }));
-        const perm = permData.permission; // admin, write, maintain, triage, read, none
-        const hasTrustedPerm = perm === 'admin' || perm === 'write' || perm === 'maintain' || perm === 'triage';
-        core.info(`  -> User @${login} permission check: "${perm}" (trusted: ${hasTrustedPerm}, association was: "${assoc}")`);
-        isTrusted = hasTrustedPerm;
-      } catch (error) {
-        core.info(`  -> Note: Could not check collaborator permission level for @${login} via API (${error.message}). Falling back to author_association check.`);
-        core.info(`  -> User @${login} author_association check: "${assoc}" (trusted: ${isTrustedAssoc})`);
-      }
-
       if (isTrusted) {
         core.info(`  -> Trusted approval identified: @${login}`);
         trustedApprovals.push(review);
       } else {
-        core.info(`  -> Note: Review from @${login} is APPROVED but they do not have trusted write/maintain/admin access.`);
+        core.info(`  -> Note: Review from @${login} is APPROVED but they do not have trusted write/maintain/admin/triage access.`);
       }
+    } else {
+      core.info(`  -> Note: Review from @${login} is NOT active (State: "${review.state}", trusted reviewer: ${isTrusted}).`);
     }
   }
 
