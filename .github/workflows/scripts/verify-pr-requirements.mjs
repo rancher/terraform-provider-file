@@ -1,4 +1,5 @@
 import { execSync } from 'child_process';
+import fs from 'fs';
 
 const COMMENT_SIGNATURE = '<!-- scheduled-pr-verification-signature -->';
 
@@ -539,11 +540,22 @@ ${commitsList}
 `;
 
   try {
-    const escapedPrompt = JSON.stringify(prompt);
+    // Save prompt to a temporary file to avoid shell expansion and parentheses parsing errors
+    const promptFile = '.copilot-prompt.txt';
+    fs.writeFileSync(promptFile, prompt);
+
     // Execute copilot in Nix env using nix-run.sh, passing GITHUB_TOKEN inside the script context
-    // because nix develop scrubs the outer environment.
-    const cmd = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/nix-run.sh GITHUB_TOKEN='${process.env.GITHUB_TOKEN}' COPILOT_GITHUB_TOKEN='${process.env.GITHUB_TOKEN}' copilot -s --yolo -p ${escapedPrompt}`;
+    // because nix develop scrubs the outer environment. We double quote the cat expansion inside
+    // single quotes to pass it literally to the nix-run script where bash will evaluate it securely.
+    const cmd = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/nix-run.sh GITHUB_TOKEN='${process.env.GITHUB_TOKEN}' COPILOT_GITHUB_TOKEN='${process.env.GITHUB_TOKEN}' copilot -s --yolo -p '"$(cat ${promptFile})"'`;
     const output = execSync(cmd, { env: { ...process.env, GITHUB_TOKEN: process.env.GITHUB_TOKEN } }).toString().trim();
+
+    // Clean up temporary prompt file
+    try {
+      fs.unlinkSync(promptFile);
+    } catch (cleanupError) {
+      core.warning(`Temporary prompt file cleanup failed: ${cleanupError.message}`);
+    }
 
     if (!output) {
       throw new Error('Copilot returned an empty response');
