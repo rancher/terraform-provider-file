@@ -60,11 +60,82 @@ export default async ({ github, context, core, process }) => {
 
         const { success, reasons, ciPending } = await verifyPullRequest({ github, context, core, pr, owner, repo, checkCI: true });
 
+        const hasReadyLabel = pr.labels.some(l => l.name === 'ready-to-merge');
+
         if (success) {
-          // All requirements met + CI checks completed successfully -> Merge!
-          await deleteBotCommentIfExists({ github, core, owner, repo, prNumber: pr.number });
-          await mergePullRequest({ github, core, owner, repo, prNumber: pr.number, sha: pr.head.sha });
+          const isReleasePlease = pr.head.ref === 'release-please--branches--main' || pr.head.ref?.startsWith('release-please');
+          const isFork = pr.head.repo?.full_name !== pr.base.repo?.full_name;
+
+          if (isReleasePlease) {
+            core.info(`PR #${pr.number} is a release-please PR. Skipping auto-merge per specifications.`);
+            await deleteBotCommentIfExists({ github, core, owner, repo, prNumber: pr.number });
+            if (!hasReadyLabel) {
+              core.info(`Adding "ready-to-merge" label to Release PR #${pr.number}...`);
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: pr.number,
+                labels: ['ready-to-merge'],
+              });
+            }
+          } else if (isFork) {
+            core.info(`PR #${pr.number} is from a fork. GITHUB_TOKEN lacks merge permissions on fork PRs. Labeling and posting comment instead...`);
+            if (!hasReadyLabel) {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: pr.number,
+                labels: ['ready-to-merge'],
+              });
+            }
+            const readyMsg = `### 🤖 PR Ready to Merge
+
+This PR has successfully passed all quality gates, lints, commit signatures, and approvals!
+Because this PR originates from a **forked repository**, GitHub Actions lacks the write-level merge permissions required to merge it automatically.
+
+A repository maintainer must click **Merge** manually on this PR.`;
+            await updateOrPostComment({
+              github,
+              core,
+              owner,
+              repo,
+              prNumber: pr.number,
+              message: readyMsg,
+            });
+          } else {
+            // Local/Dependabot PR -> Merge automatically!
+            await deleteBotCommentIfExists({ github, core, owner, repo, prNumber: pr.number });
+            if (hasReadyLabel) {
+              // Remove the label before merging to keep history clean
+              try {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: pr.number,
+                  name: 'ready-to-merge',
+                });
+              } catch (e) {
+                // Ignore removal failure
+              }
+            }
+            await mergePullRequest({ github, core, owner, repo, prNumber: pr.number, sha: pr.head.sha });
+          }
         } else {
+          // Requirements are not met. If the PR has the "ready-to-merge" label, remove it!
+          if (hasReadyLabel) {
+            core.info(`PR #${pr.number} requirements are no longer met. Removing "ready-to-merge" label.`);
+            try {
+              await github.rest.issues.removeLabel({
+                owner,
+                repo,
+                issue_number: pr.number,
+                name: 'ready-to-merge',
+              });
+            } catch (error) {
+              core.warning(`Could not remove "ready-to-merge" label: ${error.message}`);
+            }
+          }
+
           if (ciPending) {
             core.info(`PR #${pr.number} has in-progress CI check runs. Postponing merge and skipping comments until CI completes.`);
           } else {
@@ -504,8 +575,24 @@ async function mergePullRequest({ github, core, owner, repo, prNumber, sha }) {
   }
 
   core.info(`🚀 Merging PR #${prNumber} with Squash method...`);
-  await withRetry(core, () => github.rest.pulls.merge(mergeParams));
-  core.info(`PR #${prNumber} merged successfully!`);
+  // Use GitHub CLI with --auto to leverage GitHub's native auto-merge backend.
+  // This bypasses the REST API GITHUB_TOKEN merge restriction for fork PRs!
+  try {
+    const mergeCmd = `gh pr merge ${prNumber} --auto --squash --subject ${JSON.stringify(mergeParams.commit_title)} --body ${JSON.stringify(mergeParams.commit_message)}`;
+    execSync(mergeCmd, { env: { ...process.env, GH_TOKEN: process.env.GITHUB_TOKEN } });
+    core.info(`PR #${prNumber} auto-merge enabled/merged successfully via GitHub CLI!`);
+  } catch (autoError) {
+    core.warning(`Failed to enable auto-merge via gh CLI: ${autoError.message}. Retrying direct merge via gh CLI...`);
+    try {
+      const directMergeCmd = `gh pr merge ${prNumber} --squash --subject ${JSON.stringify(mergeParams.commit_title)} --body ${JSON.stringify(mergeParams.commit_message)}`;
+      execSync(directMergeCmd, { env: { ...process.env, GH_TOKEN: process.env.GITHUB_TOKEN } });
+      core.info(`PR #${prNumber} merged directly via gh CLI successfully!`);
+    } catch (directError) {
+      core.warning(`Failed direct merge via gh CLI: ${directError.message}. Retrying REST API merge...`);
+      await withRetry(core, () => github.rest.pulls.merge(mergeParams));
+      core.info(`PR #${prNumber} merged via REST API successfully!`);
+    }
+  }
 }
 
 /**

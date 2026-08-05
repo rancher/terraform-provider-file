@@ -47,7 +47,7 @@ This swimlane diagram traces the detailed event triggers and data flow between d
 |                                             |           - Action: Fires Proxy Approval (vouching for review) │
 |                                             |           - Action: Fires SemVer Guard (scopes file boundary)  |
 |                                             |           - Action: Sanitizes commit message (product-safe)    |
-|                                             |           - Action: Executes SQUASH MERGE into 'main'          |
+|                                             |           - Action: Executes NATIVE AUTO-MERGE into 'main'     |
 |                                             |           - Action: Automatically deletes status comments      |
 |                                             |                                                                |
 | === PART 2: SQUASH-MERGE TO PRODUCTION RELEASE =================─────────────────────────────────────────────┤
@@ -163,10 +163,11 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 
 ---
 
-### **Phase 3: Automated SemVer Guard & Squash Merge (MERGE)**
+### **Phase 3: Automated SemVer Guard & Native Auto-Merge (MERGE)**
 * **Scoped Boundary Check:** Evaluates modified files. If changes are exclusively non-product (e.g. docs, tests, CI files outside the core `internal/` directory), the SemVer Guard is activated.
 * **Title Sanitized:** If SemVer Guard is active, conventional commit types like `feat` or `refactor` and breaking indicators (`!`) are dynamically stripped or downgraded to `chore` or `fix` to prevent unintentional Minor or Major version bumps.
-* **Squash Merged:** The PR is squashed and merged into `main` using the sanitized conventional commit message.
+* **Native Auto-Merge:** The PR is merged using GitHub's native Auto-Merge backend (`gh pr merge --auto --squash`) with custom, AI-sanitized commit messages. This cleanly bypasses the REST API GITHUB_TOKEN merge limitation for fork-authored PRs while respecting all branch protection settings.
+* **Concurrency & Exploitation Protection:** If a contributor pushes a new commit *after* native auto-merge is enabled, GitHub's native system instantly pauses/cancels the auto-merge because previous approvals are automatically dismissed and new checks are triggered. The event coordinator (`pr-executor.yml`) must re-evaluate and re-verify the new commit SHA before auto-merge can be re-enabled.
 
 ---
 
