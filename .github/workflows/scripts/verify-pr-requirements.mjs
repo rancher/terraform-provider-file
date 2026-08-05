@@ -110,11 +110,25 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
       ref: pr.head.sha,
     }));
 
-    const totalRuns = checks.check_runs.length;
-    const completedRuns = checks.check_runs.filter(r => r.status === 'completed');
-    const failedRuns = checks.check_runs.filter(r => r.status === 'completed' && r.conclusion !== 'success' && r.conclusion !== 'skipped');
+    core.info(`Total check runs found on GitHub: ${checks.check_runs.length}`);
+    for (const r of checks.check_runs) {
+      core.info(`  - [${r.status}] Name: "${r.name}", Conclusion: "${r.conclusion || 'pending'}", ID: ${r.id}`);
+    }
 
-    core.info(`CI check runs: ${completedRuns.length}/${totalRuns} completed. Failed: ${failedRuns.length}`);
+    // Filter out requirements verification and event trigger check runs to avoid deadlock
+    const relevantCheckRuns = checks.check_runs.filter(r => {
+      const isIgnored = r.name === 'Verify PR Requirements' || r.name === 'Trigger Executor on Event';
+      if (isIgnored) {
+        core.info(`  -> Ignoring status/trigger check run to prevent deadlock: "${r.name}"`);
+      }
+      return !isIgnored;
+    });
+
+    const totalRuns = relevantCheckRuns.length;
+    const completedRuns = relevantCheckRuns.filter(r => r.status === 'completed');
+    const failedRuns = relevantCheckRuns.filter(r => r.status === 'completed' && r.conclusion !== 'success' && r.conclusion !== 'skipped');
+
+    core.info(`CI check runs processed: ${completedRuns.length}/${totalRuns} completed. Failed: ${failedRuns.length}`);
 
     if (totalRuns === 0) {
       reasons.push('- **CI Checks**: No CI check runs have started yet.');
@@ -122,6 +136,10 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
       ciPending = true;
       reasons.push(`- **CI Checks**: ${totalRuns - completedRuns.length} check run(s) are still in-progress.`);
     } else if (failedRuns.length > 0) {
+      core.info('Failing CI Check Run(s) detected:');
+      for (const r of failedRuns) {
+        core.info(`  - Name: "${r.name}", Conclusion: "${r.conclusion}", ID: ${r.id}, Link: ${r.html_url || 'N/A'}`);
+      }
       reasons.push(`- **CI Checks**: Some CI check runs failed:\n` + failedRuns.map(r => `  - \`${r.name}\` (${r.conclusion})`).join('\n'));
     }
   }
@@ -158,6 +176,11 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
     }
   }
 
+  core.info(`Processed reviews/approvals for PR #${pr.number}:`);
+  for (const [login, review] of Object.entries(latestReviews)) {
+    core.info(`  - User: @${login}, Type: "${review.user?.type || 'Unknown'}", State: "${review.state}", Association: "${review.author_association || 'NONE'}", Submitted At: "${review.submitted_at || 'Unknown'}"`);
+  }
+
   // Calculate trusted human approvals
   const trustedApprovals = Object.values(latestReviews).filter(review => {
     const login = review.user?.login;
@@ -170,7 +193,15 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
 
     const assoc = review.author_association;
     const isTrusted = assoc === 'OWNER' || assoc === 'MEMBER' || assoc === 'COLLABORATOR';
-    return review.state === 'APPROVED' && isTrusted;
+    const isApproved = review.state === 'APPROVED';
+
+    if (isApproved && !isTrusted) {
+      core.info(`  -> Note: Review from @${login} is APPROVED but role "${assoc}" is not trusted (requires OWNER, MEMBER, or COLLABORATOR).`);
+    } else if (isApproved && isTrusted) {
+      core.info(`  -> Trusted approval: @${login} with role "${assoc}"`);
+    }
+
+    return isApproved && isTrusted;
   });
 
   // 3.5. Proxy Approval Logic

@@ -222,4 +222,6 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 ### Phase 7: Verification, Copilot Compliance & Iteration
 - [x] Trigger/wait for GitHub Copilot automated review on the PR.
 - [x] Address and resolve any findings by committing necessary refinements.
-s.
+- [x] Resolve CI deadlock by ignoring self-status and event-trigger check runs (`Verify PR Requirements` and `Trigger Executor on Event`).
+- [x] Enhance troubleshooting logging to display detailed information on processed/ignored check runs, all reviewers with their status, type, and author association.
+- [x] Verify changes locally and solicit human approval before staging/committing.
