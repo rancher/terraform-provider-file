@@ -1,4 +1,5 @@
 import { execSync } from 'child_process';
+import fs from 'fs';
 
 const COMMENT_SIGNATURE = '<!-- scheduled-pr-verification-signature -->';
 
@@ -230,22 +231,33 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
 
   // 3.5. Proxy Approval Logic
   const isAutoMerge = process.env.AUTO_MERGE === 'true';
+  const isDependabot = pr.user?.login === 'dependabot[bot]';
+  const aiApprovals = Object.values(latestReviews).filter(review => {
+    const login = review.user?.login;
+    if (!login) return false;
+    const isAi = login.toLowerCase().includes('copilot') || login.toLowerCase().includes('agent');
+    return isAi && (review.state === 'APPROVED' || review.state === 'COMMENTED');
+  });
+
   if (isAutoMerge) {
-    if (trustedApprovals.length > 0) {
+    const hasApprovals = isDependabot ? (aiApprovals.length > 0) : (trustedApprovals.length > 0);
+
+    if (hasApprovals) {
       const botApproved = Object.values(latestReviews).some(review => {
         const login = review.user?.login;
         return login === 'github-actions[bot]' && review.state === 'APPROVED';
       });
 
       if (!botApproved) {
-        core.info(`🤖 Proxy Approval: PR #${pr.number} has approvals from trusted human reviewers (${trustedApprovals.map(r => r.user.login).join(', ')}), but lacks a Write-level bot approval. Submitting proxy approval...`);
+        const approvalType = isDependabot ? 'trusted AI reviewer' : 'trusted human reviewer';
+        core.info(`🤖 Proxy Approval: PR #${pr.number} has approvals from ${approvalType}, but lacks a Write-level bot approval. Submitting proxy approval...`);
         try {
           await withRetry(core, () => github.rest.pulls.createReview({
             owner,
             repo,
             pull_number: pr.number,
             event: 'APPROVE',
-            body: '🤖 Proxy approval: trusted human reviewer approved this PR.',
+            body: `🤖 Proxy approval: ${approvalType} approved this PR.`,
           }));
           core.info(`🤖 Proxy approval submitted successfully!`);
 
@@ -261,16 +273,27 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
     }
   }
 
-  core.info(`Approving trusted collaborators: ${trustedApprovals.map(r => r.user.login).join(', ') || 'None'}`);
+  if (isDependabot) {
+    core.info(`PR #${pr.number} is opened by Dependabot. Checking for AI approvals...`);
+    core.info(`Found AI reviews: ${aiApprovals.map(r => `@${r.user?.login} (${r.state})`).join(', ') || 'None'}`);
 
-  const hasTrustedHumanApproval = trustedApprovals.length >= 1;
+    if (aiApprovals.length < 1) {
+      reasons.push(`- **Reviews**: Requirements not met. Dependabot PR requires at least **1 AI review** (from Copilot or Agent).\n` +
+        `  - Approving AI reviewers: _None_`
+      );
+    } else {
+      core.info(`PR #${pr.number} meets the AI review approval threshold for Dependabot auto-merge!`);
+    }
+  } else {
+    core.info(`Approving trusted collaborators: ${trustedApprovals.map(r => r.user.login).join(', ') || 'None'}`);
 
-  if (!hasTrustedHumanApproval) {
-    reasons.push(`- **Reviews**: Requirements not met. PR requires at least **1 human approval** from a trusted role (Collaborator, Member, or Owner).\n` +
-      `  - Approving trusted collaborators: ${trustedApprovals.map(u => `@${u.user.login}`).join(', ') || '_None_'}`
-    );
+    const hasTrustedHumanApproval = trustedApprovals.length >= 1;
 
-
+    if (!hasTrustedHumanApproval) {
+      reasons.push(`- **Reviews**: Requirements not met. PR requires at least **1 human approval** from a trusted role (Collaborator, Member, or Owner).\n` +
+        `  - Approving trusted collaborators: ${trustedApprovals.map(u => `@${u.user.login}`).join(', ') || '_None_'}`
+      );
+    }
   }
 
   // 4. Verify Resolved Comments (GraphQL)
@@ -517,11 +540,22 @@ ${commitsList}
 `;
 
   try {
-    const escapedPrompt = JSON.stringify(prompt);
+    // Save prompt to a temporary file to avoid shell expansion and parentheses parsing errors
+    const promptFile = '.copilot-prompt.txt';
+    fs.writeFileSync(promptFile, prompt);
+
     // Execute copilot in Nix env using nix-run.sh, passing GITHUB_TOKEN inside the script context
-    // because nix develop scrubs the outer environment.
-    const cmd = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/nix-run.sh GITHUB_TOKEN='${process.env.GITHUB_TOKEN}' COPILOT_GITHUB_TOKEN='${process.env.GITHUB_TOKEN}' copilot -s --yolo -p ${escapedPrompt}`;
+    // because nix develop scrubs the outer environment. We double quote the cat expansion inside
+    // single quotes to pass it literally to the nix-run script where bash will evaluate it securely.
+    const cmd = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/nix-run.sh GITHUB_TOKEN='${process.env.GITHUB_TOKEN}' COPILOT_GITHUB_TOKEN='${process.env.GITHUB_TOKEN}' copilot -s --yolo -p '"$(cat ${promptFile})"'`;
     const output = execSync(cmd, { env: { ...process.env, GITHUB_TOKEN: process.env.GITHUB_TOKEN } }).toString().trim();
+
+    // Clean up temporary prompt file
+    try {
+      fs.unlinkSync(promptFile);
+    } catch (cleanupError) {
+      core.warning(`Temporary prompt file cleanup failed: ${cleanupError.message}`);
+    }
 
     if (!output) {
       throw new Error('Copilot returned an empty response');

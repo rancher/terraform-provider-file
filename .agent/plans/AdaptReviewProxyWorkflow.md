@@ -1,6 +1,6 @@
 # Plan: Adapt Review Proxy Workflow
 
-* **Executed Date:** pending
+* **Executed Date:** 2026-08-04
 * **Purpose:** Refine the repository PR verification and merge process by replacing the legacy cron-scheduled polling workflow (`scheduled-pr-verification.yml`) with a secure, real-time, event-driven merge executor triggered by `workflow_run` on tests and review approvals. Incorporates Write-level proxy approvals for Triage-level human reviewers to legally satisfy GitHub branch protection rules.
 * **Goals & Code Snippets:**
   - Create `.github/workflows/review-trigger.yml` that triggers on `pull_request_review` (submitted) to safely signal a review has completed.

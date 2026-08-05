@@ -1,6 +1,6 @@
-# Plan: Standardize Release Process
+# Plan: Release Process
 
-* **Executed Date:** pending
+* **Executed Date:** 2026-08-05
 * **Purpose:** Establish and enable the newly designed "Standard Repository Release Process: Architectural Blueprint & Tooling Specification" as our repository's standard. This involves documenting the standard in `RELEASING.md`, communicating it in `README.md`, and making the necessary codebase updates to convert our GHA and script logic to this new process.
 * **Goals & Code Snippets:**
 
@@ -164,8 +164,10 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 
 ### **Phase 2: Secure, Event-Driven Merge Coordination (COORD)**
 * **Event Triggered:** Completion of the checks or reviews initiates the event coordinator. This executes on `workflow_run` in the secure default branch context (`main`), protecting secrets while enabling write-level access.
-* **Validated Reviews/GQL:** The coordinator checks that the PR has met the threshold of **at least 1 approval** from a trusted role (Collaborator, Member, or Owner) and runs GraphQL queries to guarantee **100% of all review comments are marked resolved** (whether left by humans or AI).
-* **Proxy Approval:** If the reviewer approved but lacks Write-level administrative access in the repo (e.g., they have Triage-level access), the GHA bot automatically submits an `APPROVE` review on the PR. Since the bot has Write access, its approval satisfies GitHub's branch protection requirements, serving as a proxy for the reviewer's intent.
+* **Validated Reviews/GQL:** The coordinator checks that the PR requirements are satisfied:
+  * **Standard Pull Requests:** Requires **at least 1 approval** from a trusted role (Collaborator, Member, Owner, or Triage permission) and runs GraphQL queries to guarantee **100% of all review comments are marked resolved** (whether left by humans or AI).
+  * **Dependabot Pull Requests:** Bypasses human reviewer constraints. Allows auto-merging with **at least 1 AI review approval/comment** (e.g. from Copilot) once all other functional check runs have completed successfully.
+* **Proxy Approval:** If the requirements are met, but the PR lacks a Write-level approval (e.g., the approving reviewer has Triage-level access, or it is a Dependabot PR approved by AI), the GHA bot automatically submits an `APPROVE` review on the PR. Since the bot has Write access, its approval satisfies GitHub's branch protection requirements, serving as a proxy to allow the merge.
 
 ---
 
@@ -227,4 +229,8 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 - [x] Integrate collaborator permission checks via `getCollaboratorPermissionLevel` API to correctly identify team/group-based write or triage access with a graceful fallback.
 - [x] Enhance logging to check and print collaborator permission level of ALL human reviewers (including inactive ones) to ease debugging.
 - [x] Configure `verify-pr-requirements` in `pull_request.yaml` to depend on all other validation/test jobs (making it the last gate to execute).
+- [x] Update `pull_request.yaml` to allow `dependabot[bot]` actor branch pushes in `Enforce Fork Contributions` check run.
+- [x] Implement Dependabot PR auto-merge rule and proxy approval logic inside `verify-pr-requirements.mjs` (merges Dependabot PRs based on AI review approval).
+- [x] Tighten `pull_request.yaml` to ensure only `dependabot[bot]` can push to `dependabot/` branches inside the same-repository.
+- [x] Fix Nix-run syntax error in `verify-pr-requirements.mjs` by writing prompt to file instead of command line.
 - [x] Verify updated code locally and obtain approval.

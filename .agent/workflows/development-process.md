@@ -23,9 +23,12 @@ This is the standard development process. All AI agents MUST strictly read, unde
 2. **Codebase Exploration:** Search the codebase for existing patterns, conventions, and affected source/test files.
 3. **Empirical Bug Reproduction:** For bug fixes, write a reproduction script or local test that demonstrates the failure, and run it to confirm the bug state.
 
-### Phase 2: Planning & Strategy (First User Gateway)
-4. **Write Unified Plan & Checklist:** Formulate and document a unified plan in `.agent/plans/<PlanName>.md` following the guidelines in `.agent/rules/plans.instructions.md` (Abstract + sequential checklist). The sequential implementation checklist MUST explicitly incorporate all standard quality gates (local build/test verification, static linters, proactive review, upstream sync, unstaged IDE review, authorized commit, and draft PR generation) so they are physically checkbox-tracked for every change.
-5. **Solicit Approval:** Present the plan to the developer for explicit approval. Do NOT modify any files until they explicitly agree.
+### Phase 2: Planning, Strategy & Blueprint Synchronization (First User Gateway)
+4. **Acquire, Edit, or Create Architectural Plan:** Following `.agent/rules/plans.instructions.md`, verify if an existing architectural plan covers the target domain (e.g., `.agent/plans/ReleaseProcess.md` for release pipeline changes).
+   - **If an existing plan covers the domain:** You MUST NOT create a new plan file. Instead, *edit* and *adapt* the existing plan, modifying its top-half blueprint/specification and expanding/re-opening the bottom-half implementation checklist to encompass the new requirements, features, or bug fixes.
+   - **If no existing plan matches the domain:** Create a brand new unified plan file in `.agent/plans/<PlanName>.md`.
+   - **Checklist Construction:** Build and expand the sequential implementation checklist to detail the specific sub-tasks. You MUST explicitly incorporate all standard quality gates (local build/test verification, static linters, proactive review, upstream sync, unstaged IDE review, authorized commit, and draft PR generation) as checkbox-tracked items.
+5. **Solicit Approval:** Present the updated blueprint and implementation checklist to the developer for explicit approval. Do NOT modify any files until they explicitly agree.
 
 ### Phase 3: Surgical Implementation (Act)
 6. **Execute Plan & Track State (No Stage/Commit):** Implement the plan sequentially, updating checkboxes in the plan file in place. Keep edits simple, precise, and idiomatic. Do NOT stage (`git add`) or commit (`git commit`).
