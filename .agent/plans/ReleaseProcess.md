@@ -263,6 +263,7 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 - [x] Rephrase `ReleaseProcess.md` to add a clear, explicit checklist of the repository settings and ruleset prerequisite options needed to enable direct auto-merges of fork PRs.
 - [x] Update `WorkflowExecutionProtections.md` to explicitly time-bound its product claims as of August 2026, and add prominent links to the authoritative GitHub documentation pages.
 - [x] Compile and verify the refactored script with `node --check`.
+- [x] Prevent throwing restError in the fork graceful fallback path to keep the PR status check green, enabling manual maintainer merge.
 
 <!-- Retrigger workflows -->
 

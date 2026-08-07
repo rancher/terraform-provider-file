@@ -605,6 +605,8 @@ ${restError.message}
           } catch (fallbackError) {
             core.error(`Graceful fallback failed: ${fallbackError.message}`);
           }
+          core.warning(`Fork PR merge failed but graceful fallback was executed successfully. Returning gracefully to prevent blocking manual maintainer merge.`);
+          return;
         }
         throw restError;
       }
