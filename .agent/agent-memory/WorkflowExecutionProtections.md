@@ -41,11 +41,13 @@ Because protections are built on top of the GitHub Rulesets framework, they inhe
 
 ## 4. Supported Policy Rule Options
 
-Unlike branch-specific rulesets, Actions policies apply repository-wide and do not target specific branches. There are exactly **three available options/rules** in this policy interface:
+> 💡 **Maintainer Note:** Because this feature is currently in public preview, these details and options are subject to change by GitHub. Always refer to the [authoritative GitHub documentation](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/actions-policies/workflow-execution-protections) for the most up-to-date information.
+
+As of **August 2026**, the Actions Policies user interface exposes **three primary options/rules** for configuring protections:
 
 ### A. Restrict Actors (Who can trigger workflows)
-Controls which identities are allowed to trigger workflow runs. By default, any user with write access can trigger workflows. This separates the privilege of pushing code from the privilege of executing CI.
-* **Supported Actor Types:**
+Controls which identities are allowed to trigger workflow runs. This separates the privilege of pushing code from the privilege of executing CI, preventing unreviewed/untrusted contributions from executing actions.
+* **Supported Actor Types (as of August 2026):**
   * Individual GitHub Users
   * Repository Roles (e.g., `Read`, `Maintain`, `Admin`, `Triage`)
   * Installed GitHub Apps (including the system-level **GitHub Actions** App for GITHUB_TOKEN pushes)
@@ -53,8 +55,8 @@ Controls which identities are allowed to trigger workflow runs. By default, any 
   * Dependabot (`dependabot[bot]`)
 
 ### B. Restrict Events (Which events can trigger workflows)
-Declares exactly which GHA events are permitted to trigger runs.
-* **Supported Events:**
+Declares exactly which GitHub Actions webhook events are permitted to trigger runs on the repository.
+* **Supported Events (as of August 2026):**
   * `push`
   * `pull_request`
   * `pull_request_target`

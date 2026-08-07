@@ -94,7 +94,7 @@ export default async ({ github, context, core, process }) => {
                 // Ignore removal failure
               }
             }
-            await mergePullRequest({ github, core, owner, repo, prNumber: pr.number, sha: pr.head.sha });
+            await mergePullRequest({ github, core, owner, repo, prNumber: pr.number, sha: pr.head.sha, isFork });
           }
         } else {
           // Requirements are not met. If the PR has the "ready-to-merge" label, remove it!
@@ -460,7 +460,7 @@ async function deleteBotCommentIfExists({ github, core, owner, repo, prNumber })
 /**
  * Executes squash-merge on the PR, dynamically generating a clean Conventional Commit message via Copilot.
  */
-async function mergePullRequest({ github, core, owner, repo, prNumber, sha }) {
+async function mergePullRequest({ github, core, owner, repo, prNumber, sha, isFork }) {
   core.info(`Fetching PR #${prNumber} changed files list to evaluate product scope...`);
   const files = await withRetry(core, () => github.paginate(github.rest.pulls.listFiles, {
     owner,
@@ -565,8 +565,49 @@ async function mergePullRequest({ github, core, owner, repo, prNumber, sha }) {
       core.info(`PR #${prNumber} merged directly via gh CLI successfully!`);
     } catch (directError) {
       core.warning(`Failed direct merge via gh CLI: ${directError.message}. Retrying REST API merge...`);
-      await withRetry(core, () => github.rest.pulls.merge(mergeParams));
-      core.info(`PR #${prNumber} merged via REST API successfully!`);
+      try {
+        await withRetry(core, () => github.rest.pulls.merge(mergeParams));
+        core.info(`PR #${prNumber} merged via REST API successfully!`);
+      } catch (restError) {
+        core.error(`All merge attempts failed for PR #${prNumber}: ${restError.message}`);
+        
+        if (isFork) {
+          core.info(`Fork PR merge failed. Executing graceful fallback: applying 'ready-to-merge' label and posting maintainer notification.`);
+          try {
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: prNumber,
+              labels: ['ready-to-merge'],
+            });
+            const fallbackMsg = `### 🤖 Automated Merge Failed (Permission Barrier)
+
+This PR has successfully passed all quality gates, but the automated merge attempt failed with the following error:
+\`\`\`text
+${restError.message}
+\`\`\`
+
+**Possible Causes:**
+1. The required GitHub Actions Workflow Ruleset has not been created or is misconfigured.
+2. The GITHUB_TOKEN has not been authorized to bypass GActions recursion protections.
+
+**How to Resolve:**
+* A repository maintainer can click **Merge** manually on this PR.
+* Alternatively, ensure the Ruleset is active on \`main\` with **Restrict Actors** allowing the **GitHub Actions App** to bypass push protections.`;
+            await updateOrPostComment({
+              github,
+              core,
+              owner,
+              repo,
+              prNumber,
+              message: fallbackMsg,
+            });
+          } catch (fallbackError) {
+            core.error(`Graceful fallback failed: ${fallbackError.message}`);
+          }
+        }
+        throw restError;
+      }
     }
   }
 }
