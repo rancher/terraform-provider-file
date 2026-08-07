@@ -258,9 +258,9 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 - [x] Push the branch to the user's origin fork and generate a Draft PR using `create-pr.sh`.
 
 ### Phase 9: Resolve Copilot PR Review Feedback
-- [ ] Refactor `verify-pr-requirements.mjs` to pass `isFork` to `mergePullRequest`.
-- [ ] Update `mergePullRequest` with a graceful merge-failure fallback: if the merge fails, apply/keep the `ready-to-merge` label and post a detailed diagnostic comment explaining how the maintainer can merge or fix the Ruleset.
-- [ ] Rephrase `ReleaseProcess.md` to add a clear, explicit checklist of the repository settings and ruleset prerequisite options needed to enable direct auto-merges of fork PRs.
-- [ ] Update `WorkflowExecutionProtections.md` to explicitly time-bound its product claims as of August 2026, and add prominent links to the authoritative GitHub documentation pages.
-- [ ] Compile and verify the refactored script with `node --check`.
+- [x] Refactor `verify-pr-requirements.mjs` to pass `isFork` to `mergePullRequest`.
+- [x] Update `mergePullRequest` with a graceful merge-failure fallback: if the merge fails, apply/keep the `ready-to-merge` label and post a detailed diagnostic comment explaining how the maintainer can merge or fix the Ruleset.
+- [x] Rephrase `ReleaseProcess.md` to add a clear, explicit checklist of the repository settings and ruleset prerequisite options needed to enable direct auto-merges of fork PRs.
+- [x] Update `WorkflowExecutionProtections.md` to explicitly time-bound its product claims as of August 2026, and add prominent links to the authoritative GitHub documentation pages.
+- [x] Compile and verify the refactored script with `node --check`.
 
