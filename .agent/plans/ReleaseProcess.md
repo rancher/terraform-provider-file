@@ -264,3 +264,5 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 - [x] Update `WorkflowExecutionProtections.md` to explicitly time-bound its product claims as of August 2026, and add prominent links to the authoritative GitHub documentation pages.
 - [x] Compile and verify the refactored script with `node --check`.
 
+<!-- Retrigger workflows -->
+
