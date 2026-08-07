@@ -78,32 +78,8 @@ export default async ({ github, context, core, process }) => {
                 labels: ['ready-to-merge'],
               });
             }
-          } else if (isFork) {
-            core.info(`PR #${pr.number} is from a fork. GITHUB_TOKEN lacks merge permissions on fork PRs. Labeling and posting comment instead...`);
-            if (!hasReadyLabel) {
-              await github.rest.issues.addLabels({
-                owner,
-                repo,
-                issue_number: pr.number,
-                labels: ['ready-to-merge'],
-              });
-            }
-            const readyMsg = `### 🤖 PR Ready to Merge
-
-This PR has successfully passed all quality gates, lints, commit signatures, and approvals!
-Because this PR originates from a **forked repository**, GitHub Actions lacks the write-level merge permissions required to merge it automatically.
-
-A repository maintainer must click **Merge** manually on this PR.`;
-            await updateOrPostComment({
-              github,
-              core,
-              owner,
-              repo,
-              prNumber: pr.number,
-              message: readyMsg,
-            });
           } else {
-            // Local/Dependabot PR -> Merge automatically!
+            // Merge automatically (including fork PRs)!
             await deleteBotCommentIfExists({ github, core, owner, repo, prNumber: pr.number });
             if (hasReadyLabel) {
               // Remove the label before merging to keep history clean

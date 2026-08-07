@@ -179,6 +179,12 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 
 ---
 
+### **Phase 3b: Direct Fork PR Auto-Merge (The Ruleset Bypass)**
+* **Fork PR Evaluation:** When `pr-executor.yml` (running under `workflow_run`) evaluates a fork PR, it has full write/merge privileges on the base repository. If all requirements are met, it executes the native squash-merge using the GitHub CLI (`gh pr merge --auto --squash`).
+* **The Recursion Bypass:** Normally, a GITHUB_TOKEN push (or merge) event prevents downstream workflows (such as Release Please) from triggering due to recursion prevention rules. However, the repository utilizes **GitHub Workflow Execution Protections (Rulesets)** to explicitly allow `github-actions[bot]` to trigger push-based workflows on `main`, ensuring downstream release pipelines run seamlessly.
+
+---
+
 ### **Phase 4: Release Management & The Integration Test Gate (GATES)**
 * **Release PR Maintained:** Merging into `main` triggers `Release Please`. It calculates the next version and automatically updates a draft "Release PR" containing updated version coordinates and changelogs.
 * **Integration Tests Gate:** The Release PR acts as a staging queue where a dedicated CI workflow executes the **full integration and acceptance test suite** (using real cloud resources/relays). Merging is blocked until this suite passes.
@@ -237,3 +243,11 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 - [x] Remove redundant, false-failing `verify-pr-requirements` job from `pull_request.yaml` to improve developer UX and prevent premature check failures.
 - [x] Implement robust GitHub CLI and native auto-merge pipeline (`gh pr merge --auto`) with direct merge and REST API fallbacks in `verify-pr-requirements.mjs`.
 - [x] Verify updated code locally and obtain approval.
+
+### Phase 8: Direct Fork PR Auto-Merge (Ruleset Enabled)
+- [x] Refactor `.github/workflows/scripts/verify-pr-requirements.mjs` to completely remove the legacy `isFork` blocker, allowing fork PRs to be merged directly by the executor just like local and Dependabot PRs.
+- [x] Run `node --check` to verify `.github/workflows/scripts/verify-pr-requirements.mjs` syntax.
+- [ ] Present the unstaged diff to the developer in the chat.
+- [ ] Solicit manual developer review and obtain explicit approval in the chat.
+- [ ] Stage the modified/created files and commit locally with a conventional prefix (e.g. `ci: enable automated fork PR merging via Ruleset bypass`) and `APPROVED_BY_USER=1`.
+- [ ] Push the branch to the user's origin fork and generate a Draft PR using `create-pr.sh`.
