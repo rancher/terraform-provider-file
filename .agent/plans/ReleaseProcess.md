@@ -180,6 +180,17 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 
 ---
 
+### **Phase 3b: Direct Fork PR Auto-Merge (The Ruleset Bypass)**
+* **Fork PR Evaluation:** When `pr-executor.yml` (running under `workflow_run`) evaluates a fork PR, it has full write/merge privileges on the base repository. If all requirements are met, it executes the native squash-merge using the GitHub CLI (`gh pr merge --auto --squash`).
+* **The Recursion Bypass:** Normally, a GITHUB_TOKEN push (or merge) event prevents downstream workflows (such as Release Please) from triggering due to recursion prevention rules. However, the repository utilizes **GitHub Workflow Execution Protections (Rulesets)** to explicitly allow `github-actions[bot]` to trigger push-based workflows on `main`, ensuring downstream release pipelines run seamlessly.
+* **🔧 Ruleset Configuration Prerequisites & Guardrails:**
+  * **Location:** Repository settings -> *Actions > Policies*.
+  * **Restrict Events:** Permit the **`push`** event to trigger actions (so the squash-merge commit on `main` initiates downstream release workflows). Keep other high-risk events (like `pull_request_target`) strictly restricted.
+  * **Restrict Actors:** Add the system-level **`GitHub Actions` App** (representing the GITHUB_TOKEN) and your team's authorized roles (like `Write`, `Maintain`, `Admin` or the `k3s` group) as allowed actors to trigger the `push` event.
+  * **Scope:** Ensure this ruleset is active on the repository (Actions Policies apply globally and do not use branch selectors).
+
+---
+
 ### **Phase 4: Release Management & The Integration Test Gate (GATES)**
 * **Release PR Maintained:** Merging into `main` triggers `Release Please`. It calculates the next version and automatically updates a draft "Release PR" containing updated version coordinates and changelogs.
 * **Integration Tests Gate:** The Release PR acts as a staging queue where a dedicated CI workflow executes the **full integration and acceptance test suite** (using real cloud resources/relays). Merging is blocked until this suite passes.
@@ -247,3 +258,22 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 - [x] Enter Proactive Review Mode on the written code diff to proactively resolve any issues human or Copilot automated reviews might flag.
 - [x] Present the unstaged diff to the developer in the chat and request their IDE review.
 - [x] Commit changes locally with a conventional prefix (e.g., `ci: reconcile release-please pr labels after merge`) and `APPROVED_BY_USER=1`.
+
+### Phase 8: Direct Fork PR Auto-Merge (Ruleset Enabled)
+- [x] Refactor `.github/workflows/scripts/verify-pr-requirements.mjs` to completely remove the legacy `isFork` blocker, allowing fork PRs to be merged directly by the executor just like local and Dependabot PRs.
+- [x] Run `node --check` to verify `.github/workflows/scripts/verify-pr-requirements.mjs` syntax.
+- [x] Present the unstaged diff to the developer in the chat.
+- [x] Solicit manual developer review and obtain explicit approval in the chat.
+- [x] Stage the modified/created files and commit locally with a conventional prefix (e.g. `ci: enable automated fork PR merging via Ruleset bypass`) and `APPROVED_BY_USER=1`.
+- [x] Push the branch to the user's origin fork and generate a Draft PR using `create-pr.sh`.
+
+### Phase 9: Resolve Copilot PR Review Feedback
+- [x] Refactor `verify-pr-requirements.mjs` to pass `isFork` to `mergePullRequest`.
+- [x] Update `mergePullRequest` with a graceful merge-failure fallback: if the merge fails, apply/keep the `ready-to-merge` label and post a detailed diagnostic comment explaining how the maintainer can merge or fix the Ruleset.
+- [x] Rephrase `ReleaseProcess.md` to add a clear, explicit checklist of the repository settings and ruleset prerequisite options needed to enable direct auto-merges of fork PRs.
+- [x] Update `WorkflowExecutionProtections.md` to explicitly time-bound its product claims as of August 2026, and add prominent links to the authoritative GitHub documentation pages.
+- [x] Compile and verify the refactored script with `node --check`.
+- [x] Prevent throwing restError in the fork graceful fallback path to keep the PR status check green, enabling manual maintainer merge.
+
+<!-- Retrigger workflows -->
+
