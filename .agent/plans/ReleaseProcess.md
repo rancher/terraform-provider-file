@@ -93,6 +93,7 @@ This swimlane diagram traces the detailed event triggers and data flow between d
 |                                             |           - Keyring Workaround: Dynamically parses primary ID  |
 |                                             |           - Nix: GoReleaser cross-compiles stable binaries     |
 |                                             |           - Action: Publishes Final GPG-Signed Release         |
+|                                             |           - Action: Reconciles Release PR labels in GitHub     |
 |                                             |                                                                |
 ```
 
@@ -201,6 +202,7 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 * **Tagged vX.Y.Z:** `Release Please` registers the release merge and automatically creates and pushes the official semantic git tag.
 * **Key Extracted:** The workflow imports the signing GPG block from Vault and dynamically queries the keyring to extract the actual primary secret key ID to work around subkey/mismatch weirdness.
 * **Signed & Published:** GoReleaser compiles binaries inside the reproducibly locked Nix environment, signs them with the GPG key, and publishes the signed provider assets directly to the GitHub Release.
+* **Label Reconciliation:** Since `skip-github-release: true` is configured in `release-please-config.json` to let GoReleaser manage the release, `release-please` skips post-merge tagging/labeling actions. To prevent release PRs from being left with outdated/pending labels, the publish-release script automatically reconciles labels on the merged Release PR (removing `autorelease: pending` and `ready-to-merge`, and adding `autorelease: tagged`).
 
 ---
 
@@ -248,6 +250,14 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 - [x] Remove redundant, false-failing `verify-pr-requirements` job from `pull_request.yaml` to improve developer UX and prevent premature check failures.
 - [x] Implement robust GitHub CLI and native auto-merge pipeline (`gh pr merge --auto`) with direct merge and REST API fallbacks in `verify-pr-requirements.mjs`.
 - [x] Verify updated code locally and obtain approval.
+
+### Sub-task: Reconcile Release PR Labels after Merge
+- [x] Implement label reconciliation logic inside `.github/workflows/scripts/publish-release.js` to find the merged Release PR and update its labels (remove `autorelease: pending` and `ready-to-merge`, add `autorelease: tagged`).
+- [x] Run `node --check` to verify that `.github/workflows/scripts/publish-release.js` syntax remains valid.
+- [x] Run `actionlint` locally to verify that `.github/workflows/release.yml` syntax remains valid.
+- [x] Enter Proactive Review Mode on the written code diff to proactively resolve any issues human or Copilot automated reviews might flag.
+- [x] Present the unstaged diff to the developer in the chat and request their IDE review.
+- [x] Commit changes locally with a conventional prefix (e.g., `ci: reconcile release-please pr labels after merge`) and `APPROVED_BY_USER=1`.
 
 ### Phase 8: Direct Fork PR Auto-Merge (Ruleset Enabled)
 - [x] Refactor `.github/workflows/scripts/verify-pr-requirements.mjs` to completely remove the legacy `isFork` blocker, allowing fork PRs to be merged directly by the executor just like local and Dependabot PRs.
