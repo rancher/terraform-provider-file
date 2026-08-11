@@ -84,6 +84,46 @@ jobs:
         id: action-lint
         run: .github/workflows/scripts/nix-run.sh bash .github/workflows/scripts/lint.sh actionlint
 
+  eslint:
+    name: 'Lint Scripts'
+    needs: enforce-fork-contribution
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/rancher/ci-image/nix:20260603-18
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Repository
+        id: checkout-repository
+        # https://github.com/actions/checkout/releases
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: ESLint Check
+        id: eslint-check
+        run: .github/workflows/scripts/nix-run.sh bash .github/workflows/scripts/lint.sh eslint
+
+  script-tests:
+    name: 'Workflow Script Unit Tests'
+    needs: enforce-fork-contribution
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/rancher/ci-image/nix:20260603-18
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Repository
+        id: checkout-repository
+        # https://github.com/actions/checkout/releases
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Run Script Tests
+        id: run-script-tests
+        run: .github/workflows/scripts/nix-run.sh bash .github/workflows/scripts/test.sh scripts
+
   shellcheck:
     name: 'Shellcheck'
     needs: enforce-fork-contribution

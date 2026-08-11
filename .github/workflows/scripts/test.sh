@@ -27,6 +27,11 @@ run_relay_acc_tests() {
   make testaccrelay
 }
 
+run_workflow_script_tests() {
+  echo "==> Running workflow script unit tests..."
+  node --test .github/workflows/scripts/tests/**/*.test.js
+}
+
 case "${MODE}" in
   compile)
     run_compile_check
@@ -40,9 +45,12 @@ case "${MODE}" in
   acc-relay)
     run_relay_acc_tests
     ;;
+  scripts)
+    run_workflow_script_tests
+    ;;
   *)
     echo "Error: Unknown test mode: ${MODE}" >&2
-    echo "Usage: $0 [compile|unit|acc|acc-relay]" >&2
+    echo "Usage: $0 [compile|unit|acc|acc-relay|scripts]" >&2
     exit 1
     ;;
 esac

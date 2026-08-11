@@ -14,6 +14,11 @@ run_actionlint() {
   actionlint -ignore 'unknown permission scope "copilot-requests"'
 }
 
+run_eslint() {
+  echo "==> Running eslint check on scripts..."
+  eslint .github/workflows/scripts/ .agent/hooks/
+}
+
 run_shellcheck() {
   echo "==> Running shellcheck..."
   local files
@@ -61,6 +66,9 @@ case "${MODE}" in
   actionlint)
     run_actionlint
     ;;
+  eslint)
+    run_eslint
+    ;;
   shellcheck)
     run_shellcheck
     ;;
@@ -73,13 +81,14 @@ case "${MODE}" in
   all)
     run_terraform
     run_actionlint
+    run_eslint
     run_shellcheck
     run_tests_lint
     run_gitleaks
     ;;
   *)
     echo "Error: Unknown lint mode: ${MODE}" >&2
-    echo "Usage: $0 [terraform|actionlint|shellcheck|tests|gitleaks|all]" >&2
+    echo "Usage: $0 [terraform|actionlint|eslint|shellcheck|tests|gitleaks|all]" >&2
     exit 1
     ;;
 esac
