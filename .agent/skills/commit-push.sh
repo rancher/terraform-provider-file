@@ -22,11 +22,13 @@ Options:
   -h, --help            Show this message and exit.
   -m MESSAGE            The conventional commit message (Required).
   -y, --yes             Skip interactive developer approval prompt (Auto-confirm).
+  -f, --force           Bypass remote ancestry check and perform safe force-push with lease.
   --no-sync             Skip running git-sync.sh default branch synchronization.
 
 Examples:
   .agent/skills/commit-push.sh -m "ci(workflows): add new automated checks"
   .agent/skills/commit-push.sh -y -m "ci(hooks): automated skill commit"
+  .agent/skills/commit-push.sh -f -m "refactor(hooks): force push after rebase"
   .agent/skills/commit-push.sh --no-sync -m "fix(hooks): correct branch check"
 EOF
 }
@@ -42,6 +44,7 @@ main() {
   local commit_msg=""
   local run_sync=true
   local auto_confirm=false
+  local force_push=false
 
   # Parse Help / Arguments
   while [[ $# -gt 0 ]]; do
@@ -52,6 +55,10 @@ main() {
         ;;
       -y|--yes)
         auto_confirm=true
+        shift
+        ;;
+      -f|--force)
+        force_push=true
         shift
         ;;
       -m)
@@ -215,20 +222,24 @@ main() {
   fi
 
   # 4. Fetch and check ancestry to verify local is not behind remote
-  echo "Checking remote branch status on origin..."
-  # Fetch latest remote ref without mutating working tree
-  if git fetch origin "$current_branch" >/dev/null 2>&1; then
-    # Remote branch exists, check if we are behind
-    local behind_count
-    behind_count=$(git rev-list --count "HEAD..origin/$current_branch" 2>/dev/null || echo "0")
-    if [[ "$behind_count" -gt 0 ]]; then
-      echo "Error: Your local branch is behind 'origin/$current_branch' by $behind_count commit(s)." >&2
-      echo "       Please pull and integrate the remote changes before pushing." >&2
-      exit 1
-    fi
-    echo "  -> Local branch is up to date with remote."
+  if [[ "$force_push" == "true" ]]; then
+    echo "Force-push option specified. Skipping ancestry check."
   else
-    echo "  -> Remote branch 'origin/$current_branch' does not exist yet. Safe to proceed."
+    echo "Checking remote branch status on origin..."
+    # Fetch latest remote ref without mutating working tree
+    if git fetch origin "$current_branch" >/dev/null 2>&1; then
+      # Remote branch exists, check if we are behind
+      local behind_count
+      behind_count=$(git rev-list --count "HEAD..origin/$current_branch" 2>/dev/null || echo "0")
+      if [[ "$behind_count" -gt 0 ]]; then
+        echo "Error: Your local branch is behind 'origin/$current_branch' by $behind_count commit(s)." >&2
+        echo "       Please pull and integrate the remote changes before pushing." >&2
+        exit 1
+      fi
+      echo "  -> Local branch is up to date with remote."
+    else
+      echo "  -> Remote branch 'origin/$current_branch' does not exist yet. Safe to proceed."
+    fi
   fi
 
   # 5. Developer Approval Gate via Interactive TTY
@@ -265,10 +276,18 @@ main() {
   fi
 
   # 7. Secure Push to Fork Remote
-  echo "Pushing signed commit securely to fork remote 'origin/$current_branch'..."
-  if ! git push origin "$current_branch"; then
-    echo "Error: Git push failed." >&2
-    exit 1
+  if [[ "$force_push" == "true" ]]; then
+    echo "Pushing signed commit with FORCE securely to fork remote 'origin/$current_branch'..."
+    if ! git push origin "$current_branch" --force-with-lease; then
+      echo "Error: Git push failed." >&2
+      exit 1
+    fi
+  else
+    echo "Pushing signed commit securely to fork remote 'origin/$current_branch'..."
+    if ! git push origin "$current_branch"; then
+      echo "Error: Git push failed." >&2
+      exit 1
+    fi
   fi
 
   echo "✅ Changes programmatically committed and pushed successfully!"
