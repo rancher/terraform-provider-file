@@ -6,6 +6,10 @@
 
 set -euo pipefail
 
+# Global variable for temporary script tracking to ensure safe cleanup on EXIT.
+# Keeps the variable permanently in scope for the global EXIT trap under 'set -u'.
+SCRIPT_FILE=""
+
 show_help() {
   cat <<EOF
 Usage: nix-run.sh [command] [args...]
@@ -42,14 +46,13 @@ main() {
 
   # Securely create an atomic, non-guessable temp file path using mktemp
   # to completely eliminate symlink races and stale collisions.
-  local script_file
-  script_file=$(mktemp /tmp/nix-script.XXXXXX.sh)
+  SCRIPT_FILE=$(mktemp /tmp/nix-script.XXXXXX.sh)
   
-  trap 'rm -f "${script_file}"' EXIT
+  trap 'if [[ -n "${SCRIPT_FILE:-}" ]]; then rm -f "${SCRIPT_FILE}"; SCRIPT_FILE=""; fi' EXIT
 
   # Securely write static command execution shell logic with absolute "$@"-aware argument quoting.
   # This completely eliminates shell parsing and command injection vulnerabilities.
-  cat <<'EOF' > "${script_file}"
+  cat <<'EOF' > "${SCRIPT_FILE}"
 #!/usr/bin/env bash
 set -euo pipefail
 git config --global --add safe.directory "$1"
@@ -58,8 +61,8 @@ exec "$@"
 EOF
 
   # Keep permissions restricted and strictly chown to suse to prevent world-readable leaks.
-  chown suse:suse "${script_file}" 2>/dev/null || true
-  chmod 700 "${script_file}" 2>/dev/null || true
+  chown suse:suse "${SCRIPT_FILE}" 2>/dev/null || true
+  chmod 700 "${SCRIPT_FILE}" 2>/dev/null || true
 
   # Ensure the suse user can read/write the current directory
   chown -R suse:suse . || true
@@ -82,7 +85,7 @@ EOF
     if sudo -E -u suse /home/suse/.nix-profile/bin/nix develop \
       --extra-experimental-features nix-command \
       --extra-experimental-features flakes \
-      --command bash -e "${script_file}" "$PWD" "$@"; then
+      --command bash -e "${SCRIPT_FILE}" "$PWD" "$@"; then
       success=true
       break
     else
