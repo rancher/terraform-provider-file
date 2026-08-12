@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
@@ -32,8 +32,40 @@ function main() {
   }
 
   // Check if we are attempting to switch branches while current PR is in Draft mode (Phase 6, Step 18 / Phase 7, Step 20)
-  const isBranchSwitch = /\bgit\s+switch\b/.test(commandClean) || 
-                         (/\bgit\s+checkout\b/.test(commandClean) && !commandClean.includes('--') && !/\.(go|yml|yaml|sh|js|mjs|md|json|txt|lock|lockb)\b/.test(commandClean));
+  let isBranchSwitch = false;
+  if (/\bgit\s+switch\b/.test(commandClean)) {
+    isBranchSwitch = true;
+  } else if (/\bgit\s+checkout\b/.test(commandClean)) {
+    // Check if it is a file-only checkout.
+    // A file checkout is characterized by:
+    // 1. It contains " -- " followed by a file path, e.g. "git checkout -- file.js".
+    // 2. Or the arguments (excluding flags like -f, -q) correspond to existing files/folders on disk.
+    const hasDoubleDash = commandClean.includes(' -- ');
+    if (hasDoubleDash) {
+      isBranchSwitch = false;
+    } else {
+      // Parse all non-flag arguments
+      const parts = commandClean.split(/\s+/).filter(p => p !== 'git' && p !== 'checkout');
+      const nonFlagParts = parts.filter(p => !p.startsWith('-') || p === '-'); // Keep '-' because "git checkout -" is a branch switch!
+      
+      if (nonFlagParts.length > 0) {
+        const target = nonFlagParts[0];
+        if (target === '-') {
+          isBranchSwitch = true;
+        } else {
+          const resolvedTarget = path.resolve(cwd || process.cwd(), target);
+          if (!fs.existsSync(resolvedTarget)) {
+            isBranchSwitch = true;
+          }
+        }
+      } else {
+        // git checkout with no non-flag arguments (e.g. "git checkout" or "git checkout -f")
+        // does not change the current branch, it just discards changes or prints status.
+        isBranchSwitch = false;
+      }
+    }
+  }
+
   if (isBranchSwitch) {
     try {
       const currentBranch = execSync('git branch --show-current', {
@@ -42,7 +74,8 @@ function main() {
       }).toString().trim();
 
       if (currentBranch && currentBranch !== 'main') {
-        const prStatusOutput = execSync(`gh pr view ${currentBranch} --json isDraft,number 2>/dev/null || true`, {
+        // Safe command invocation using execFileSync to completely eliminate shell interpolation / command injection risks
+        const prStatusOutput = execFileSync('gh', ['pr', 'view', currentBranch, '--json', 'isDraft,number'], {
           cwd: cwd || process.cwd(),
           stdio: ['ignore', 'pipe', 'ignore']
         }).toString().trim();
@@ -126,10 +159,10 @@ function main() {
               console.log(JSON.stringify({
                 decision: "deny",
                 reason: `Security Policy Violation: Committing code is prohibited without first performing and checking off the proactive code review.\n\n` +
-                        `In accordance with Phase 4, Steps 9-10 (Proactive Review & Quality Gate) of 'development-process.md', you MUST perform a rigorous code review of your changes against '.agent/rules/github-copilot-review.instructions.md' and resolve all findings BEFORE committing.\n\n` +
+                        `In accordance with Phase 4, Steps 9-10 (Proactive Review & Quality Gate) of 'development-process.md', you MUST delegate a proactive code review of your active git diff directly to our specialized subagent by running \`@review_agent\` in the chat and resolving all findings BEFORE committing.\n\n` +
                         `To proceed:\n` +
-                        `1. Review your diff against '.agent/rules/github-copilot-review.instructions.md'.\n` +
-                        `2. Resolve any potential issues, code smells, or styling violations.\n` +
+                        `1. Delegate a comprehensive review of your changes to our custom subagent in the chat: \`@review_agent Please review my current staged changes\`\n` +
+                        `2. Resolve all reported issues, code smells, or styling violations to ensure exactly 0 findings.\n` +
                         `3. Check off the proactive code review item in your active plan ('${activePlanPath}') by marking it as completed (e.g., - [x] Perform a proactive code review...).\n` +
                         `4. Once the review is checked off in the plan, you will be authorized to commit.`,
                 systemMessage: "🔒 Security Block: Unchecked proactive code review found in plan. Please comply with Phase 4, Steps 9-10 of development-process.md."
