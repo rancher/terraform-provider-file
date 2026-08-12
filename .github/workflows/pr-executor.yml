@@ -6,19 +6,57 @@ on:
     types:
       - completed
   workflow_dispatch:
+  schedule:
+    # Run once every hour to poll and process open PRs
+    - cron: '0 * * * *'
 
 permissions: {}
 
 jobs:
+  get-open-prs:
+    name: 'Get Open PRs'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/rancher/ci-image/nix:20260603-18
+    outputs:
+      prs: ${{ steps.list-prs.outputs.result }}
+    permissions:
+      pull-requests: read
+    steps:
+      - name: List Open PRs
+        id: list-prs
+        # https://github.com/actions/github-script/releases
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const prs = await github.paginate(github.rest.pulls.list, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              base: 'main'
+            });
+            // Filter out draft PRs and return their numbers
+            const activePrs = prs.filter(pr => !pr.draft).map(pr => pr.number);
+            core.info(`Found open PRs: ${JSON.stringify(activePrs)}`);
+            return activePrs;
+
   verify-and-merge:
-    name: 'Verify and Auto-Merge PRs'
+    name: 'Process PR #${{ matrix.pr }}'
+    needs: get-open-prs
+    if: ${{ needs.get-open-prs.outputs.prs != '[]' && needs.get-open-prs.outputs.prs != '' }}
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/rancher/ci-image/nix:20260603-18
     timeout-minutes: 30
+    strategy:
+      matrix:
+        pr: ${{ fromJson(needs.get-open-prs.outputs.prs) }}
+      fail-fast: false
     permissions:
       contents: write
+      id-token: write
       pull-requests: write
+      issues: write
       checks: read
       copilot-requests: write
     steps:
@@ -26,15 +64,69 @@ jobs:
         id: checkout-repository
         # https://github.com/actions/checkout/releases
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Process Open PRs
-        id: process-prs
+
+      - name: Verify PR Requirements
+        id: verify-pr
         # https://github.com/actions/github-script/releases
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          AUTO_MERGE: 'true'
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ matrix.pr }}
         with:
           script: |
             const scriptPath = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/verify-pr-requirements.mjs`;
+            const { default: script } = await import(scriptPath);
+            await script({github, context, core, process});
+
+      - name: Handle Verification Failure
+        id: handle-verify-failure
+        if: ${{ failure() && steps.verify-pr.outcome == 'failure' }}
+        # https://github.com/actions/github-script/releases
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER: ${{ matrix.pr }}
+          REASONS: ${{ steps.verify-pr.outputs.reasons }}
+          CI_PENDING: ${{ steps.verify-pr.outputs.ci_pending }}
+        with:
+          script: |
+            const scriptPath = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/handle-verification-failure.js`;
+            const { default: script } = await import(scriptPath);
+            await script({github, context, core, process});
+
+      - name: Get Merge Token
+        id: get-merge-token
+        if: ${{ steps.verify-pr.outcome == 'success' }}
+        # https://github.com/rancher-eio/read-vault-secrets/commits
+        uses: rancher-eio/read-vault-secrets@7282bf97898cd1c16c89f837e0bb442e6d384c89 # @main
+        with:
+          secrets: |
+            github/token/rancher--terraform-provider-file--pull_requests--write token | GITHUB_MERGE_TOKEN
+
+      - name: Merge PR
+        id: merge-pr
+        if: ${{ steps.verify-pr.outcome == 'success' }}
+        # https://github.com/actions/github-script/releases
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER: ${{ matrix.pr }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MERGE_TOKEN: ${{ env.GITHUB_MERGE_TOKEN }}
+        with:
+          github-token: ${{ env.GITHUB_MERGE_TOKEN }}
+          script: |
+            const scriptPath = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/merge-pr.js`;
+            const { default: script } = await import(scriptPath);
+            await script({github, context, core, process});
+
+      - name: Handle Merge Failure
+        id: handle-merge-failure
+        if: ${{ failure() && steps.merge-pr.outcome == 'failure' }}
+        # https://github.com/actions/github-script/releases
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER: ${{ matrix.pr }}
+          ERROR_MESSAGE: "The automated merge execution failed. Please verify branch push restrictions, ruleset configurations, or merge token expiration status."
+        with:
+          script: |
+            const scriptPath = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/handle-merge-failure.js`;
             const { default: script } = await import(scriptPath);
             await script({github, context, core, process});
