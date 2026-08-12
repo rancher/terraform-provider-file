@@ -29,18 +29,9 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
-            const prs = await github.paginate(github.rest.pulls.list, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              base: 'main'
-            });
-            // Filter out draft PRs and release-please automated release PRs
-            const activePrs = prs
-              .filter(pr => !pr.draft && pr.user?.login !== 'release-please[bot]' && !pr.head.ref.startsWith('release-please--'))
-              .map(pr => pr.number);
-            core.info(`Found open PRs: ${JSON.stringify(activePrs)}`);
-            return activePrs;
+            const scriptPath = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/get-open-prs.js`;
+            const { default: script } = await import(scriptPath);
+            return await script({github, context, core});
 
   verify-and-merge:
     name: 'Process PR #${{ matrix.pr }}'
