@@ -47,9 +47,9 @@ while [[ "${p}" != "/" && -n "${p}" ]]; do
   p="$(dirname "${p}")"
 done
 
-# Run the command inside 'nix develop' with an automated retry loop (up to 3 attempts)
-# and exponential backoff to smoothly handle any upstream Nix network glitches or 503 outages.
-max_attempts=3
+# Run the command inside 'nix develop' with an automated retry loop (up to 5 attempts)
+# and geometric backoff (starting at 5s, doubling on each attempt) to smoothly handle any upstream Nix network glitches or 503 outages.
+max_attempts=5
 attempt=1
 success=false
 
@@ -64,8 +64,8 @@ while [[ ${attempt} -le ${max_attempts} ]]; do
   else
     echo "Warning: nix develop execution failed (Attempt ${attempt}/${max_attempts})." >&2
     if [[ ${attempt} -lt ${max_attempts} ]]; then
-      # Exponential backoff delay (2s, 4s)
-      delay=$((2 ** attempt))
+      # Geometric backoff delay (5s, 10s, 20s, 40s)
+      delay=$(( 5 * (2 ** (attempt - 1)) ))
       echo "Retrying in ${delay} seconds..." >&2
       sleep ${delay}
     fi
