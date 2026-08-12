@@ -22,23 +22,25 @@ jobs:
       prs: ${{ steps.list-prs.outputs.result }}
     permissions:
       pull-requests: read
+      contents: read
     steps:
+      - name: Checkout Repository
+        # https://github.com/actions/checkout/releases
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          show-progress: false
+          sparse-checkout: |
+            .github/workflows/scripts/get-open-prs.js
+
       - name: List Open PRs
         id: list-prs
         # https://github.com/actions/github-script/releases
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
-            const prs = await github.paginate(github.rest.pulls.list, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              base: 'main'
-            });
-            // Filter out draft PRs and return their numbers
-            const activePrs = prs.filter(pr => !pr.draft).map(pr => pr.number);
-            core.info(`Found open PRs: ${JSON.stringify(activePrs)}`);
-            return activePrs;
+            const scriptPath = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/get-open-prs.js`;
+            const { default: script } = await import(scriptPath);
+            return await script({github, context, core});
 
   verify-and-merge:
     name: 'Process PR #${{ matrix.pr }}'
