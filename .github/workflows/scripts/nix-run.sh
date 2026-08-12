@@ -54,7 +54,7 @@ attempt=1
 success=false
 
 while [[ ${attempt} -le ${max_attempts} ]]; do
-  echo "Executing nix develop (Attempt ${attempt}/${max_attempts})..."
+  echo "Executing nix develop (Attempt ${attempt}/${max_attempts})..." >&2
   if sudo -E -u suse /home/suse/.nix-profile/bin/nix develop \
     --extra-experimental-features nix-command \
     --extra-experimental-features flakes \
