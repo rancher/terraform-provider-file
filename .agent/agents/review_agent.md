@@ -59,3 +59,17 @@ When analyzing changes, you MUST execute the following specialized, line-by-line
 5. **Output Your Report**: Print your report in a beautiful, structured Markdown layout.
    * If there are absolutely 0 violations, output:
      `PR Review status: 🟢 PERFECT - 0 findings. Code is fully secure, standard-compliant, and optimized.`
+6. **Generate Programmatic Approval File (Phase 4, Step 10 & Phase 13)**:
+   * If (and only if) there are **exactly 0 findings/violations** and the code is pristine, you MUST programmatically write a secure, JSON-formatted approval file to `/tmp/review-approval.json`.
+   * You can calculate the cryptographic checksum (`diff_hash`) of the current staged + unstaged changes (the combined `git diff HEAD`) cleanly by executing:
+     `git diff HEAD | shasum | cut -d' ' -f1`
+   * Write the file `/tmp/review-approval.json` containing:
+     ```json
+     {
+       "status": "approved",
+       "message": "PR Review status: 🟢 PERFECT - 0 findings.",
+       "commit_sha": "CURRENT_HEAD_SHA_HERE",
+       "diff_hash": "CALCULATED_DIFF_HASH_HERE"
+     }
+     ```
+   * If there are **any** style issues, warnings, or bugs found during review, you MUST **automatically delete** `/tmp/review-approval.json` if it exists, to instantly revoke any previous approvals!
