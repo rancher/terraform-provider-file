@@ -35,8 +35,10 @@ jobs:
               state: 'open',
               base: 'main'
             });
-            // Filter out draft PRs and return their numbers
-            const activePrs = prs.filter(pr => !pr.draft).map(pr => pr.number);
+            // Filter out draft PRs and release-please automated release PRs
+            const activePrs = prs
+              .filter(pr => !pr.draft && pr.user?.login !== 'release-please[bot]' && !pr.head.ref.startsWith('release-please--'))
+              .map(pr => pr.number);
             core.info(`Found open PRs: ${JSON.stringify(activePrs)}`);
             return activePrs;
 
