@@ -64,12 +64,12 @@ function main() {
       console.log(JSON.stringify({
         decision: "deny",
         reason: "Security Policy Violation: Modifying source code is strictly prohibited without an active plan.\n\n" +
-                "In accordance with 'development-process.md', you MUST first create or update a unified plan in '.agent/plans/' before applying edits to source files.\n\n" +
+                "In accordance with Phase 2, Steps 4-5 (Planning, Strategy & Blueprint Synchronization) of 'development-process.md', you MUST first create or update a unified plan in '.agent/plans/' before applying edits to source files.\n\n" +
                 "To proceed:\n" +
-                "1. Create or update a unified plan (e.g. '.agent/plans/MyTask.md') containing a high-level abstract (top half) and a step-by-step '## Implementation Checklist' (bottom half).\n" +
-                "2. Obtain developer approval for your plan.\n" +
-                "3. Once the plan file is created (and visible in `git status`), you will be allowed to modify source files.",
-        systemMessage: "🔒 Security Block: No active plan found. Please create/update a plan under .agent/plans/ first."
+                "1. Create or update a unified plan (e.g. '.agent/plans/MyTask.md') containing a high-level abstract (top half) and a step-by-step '## Implementation Checklist' (bottom half) as detailed in Phase 2, Step 4.\n" +
+                "2. Present the plan in chat and obtain explicit developer approval to execute it (Phase 2, Step 5).\n" +
+                "3. Once the plan file is created and visible in 'git status', you will be authorized to modify source files.",
+        systemMessage: "🔒 Security Block: No active plan found. Please comply with Phase 2, Steps 4-5 of development-process.md."
       }));
       process.exit(0);
     }

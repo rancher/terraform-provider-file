@@ -41,8 +41,8 @@ This is the standard development process. All AI agents MUST strictly read, unde
 8. **Static Analysis & Linters:** Run ecosystem linters (e.g., `golangci-lint`, `shellcheck`, `tflint --recursive`, `actionlint`) and resolve all warnings.
 
 ### Phase 4: Proactive Review & Quality Gate
-9. **Proactive Code Review:** Review the code diff against `.agent/rules/github-copilot-review.instructions.md`.
-10. **Resolve Findings:** Refactor and fix any concerns discovered, ensuring exactly 0 automated Copilot findings.
+9. **Proactive Code Review:** Delegate a proactive code review of your active local git diff directly to the custom review subagent by running `@review_agent` in the chat. The agent will rigorously verify your modifications against `.agent/rules/github-copilot-review.instructions.md` and all specific repository standards, generating a pre-commit review report.
+10. **Resolve Findings:** Refactor and fix any concerns discovered by the review agent, ensuring exactly 0 automated Copilot or linter findings.
 
 ### Phase 5: Chunking & IDE Review (Second User Gateway)
 11. **Logical Partitioning:** If there is a large volume of changes, group files into focused, independent **subsystem boundaries** (layers).
