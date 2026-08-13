@@ -166,3 +166,49 @@
     *   Add any common bash scripts for formatting, testing, or linting (e.g., `run-tests.sh`) to `.agent/skills/`.
 4.  **Workflows**:
     *   Add step-by-step instructions for PR creation, releases, or CI fixes into `.agent/workflows/`.
+
+---
+
+## Phase 5: Secure Workflows and Push Process Hook Enforcements (PR #394)
+**Objective**: Establish process-enforcement hooks (`block-rancher-git.js`) and secure skills (`commit-push.sh`) to block direct manual commits and pushes, requiring the secure, validated commit-push skill pipeline.
+
+1. **Commit-Push Skill (`.agent/skills/commit-push.sh`)**:
+   - Performs staging verification and file limit checks.
+   - Verifies proactive code review approval (`/tmp/review-approval.json`).
+   - Syncs the local default branch with upstream.
+   - Fetches and checks origin ancestry (`git rev-list --count HEAD..origin/$current_branch`) to verify we are not behind, failing fast before mutating the working tree.
+   - Restores branch context on exit.
+   - Prompts for interactive TTY developer approval.
+   - Performs GPG-signed and signed-off commit & push.
+
+2. **Direct Git Block Hook (`.agent/hooks/block-rancher-git.js`)**:
+   - Intercepts agent command execution.
+   - Unconditionally blocks any direct `git commit` or `git push` commands to guarantee adherence to the secure skill pipeline.
+
+---
+
+## Implementation Checklist - Phase 5 (PR #394 Comment Resolutions)
+
+### Phase 5.1: Rebase & Resolve Conflicts
+- [x] Perform a git rebase of `feature/workflows-secure-push` onto `main`
+- [x] Resolve any conflicts in `.agent/skills/commit-push.sh` during the rebase
+
+### Phase 5.2: Refactor and Resolve Copilot Review Comments
+- [x] **Address Comment #1 (Branch Restoration):** Switch back to the active feature branch in `.agent/skills/commit-push.sh` after `git-sync.sh` runs, preventing stashes from being accidentally applied on `main`.
+- [x] **Address Comment #2 (Zero jq Dependency):** Replace `jq` with `gh pr view --template` when querying defunct branch status in `commit-push.sh` to handle environments without `jq`.
+- [x] **Address Comment #3 (Process Text Reconciliation):** Remove outdated references to `APPROVED_BY_USER=1` in hooks and documentation to align with the new secure-push process:
+  - [x] Refactor `.agent/hooks/startup-context.sh`
+  - [x] Refactor `.agent/workflows/development-process.md`
+- [x] **Address Comment #4 (Bypass Hook Removal):** Remove the `BYPASS_COMMIT_HOOK=1` bypass mechanism from `block-rancher-git.js` and `.agent/skills/commit-push.sh`, enforcing unconditional blocks on direct `git commit`/`push`.
+- [x] **Address Comment #5 (Safe Ancestry Check):** Replace the mutating `git pull --ff-only` check with a non-mutating, robust fetch and ancestor comparison via `git rev-list --count HEAD..origin/$current_branch` in `commit-push.sh`.
+
+### Phase 5.3: Validation, Static Analysis, and Linting
+- [x] Execute ESLint/linter checks on updated javascript hooks (`block-rancher-git.js`)
+- [x] Execute ShellCheck/linter checks on updated shell scripts (`commit-push.sh`)
+- [x] Run automated tests locally to verify no regressions
+
+### Phase 5.4: Proactive Review & Push
+- [x] Run `@review_agent` to perform a proactive review of the unstaged git diff
+- [x] Resolve any review findings to ensure exactly 0 findings
+- [ ] Complete the rebase, sign and push to the fork remote
+- [ ] Monitor GitHub Actions CI status for PR 394
