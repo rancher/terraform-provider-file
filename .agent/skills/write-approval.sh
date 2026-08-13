@@ -182,16 +182,18 @@ main() {
 
   # Success! Construct the approval JSON securely with umask 077 (0600 permissions)
   mkdir -p "$target_dir"
+  
+  # Delete any existing file or symbolic link first to prevent symlink overwrites
+  rm -f "$approval_file"
+
   (
     umask 077
-    cat <<EOF > "$approval_file"
-{
-  "status": "approved",
-  "message": "${message}",
-  "commit_sha": "$(git rev-parse HEAD 2>/dev/null || echo 'unknown')",
-  "diff_hash": "${diff_hash}"
-}
-EOF
+    jq -n \
+      --arg status "approved" \
+      --arg msg "${message}" \
+      --arg sha "$(git rev-parse HEAD 2>/dev/null || echo 'unknown')" \
+      --arg hash "${diff_hash}" \
+      '{status: $status, message: $msg, commit_sha: $sha, diff_hash: $hash}' > "$approval_file"
   )
 
   # Single-use token: Immediately destroy the active token to prevent replay

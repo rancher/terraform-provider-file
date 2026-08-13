@@ -22,7 +22,9 @@ function main() {
     fs.writeSync(ttyWrite, `\x1b[1;33m============================================================\x1b[0m\n`);
     fs.writeSync(ttyWrite, `${message}\n`);
     fs.writeSync(ttyWrite, `\x1b[1;33m------------------------------------------------------------\x1b[0m\n`);
-    fs.writeSync(ttyWrite, `Confirm [y/N]: `);
+    const isDefaultYes = defaultOption.toLowerCase() === 'y' || defaultOption.toLowerCase() === 'yes';
+    const optionPrompt = isDefaultYes ? "[Y/n]" : "[y/N]";
+    fs.writeSync(ttyWrite, `Confirm ${optionPrompt}: `);
 
     // Read single-line response from TTY
     const buffer = Buffer.alloc(1024);

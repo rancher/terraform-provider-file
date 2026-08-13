@@ -176,7 +176,7 @@ sync_default_branch() {
     local stash_created=false
     if git status --porcelain | grep -v '^[A-Z]' >/dev/null; then
       echo "  -> Temporarily stashing unstaged/untracked files..."
-      git stash push -u -m "temp-commit-push-stash" >/dev/null
+      git stash push -k -u -m "temp-commit-push-stash" >/dev/null
       stash_created=true
     fi
 
