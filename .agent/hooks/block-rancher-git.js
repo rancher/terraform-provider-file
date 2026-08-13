@@ -32,7 +32,7 @@ function main() {
   }
 
   // Anti-Bypass Guardrail: Unconditionally deny any manual writing, editing, or spoofing of review-approval.json
-  const isManipulatingApproval = /\b(echo|cat|touch|rm|mv|cp|write)\b.*\breview-approval\.json\b|>[^>]*\breview-approval\.json\b/.test(commandClean);
+  const isManipulatingApproval = /\b(echo|cat|touch|rm|mv|cp|write|tee|vim|vi|nano|printf|sed|awk)\b.*\breview-approval\.json\b|>>?[^>]*\breview-approval\.json\b/.test(commandClean);
   if (isManipulatingApproval) {
     console.log(JSON.stringify({
       decision: "deny",

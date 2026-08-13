@@ -102,8 +102,10 @@ function writeApproval() {
     fs.mkdirSync(TARGET_DIR, { recursive: true });
 
     // Delete any existing file or symlink to prevent symlink overwrites
-    if (fs.existsSync(APPROVAL_FILE)) {
+    try {
       fs.unlinkSync(APPROVAL_FILE);
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
     }
 
     // Write file securely with highly restrictive 0600 permissions

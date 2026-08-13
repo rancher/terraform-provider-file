@@ -54,7 +54,7 @@ execute_in_nix() {
 
   if [[ -n "${IN_NIX_SHELL:-}" ]]; then
     echo "Already in a Nix shell environment (IN_NIX_SHELL=${IN_NIX_SHELL}). Executing command directly..." >&2
-    eval "${command}"
+    bash -c "${command}"
     return
   fi
 

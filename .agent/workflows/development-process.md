@@ -19,7 +19,7 @@ To ensure high-signal coordination and eliminate redundant or disjointed prompts
   ```bash
   .agent/skills/commit-push.sh -m "your commit message"
   ```
-  The interactive TTY developer confirmation prompt (`Do you approve GPG-signing, committing, and pushing these changes? [y/N]`) inside the skill serves as the **definitive, secure Gate 2 approval**. Consolidating diff review, commit message validation, GPG-signing, and secure pushing into this secure script ensures zero redundant chat questions.
+  This script acts as the definitive Gate 2 execution engine. It strictly requires the developer to use `@user-approval` (or the internal `.agent/skills/user-approval.js`) to cryptographically sign the active diff hash *prior* to execution. If a valid, current developer signature is found, the skill verifies it cleanly, synchronizes with upstream, and autonomously signs/commits/pushes the changes with **zero interactive prompts**.
 
 ### **Gate 3: Draft PR Review Gate (Ready-for-Review Approval)**
 * **Location**: Phase 6 (Draft PR & Ready Conversion) - Steps 16 & 17.
