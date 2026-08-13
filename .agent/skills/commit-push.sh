@@ -46,11 +46,7 @@ verify_environment() {
 
 get_file_owner_uid() {
   local file="$1"
-  if [[ "$OSTYPE" == "darwin"* ]]; then
-    stat -f %u "$file" 2>/dev/null || echo ""
-  else
-    stat -c %u "$file" 2>/dev/null || echo ""
-  fi
+  stat -c %u "$file" 2>/dev/null || stat -f %u "$file" 2>/dev/null || echo ""
 }
 
 calculate_sha256() {

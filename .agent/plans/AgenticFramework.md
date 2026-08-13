@@ -91,7 +91,7 @@
 - [x] Run automated tests locally to verify no regressions
 
 ### Phase 6.4: Proactive Review & Push
-- [ ] Run `@review_agent` to perform a proactive review of the active git diff
-- [ ] Resolve any review findings to ensure exactly 0 findings
-- [ ] Complete the rebase, sign and push to the fork remote
-- [ ] Monitor GitHub Actions CI status for PR 396
+- [x] Run `@review_agent` to perform a proactive review of the active git diff
+- [x] Resolve any review findings to ensure exactly 0 findings
+- [x] Complete the rebase, sign and push to the fork remote
+- [x] Monitor GitHub Actions CI status for PR 396
