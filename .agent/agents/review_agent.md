@@ -63,6 +63,7 @@ When analyzing changes, you MUST execute the following specialized, line-by-line
 * **Endpoint Validation Mocks**: Ensure `github.paginate` mocks validate that the correct Octokit method (e.g., `github.rest.repos.listReleases`) is passed, rather than blindly returning mocked results, ensuring API contract stability.
 
 #### F. Advanced Process Security & Preventative Hardening Checks
+* **Zero Trailing & Empty-Line Whitespace**: Rigorously scan the entire diff for any unnecessary trailing spaces (at the end of lines) or lines containing only whitespace (e.g. 10 spaces on an otherwise empty line). These must be strictly rejected as they appear as bright red highlights in Git diffs and IDEs, cluttering history and reducing visual polish.
 * **Unconditional SSL Setup**: Verify that all secure shell scripts (utilizing curl, git, or network calls) run SSL setups (like `setup_ssl`) unconditionally *before* any fast-path/short-circuit exits, preventing network operations from breaking under bypassed environments.
 * **Safe JSON Generation**: Verify that scripts never generate JSON files using raw heredocs with unescaped variables. They MUST programmatically construct JSON using `jq` (with `--arg` parameterization) to mathematically guarantee valid escaping of quotes and newlines.
 * **Symlink Overwrite Prevention**: Verify that before writing or creating any output files, scripts explicitly run `rm -f <file>` to delete any existing file or symbolic link first, preventing symbolic link directory-traversals or arbitrary file overwrites.

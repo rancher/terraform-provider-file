@@ -10,9 +10,9 @@ export default [
     },
   },
   {
-    files: [".agent/hooks/**/*.js"],
+    files: [".agent/hooks/**/*.js", ".agent/skills/**/*.js"],
     rules: {
-      // Local agent hooks run outside Actions environment and must use console streams to report decisions
+      // Local agent hooks and skills run outside Actions environment and must use console streams to report decisions
       "no-console": "off",
     },
   },
