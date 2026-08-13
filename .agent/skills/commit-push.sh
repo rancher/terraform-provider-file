@@ -239,29 +239,20 @@ verify_remote_ancestry() {
   fi
 }
 
-# Prompt developer interactive TTY confirmation
-prompt_developer_approval() {
-  echo "============================================================"
-  echo "🚨 COMMIT & PUSH GATEWAY APPROVAL REQUIRED"
-  echo "============================================================"
-  echo "Staged Files to be Committed & Signed:"
-  git diff --cached --name-only | sed 's/^/  - /'
-  echo "------------------------------------------------------------"
-  echo "Commit Message: \"$commit_msg\""
-  echo "============================================================"
-  
-  local response=""
-  if [[ -t 0 ]]; then
-    read -rp "Do you approve GPG-signing, committing, and pushing these changes? [y/N]: " response
-  else
-    read -rp "Do you approve GPG-signing, committing, and pushing these changes? [y/N]: " response < /dev/tty || response="N"
+# Verify developer manual IDE review approval
+verify_developer_approval() {
+  # If a valid user-approval signature is already present, verify it cleanly
+  if node .agent/skills/user-approval.js --verify >/dev/null 2>&1; then
+    echo "✅ Developer visual IDE review approval verified!" >&2
+    return 0
   fi
-  
-  if [[ "$response" != "y" && "$response" != "yes" && "$response" != "Y" && "$response" != "YES" ]]; then
+
+  # Otherwise, programmatically prompt the developer for approval now
+  echo "No prior developer approval signature found on disk." >&2
+  if ! node .agent/skills/user-approval.js "Do you approve GPG-signing, committing, and pushing these changes?"; then
     echo "❌ Commit and push aborted by developer." >&2
     exit 1
   fi
-  echo "Developer approval confirmed. Proceeding with signed commit..."
 }
 
 # Execute signed and signed-off git commit
@@ -314,7 +305,7 @@ main() {
   verify_proactive_review
   sync_default_branch "$current_branch"
   verify_remote_ancestry "$current_branch"
-  prompt_developer_approval
+  verify_developer_approval
   execute_signed_commit
   secure_push "$current_branch"
 
