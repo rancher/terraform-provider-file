@@ -144,7 +144,7 @@
 2. **Zero-Bypass Push Gateway (`commit-push.sh`)**:
    - Remove `--no-sync` and `-y|--yes|--auto-confirm` bypass options from `commit-push.sh`, mandating upstream synchronization and interactive developer confirmation on every run.
 3. **Native TTY Feedback Hook Prompt (`tty-prompt.js`)**:
-   - Design a reusable, stylized, and cross-platform TTY-based prompt script `.agent/hooks/tty-prompt.js`.
+   - Design a reusable, stylized, and UNIX-based/POSIX-compliant (macOS/Linux) TTY-based prompt script `.agent/hooks/tty-prompt.js`.
    - Any hook (Bash or Node.js) can invoke `node .agent/hooks/tty-prompt.js "Message"` to natively block execution and request confirmation directly from the developer's terminal, enabling programmatic gate integrations.
 
 ---
@@ -225,5 +225,54 @@
 - [x] Update `.agent/workflows/resolve-pr-reviews.md` to define a rigorous, step-by-step procedure for analyzing, evaluating, responding to, refactoring, and programmatically resolving comments in a fresh session
 
 ### Phase 10.3: Verification, Authentic Review & Layer 3 Push
-- [ ] Run actionlint and markdown linters to verify workflow document correctness
-- [ ] Present the unstaged diff for final visual review in the chat, stage changes, and push using the zero-bypass `commit-push.sh` skill (TTY Gate 2) to complete this feature branch and prepare Gate 3 draft PR creation!
+- [x] Run actionlint and markdown linters to verify workflow document correctness
+- [x] Present the unstaged diff for final visual review in the chat, stage changes, and push using the zero-bypass `commit-push.sh` skill (TTY Gate 2) to complete this feature branch and prepare Gate 3 draft PR creation!
+
+---
+
+## Phase 11: Resolving PR #398 Review Comments & Hardening Guidelines (PR #398 Comments)
+**Objective**: Resolve all 6 Copilot review comments on PR #398 with robust, secure, and idiomatic fixes, and update `.agent/agents/review_agent.md` with strict checklists to detect and prevent similar issues in the future.
+
+1. **Unconditional SSL Setup (`nix-run.sh`)**:
+   - Ensure `setup_ssl` is executed unconditionally *before* the `IN_NIX_SHELL` direct-execution fast-path in `nix-run.sh`.
+2. **Safe JSON Generation & Symlink Guards (`write-approval.sh`)**:
+   - Refactor JSON generation to use `jq` securely instead of raw heredocs to prevent quote/newline escaping errors.
+   - Add a symlink guard `rm -f "$approval_file"` to delete any existing file or symbolic link before writing to prevent symlink overwrites.
+3. **Index-preserving Stashing (`commit-push.sh`)**:
+   - Update `commit-push.sh`'s temporary stash command to use `-k|--keep-index` (`git stash push -k -u`) to ensure staged index changes are never unexpectedly stashed or cleared.
+4. **Dynamic Option Prompting (`tty-prompt.js`)**:
+   - Refactor `tty-prompt.js` to dynamically adjust the option prompt string (e.g. `[y/N]` vs `[Y/n]`) based on `defaultOption` value.
+5. **Aligned Process Messaging (`block-rancher-git.js`)**:
+   - Align the security block reason message in `block-rancher-git.js` to instruct running `@review_agent` rather than advising direct `write-approval.sh` bypasses.
+6. **Tightened Plan Portability Wording (`AgenticFramework.md`)**:
+   - Tighten the "cross-platform" claims regarding TTY prompts to specify "UNIX-based/POSIX-compliant (macOS/Linux)" to prevent overstating Windows portability.
+7. **Hardened Review Agent Directives (`review_agent.md`)**:
+   - Add explicit checklists inside `.agent/agents/review_agent.md` to instruct the subagent to detect:
+     - Unconditional SSL setups before fast-paths
+     - Safe `jq`-based JSON generation (no unescaped heredocs)
+     - Explicit symlink guards before file creation
+     - Index-preserving stashing (`--keep-index`)
+     - Match dynamic terminal option prompts
+     - Unified process instructions (no bypass advertisements)
+
+---
+
+## Implementation Checklist - Phase 11 (PR #398 Comment Resolutions)
+
+### Phase 11.1: Refactor and Resolve Comments
+- [ ] **Address Comment #1 (SSL Setup):** Update `nix-run.sh` to run `setup_ssl` unconditionally before the fast-path checkout.
+- [ ] **Address Comment #2 (Secure JSON & Symlink Guard):** Update `write-approval.sh` to use `jq` for secure JSON generation and add symlink deletion guard.
+- [ ] **Address Comment #3 (Keep Index Stash):** Update `commit-push.sh` to use `--keep-index` (`-k`) on temporary stash pushes.
+- [ ] **Address Comment #4 (Dynamic Option Prompt):** Update `tty-prompt.js` to dynamically output `[y/N]` or `[Y/n]` matching the fallback default.
+- [ ] **Address Comment #5 (Aligned Block Msg):** Update the block reasoning inside `block-rancher-git.js` to align with the proper `@review_agent` process.
+- [ ] **Address Comment #6 (Tightened Plan Portability):** Correct the TTY claims in `AgenticFramework.md` to specify UNIX/POSIX rather than overstating Windows portability.
+- [ ] **Address Comment #7 (Hardened Review Guidelines):** Add the 6 preventative checks to `.agent/agents/review_agent.md` as core checklists.
+
+### Phase 11.2: Validation, Static Analysis, and Linting
+- [ ] Run actionlint, ESLint, and ShellCheck to verify script correctness
+- [ ] Run Go unit tests locally to confirm 100% green status
+
+### Phase 11.3: Secure Push & Programmatic Thread Resolution
+- [ ] Delegate an authentic proactive review of our changes to our review subagent (`generalist`), letting it run all static analysis and programmatically write the secure `/Users/matt.trachier/.gemini/tmp/terraform-provider-file/review-approval.json` file authentically
+- [ ] Execute the zero-bypass `commit-push.sh` skill to securely commit and push our changes (TTY Gate 2)
+- [ ] Programmatically resolve all 6 comment threads on GitHub using `.agent/skills/resolve-pr-reviews.sh 398 --bypass-token --all`

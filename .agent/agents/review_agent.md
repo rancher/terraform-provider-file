@@ -62,6 +62,14 @@ When analyzing changes, you MUST execute the following specialized, line-by-line
 * **Mock Logger Levels**: Ensure mock `core` objects in tests include stub functions for all used logger levels in the actual implementation (e.g. if the code calls `core.warning`, the test's mock `core` must define `warning: () => {}` to prevent crashes).
 * **Endpoint Validation Mocks**: Ensure `github.paginate` mocks validate that the correct Octokit method (e.g., `github.rest.repos.listReleases`) is passed, rather than blindly returning mocked results, ensuring API contract stability.
 
+#### F. Advanced Process Security & Preventative Hardening Checks
+* **Unconditional SSL Setup**: Verify that all secure shell scripts (utilizing curl, git, or network calls) run SSL setups (like `setup_ssl`) unconditionally *before* any fast-path/short-circuit exits, preventing network operations from breaking under bypassed environments.
+* **Safe JSON Generation**: Verify that scripts never generate JSON files using raw heredocs with unescaped variables. They MUST programmatically construct JSON using `jq` (with `--arg` parameterization) to mathematically guarantee valid escaping of quotes and newlines.
+* **Symlink Overwrite Prevention**: Verify that before writing or creating any output files, scripts explicitly run `rm -f <file>` to delete any existing file or symbolic link first, preventing symbolic link directory-traversals or arbitrary file overwrites.
+* **Index-Preserving Stashing**: Verify that `git stash push` uses `-k|--keep-index` if the intent is to preserve and keep staged changes in the active index.
+* **Accurate Option Prompts**: Verify that user-interactive TTY prompt scripts dynamically adjust option prompts (e.g. `[y/N]` vs `[Y/n]`) to match their fallback `defaultOption`.
+* **Unified Process Messaging**: Verify that hook block reason and denial messages are aligned with the proper development processes rather than advertising internal script or bypass paths.
+
 ---
 
 ### Step-by-Step Subagent Workflow
