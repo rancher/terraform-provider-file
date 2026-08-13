@@ -191,7 +191,7 @@
 ### Phase 9.3: Verification, Authentic Review & Secure Push
 - [x] Run actionlint, ESLint, and ShellCheck to verify hook correctness
 - [x] Unstage any previous manual approval file attempts and verify that manual hooks block spoofing
-- [x] **Pass Gate 2 Authentically**: Delegate a genuine proactive review of our staged changes to our review subagent (`generalist`), letting it run all static analysis and programmatically write the secure `/Users/matt.trachier/.gemini/tmp/terraform-provider-file/review-approval.json` file authentically
+- [x] **Pass Gate 2 Authentically**: Delegate a genuine proactive review of our staged changes to our review subagent (`generalist`), letting it run all static analysis and programmatically write the secure `~/.gemini/tmp/terraform-provider-file/review-approval.json` file authentically
 - [x] Execute the zero-bypass `commit-push.sh` skill to securely commit and push our changes (TTY Gate 2)
 
 ---
@@ -273,7 +273,7 @@
 - [x] Run Go unit tests locally to confirm 100% green status
 
 ### Phase 11.3: Secure Push & Programmatic Thread Resolution
-- [x] Delegate an authentic proactive review of our changes to our review subagent (`generalist`), letting it run all static analysis and programmatically write the secure `/Users/matt.trachier/.gemini/tmp/terraform-provider-file/review-approval.json` file authentically
+- [x] Delegate an authentic proactive review of our changes to our review subagent (`generalist`), letting it run all static analysis and programmatically write the secure `~/.gemini/tmp/terraform-provider-file/review-approval.json` file authentically
 - [x] Execute the zero-bypass `commit-push.sh` skill to securely commit and push our changes (TTY Gate 2)
 - [x] Programmatically resolve all 6 comment threads on GitHub using `.agent/skills/resolve-pr-reviews.sh 398 --bypass-token --all`
 

@@ -90,7 +90,7 @@ function writeApproval() {
     process.exit(1);
   }
 
-  const otpToken = crypto.randomBytes(16).toString('hex');
+  const otpToken = execSync('bash .agent/skills/generate-otp.sh').toString().trim();
   const approvalData = {
     status: 'approved',
     diff_hash: activeHash,

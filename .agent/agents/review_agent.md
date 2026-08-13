@@ -86,6 +86,8 @@ When analyzing changes, you MUST execute the following specialized, line-by-line
    * If (and only if) there are **exactly 0 findings/violations** and the code is pristine, you MUST programmatically write the secure review-approval.json file.
    * You MUST calculate the cryptographic SHA-256 checksum (`diff_hash`) of the current staged + unstaged changes (the combined `git diff HEAD`) cleanly by executing:
      `git diff HEAD | shasum -a 256 | cut -d' ' -f1` (or `git diff HEAD | sha256sum | cut -d' ' -f1` if using GNU coreutils)
-   * You MUST execute the dedicated secure repository skill `.agent/skills/write-approval.sh` to generate the file, passing the active One-Time Pad (OTP) token, calculated SHA-256 diff hash, and the approval message, e.g.:
-     `bash .agent/skills/write-approval.sh -t "OTP_TOKEN_HERE" -d "CALCULATED_SHA256_HERE" -m "PR Review status: 🟢 PERFECT - 0 findings."`
+   * You MUST securely generate a One-Time Pad (OTP) token by executing the dedicated skill:
+     `bash .agent/skills/generate-otp.sh`
+   * You MUST execute the dedicated secure repository skill `.agent/skills/write-approval.sh` to generate the file, passing the active OTP token, calculated SHA-256 diff hash, and the approval message, e.g.:
+     `bash .agent/skills/write-approval.sh -t "OTP_TOKEN_FROM_ABOVE" -d "CALCULATED_SHA256_HERE" -m "PR Review status: 🟢 PERFECT - 0 findings."`
    * If there are **any** style issues, warnings, or bugs found during review, you MUST **automatically delete** `~/.gemini/tmp/terraform-provider-file/review-approval.json` if it exists, to instantly revoke any previous approvals!
