@@ -193,3 +193,37 @@
 - [ ] Unstage any previous manual approval file attempts and verify that manual hooks block spoofing
 - [ ] **Pass Gate 2 Authentically**: Delegate a genuine proactive review of our staged changes to our review subagent (`generalist`), letting it run all static analysis and programmatically write the secure `/Users/matt.trachier/.gemini/tmp/terraform-provider-file/review-approval.json` file authentically
 - [ ] Execute the zero-bypass `commit-push.sh` skill to securely commit and push our changes (TTY Gate 2)
+
+---
+
+## Phase 10: Asynchronous Draft PR Gating & PR Comment Resolution Cycle (Gate 3 & Resolution Process)
+**Objective**: Restructure the final Quality Gate (Gate 3) inside `development-process.md` to cleanly separate PR draft creation, manual developer review, draft-to-ready conversion, and asynchronous review-comment resolution into highly cohesive, distinct lifecycle steps.
+
+1. **Gate 3: Draft PR Gating**:
+   - The agent programmatically generates a Draft PR on GitHub using `create-pr.sh --draft` and halts execution.
+   - The agent waits for explicit developer review and approval in the chat.
+   - If approved, the agent executes a secure command/skill to mark the PR as "ready" for review on GitHub (`gh pr ready <pr-number>`).
+   - The current development session is then closed cleanly, letting the developer wait asynchronously for team and AI reviews.
+2. **Asynchronous PR Comment Resolution Process (`resolve-pr-reviews.md`)**:
+   - If changes or feedback are received on GitHub, the developer starts a brand new development session using the dedicated `resolve-pr-reviews.md` workflow.
+   - The agent:
+     - Chronologically pulls all general and inline review comments.
+     - Critically evaluates whether each concern is valid or invalid.
+     - Posts programmatic/explicit responses to each comment thread on GitHub.
+     - Surgically refactors the codebase to resolve valid concerns.
+     - Programmatically resolves the comment threads using `resolve-pr-reviews.sh`.
+
+---
+
+## Implementation Checklist - Phase 10 (Gate 3 & Asynchronous PR Iteration)
+
+### Phase 10.1: Refactor Gate 3 in development-process.md
+- [x] Update Phase 6 (Gate 3) of `development-process.md` to outline the draft-creation, chat approval, ready-state transition, and clean session-closing steps
+- [x] Explicitly direct the developer to initiate a separate, asynchronous review-comment resolution session upon receiving comments
+
+### Phase 10.2: Refactor resolve-pr-reviews.md Workflow
+- [x] Update `.agent/workflows/resolve-pr-reviews.md` to define a rigorous, step-by-step procedure for analyzing, evaluating, responding to, refactoring, and programmatically resolving comments in a fresh session
+
+### Phase 10.3: Verification, Authentic Review & Layer 3 Push
+- [ ] Run actionlint and markdown linters to verify workflow document correctness
+- [ ] Present the unstaged diff for final visual review in the chat, stage changes, and push using the zero-bypass `commit-push.sh` skill (TTY Gate 2) to complete this feature branch and prepare Gate 3 draft PR creation!

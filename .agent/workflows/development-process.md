@@ -21,9 +21,10 @@ To ensure high-signal coordination and eliminate redundant or disjointed prompts
   ```
   The interactive TTY developer confirmation prompt (`Do you approve GPG-signing, committing, and pushing these changes? [y/N]`) inside the skill serves as the **definitive, secure Gate 2 approval**. Consolidating diff review, commit message validation, GPG-signing, and secure pushing into this secure script ensures zero redundant chat questions.
 
-### **Gate 3: Pull Request Sign-Off Gate (Merge Approval)**
-* **Location**: Phase 6 (Draft PR & Merge Readiness) - Step 17.
-* **Protocol**: The agent programmatically generates a Draft Pull Request on GitHub using `create-pr.sh --draft`. The agent presents the final PR URL in the chat. Your manual review, approval, and merge of the Pull Request on GitHub is the **definitive Gate 3 approval** that concludes the workflow.
+### **Gate 3: Draft PR Review Gate (Ready-for-Review Approval)**
+* **Location**: Phase 6 (Draft PR & Ready Conversion) - Steps 16 & 17.
+* **Protocol**: The agent programmatically generates a Draft Pull Request on GitHub using `.agent/skills/create-pr.sh --draft` and halts execution. The developer inspects the draft PR on GitHub. Upon receiving the developer's explicit approval in the chat, the agent converts the PR to "ready for review" (`gh pr ready <pr-number>`), presents the standard PR link, and cleanly **closes the development session**.
+* **Asynchronous Review Cycle**: The developer waits asynchronously for team and AI reviews. If changes or comments are received on GitHub, the developer starts a **brand new, separate development session** executing the specialized `resolve-pr-reviews.md` workflow to resolve comments and merge.
 
 ---
 
@@ -74,11 +75,12 @@ To ensure high-signal coordination and eliminate redundant or disjointed prompts
 14. **🔒 Solicit IDE & Commit Approval (Gate 2):** Present the unstaged diff to the developer in the chat for visual IDE review. Propose and agree on a conventional commit message.
 15. **🔒 Execute Secure Commit & Push**: Once Gate 2 approval is confirmed in the chat, stage your changes and run the secure skill `.agent/skills/commit-push.sh -m "commit message"`. **Direct manual git commit and push commands are strictly prohibited.** The developer's confirmation inside the interactive TTY prompt of the script concludes Gate 2.
 
-### Phase 6: Draft PR & PR Review (Gate 3)
+### Phase 6: Draft PR & Ready Conversion (Gate 3)
 16. **Generate Draft PR:** Create a Draft Pull Request using `.agent/skills/create-pr.sh --draft`.
-17. **PR Iteration & Automated Check Verification:** Monitor automated PR checks and resolve any automated review comments (such as from Copilot) using `.agent/skills/resolve-pr-reviews.sh --bypass-token --all`.
-18. **🔒 Solicit final PR Sign-Off (Gate 3):** Once all checks are green and comments are resolved, present the final PR link in the chat. The developer's manual review, approval, and merge on GitHub is the definitive Gate 3 approval.
+17. **🔒 Solicit Draft PR Approval (Gate 3):** Present the draft PR link in the chat and halt execution. Wait for the developer to inspect the draft PR on GitHub.
+18. **Convert PR to Ready & Conclude Session:** Once the developer explicitly approves the draft PR in the chat, convert the PR from Draft to "Ready for Review" using the GitHub CLI: `gh pr ready <pr-number>`. Provide a completion summary, present the final PR link, and cleanly **close the current development session**.
 
-### Phase 7: PR Iteration & Next Layer Restoration
-19. **Proceed to Next Layer:** Switch back to the synchronized `main`, restore the remaining files from the backup directory `~/.gemini/tmp/<repo-name>/backup_changes` back into the active workspace, and return to Step 11 for the next layer.
-20. **Completion Summary:** Once all layers are successfully complete and merged, provide a concise summary with links to all Pull Requests.
+### Phase 7: Asynchronous PR Iteration & Next Layer Restoration
+19. **Asynchronous Review Wait-State:** The developer waits asynchronously for team and AI reviews. If comments or requested changes are submitted on GitHub, the developer starts a **brand new development session** running the dedicated `.agent/workflows/resolve-pr-reviews.md` workflow to resolve comments.
+20. **Proceed to Next Layer:** Switch back to the synchronized `main`, restore the remaining files from the backup directory `~/.gemini/tmp/<repo-name>/backup_changes` back into the active workspace, and return to Step 11 for the next layer.
+21. **Completion Summary:** Once all layers are successfully complete and merged, provide a concise summary with links to all Pull Requests.

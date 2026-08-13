@@ -174,6 +174,10 @@ cleanup() {
 
   # Always restore the auto-stash on exit if it was successfully created
   if [[ "$AUTO_STASH_CREATED" == "true" ]]; then
+    if [[ -n "${ORIGINAL_BRANCH:-}" && "$(git branch --show-current)" != "$ORIGINAL_BRANCH" ]]; then
+      echo "Switching back to original branch '$ORIGINAL_BRANCH' before restoring stash..." >&2
+      git checkout "$ORIGINAL_BRANCH" >/dev/null 2>&1 || true
+    fi
     echo "  -> Restoring stashed changes from auto-stash..." >&2
     if ! git stash pop --index >/dev/null 2>&1; then
       echo "Warning: Re-applying stashed changes resulted in merge conflicts." >&2
