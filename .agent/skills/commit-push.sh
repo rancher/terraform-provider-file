@@ -25,15 +25,11 @@ Programmatically commit and push local changes with GPG/SSH signature, sign-off,
 Options:
   -h, --help            Show this message and exit.
   -m MESSAGE            The conventional commit message (Required).
-  -y, --yes             Skip interactive developer approval prompt (Auto-confirm).
   -f, --force           Bypass remote ancestry check and perform safe force-push with lease.
-  --no-sync             Skip running git-sync.sh default branch synchronization.
 
 Examples:
   .agent/skills/commit-push.sh -m "ci(workflows): add new automated checks"
-  .agent/skills/commit-push.sh -y -m "ci(hooks): automated skill commit"
   .agent/skills/commit-push.sh -f -m "refactor(hooks): force push after rebase"
-  .agent/skills/commit-push.sh --no-sync -m "fix(hooks): correct branch check"
 EOF
 }
 
@@ -87,8 +83,6 @@ verify_push_safety() {
 parse_args() {
   # Initialize variables with global defaults
   commit_msg=""
-  run_sync=true
-  auto_confirm=false
   force_push=false
 
   while [[ $# -gt 0 ]]; do
@@ -96,10 +90,6 @@ parse_args() {
       -h|--help)
         show_help
         exit 0
-        ;;
-      -y|--yes)
-        auto_confirm=true
-        shift
         ;;
       -f|--force)
         force_push=true
@@ -112,10 +102,6 @@ parse_args() {
         fi
         commit_msg="$2"
         shift 2
-        ;;
-      --no-sync)
-        run_sync=false
-        shift
         ;;
       *)
         echo "Error: Unknown argument '$1'" >&2
@@ -175,108 +161,55 @@ verify_staging_limits() {
 
 # Enforce secure proactive review validation
 verify_proactive_review() {
-  local approval_file="/tmp/review-approval.json"
-
-  # Validate approval file presence and security constraints
-  if [[ ! -f "$approval_file" ]]; then
-    echo "Error: Proactive review approval not found!" >&2
-    echo "       In accordance with Phase 4, Steps 9-10 (Proactive Review & Quality Gate) of 'development-process.md'," >&2
-    echo "       you MUST delegate a proactive review of your changes to our specialized subagent BEFORE committing:" >&2
-    echo "       -> In the chat, run: @review_agent Please review my current staged changes." >&2
+  # Delegate verification cleanly and securely to write-approval.sh skill
+  if ! bash .agent/skills/write-approval.sh --verify; then
     exit 1
   fi
-
-  if [[ -L "$approval_file" ]]; then
-    echo "Error: Proactive review approval file at '$approval_file' is a symbolic link." >&2
-    echo "       Symlink-based approval files are prohibited for security." >&2
-    exit 1
-  fi
-
-  local owner_uid
-  owner_uid=$(get_file_owner_uid "$approval_file")
-  if [[ "$owner_uid" != "$UID" ]]; then
-    echo "Error: Proactive review approval file at '$approval_file' is not owned by the current user (UID: $UID, Owner: $owner_uid)." >&2
-    echo "       This is a security violation. Please ensure the file is generated securely by your own agent session." >&2
-    exit 1
-  fi
-
-  if ! command_exists jq; then
-    echo "Error: 'jq' utility is required to parse review approval file. Please install jq." >&2
-    exit 1
-  fi
-
-  local approval_status
-  approval_status=$(jq -r '.status' "$approval_file" 2>/dev/null || true)
-  local approval_hash
-  approval_hash=$(jq -r '.diff_hash' "$approval_file" 2>/dev/null || true)
-
-  if [[ "$approval_status" != "approved" ]]; then
-    echo "Error: The proactive review approval file exists but status is '$approval_status' (not approved)." >&2
-    echo "       Please resolve all reported review findings and run the review agent again to obtain approval." >&2
-    exit 1
-  fi
-
-  # Recalculate the active local diff hash securely using SHA-256 (staged + unstaged combined)
-  local active_hash
-  active_hash=$(git diff HEAD | calculate_sha256)
-
-  if [[ "$approval_hash" != "$active_hash" ]]; then
-    echo "Error: Local changes have been modified since your last proactive review approval!" >&2
-    echo "       Approved SHA-256 hash: ${approval_hash}" >&2
-    echo "       Current active SHA-256 hash: ${active_hash}" >&2
-    echo "       In accordance with Phase 13 of 'GitHubWorkflows.md', you MUST re-run the review agent" >&2
-    echo "       on your latest changes to obtain a fresh approval: @review_agent" >&2
-    exit 1
-  fi
-
-  echo "✅ Proactive review approval verified! (SHA-256 Hash: $active_hash)"
 }
 
 # Sync with Upstream parent repository
 sync_default_branch() {
   local branch="$1"
-  if [[ "$run_sync" == "true" ]]; then
-    if [[ "$branch" != "main" ]]; then
-      echo "Synchronizing local 'main' branch and tags with upstream parent repository..."
-      # Temporarily stash unstaged/untracked files to allow git-sync.sh clean checks
-      local stash_created=false
-      if git status --porcelain | grep -v '^[A-Z]' >/dev/null; then
-        echo "  -> Temporarily stashing unstaged/untracked files..."
-        git stash push -u -m "temp-commit-push-stash" >/dev/null
-        stash_created=true
-      fi
+  if [[ "$branch" != "main" ]]; then
+    echo "Synchronizing local 'main' branch and tags with upstream parent repository..."
+    # Temporarily stash unstaged/untracked files to allow git-sync.sh clean checks
+    local stash_created=false
+    if git status --porcelain | grep -v '^[A-Z]' >/dev/null; then
+      echo "  -> Temporarily stashing unstaged/untracked files..."
+      git stash push -u -m "temp-commit-push-stash" >/dev/null
+      stash_created=true
+    fi
 
-      # Run sync skill
-      if ! bash .agent/skills/git-sync.sh; then
-        echo "Error: Upstream synchronization failed." >&2
-        if [[ "$stash_created" == "true" ]]; then
-          if ! git stash pop >/dev/null 2>&1; then
-            echo "Warning: Stash pop failed during emergency exit. Your stashed changes remain preserved in Git stash." >&2
-          fi
-        fi
-        exit 1
-      fi
-
-      # Switch back to the active feature branch because git-sync.sh leaves the checkout on main
-      echo "Switching back to branch '$branch'..."
-      if ! git checkout "$branch" >/dev/null 2>&1; then
-        echo "Error: Failed to switch back to branch '$branch' after sync." >&2
-        if [[ "$stash_created" == "true" ]]; then
-          if ! git stash pop >/dev/null 2>&1; then
-            echo "Warning: Stash pop failed during emergency exit. Your stashed changes remain preserved in Git stash." >&2
-          fi
-        fi
-        exit 1
-      fi
-
-      # Restore stashed changes gracefully with conflict checking
+    # Run sync skill
+    if ! bash .agent/skills/git-sync.sh; then
+      echo "Error: Upstream synchronization failed." >&2
       if [[ "$stash_created" == "true" ]]; then
-        echo "  -> Restoring stashed unstaged/untracked files..."
-        if ! git stash pop >/dev/null 2>&1; then
-          echo "Warning: Re-applying stashed changes resulted in merge conflicts." >&2
-          echo "         Your stashed changes have been PRESERVED in the Git stash list." >&2
-          echo "         Please resolve conflicts manually (e.g. using 'git stash pop' or 'git diff' to inspect)." >&2
+        if ! git stash pop --index >/dev/null 2>&1; then
+          echo "Warning: Stash pop failed during emergency exit. Your stashed changes remain preserved in Git stash." >&2
         fi
+      fi
+      exit 1
+    fi
+
+    # Switch back to the active feature branch because git-sync.sh leaves the checkout on main
+    echo "Switching back to branch '$branch'..."
+    if ! git checkout "$branch" >/dev/null 2>&1; then
+      echo "Error: Failed to switch back to branch '$branch' after sync." >&2
+      if [[ "$stash_created" == "true" ]]; then
+        if ! git stash pop --index >/dev/null 2>&1; then
+          echo "Warning: Stash pop failed during emergency exit. Your stashed changes remain preserved in Git stash." >&2
+        fi
+      fi
+      exit 1
+    fi
+
+    # Restore stashed changes gracefully with conflict checking
+    if [[ "$stash_created" == "true" ]]; then
+      echo "  -> Restoring stashed unstaged/untracked files..."
+      if ! git stash pop --index >/dev/null 2>&1; then
+        echo "Warning: Re-applying stashed changes resulted in merge conflicts." >&2
+        echo "         Your stashed changes have been PRESERVED in the Git stash list." >&2
+        echo "         Please resolve conflicts manually (e.g. using 'git stash pop --index' or 'git diff' to inspect)." >&2
       fi
     fi
   fi
@@ -318,10 +251,7 @@ prompt_developer_approval() {
   echo "============================================================"
   
   local response=""
-  if [[ "$auto_confirm" == "true" ]]; then
-    echo "Auto-confirm flag (-y/--yes) specified. Skipping interactive prompt."
-    response="y"
-  elif [[ -t 0 ]]; then
+  if [[ -t 0 ]]; then
     read -rp "Do you approve GPG-signing, committing, and pushing these changes? [y/N]: " response
   else
     read -rp "Do you approve GPG-signing, committing, and pushing these changes? [y/N]: " response < /dev/tty || response="N"

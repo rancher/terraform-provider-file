@@ -42,6 +42,12 @@ main() {
     exit 0
   fi
 
+  # Anti-nested Nix shell optimization
+  if [[ -n "${IN_NIX_SHELL:-}" ]]; then
+    echo "Already in a Nix shell environment (IN_NIX_SHELL=${IN_NIX_SHELL}). Executing command directly..." >&2
+    exec "$@"
+  fi
+
   setup_ssl
 
   # Securely create an atomic, non-guessable temp file path using mktemp

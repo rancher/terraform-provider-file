@@ -28,11 +28,15 @@ query_nix_tools() {
 
   # Execute a inline script inside Nix shell to find the dev-shell-package/bin directory on the PATH
   local bin_dir
-  # shellcheck disable=SC2016
-  bin_dir=$(nix develop \
-    --extra-experimental-features nix-command \
-    --extra-experimental-features flakes \
-    --command bash -c 'echo "$PATH" | tr ":" "\n" | grep "dev-shell-package/bin" | head -n 1' 2>/dev/null || echo "")
+  if [[ -n "${IN_NIX_SHELL:-}" ]]; then
+    bin_dir=$(echo "$PATH" | tr ":" "\n" | grep "dev-shell-package/bin" | head -n 1 || echo "")
+  else
+    # shellcheck disable=SC2016
+    bin_dir=$(nix develop \
+      --extra-experimental-features nix-command \
+      --extra-experimental-features flakes \
+      --command bash -c 'echo "$PATH" | tr ":" "\n" | grep "dev-shell-package/bin" | head -n 1' 2>/dev/null || echo "")
+  fi
 
   if [[ -z "$bin_dir" || ! -d "$bin_dir" ]]; then
     echo "Error: Could not locate dev-shell-package/bin in the Nix environment." >&2
@@ -47,6 +51,13 @@ query_nix_tools() {
 
 execute_in_nix() {
   local command="$1"
+
+  if [[ -n "${IN_NIX_SHELL:-}" ]]; then
+    echo "Already in a Nix shell environment (IN_NIX_SHELL=${IN_NIX_SHELL}). Executing command directly..." >&2
+    eval "${command}"
+    return
+  fi
+
   echo "Running command in Nix environment: ${command}" >&2
 
   nix develop \
