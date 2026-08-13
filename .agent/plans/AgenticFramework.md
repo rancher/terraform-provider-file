@@ -1,199 +1,35 @@
-# Agentic Environment Setup Plan
+# Secure Workflows and Push Process Blueprint
 
-**Executed Date:** 2026-07-14
-**Purpose:** Provide a reproducible blueprint for scaffolding a unified, cross-platform AI agentic environment in any new or existing repository.
-
----
-
-## Phase 1: Create Root Routing Files
-**Objective**: Establish the entry points for all supported AI platforms that redirect them to a single source of truth.
-
-1.  **Create `GEMINI.md`** (Root directory):
-    *   This file tells Gemini CLI where to find the source of truth.
-    *   **Content:**
-        ```markdown
-        # Gemini Context Pointer
-
-        You are assisting with development in this workspace. 
-
-        Your absolute source of truth for all architectural decisions, coding standards, and repository rules is the `AGENTS.md` file located in the root directory. 
-
-        Before suggesting code edits, writing new functions, or answering architectural questions, you MUST read `AGENTS.md` to understand the project's constraints and locate the specific instruction files for the language you are working with.
-
-        It contains essential coding standards, the `.agent` directory structure you need to use, and strict rules specific to your role in this project.
-        ```
-
-2.  **Create `CLAUDE.md`** (Root directory):
-    *   This file tells Claude where to find the source of truth.
-    *   **Content:**
-        ```markdown
-        You are an AI assistant working on this project.
-        Before making any code suggestions or analyzing the repo, you MUST read `AGENTS.md` in the root of this repository for your complete instructions.
-
-        It contains essential coding standards, the `.agent` directory structure you need to use, and strict rules specific to your role in this project.
-        ```
-
-3.  **Create `.github/copilot-instructions.md`**:
-    *   This file provides repository-level instructions for GitHub Copilot.
-    *   **Content:**
-        ```markdown
-        # GitHub Copilot Instructions
-
-        Before analyzing this repository, providing code suggestions, or reviewing pull requests, you MUST read the authoritative root prompt for all agents located in `AGENTS.md` at the root of this repository.
-
-        It contains essential coding standards, the `.agent` directory structure you need to use, and strict rules specific to your role in this project.
-        ```
+* **Executed Date:** 2026-08-12
+* **Purpose:** Establish a robust security gateway for all code commits and pushes, mandating the use of the secure `.agent/skills/commit-push.sh` skill and prohibiting direct `git commit` or `git push` commands.
+* **Domain Specification:**
+  - **Commit-Push Skill:** Consolidates pre-commit validation, branch defunct checks, upstream synchronization via `git-sync.sh`, remote ancestry verification (fail-fast behind remote), interactive developer approval via TTY, and signed/signed-off commits and pushes.
+  - **Direct Git Block Hook:** `block-rancher-git.js` acts as an agent-level command interceptor, blocking any direct invocation of `git commit` or `git push` to guarantee that all execution goes through the secure skill.
 
 ---
 
-## Phase 2: Create the Master Instructions File
-**Objective**: Define the overarching rules, environment directives, and directory mappings in `AGENTS.md`.
+## Implementation Checklist
 
-1.  **Create `AGENTS.md`** (Root directory):
-    *   **Content:**
-        ```markdown
-        # System Instructions & Agent Protocols
+### Phase 1: Create Root Routing Files
+- [x] Create root routing files (`GEMINI.md`, `CLAUDE.md`, `.github/copilot-instructions.md`)
 
-        This is the absolute source of truth for all AI agents in this repository.
-        Comply with role-specific directives.
+### Phase 2: Create the Master Instructions File
+- [x] Create the master instructions file (`AGENTS.md`)
 
-        ## 1. Environment Directives
+### Phase 3: Scaffold the `.agent` Directory Structure
+- [x] Create directories and populate README files
 
-        * **Permissions:** Read files/folders as needed without asking.
-        * *(Add repository-specific environment setup instructions here, e.g., Nix, Docker, etc.)*
+### Phase 4: Populate Initial Base Files
+- [x] Populate output-styles, rules, skills, and workflows
 
-        ## 2. Agent Personas & Contexts
-
-        Adopt the behavior specific to your platform:
-        * **GitHub Copilot:** Strictly perform code review (runs automatically on pull requests).
-        * **Claude:** Operate in agentic programming mode. Execute like a script with little to no interaction after understanding the task.
-        * **Gemini:** Act as a conversational coding assistant and partner. Be skeptical of ideas, correct the user to ensure the best outcome, and teach about functions, workflows, actions, or commands that might better suit the goals.
-
-        ## 3. Planning Protocol
-
-        All agents MUST plan their work before executing.
-        After user refinement, record final plans as markdown files in `.agent/plans/`.
-        * **Executed Date:** Include an "executed date" (or "pending") to build a timeline.
-        * **Purpose:** Acts as project requirements (new repos) or provides historical context for future decisions (legacy repos).
-
-        ## 4. Directory Structure Mapping
-
-        The root `.agent/` directory contains tools and context for all agents.
-
-        * **Claude:** Treat `.agent/` exactly like `.claude/`. Subdirectories function natively.
-        * **GitHub Copilot:** Map `.agent/rules` -> `.github/instructions`, `.agent/skills` -> `.github/skills`, and `.agent/agents` -> `.github/agents`.
-        * **Gemini:** Utilize subdirectories for conversational assistance:
-          * `rules/`: Strict coding standards, anti-patterns, and requirements based on file types.
-          * `skills/`: Reusable tools or scripts you can recommend or utilize.
-          * `agents/`: Specialized agent definitions and prompts.
-          * `output-styles/`: Guidelines on how to format your responses.
-          * `workflows/`: Defined processes for executing multi-step tasks.
-          * `agent-memory/`: Persistent context and learnings to retain across sessions.
-          * `plans/`: Context on historic decisions and major refactors.
-
-        ## 5. Required Coding Standards
-
-        Consult and adhere to these rule files when generating, editing, or reviewing code:
-        *(Add repository-specific language mappings here, e.g., `**/*.go` -> `.agent/rules/go.instructions.md`)*
-        ```
-
----
-
-## Phase 3: Scaffold the `.agent` Directory Structure
-**Objective**: Build out the structured folders that hold granular context, rules, and workflows.
-
-1.  **Create Directories**:
-    *   `.agent/agent-memory/`
-    *   `.agent/agents/`
-    *   `.agent/output-styles/`
-    *   `.agent/plans/`
-    *   `.agent/rules/`
-    *   `.agent/skills/`
-    *   `.agent/workflows/`
-
-2.  **Create `README.md` files for each subdirectory**:
-
-    *   **`.agent/agent-memory/README.md`**:
-        ```markdown
-        # Agent Memory
-        Persistent context and learnings to retain across sessions.
-        ```
-    *   **`.agent/agents/README.md`**:
-        ```markdown
-        # Specialized AI Agents
-        This directory contains specialized agent definitions and prompts. 
-        These files can be used to set the context, persona, and specific capabilities for different AI agents operating within the repository.
-        ```
-    *   **`.agent/output-styles/README.md`**:
-        ```markdown
-        # AI Output Styles
-        This directory contains guidelines on how AI agents should format their responses.
-        Rules here ensure that code suggestions, pull request reviews, and conversational assistance maintain a consistent and readable structure.
-        ```
-    *   **`.agent/plans/README.md`**:
-        ```markdown
-        # Plans
-        Context on historic decisions, major refactors, and executed or pending plans.
-        ```
-    *   **`.agent/rules/README.md`**:
-        ```markdown
-        # AI Agent Rules
-        This directory contains strict coding standards, anti-patterns, and requirements based on file types. 
-        AI agents MUST consult the corresponding instruction file in this directory whenever asked to generate, edit, or review code.
-        ```
-    *   **`.agent/skills/README.md`**:
-        ```markdown
-        # AI Agent Skills
-        This directory contains reusable tools or scripts that AI agents can recommend or utilize to execute tasks in this repository.
-        ```
-    *   **`.agent/workflows/README.md`**:
-        ```markdown
-        # AI Agent Workflows
-        This directory contains defined processes for executing multi-step tasks.
-        These workflows provide step-by-step procedures for AI agents to follow when tackling complex tasks.
-        ```
-
----
-
-## Phase 4: Populate Initial Base Files (Optional / Repository-Specific)
-**Objective**: Fill the `.agent` structure with initial configuration suited for the new project.
-
-1.  **Output Styles**:
-    *   Create `.agent/output-styles/claude-strict.md` or `.agent/output-styles/gemini-conversational.md` as needed.
-2.  **Rules**:
-    *   Create language-specific instruction files (e.g., `go.instructions.md`, `python.instructions.md`, `workflows.instructions.md`) inside `.agent/rules/`.
-3.  **Skills**:
-    *   Add any common bash scripts for formatting, testing, or linting (e.g., `run-tests.sh`) to `.agent/skills/`.
-4.  **Workflows**:
-    *   Add step-by-step instructions for PR creation, releases, or CI fixes into `.agent/workflows/`.
-
----
-
-## Phase 5: Secure Workflows and Push Process Hook Enforcements (PR #394)
+### Phase 5: Secure Workflows and Push Process Hook Enforcements (PR #394)
 **Objective**: Establish process-enforcement hooks (`block-rancher-git.js`) and secure skills (`commit-push.sh`) to block direct manual commits and pushes, requiring the secure, validated commit-push skill pipeline.
 
-1. **Commit-Push Skill (`.agent/skills/commit-push.sh`)**:
-   - Performs staging verification and file limit checks.
-   - Verifies proactive code review approval (`/tmp/review-approval.json`).
-   - Syncs the local default branch with upstream.
-   - Fetches and checks origin ancestry (`git rev-list --count HEAD..origin/$current_branch`) to verify we are not behind, failing fast before mutating the working tree.
-   - Restores branch context on exit.
-   - Prompts for interactive TTY developer approval.
-   - Performs GPG-signed and signed-off commit & push.
-
-2. **Direct Git Block Hook (`.agent/hooks/block-rancher-git.js`)**:
-   - Intercepts agent command execution.
-   - Unconditionally blocks any direct `git commit` or `git push` commands to guarantee adherence to the secure skill pipeline.
-
----
-
-## Implementation Checklist - Phase 5 (PR #394 Comment Resolutions)
-
-### Phase 5.1: Rebase & Resolve Conflicts
+#### Phase 5.1: Rebase & Resolve Conflicts
 - [x] Perform a git rebase of `feature/workflows-secure-push` onto `main`
 - [x] Resolve any conflicts in `.agent/skills/commit-push.sh` during the rebase
 
-### Phase 5.2: Refactor and Resolve Copilot Review Comments
+#### Phase 5.2: Refactor and Resolve Copilot Review Comments
 - [x] **Address Comment #1 (Branch Restoration):** Switch back to the active feature branch in `.agent/skills/commit-push.sh` after `git-sync.sh` runs, preventing stashes from being accidentally applied on `main`.
 - [x] **Address Comment #2 (Zero jq Dependency):** Replace `jq` with `gh pr view --template` when querying defunct branch status in `commit-push.sh` to handle environments without `jq`.
 - [x] **Address Comment #3 (Process Text Reconciliation):** Remove outdated references to `APPROVED_BY_USER=1` in hooks and documentation to align with the new secure-push process:
@@ -202,13 +38,60 @@
 - [x] **Address Comment #4 (Bypass Hook Removal):** Remove the `BYPASS_COMMIT_HOOK=1` bypass mechanism from `block-rancher-git.js` and `.agent/skills/commit-push.sh`, enforcing unconditional blocks on direct `git commit`/`push`.
 - [x] **Address Comment #5 (Safe Ancestry Check):** Replace the mutating `git pull --ff-only` check with a non-mutating, robust fetch and ancestor comparison via `git rev-list --count HEAD..origin/$current_branch` in `commit-push.sh`.
 
-### Phase 5.3: Validation, Static Analysis, and Linting
+#### Phase 5.3: Validation, Static Analysis, and Linting
 - [x] Execute ESLint/linter checks on updated javascript hooks (`block-rancher-git.js`)
 - [x] Execute ShellCheck/linter checks on updated shell scripts (`commit-push.sh`)
 - [x] Run automated tests locally to verify no regressions
 
-### Phase 5.4: Proactive Review & Push
+#### Phase 5.4: Proactive Review & Push
 - [x] Run `@review_agent` to perform a proactive review of the unstaged git diff
 - [x] Resolve any review findings to ensure exactly 0 findings
-- [ ] Complete the rebase, sign and push to the fork remote
-- [ ] Monitor GitHub Actions CI status for PR 394
+- [x] Complete the rebase, sign and push to the fork remote
+- [x] Monitor GitHub Actions CI status for PR 394
+
+---
+
+## Phase 6: Cryptographic Review Gate & Modular Script Hardening (PR #396)
+**Objective**: Build a hardened, production-grade cryptographic review-approval gate between the review agent and the commit-push skill, refactor `commit-push.sh` into modular single-responsibility functions, and enforce strict remote push safety checks.
+
+1. **Owner and Symlink Hardening**:
+   - Check if `/tmp/review-approval.json` is a regular file (reject symbolic links to block symlink attacks).
+   - Verify file ownership: the file owner UID must match the current user's UID (`$UID`) to block file-injection from other users on the system.
+2. **SHA-256 Cryptographic Verification**:
+   - Mandate SHA-256 as the core cryptographic integrity verification algorithm.
+   - Refuse fallback to broken/weak hash algorithms like MD5 or default SHA-1.
+3. **Modular Function Refactoring**:
+   - Refactor `commit-push.sh` from a monolithic procedural main block into modular, single-responsibility helper functions.
+4. **Git Stash Conflict Resilience**:
+   - Wrap `git stash pop` in error handling to gracefully inform the developer about merge conflicts, assuring them their stashed changes remain preserved in the Git stash.
+5. **Upstream Remote Push Safety Enforcer**:
+   - Implement `verify_push_safety` inside `commit-push.sh` to proactively reject pushing to any Rancher-owned remote URL (e.g. upstream), conforming to strict security protocols.
+
+---
+
+## Implementation Checklist - Phase 6 (PR #396 Comment Resolutions)
+
+### Phase 6.1: Rebase & Resolve Conflicts
+- [x] Perform a git rebase of `feature/workflows-secure-review-gate` onto `main`
+- [x] Resolve any conflicts in `.agent/skills/commit-push.sh` during the rebase
+
+### Phase 6.2: Refactor and Resolve Copilot Review Comments
+- [x] **Address Comment #1 (Zero jq Dependency):** Verify defunct branch protection remains jq-free (Done via PR 394).
+- [x] **Address Comment #2 (Owner & Symlink Gate):** Add regular file check, symlink rejection, and current user owner UID verification for `/tmp/review-approval.json` in `commit-push.sh`.
+- [x] **Address Comment #3 (SHA-256 Cryptography):** Mandate SHA-256 algorithm and fail-fast if no SHA-256 tool (`shasum -a 256` or `sha256sum`) is available.
+- [x] **Address Comment #4 (Robust Stash Recovery):** Catch `git stash pop` failures gracefully, preserving stash and outputting explicit user instructions.
+- [x] **Address Comment #5 (Modular Script Architecture):** Refactor `commit-push.sh` into clean, single-responsibility functions (e.g. `parse_args`, `verify_proactive_review`, `prompt_developer_approval`).
+- [x] **Address Comment #6 (Safe Permissions & Algorithm in Agent Prompt):** Update `.agent/agents/review_agent.md` to instruct calculating SHA-256 and writing the approval file using secure permissions (`umask 077`).
+- [x] **Address Comment #7 (Upstream Remote Safety):** Incorporate the `verify_push_safety` function inside `commit-push.sh` to prevent pushing to Rancher-owned remotes.
+- [x] **Address Comment #8 (Clean Hook Workarounds):** Confirm `BYPASS_COMMIT_HOOK=1` is dropped from all commit/push invocations.
+
+### Phase 6.3: Validation, Static Analysis, and Linting
+- [x] Execute ESLint/linter checks on updated javascript files
+- [x] Execute ShellCheck on `commit-push.sh`
+- [x] Run automated tests locally to verify no regressions
+
+### Phase 6.4: Proactive Review & Push
+- [x] Run `@review_agent` to perform a proactive review of the active git diff
+- [x] Resolve any review findings to ensure exactly 0 findings
+- [x] Complete the rebase, sign and push to the fork remote
+- [x] Monitor GitHub Actions CI status for PR 396
