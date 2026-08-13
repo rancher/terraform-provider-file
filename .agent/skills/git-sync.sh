@@ -12,16 +12,24 @@ set -euo pipefail
 # CORE FUNCTIONS
 # ==============================================================================
 
+# Global variable to track auto-stash state
+AUTO_STASH_CREATED=false
+
 verify_git_env() {
   if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "Error: This command must be run inside a Git repository." >&2
     exit 1
   fi
 
+  # Securely auto-stash uncommitted or untracked changes rather than erroring
   if [[ "$(git status --porcelain=v1 2>/dev/null | wc -l)" -gt 0 ]]; then
-    echo "Error: Your working tree has uncommitted or untracked changes." >&2
-    echo "       Please commit or stash your work before running this sync." >&2
-    exit 1
+    echo "  -> Uncommitted or untracked changes detected in local tree."
+    echo "  -> Securely stashing changes to guarantee zero data loss..."
+    if ! git stash push -u -m "git-sync-auto-stash" >/dev/null; then
+      echo "Error: Failed to stash changes cleanly. Aborting sync." >&2
+      exit 1
+    fi
+    AUTO_STASH_CREATED=true
   fi
 }
 
@@ -163,6 +171,21 @@ cleanup() {
       git checkout "$ORIGINAL_BRANCH" 2>/dev/null || true
     fi
   fi
+
+  # Always restore the auto-stash on exit if it was successfully created
+  if [[ "$AUTO_STASH_CREATED" == "true" ]]; then
+    if [[ -n "${ORIGINAL_BRANCH:-}" && "$(git branch --show-current)" != "$ORIGINAL_BRANCH" ]]; then
+      echo "Switching back to original branch '$ORIGINAL_BRANCH' before restoring stash..." >&2
+      git checkout "$ORIGINAL_BRANCH" >/dev/null 2>&1 || true
+    fi
+    echo "  -> Restoring stashed changes from auto-stash..." >&2
+    if ! git stash pop --index >/dev/null 2>&1; then
+      echo "Warning: Re-applying stashed changes resulted in merge conflicts." >&2
+      echo "         Your changes have been safely preserved in the Git stash." >&2
+    fi
+    AUTO_STASH_CREATED=false
+  fi
+
   exit "$exit_code"
 }
 
