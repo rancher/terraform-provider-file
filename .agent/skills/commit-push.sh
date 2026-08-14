@@ -143,7 +143,12 @@ check_defunct_branch() {
 
 # Verify staging files and file-count limits
 verify_staging_limits() {
-  local max_allowed=150
+  local max_allowed=5
+  if [[ -n "${COMMIT_LIMIT_OVERRIDE:-}" ]]; then
+    max_allowed="${COMMIT_LIMIT_OVERRIDE}"
+    echo "--> [OVERRIDE] Using custom staged file limit from COMMIT_LIMIT_OVERRIDE: ${max_allowed}" >&2
+  fi
+
   staged_count=$(git diff --cached --name-only | wc -l | tr -d ' ')
 
   if [[ "$staged_count" -eq 0 ]]; then

@@ -64,7 +64,7 @@ func TestSnapshotMultipleBasic(t *testing.T) {
 		t.Log("Output failed, moving along...")
 	}
 
-	peskyID := outputs["peskyID"]
+	peskyID := outputs["pesky_id"]
 	snapshots, ok := outputs["snapshots"].([]interface{})
 	if !ok {
 		t.Fatalf("snapshots is not a []interface{}")
@@ -83,7 +83,7 @@ func TestSnapshotMultipleBasic(t *testing.T) {
 		t.Log("Output failed, moving along...")
 	}
 
-	peskyID = outputs["peskyID"]
+	peskyID = outputs["pesky_id"]
 	snapshots, ok = outputs["snapshots"].([]interface{})
 	if !ok {
 		t.Fatalf("snapshots is not a []interface{}")

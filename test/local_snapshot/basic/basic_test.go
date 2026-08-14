@@ -64,7 +64,7 @@ func TestSnapshotBasic(t *testing.T) {
 		t.Log("Output failed, moving along...")
 	}
 
-	peskyID := outputs["peskyID"]
+	peskyID := outputs["pesky_id"]
 	snapshot := outputs["snapshot"]
 	a := assert.New(t)
 	a.Equal(peskyID, snapshot, "On the first run the snapshot will match the id.")
@@ -80,7 +80,7 @@ func TestSnapshotBasic(t *testing.T) {
 		t.Log("Output failed, moving along...")
 	}
 
-	peskyID = outputs["peskyID"]
+	peskyID = outputs["pesky_id"]
 	snapshot = outputs["snapshot"]
 	a.NotEqual(peskyID, snapshot, "On subsequent runs the id will change, but the snapshot won't.")
 

@@ -99,3 +99,11 @@ The sync utility `.agent/skills/sync-boilerplate.sh` executes the following sequ
 
 - [x] Expand `.boilerplate-sync.json` to map the GHA `release.yml` and the scripts it requires (`nix-run.sh`, `create-local-tag.sh`, `goreleaser.sh`, `publish-release.js`).
 - [x] Execute `sync-boilerplate.sh --push` to securely push these final GHA release files.
+
+### Phase 14.7: PR #399 Comment Resolutions
+
+- [ ] Revert `outputs["peskyID"]` back to `outputs["pesky_id"]` in snapshot test files (`test/local_snapshot/basic/basic_test.go`, `test/local_snapshot/compressed/basic_test.go`, `test/local_snapshot/multiple/basic_test.go`).
+- [ ] Refactor `.agent/skills/commit-push.sh` to restore the default staged-file limit to `5` and introduce support for the `COMMIT_LIMIT_OVERRIDE` environment variable.
+- [ ] Run `./.github/workflows/scripts/lint.sh golangci-lint` and formatting checks to confirm 100% correctness.
+- [ ] Execute `user-approval.js`, `write-approval.sh`, and `commit-push.sh` to finalize the refactoring.
+- [ ] Programmatically resolve all GitHub PR comment threads using `.agent/skills/resolve-pr-reviews.sh`.
