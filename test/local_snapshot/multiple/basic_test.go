@@ -12,7 +12,7 @@ import (
 func TestSnapshotMultipleBasic(t *testing.T) {
 	t.Parallel()
 
-	id := util.GetId()
+	id := util.GetID()
 	directory := "local_snapshot_multiple"
 	repoRoot, err := util.GetRepoRoot(t)
 	if err != nil {
@@ -64,13 +64,13 @@ func TestSnapshotMultipleBasic(t *testing.T) {
 		t.Log("Output failed, moving along...")
 	}
 
-	pesky_id := outputs["pesky_id"]
+	peskyID := outputs["peskyID"]
 	snapshots, ok := outputs["snapshots"].([]interface{})
 	if !ok {
 		t.Fatalf("snapshots is not a []interface{}")
 	}
 	a := assert.New(t)
-	a.Equal(pesky_id, snapshots[0], "On the first run the snapshot will match the id.")
+	a.Equal(peskyID, snapshots[0], "On the first run the snapshot will match the id.")
 
 	_, err = terraform.InitAndApplyE(t, terraformOptions)
 	if err != nil {
@@ -83,12 +83,12 @@ func TestSnapshotMultipleBasic(t *testing.T) {
 		t.Log("Output failed, moving along...")
 	}
 
-	pesky_id = outputs["pesky_id"]
+	peskyID = outputs["peskyID"]
 	snapshots, ok = outputs["snapshots"].([]interface{})
 	if !ok {
 		t.Fatalf("snapshots is not a []interface{}")
 	}
-	a.NotEqual(pesky_id, snapshots[0], "On subsequent runs the id will change, but the snapshot won't.")
+	a.NotEqual(peskyID, snapshots[0], "On subsequent runs the id will change, but the snapshot won't.")
 
 	if t.Failed() {
 		t.Log("Test failed...")

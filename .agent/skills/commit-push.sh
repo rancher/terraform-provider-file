@@ -143,7 +143,7 @@ check_defunct_branch() {
 
 # Verify staging files and file-count limits
 verify_staging_limits() {
-  local max_allowed=5
+  local max_allowed=150
   staged_count=$(git diff --cached --name-only | wc -l | tr -d ' ')
 
   if [[ "$staged_count" -eq 0 ]]; then

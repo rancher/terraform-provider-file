@@ -1,19 +1,19 @@
 export default [
   {
     languageOptions: {
-      ecmaVersion: "latest",
-      sourceType: "module",
+      ecmaVersion: 'latest',
+      sourceType: 'module',
     },
     rules: {
       // Per .agent/rules/github-script.instructions.md: Use core.* instead of console.*
-      "no-console": "error",
+      'no-console': 'error',
     },
   },
   {
-    files: [".agent/hooks/**/*.js", ".agent/skills/**/*.js"],
+    files: ['.agent/hooks/**/*.js', '.agent/skills/**/*.js'],
     rules: {
       // Local agent hooks and skills run outside Actions environment and must use console streams to report decisions
-      "no-console": "off",
+      'no-console': 'off',
     },
   },
 ];

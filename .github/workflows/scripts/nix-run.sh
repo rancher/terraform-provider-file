@@ -21,10 +21,10 @@ EOF
 setup_ssl() {
   if [[ -z "${NIX_SSL_CERT_FILE:-}" ]]; then
     for cert in /etc/ssl/certs/ca-certificates.crt \
-                /etc/ssl/certs/ca-bundle.crt \
-                /etc/pki/tls/certs/ca-bundle.crt \
-                /etc/ssl/ca-bundle.pem \
-                /var/lib/ca-certificates/ca-bundle.pem; do
+      /etc/ssl/certs/ca-bundle.crt \
+      /etc/pki/tls/certs/ca-bundle.crt \
+      /etc/ssl/ca-bundle.pem \
+      /var/lib/ca-certificates/ca-bundle.pem; do
       if [[ -f "${cert}" ]]; then
         export NIX_SSL_CERT_FILE="${cert}"
         break
@@ -53,12 +53,12 @@ main() {
   # Securely create an atomic, non-guessable temp file path using mktemp
   # to completely eliminate symlink races and stale collisions.
   SCRIPT_FILE=$(mktemp /tmp/nix-script.XXXXXX.sh)
-  
+
   trap 'if [[ -n "${SCRIPT_FILE:-}" ]]; then rm -f "${SCRIPT_FILE}"; SCRIPT_FILE=""; fi' EXIT
 
   # Securely write static command execution shell logic with absolute "$@"-aware argument quoting.
   # This completely eliminates shell parsing and command injection vulnerabilities.
-  cat <<'EOF' > "${SCRIPT_FILE}"
+  cat <<'EOF' >"${SCRIPT_FILE}"
 #!/usr/bin/env bash
 set -euo pipefail
 git config --global --add safe.directory "$1"
@@ -99,7 +99,7 @@ EOF
       if [[ ${attempt} -lt ${max_attempts} ]]; then
         # Geometric backoff delay (5s, 10s, 20s, 40s)
         local delay
-        delay=$(( 5 * (2 ** (attempt - 1)) ))
+        delay=$((5 * (2 ** (attempt - 1))))
         echo "Retrying in ${delay} seconds..." >&2
         sleep "${delay}"
       fi

@@ -9,39 +9,39 @@ test('get-open-prs.js tests', async (t) => {
         number: 101,
         draft: false,
         user: { login: 'some-developer' },
-        head: { ref: 'feature/some-feature' }
+        head: { ref: 'feature/some-feature' },
       },
       {
         number: 102,
         draft: true,
         user: { login: 'some-developer' },
-        head: { ref: 'feature/draft-feature' }
+        head: { ref: 'feature/draft-feature' },
       },
       {
         number: 103,
         draft: false,
         user: { login: 'release-please[bot]' },
-        head: { ref: 'release-please--branches--main' }
+        head: { ref: 'release-please--branches--main' },
       },
       {
         number: 104,
         draft: false,
         user: { login: 'some-developer' },
-        head: { ref: 'release-please--branches--main' } // Human author on release branch (Should include!)
+        head: { ref: 'release-please--branches--main' }, // Human author on release branch (Should include!)
       },
       {
         number: 105,
         draft: false,
         user: { login: 'release-please[bot]' },
-        head: { ref: 'feature/not-release-branch' } // Release please bot on different branch (Should include!)
-      }
+        head: { ref: 'feature/not-release-branch' }, // Release please bot on different branch (Should include!)
+      },
     ];
 
     const context = {
       repo: {
         owner: 'rancher',
-        repo: 'terraform-provider-file'
-      }
+        repo: 'terraform-provider-file',
+      },
     };
 
     const github = {
@@ -55,13 +55,13 @@ test('get-open-prs.js tests', async (t) => {
       },
       rest: {
         pulls: {
-          list: {}
-        }
-      }
+          list: {},
+        },
+      },
     };
 
     const core = {
-      info: () => {}
+      info: () => {},
     };
 
     const result = await getOpenPrs({ github, context, core });

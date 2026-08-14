@@ -2,7 +2,7 @@
 
 This is an example of snapshotting the same file multiple times.
 This show the same operations as the basic example,
- but it shows that you can have multiple snapshots working in parallel on the same file without collisions.
+but it shows that you can have multiple snapshots working in parallel on the same file without collisions.
 
 # Updating the snapshot
 

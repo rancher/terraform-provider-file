@@ -28,12 +28,12 @@ type FileProvider struct {
 
 type FileProviderModel struct{}
 
-func (p *FileProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
+func (p *FileProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
 	resp.TypeName = "file"
 	resp.Version = p.version
 }
 
-func (p *FileProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
+func (p *FileProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{},
 	}
@@ -49,7 +49,7 @@ func (p *FileProvider) Configure(ctx context.Context, req provider.ConfigureRequ
 	}
 }
 
-func (p *FileProvider) Resources(ctx context.Context) []func() resource.Resource {
+func (p *FileProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		file_local.NewLocalResource,
 		file_local_snapshot.NewLocalSnapshotResource,
@@ -57,7 +57,7 @@ func (p *FileProvider) Resources(ctx context.Context) []func() resource.Resource
 	}
 }
 
-func (p *FileProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
+func (p *FileProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		file_local.NewLocalDataSource,
 		file_local_snapshot.NewLocalSnapshotDataSource,

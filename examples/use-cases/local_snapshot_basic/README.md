@@ -2,7 +2,7 @@
 
 This is an example of how you could use the file_snapshot resource.
 WARNING! Please remember that Terraform must load the entire state into memory,
- ensure you have enough memory on the server running Terraform to store or retrieve the data you are storing.
+ensure you have enough memory on the server running Terraform to store or retrieve the data you are storing.
 For larger files, please see the snapshot_compressed use-case for more details.
 
 We use the uuid() function for testing purposes.

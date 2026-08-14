@@ -17,9 +17,8 @@ func (c *OsDirectoryClient) Create(path string, permissions string) (string, err
 	if len(created) > 0 {
 		fmt.Printf("created: %#v", created)
 		return created[0], err
-	} else {
-		return "", err
 	}
+	return "", err
 }
 
 func (c *OsDirectoryClient) Read(path string) (string, map[string]map[string]string, error) {
@@ -129,16 +128,15 @@ func makePath(path string, permissions string) ([]string, error) {
 	}
 	if err := os.Mkdir(path, os.FileMode(modeInt)); err != nil {
 		return nil, err
-	} else {
-		// We successfully created the directory, add it to our list.
-		created = append(created, path)
 	}
+	// We successfully created the directory, add it to our list.
+	created = append(created, path)
 
 	return created, nil
 }
 
 // Added to help with testing, use the file client to create files in production.
-func (c *OsDirectoryClient) CreateFile(path string, data string, permissions string, lastModified string) error {
+func (c *OsDirectoryClient) CreateFile(path string, data string, permissions string, _ string) error {
 	modeInt, err := strconv.ParseUint(permissions, 8, 32)
 	if err != nil {
 		return err

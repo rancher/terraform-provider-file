@@ -34,14 +34,15 @@ go mod tidy
 Then commit the changes to `go.mod` and `go.sum`.
 
 There are two levels of dependency, one is for the dev, test, and build environment,
- the other is the Go dependencies as listed above.
+the other is the Go dependencies as listed above.
 We use Nix to manage environment dependencies.
-You can install Nix using their scripts: https://nixos.org/download/
+You can install Nix using their scripts: <https://nixos.org/download/>
 After that you can enter the development environment using the "flake.nix" file in the root of the repo.
 Once Nix is installed source the .envrc and it should manage everything for you.
 If this is your first flake, you may need to initialize flakes for this directory.
 
 To initialize flakes:
+
 - `mv flake.nix flake.new`
 - `nix --extra-experimental-features flakes --extra-experimental-features nix-command flake init`
 - `mv flake.new flake.nix`
@@ -58,7 +59,7 @@ resource "file_local" "basic_example" {
 }
 ```
 
-Please see the docs at https://registry.terraform.io/providers/rancher/file/latest/docs for more information.
+Please see the docs at <https://registry.terraform.io/providers/rancher/file/latest/docs> for more information.
 
 ## Developing the Provider
 
@@ -89,6 +90,7 @@ Due to GitHub's server-side push validation and security model, the standard `GI
 Since development in this repository takes place on personal forks, maintainers releasing workflow changes must manually push the release tag to the official **upstream** repository from their local machine to bypass this restriction securely:
 
 1. **Manually Tag Main:**
+
    ```shell
    # 1. Add the upstream remote if you haven't already
    git remote add upstream git@github.com:rancher/terraform-provider-file.git
@@ -116,6 +118,7 @@ Since development in this repository takes place on personal forks, maintainers 
 You will need to use the manual release process, but again you will need to manually tag.
 
 1. **Manually Tag Main:**
+
    ```shell
    # 1. Add the upstream remote if you haven't already
    git remote add upstream git@github.com:rancher/terraform-provider-file.git
@@ -133,4 +136,3 @@ You will need to use the manual release process, but again you will need to manu
 2. **Trigger the "Manually Create Full Release" Workflow:**
    Set the tag to the tag you created, set the sha to the sha of the tag.
    GoReleaser will pick things up and create the release for you, but the release notes won't be as pretty.
-

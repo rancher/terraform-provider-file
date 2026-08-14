@@ -3,28 +3,28 @@
 version: 2
 updates:
   # Maintain dependencies for Go modules
-  - package-ecosystem: "gomod"
-    directory: "/"
+  - package-ecosystem: 'gomod'
+    directory: '/'
     schedule:
       # Check for updates to Go modules weekly
-      interval: "weekly"
+      interval: 'weekly'
     groups:
       # Group all terraform-plugin-(go|sdk|framework|testing) dependencies together
-      "terraform-plugin":
+      'terraform-plugin':
         patterns:
-          - "github.com/hashicorp/terraform-plugin-*"
-  - package-ecosystem: "gomod"
-    directory: "/tools"
+          - 'github.com/hashicorp/terraform-plugin-*'
+  - package-ecosystem: 'gomod'
+    directory: '/tools'
     schedule:
-      interval: "weekly"
-  - package-ecosystem: "github-actions"
-    directory: "/"
+      interval: 'weekly'
+  - package-ecosystem: 'github-actions'
+    directory: '/'
     groups:
-      "github-actions":
+      'github-actions':
         patterns:
-          - "*" # Group all GitHub Actions dependencies together
+          - '*' # Group all GitHub Actions dependencies together
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "Etc/UTC"
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'Etc/UTC'

@@ -20,7 +20,7 @@ import (
 
 const (
 	// echo -n '/tmp/foo' | sha256sum | awk '{print $1}' #.
-	testDirectoryId      = "e2e1dcd28fea64180e4cd859b299ce67c4c02a3cbd49eca0042f7b5b47d241b5"
+	testDirectoryID      = "e2e1dcd28fea64180e4cd859b299ce67c4c02a3cbd49eca0042f7b5b47d241b5"
 	testDirectoryPath    = "/tmp/foo"
 	defaultDirectoryPerm = "0755"
 )
@@ -65,7 +65,7 @@ func TestLocalDirectoryDataSourceRead(t *testing.T) {
 				}),
 				// want
 				getReadDataSourceResponse(t, map[string]interface{}{
-					"id":          testDirectoryId,
+					"id":          testDirectoryID,
 					"path":        testDirectoryPath,
 					"permissions": defaultDirectoryPerm,
 					"files": []interface{}{
@@ -306,6 +306,7 @@ func getRandomString(n string) (string, error) {
 		return "", err
 	}
 	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	// #nosec G404 - weak random is fine for non-security test helper
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	b := make([]byte, size)
 	for i := 0; i < size; i++ {

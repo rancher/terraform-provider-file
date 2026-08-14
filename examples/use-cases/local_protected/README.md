@@ -1,6 +1,6 @@
 # Protected Use Case
 
-In this use case you provide the Id for the file and expect alterations to the file to also include updates to the Id. 
+In this use case you provide the Id for the file and expect alterations to the file to also include updates to the Id.
 If the "protected" argument is set to "true" then the Id argument must be set and must match the calculated Id.
 The provider will throw an error if the contents of the file don't calculate to the Id sent.
 
@@ -9,7 +9,8 @@ The provider will throw an error if the contents of the file don't calculate to 
 Calculating the Id is done with an HMAC secret key.
 Below is a snippet of calculating the Id in bash, you can see the logic for calculating the hash in Go in the unit tests.
 The secret key can be sent in to Terraform with the `TF_FILE_HMAC_SECRET_KEY` environment variable so that it stays out of the state,
-or you can add it as an argument when creating the resource. 
+or you can add it as an argument when creating the resource.
+
 ```
 echo "Test data" > data.txt
 FILEPATH="./data.txt"

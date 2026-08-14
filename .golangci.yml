@@ -1,6 +1,4 @@
-
-
-version: "2"
+version: '2'
 linters:
   default: none
   enable:
@@ -9,11 +7,14 @@ linters:
     - errcheck
     - forcetypeassert
     - godot
+    - gocyclo
+    - gosec
     - ineffassign
     - makezero
     - misspell
     - nilerr
     - predeclared
+    - revive
     - staticcheck
     - unconvert
     - unparam

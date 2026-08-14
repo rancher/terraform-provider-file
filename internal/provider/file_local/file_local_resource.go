@@ -47,7 +47,7 @@ type LocalResource struct {
 
 // LocalResourceModel describes the resource data model.
 type LocalResourceModel struct {
-	Id            types.String `tfsdk:"id"`
+	ID            types.String `tfsdk:"id"`
 	Name          types.String `tfsdk:"name"`
 	Contents      types.String `tfsdk:"contents"`
 	Directory     types.String `tfsdk:"directory"`
@@ -56,11 +56,11 @@ type LocalResourceModel struct {
 	Protected     types.Bool   `tfsdk:"protected"`
 }
 
-func (r *LocalResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (r *LocalResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_local" // file_local resource
 }
 
-func (r *LocalResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *LocalResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Local File resource",
 
@@ -137,7 +137,7 @@ func (r *LocalResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 }
 
 // Configure the provider for the resource if necessary.
-func (r *LocalResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *LocalResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	// Prevent panic if the provider has not been configured.
 	if req.ProviderData == nil {
 		return
@@ -159,7 +159,7 @@ func (r *LocalResource) Create(ctx context.Context, req resource.CreateRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	id := plan.Id.ValueString()
+	id := plan.ID.ValueString()
 	name := plan.Name.ValueString()
 	directory := plan.Directory.ValueString()
 	contents := plan.Contents.ValueString()
@@ -182,12 +182,12 @@ func (r *LocalResource) Create(ctx context.Context, req resource.CreateRequest, 
 			return
 		} // at this point we have an id, key, contents, protected is true, and our calculated id matches what was provided
 	} else {
-		id, err = calculateId(contents, unprotectedHmacSecret)
+		id, err = calculateID(contents, unprotectedHmacSecret)
 		if err != nil {
 			resp.Diagnostics.AddError("Error creating file: ", "Problem calculating id from hard coded key: "+err.Error())
 			return
 		}
-		plan.Id = types.StringValue(id)
+		plan.ID = types.StringValue(id)
 		// the file isn't protected so we want the key to be an empty string in state
 		plan.HmacSecretKey = types.StringValue("")
 	}
@@ -246,12 +246,12 @@ func (r *LocalResource) Read(ctx context.Context, req resource.ReadRequest, resp
 			sHmacSecretKey = os.Getenv("TF_FILE_HMAC_SECRET_KEY")
 		}
 
-		id, err := calculateId(contents, sHmacSecretKey)
+		id, err := calculateID(contents, sHmacSecretKey)
 		if err != nil {
 			resp.Diagnostics.AddError("Error reading file: ", "Problem calculating id from key: "+err.Error())
 			return
 		}
-		state.Id = types.StringValue(id)
+		state.ID = types.StringValue(id)
 	}
 
 	if perm != sPerm {
@@ -275,7 +275,7 @@ func (r *LocalResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
-	cId := config.Id.ValueString()
+	cID := config.ID.ValueString()
 	cName := config.Name.ValueString()
 	cContents := config.Contents.ValueString()
 	cDirectory := config.Directory.ValueString()
@@ -289,18 +289,18 @@ func (r *LocalResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	}
 	if cProtected {
 		// this only validates that the key given was correctly used to generate the id, it doesn't actually protect the file
-		err := validateProtected(cProtected, cId, cKey, cContents)
+		err := validateProtected(cProtected, cID, cKey, cContents)
 		if err != nil {
 			resp.Diagnostics.AddError("Error updating file: ", err.Error())
 			return
 		}
 	} else {
-		id, err := calculateId(cContents, unprotectedHmacSecret)
+		id, err := calculateID(cContents, unprotectedHmacSecret)
 		if err != nil {
 			resp.Diagnostics.AddError("Error updating file: ", "Problem calculating id from hard coded key: "+err.Error())
 			return
 		}
-		config.Id = types.StringValue(id)
+		config.ID = types.StringValue(id)
 		config.HmacSecretKey = types.StringValue("")
 	}
 
@@ -311,7 +311,7 @@ func (r *LocalResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
-	rId := reality.Id.ValueString()
+	rID := reality.ID.ValueString()
 	rName := reality.Name.ValueString()
 	rContents := reality.Contents.ValueString()
 	rDirectory := reality.Directory.ValueString()
@@ -325,13 +325,13 @@ func (r *LocalResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	if rProtected {
 		// if the key was previously coded into the config then this only verifies that it was used to calculate the id properly
 		// if the key is being given in the environment variable, this validates that the given key can calculate the previous id
-		err := validateProtected(rProtected, rId, rKey, rContents) // how do I rotate keys? you can't, just remake the file, an id should be variable
+		err := validateProtected(rProtected, rID, rKey, rContents) // how do I rotate keys? you can't, just remake the file, an id should be variable
 		if err != nil {
 			resp.Diagnostics.AddError("Error updating file: ", err.Error())
 			return
 		}
 	} else {
-		_, err := calculateId(rContents, unprotectedHmacSecret)
+		_, err := calculateID(rContents, unprotectedHmacSecret)
 		if err != nil {
 			resp.Diagnostics.AddError("Error updating file: ", "Problem calculating id from hard coded key: "+err.Error())
 			return
@@ -366,7 +366,7 @@ func (r *LocalResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	directory := state.Directory.ValueString()
 
 	protected := state.Protected.ValueBool()
-	id := state.Id.ValueString()
+	id := state.ID.ValueString()
 	key := state.HmacSecretKey.ValueString()
 	if key == "" {
 		key = os.Getenv("TF_FILE_HMAC_SECRET_KEY")
@@ -397,7 +397,7 @@ func (r *LocalResource) ImportState(ctx context.Context, req resource.ImportStat
 // **** Internal Functions **** //
 
 // generates an HMAC-SHA256 hash of a file or a string using a secret key.
-func calculateId(contents string, hmacSecretKey string) (string, error) {
+func calculateID(contents string, hmacSecretKey string) (string, error) {
 	// If possible, we should avoid reading the file into memory
 
 	reader := strings.NewReader(contents)
@@ -435,11 +435,11 @@ func validateProtected(protected bool, id string, hmacSecretKey string, contents
 	}
 	// if 'protected' is true, then we have an hmac secret 'key' and the user provided an 'id'
 	if protected {
-		calculatedId, err := calculateId(contents, key)
+		calculatedID, err := calculateID(contents, key)
 		if err != nil {
 			return fmt.Errorf("problem calculating id from configuration: %s", err.Error())
 		}
-		if id != calculatedId {
+		if id != calculatedID {
 			return fmt.Errorf(
 				"protected is true and a key and id were provided, but the id provided doesn't match our calculations. " +
 					"Please try recalculating your id using a sha256 bit algorithm with the hmac secret key you provided. " +

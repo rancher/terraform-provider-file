@@ -96,34 +96,40 @@ This swimlane diagram traces the detailed event triggers and data flow between d
 To enforce a zero-trust, reproducible release pipeline, the repository utilizes four foundational tools: **Nix**, **The CI-Image**, **Release Please**, and **GoReleaser**.
 
 ### **A. Nix: Zero-Trust Hermetic Reproducibility**
-* **Purpose:** Nix acts as a declarative package manager that defines the **exact build and test environment** down to the cryptographic hash. It locks the compiler, linter, runtime, and CLI utilities (Go, Node.js, Terraform, actionlint, etc.) in `flake.nix`.
-* **Security & Automation Contribution:**
-  - **Eliminates Environment Drift:** Standardizes the toolchain so that a developer running a test locally uses the *exact same binary byte-code* as the CI runner, eliminating "works on my machine" failures.
+
+- **Purpose:** Nix acts as a declarative package manager that defines the **exact build and test environment** down to the cryptographic hash. It locks the compiler, linter, runtime, and CLI utilities (Go, Node.js, Terraform, actionlint, etc.) in `flake.nix`.
+- **Security & Automation Contribution:**
+  - **Eliminates Environment Drift:** Standardizes the toolchain so that a developer running a test locally uses the _exact same binary byte-code_ as the CI runner, eliminating "works on my machine" failures.
   - **Zero-Dependency Host Runners:** The GitHub Actions runner does not need pre-installed tools. Nix fetches and isolates everything inside a sandbox, securing the pipeline against malicious or outdated runner environments.
 
 ### **B. The CI-Image: Pre-Built Dependency Caching**
-* **Purpose:** A pre-built Docker image (`ghcr.io/rancher/ci-image/nix`) containing a base Nix environment and pre-cached tool dependencies.
-* **Security & Automation Contribution:**
+
+- **Purpose:** A pre-built Docker image (`ghcr.io/rancher/ci-image/nix`) containing a base Nix environment and pre-cached tool dependencies.
+- **Security & Automation Contribution:**
   - **Time Optimization:** Bootstrapping Nix and compiling developer tools on every GHA workflow run can take several minutes. The pre-built CI image slashes initialization overhead to under **15 seconds**.
   - **Immutable Runtime Environment:** By freezing the CI-Image version (e.g. `nix:20260603-18`), the project secures its pipeline against supply-chain updates and runtime image modifications.
 
 ### **C. Release Please: Declarative Versioning & Changelog Automation**
-* **Purpose:** An automated release management engine that parses Conventional Commits (`feat:`, `fix:`, `chore:`) to calculate Semantic Versioning (SemVer) jumps.
-* **Security & Automation Contribution:**
+
+- **Purpose:** An automated release management engine that parses Conventional Commits (`feat:`, `fix:`, `chore:`) to calculate Semantic Versioning (SemVer) jumps.
+- **Security & Automation Contribution:**
   - **Manual Versioning Eradication:** Completely automates version calculations and generates high-fidelity changelogs.
   - **The Release PR Pattern:** Instead of tagging immediately on merge, it maintains a long-lived "Release PR" that acts as a staging queue. This allows the team to inspect version jumps and provides a physical gateway where final integration tests are executed.
 
 ### **D. GoReleaser: Automated Compiling, Packaging & GPG Signing**
-* **Purpose:** A release automation engine designed to build, package, sign, and publish compiled binaries (such as Terraform providers) for multiple CPU architectures and Operating Systems.
-* **Security & Automation Contribution:**
+
+- **Purpose:** A release automation engine designed to build, package, sign, and publish compiled binaries (such as Terraform providers) for multiple CPU architectures and Operating Systems.
+- **Security & Automation Contribution:**
   - **Cryptographic Signing (GPG):** GoReleaser integrates with local GPG keys (securely pulled from Vault in memory) to cryptographically sign provider binaries and generate SHA256 checksums. This guarantees to the Terraform Registry that the binary has not been tampered with since compilation.
   - **Standardized Multi-Platform Matrixing:** Automatically cross-compiles for `linux`, `darwin`, and `windows` across `amd64` and `arm64` in a single, atomic step.
-  
+
 #### **🔧 Security Engineering Tip: GPG Key ID Extraction Workaround**
+
 Static configuration of a GPG Key ID in secrets managers often leads to breaking releases. For example, if a key is rotated, or if Vault is accidentally configured with an encryption subkey ID rather than the primary signing key ID, GoReleaser will abort with a signing failure.
 
-**The Workaround:** 
+**The Workaround:**
 To handle this key-matching weirdness, the pipeline imports the raw secret key and then **dynamically inspects the GPG key-ring in real-time** to extract the true primary signing key ID (`sec`). It overrides any static `GPG_KEY_ID` configuration with the dynamically detected ID:
+
 ```bash
 # 1. Strip whitespace/spaces from static GPG_KEY_ID config
 export GPG_KEY_ID=$(echo -n "${GPG_KEY_ID}" | tr -d '[:space:]')
@@ -142,6 +148,7 @@ if [[ -n "${SEC_LINE}" ]]; then
   fi
 fi
 ```
+
 This guarantees that GPG signing never fails due to subkey mismatches, whitespace issues, or misconfigured key identifiers.
 
 ---
@@ -149,38 +156,43 @@ This guarantees that GPG signing never fails due to subkey mismatches, whitespac
 ## **3. Standard Phase Specifications**
 
 ### **Phase 1: Zero-Trust Pull Request Checking (CHECK)**
-* **PR Opened:** A contributor submits a Pull Request targeting `main`.
-* **Checked:** The standard PR checkers run inside the hermetic **Nix** shell on GHA. This executes static code linters (`golangci-lint`, `actionlint`, `shellcheck`, `gitleaks`) and runs localized unit tests with zero-trust permissions.
-* **Copilot Review:** Natively triggered repository integration initiates automated AI review comments.
+
+- **PR Opened:** A contributor submits a Pull Request targeting `main`.
+- **Checked:** The standard PR checkers run inside the hermetic **Nix** shell on GHA. This executes static code linters (`golangci-lint`, `actionlint`, `shellcheck`, `gitleaks`) and runs localized unit tests with zero-trust permissions.
+- **Copilot Review:** Natively triggered repository integration initiates automated AI review comments.
 
 ---
 
 ### **Phase 2: Secure, Event-Driven Merge Coordination (COORD)**
-* **Event Triggered:** Completion of the checks or reviews initiates the event coordinator. This executes on `workflow_run` in the secure default branch context (`main`), protecting secrets while enabling write-level access.
-* **Validated Reviews/GQL:** The coordinator checks that the PR requirements are satisfied:
-  * **Standard Pull Requests:** Requires **at least 1 approval** from a trusted role (Collaborator, Member, Owner, or Triage permission) and runs GraphQL queries to guarantee **100% of all review comments are marked resolved** (whether left by humans or AI).
-  * **Dependabot Pull Requests:** Bypasses human reviewer constraints. Allows auto-merging with **at least 1 AI review approval/comment** (e.g. from Copilot) once all other functional check runs have completed successfully.
-* **Proxy Approval:** If the requirements are met, but the PR lacks a Write-level approval (e.g., the approving reviewer has Triage-level access, or it is a Dependabot PR approved by AI), the GHA bot automatically submits an `APPROVE` review on the PR. Since the bot has Write access, its approval satisfies GitHub's branch protection requirements, serving as a proxy to allow the merge.
+
+- **Event Triggered:** Completion of the checks or reviews initiates the event coordinator. This executes on `workflow_run` in the secure default branch context (`main`), protecting secrets while enabling write-level access.
+- **Validated Reviews/GQL:** The coordinator checks that the PR requirements are satisfied:
+  - **Standard Pull Requests:** Requires **at least 1 approval** from a trusted role (Collaborator, Member, Owner, or Triage permission) and runs GraphQL queries to guarantee **100% of all review comments are marked resolved** (whether left by humans or AI).
+  - **Dependabot Pull Requests:** Bypasses human reviewer constraints. Allows auto-merging with **at least 1 AI review approval/comment** (e.g. from Copilot) once all other functional check runs have completed successfully.
+- **Proxy Approval:** If the requirements are met, but the PR lacks a Write-level approval (e.g., the approving reviewer has Triage-level access, or it is a Dependabot PR approved by AI), the GHA bot automatically submits an `APPROVE` review on the PR. Since the bot has Write access, its approval satisfies GitHub's branch protection requirements, serving as a proxy to allow the merge.
 
 ---
 
 ### **Phase 3: Automated SemVer Guard & Native Auto-Merge (MERGE)**
-* **Scoped Boundary Check:** Evaluates modified files. If changes are exclusively non-product (e.g. docs, tests, CI files outside the core `internal/` directory), the SemVer Guard is activated.
-* **Title Sanitized:** If SemVer Guard is active, conventional commit types like `feat` or `refactor` and breaking indicators (`!`) are dynamically stripped or downgraded to `chore` or `fix` to prevent unintentional Minor or Major version bumps.
-* **Native Auto-Merge:** The PR is merged using GitHub's native Auto-Merge backend (`gh pr merge --auto --squash`) with custom, AI-sanitized commit messages. This cleanly bypasses the REST API GITHUB_TOKEN merge limitation for fork-authored PRs while respecting all branch protection settings.
-* **Concurrency & Exploitation Protection:** If a contributor pushes a new commit *after* native auto-merge is enabled, GitHub's native system instantly pauses/cancels the auto-merge because previous approvals are automatically dismissed and new checks are triggered. The event coordinator (`pr-executor.yml`) must re-evaluate and re-verify the new commit SHA before auto-merge can be re-enabled.
+
+- **Scoped Boundary Check:** Evaluates modified files. If changes are exclusively non-product (e.g. docs, tests, CI files outside the core `internal/` directory), the SemVer Guard is activated.
+- **Title Sanitized:** If SemVer Guard is active, conventional commit types like `feat` or `refactor` and breaking indicators (`!`) are dynamically stripped or downgraded to `chore` or `fix` to prevent unintentional Minor or Major version bumps.
+- **Native Auto-Merge:** The PR is merged using GitHub's native Auto-Merge backend (`gh pr merge --auto --squash`) with custom, AI-sanitized commit messages. This cleanly bypasses the REST API GITHUB_TOKEN merge limitation for fork-authored PRs while respecting all branch protection settings.
+- **Concurrency & Exploitation Protection:** If a contributor pushes a new commit _after_ native auto-merge is enabled, GitHub's native system instantly pauses/cancels the auto-merge because previous approvals are automatically dismissed and new checks are triggered. The event coordinator (`pr-executor.yml`) must re-evaluate and re-verify the new commit SHA before auto-merge can be re-enabled.
 
 ---
 
 ### **Phase 4: Release Management & The Integration Test Gate (GATES)**
-* **Release PR Maintained:** Merging into `main` triggers `Release Please`. It calculates the next version and automatically updates a draft "Release PR" containing updated version coordinates and changelogs.
-* **Integration Tests Gate:** The Release PR acts as a staging queue where a dedicated CI workflow executes the **full integration and acceptance test suite** (using real cloud resources/relays). Merging is blocked until this suite passes.
-* **Release PR Merged:** Merging this PR triggers the final release process.
+
+- **Release PR Maintained:** Merging into `main` triggers `Release Please`. It calculates the next version and automatically updates a draft "Release PR" containing updated version coordinates and changelogs.
+- **Integration Tests Gate:** The Release PR acts as a staging queue where a dedicated CI workflow executes the **full integration and acceptance test suite** (using real cloud resources/relays). Merging is blocked until this suite passes.
+- **Release PR Merged:** Merging this PR triggers the final release process.
 
 ---
 
 ### **Phase 5: Release Tagging & Cryptographic Signing (PUBLISH)**
-* **Tagged vX.Y.Z:** `Release Please` registers the release merge and automatically creates and pushes the official semantic git tag.
-* **Key Extracted:** The workflow imports the signing GPG block from Vault and dynamically queries the keyring to extract the actual primary secret key ID to work around subkey/mismatch weirdness.
-* **Signed & Published:** GoReleaser compiles binaries inside the reproducibly locked Nix environment, signs them with the GPG key, and publishes the signed provider assets directly to the GitHub Release.
-* **Label Reconciliation:** Since `skip-github-release: true` is configured in `release-please-config.json` to let GoReleaser manage the release, `release-please` skips post-merge tagging/labeling actions. To prevent release PRs from being left with outdated/pending labels, the publish-release script automatically reconciles labels on the merged Release PR (removing `autorelease: pending` and `ready-to-merge`, and adding `autorelease: tagged`).
+
+- **Tagged vX.Y.Z:** `Release Please` registers the release merge and automatically creates and pushes the official semantic git tag.
+- **Key Extracted:** The workflow imports the signing GPG block from Vault and dynamically queries the keyring to extract the actual primary secret key ID to work around subkey/mismatch weirdness.
+- **Signed & Published:** GoReleaser compiles binaries inside the reproducibly locked Nix environment, signs them with the GPG key, and publishes the signed provider assets directly to the GitHub Release.
+- **Label Reconciliation:** Since `skip-github-release: true` is configured in `release-please-config.json` to let GoReleaser manage the release, `release-please` skips post-merge tagging/labeling actions. To prevent release PRs from being left with outdated/pending labels, the publish-release script automatically reconciles labels on the merged Release PR (removing `autorelease: pending` and `ready-to-merge`, and adding `autorelease: tagged`).

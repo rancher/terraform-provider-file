@@ -271,6 +271,3 @@ jobs:
       - name: Run Acceptance Tests
         id: run-acc-tests
         run: .github/workflows/scripts/nix-run.sh bash .github/workflows/scripts/test.sh acc
-
-
-

@@ -1,8 +1,8 @@
 # Secure Workflows and Push Process Blueprint
 
-* **Executed Date:** 2026-08-12
-* **Purpose:** Establish a robust security gateway for all code commits and pushes, mandating the use of the secure `.agent/skills/commit-push.sh` skill and prohibiting direct `git commit` or `git push` commands.
-* **Domain Specification:**
+- **Executed Date:** 2026-08-12
+- **Purpose:** Establish a robust security gateway for all code commits and pushes, mandating the use of the secure `.agent/skills/commit-push.sh` skill and prohibiting direct `git commit` or `git push` commands.
+- **Domain Specification:**
   - **Commit-Push Skill:** Consolidates pre-commit validation, branch defunct checks, upstream synchronization via `git-sync.sh`, remote ancestry verification (fail-fast behind remote), interactive developer approval via TTY, and signed/signed-off commits and pushes.
   - **Direct Git Block Hook:** `block-rancher-git.js` acts as an agent-level command interceptor, blocking any direct invocation of `git commit` or `git push` to guarantee that all execution goes through the secure skill.
 
@@ -11,25 +11,32 @@
 ## Implementation Checklist
 
 ### Phase 1: Create Root Routing Files
+
 - [x] Create root routing files (`GEMINI.md`, `CLAUDE.md`, `.github/copilot-instructions.md`)
 
 ### Phase 2: Create the Master Instructions File
+
 - [x] Create the master instructions file (`AGENTS.md`)
 
 ### Phase 3: Scaffold the `.agent` Directory Structure
+
 - [x] Create directories and populate README files
 
 ### Phase 4: Populate Initial Base Files
+
 - [x] Populate output-styles, rules, skills, and workflows
 
 ### Phase 5: Secure Workflows and Push Process Hook Enforcements (PR #394)
+
 **Objective**: Establish process-enforcement hooks (`block-rancher-git.js`) and secure skills (`commit-push.sh`) to block direct manual commits and pushes, requiring the secure, validated commit-push skill pipeline.
 
 #### Phase 5.1: Rebase & Resolve Conflicts
+
 - [x] Perform a git rebase of `feature/workflows-secure-push` onto `main`
 - [x] Resolve any conflicts in `.agent/skills/commit-push.sh` during the rebase
 
 #### Phase 5.2: Refactor and Resolve Copilot Review Comments
+
 - [x] **Address Comment #1 (Branch Restoration):** Switch back to the active feature branch in `.agent/skills/commit-push.sh` after `git-sync.sh` runs, preventing stashes from being accidentally applied on `main`.
 - [x] **Address Comment #2 (Zero jq Dependency):** Replace `jq` with `gh pr view --template` when querying defunct branch status in `commit-push.sh` to handle environments without `jq`.
 - [x] **Address Comment #3 (Process Text Reconciliation):** Remove outdated references to `APPROVED_BY_USER=1` in hooks and documentation to align with the new secure-push process:
@@ -39,11 +46,13 @@
 - [x] **Address Comment #5 (Safe Ancestry Check):** Replace the mutating `git pull --ff-only` check with a non-mutating, robust fetch and ancestor comparison via `git rev-list --count HEAD..origin/$current_branch` in `commit-push.sh`.
 
 #### Phase 5.3: Validation, Static Analysis, and Linting
+
 - [x] Execute ESLint/linter checks on updated javascript hooks (`block-rancher-git.js`)
 - [x] Execute ShellCheck/linter checks on updated shell scripts (`commit-push.sh`)
 - [x] Run automated tests locally to verify no regressions
 
 #### Phase 5.4: Proactive Review & Push
+
 - [x] Run `@review_agent` to perform a proactive review of the unstaged git diff
 - [x] Resolve any review findings to ensure exactly 0 findings
 - [x] Complete the rebase, sign and push to the fork remote
@@ -52,6 +61,7 @@
 ---
 
 ## Phase 6: Cryptographic Review Gate & Modular Script Hardening (PR #396)
+
 **Objective**: Build a hardened, production-grade cryptographic review-approval gate between the review agent and the commit-push skill, refactor `commit-push.sh` into modular single-responsibility functions, and enforce strict remote push safety checks.
 
 1. **Owner and Symlink Hardening**:
@@ -72,10 +82,12 @@
 ## Implementation Checklist - Phase 6 (PR #396 Comment Resolutions)
 
 ### Phase 6.1: Rebase & Resolve Conflicts
+
 - [x] Perform a git rebase of `feature/workflows-secure-review-gate` onto `main`
 - [x] Resolve any conflicts in `.agent/skills/commit-push.sh` during the rebase
 
 ### Phase 6.2: Refactor and Resolve Copilot Review Comments
+
 - [x] **Address Comment #1 (Zero jq Dependency):** Verify defunct branch protection remains jq-free (Done via PR 394).
 - [x] **Address Comment #2 (Owner & Symlink Gate):** Add regular file check, symlink rejection, and current user owner UID verification for `/tmp/review-approval.json` in `commit-push.sh`.
 - [x] **Address Comment #3 (SHA-256 Cryptography):** Mandate SHA-256 algorithm and fail-fast if no SHA-256 tool (`shasum -a 256` or `sha256sum`) is available.
@@ -86,11 +98,13 @@
 - [x] **Address Comment #8 (Clean Hook Workarounds):** Confirm `BYPASS_COMMIT_HOOK=1` is dropped from all commit/push invocations.
 
 ### Phase 6.3: Validation, Static Analysis, and Linting
+
 - [x] Execute ESLint/linter checks on updated javascript files
 - [x] Execute ShellCheck on `commit-push.sh`
 - [x] Run automated tests locally to verify no regressions
 
 ### Phase 6.4: Proactive Review & Push
+
 - [x] Run `@review_agent` to perform a proactive review of the active git diff
 - [x] Resolve any review findings to ensure exactly 0 findings
 - [x] Complete the rebase, sign and push to the fork remote
@@ -99,6 +113,7 @@
 ---
 
 ## Phase 7: Development Process Streamlining and Workflow Optimization (New PR)
+
 **Objective**: Optimize the standard development process workflow (`development-process.md`) to run smoother and be less disjointed by consolidating intermediate approvals around three distinct, high-signal, and mandatory Approval Gates (Planning, IDE/Commit, and PR Sign-off).
 
 1. **Gate 1: Planning Gate (Initial Strategy Approval)**:
@@ -116,18 +131,22 @@
 ## Implementation Checklist - Phase 7 (Streamline Development Process)
 
 ### Phase 7.1: Branch & Planning
+
 - [x] Checkout a clean new branch `feature/workflow-streamline` off synchronized `main`
 - [x] Author and edit the master plan (`AgenticFramework.md`) with the streamline blueprint and obtain Gate 1 approval in the chat
 
 ### Phase 7.2: Refactor and Simplify Workflow
+
 - [x] Refactor `.agent/workflows/development-process.md` to clearly define the three Approval Gates and eliminate intermediate, disjointed chat approvals
 - [x] Ensure all references to "Gateways" are standardized around "Approval Gates"
 
 ### Phase 7.3: Validation, Static Analysis, and Linting
+
 - [x] Run actionlint and markdown linters to verify the modified `.md` workflows
 - [x] Verify that no other process files or hooks have mismatched gateway text
 
 ### Phase 7.4: Secure Push & PR Generation
+
 - [x] Present the unstaged diff for Gate 2 visual IDE review in the chat
 - [x] Stage changes and execute the secure `.agent/skills/commit-push.sh` skill (TTY Gate 2)
 - [x] Programmatically generate a Draft PR on GitHub
@@ -136,6 +155,7 @@
 ---
 
 ## Phase 8: High-Resilience Syncing & Native TTY Feedback Prompts (Hardened Sync & Interactive Gates)
+
 **Objective**: Build a high-resilience default-branch syncing skill, remove bypass options from `commit-push.sh` (always sync and always ask for approval), and develop a reusable, native TTY-based interactive feedback prompt script for hooks.
 
 1. **High-Resilience Auto-Stashing Sync (`git-sync.sh`)**:
@@ -152,18 +172,22 @@
 ## Implementation Checklist - Phase 8 (Hardened Sync & Native TTY Prompts)
 
 ### Phase 8.1: High-Resilience Sync Skill Hardening
+
 - [x] Refactor `verify_git_env()` and `cleanup()` in `.agent/skills/git-sync.sh` to implement automatic stash-on-sync and safe stash restoration on exit
 - [x] Verify that running `git-sync.sh` on dirty trees securely stashes and pops with zero data loss
 
 ### Phase 8.2: Zero-Bypass Gating on Commit-Push Skill
+
 - [x] Refactor `.agent/skills/commit-push.sh` to remove `-y`, `--yes`, and `--no-sync` options, making synchronization and TTY approval fully mandatory
 - [x] Standardize and simplify the modular stages inside `commit-push.sh` to remove bypass checks
 
 ### Phase 8.3: Native TTY Hook Prompt Implementation
+
 - [x] Author and implement the secure native terminal feedback utility `.agent/hooks/tty-prompt.js`
 - [x] Verify that other hooks or skills can invoke it to programmatically establish developer confirmation gates
 
 ### Phase 8.4: Verification, Static Analysis, and Push
+
 - [x] Execute ShellCheck and ESLint on the modified scripts
 - [x] Run automated tests locally to verify no regressions
 - [x] Present the unstaged diff for visual review in the chat, stage changes, and push using the zero-bypass `commit-push.sh` skill (which will run sync and prompt for TTY approval)
@@ -171,6 +195,7 @@
 ---
 
 ## Phase 9: Proactive Review Anti-Bypass Guardrails (Anti-Spoofing Hook Protections)
+
 **Objective**: Build secure anti-bypass guardrail checks inside the process-enforcement hooks (`enforce-planning.js` and `block-rancher-git.js`) to unconditionally block any manual agent-level attempt to write, edit, delete, or spoof `review-approval.json` (either via file-write tools or shell redirections/mutations), forcing strict redirection to the standard development process.
 
 1. **Write-Tool Anti-Bypass Hook (`enforce-planning.js`)**:
@@ -183,12 +208,15 @@
 ## Implementation Checklist - Phase 9 (Anti-Bypass Guardrails)
 
 ### Phase 9.1: Implement Write-Tool Block
+
 - [x] Refactor `.agent/hooks/enforce-planning.js` to unconditionally deny `write_file` or `replace` on `review-approval.json`
 
 ### Phase 9.2: Implement Shell-Redirection Block
+
 - [x] Refactor `.agent/hooks/block-rancher-git.js` to parse commands and deny direct manual manipulation/spoofing of `review-approval.json` (such as via redirections `>` or commands `cat`, `echo`, `touch`, `rm`, `mv`, `cp`)
 
 ### Phase 9.3: Verification, Authentic Review & Secure Push
+
 - [x] Run actionlint, ESLint, and ShellCheck to verify hook correctness
 - [x] Unstage any previous manual approval file attempts and verify that manual hooks block spoofing
 - [x] **Pass Gate 2 Authentically**: Delegate a genuine proactive review of our staged changes to our review subagent (`generalist`), letting it run all static analysis and programmatically write the secure `~/.gemini/tmp/terraform-provider-file/review-approval.json` file authentically
@@ -197,6 +225,7 @@
 ---
 
 ## Phase 10: Asynchronous Draft PR Gating & PR Comment Resolution Cycle (Gate 3 & Resolution Process)
+
 **Objective**: Restructure the final Quality Gate (Gate 3) inside `development-process.md` to cleanly separate PR draft creation, manual developer review, draft-to-ready conversion, and asynchronous review-comment resolution into highly cohesive, distinct lifecycle steps.
 
 1. **Gate 3: Draft PR Gating**:
@@ -218,23 +247,27 @@
 ## Implementation Checklist - Phase 10 (Gate 3 & Asynchronous PR Iteration)
 
 ### Phase 10.1: Refactor Gate 3 in development-process.md
+
 - [x] Update Phase 6 (Gate 3) of `development-process.md` to outline the draft-creation, chat approval, ready-state transition, and clean session-closing steps
 - [x] Explicitly direct the developer to initiate a separate, asynchronous review-comment resolution session upon receiving comments
 
 ### Phase 10.2: Refactor resolve-pr-reviews.md Workflow
+
 - [x] Update `.agent/workflows/resolve-pr-reviews.md` to define a rigorous, step-by-step procedure for analyzing, evaluating, responding to, refactoring, and programmatically resolving comments in a fresh session
 
 ### Phase 10.3: Verification, Authentic Review & Layer 3 Push
+
 - [x] Run actionlint and markdown linters to verify workflow document correctness
 - [x] Present the unstaged diff for final visual review in the chat, stage changes, and push using the zero-bypass `commit-push.sh` skill (TTY Gate 2) to complete this feature branch and prepare Gate 3 draft PR creation!
 
 ---
 
 ## Phase 11: Resolving PR #398 Review Comments & Hardening Guidelines (PR #398 Comments)
+
 **Objective**: Resolve all 6 Copilot review comments on PR #398 with robust, secure, and idiomatic fixes, and update `.agent/agents/review_agent.md` with strict checklists to detect and prevent similar issues in the future.
 
 1. **Unconditional SSL Setup (`nix-run.sh`)**:
-   - Ensure `setup_ssl` is executed unconditionally *before* the `IN_NIX_SHELL` direct-execution fast-path in `nix-run.sh`.
+   - Ensure `setup_ssl` is executed unconditionally _before_ the `IN_NIX_SHELL` direct-execution fast-path in `nix-run.sh`.
 2. **Safe JSON Generation & Symlink Guards (`write-approval.sh`)**:
    - Refactor JSON generation to use `jq` securely instead of raw heredocs to prevent quote/newline escaping errors.
    - Add a symlink guard `rm -f "$approval_file"` to delete any existing file or symbolic link before writing to prevent symlink overwrites.
@@ -260,6 +293,7 @@
 ## Implementation Checklist - Phase 11 (PR #398 Comment Resolutions)
 
 ### Phase 11.1: Refactor and Resolve Comments
+
 - [x] **Address Comment #1 (SSL Setup):** Update `nix-run.sh` to run `setup_ssl` unconditionally before the fast-path checkout.
 - [x] **Address Comment #2 (Secure JSON & Symlink Guard):** Update `write-approval.sh` to use `jq` for secure JSON generation and add symlink deletion guard.
 - [x] **Address Comment #3 (Keep Index Stash):** Update `commit-push.sh` to use `--keep-index` (`-k`) on temporary stash pushes.
@@ -269,10 +303,12 @@
 - [x] **Address Comment #7 (Hardened Review Guidelines):** Add the 6 preventative checks to `.agent/agents/review_agent.md` as core checklists.
 
 ### Phase 11.2: Validation, Static Analysis, and Linting
+
 - [x] Run actionlint, ESLint, and ShellCheck to verify script correctness
 - [x] Run Go unit tests locally to confirm 100% green status
 
 ### Phase 11.3: Secure Push & Programmatic Thread Resolution
+
 - [x] Delegate an authentic proactive review of our changes to our review subagent (`generalist`), letting it run all static analysis and programmatically write the secure `~/.gemini/tmp/terraform-provider-file/review-approval.json` file authentically
 - [x] Execute the zero-bypass `commit-push.sh` skill to securely commit and push our changes (TTY Gate 2)
 - [x] Programmatically resolve all 6 comment threads on GitHub using `.agent/skills/resolve-pr-reviews.sh 398 --bypass-token --all`
@@ -280,6 +316,7 @@
 ---
 
 ## Phase 12: Cryptographic Developer IDE Approval Gates (Prompt-Free Gating Cycle)
+
 **Objective**: Replace the interactive in-script TTY prompt in `commit-push.sh` with a secure, prompt-free, and cryptographically verified developer approval check. We build a dedicated `user-approval.sh` skill that prompts the developer, generates a secure OTP, and records the approval signature securely in `~/.gemini/tmp/terraform-provider-file/user-approval.json` tied cryptographically to their active SHA-256 diff hash.
 
 1. **Cryptographic Developer Gating (`user-approval.sh`)**:
@@ -294,10 +331,12 @@
 ## Implementation Checklist - Phase 12 (Prompt-Free Gating)
 
 ### Phase 12.1: Implement Plan Verification in commit-push.sh
+
 - [x] Integrate `verify_developer_approval()` inside `commit-push.sh` to check plan checkboxes for developer reviews
 - [x] Remove the outdated interactive `prompt_developer_approval()` TTY function and simplify `main()` execution
 
 ### Phase 12.2: Verification, Static Analysis, and Push
+
 - [x] Run actionlint, ESLint, and ShellCheck to verify script correctness
 - [x] Run Go unit tests locally to confirm 100% green status
 - [x] **Pass Gate 2 Declaratively**:
@@ -305,4 +344,23 @@
   - [x] Mark the Phase 12.2 developer-review item as checked off (`- [x]`) in this plan file
   - [x] Delegate a genuine proactive review to `@review_agent` to write the secure SHA-256 approval file
   - [x] Execute the zero-bypass `commit-push.sh` skill (which will run sync, verify the plan's developer check, verify the proactive review, and push autonomously without any prompts!)
-  - [ ] Programmatically resolve all comment threads on GitHub to complete the task!
+  - [x] Programmatically resolve all comment threads on GitHub to complete the task!
+
+  ***
+
+  ## Phase 13: Review Agent Offloading (Programmatic Linters Synergy)
+
+  **Objective**: As we systematically expand deterministic, hermetic programmatic linters (tracked via `.agent/plans/Testing.md`), we must continually optimize the Review Agent (`review_agent.md`) by stripping out redundant mechanical checks (like trailing whitespace and basic syntax). This reduces AI cognitive load, minimizes API costs, and allows the agent to focus purely on high-signal architectural, business, and security logic.
+  1. **Prompt Pruning (`review_agent.md`)**:
+     - Delete the "Zero Trailing & Empty-Line Whitespace" check, as this is now mathematically guaranteed by `prettier` and `shfmt`.
+     - Ensure the prompt correctly delegates ecosystem validations to the updated `lint.sh` script.
+
+  ***
+
+  ## Implementation Checklist - Phase 13 (Review Agent Offloading)
+
+  ### Phase 13.1: Pruning the Review Agent
+  - [ ] Remove the trailing whitespace checks from `.agent/agents/review_agent.md`
+  - [ ] Present the unstaged diff for IDE visual review and stage changes
+  - [ ] Obtain declarative user approval via `user-approval.js`
+  - [ ] Execute `commit-push.sh` to commit and push the optimized review agent prompt

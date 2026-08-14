@@ -2,16 +2,16 @@ export default async ({ github, context, core, process }) => {
   try {
     const sha = process.env.SHA || context.sha;
     const calculateNextRc = process.env.CALCULATE_NEXT_RC === 'true';
-    
+
     const owner = context.repo.owner;
     const repo = context.repo.repo;
 
-    let targetTag = "";
+    let targetTag = '';
 
     if (calculateNextRc) {
       const targetVersion = process.env.TARGET_VERSION;
       if (!targetVersion) {
-        throw new Error("TARGET_VERSION environment variable is required when CALCULATE_NEXT_RC is true");
+        throw new Error('TARGET_VERSION environment variable is required when CALCULATE_NEXT_RC is true');
       }
 
       const baseVersion = targetVersion.startsWith('v') ? targetVersion : `v${targetVersion}`;
@@ -42,7 +42,7 @@ export default async ({ github, context, core, process }) => {
       // Direct tag mode
       const rawTag = process.env.TAG || process.env.VERSION;
       if (!rawTag) {
-        throw new Error("Either TAG, VERSION, or CALCULATE_NEXT_RC environment variable must be specified");
+        throw new Error('Either TAG, VERSION, or CALCULATE_NEXT_RC environment variable must be specified');
       }
       targetTag = rawTag.startsWith('v') ? rawTag : `v${rawTag}`;
     }
@@ -52,7 +52,7 @@ export default async ({ github, context, core, process }) => {
 
     // Check if tag already exists using the API
     let tagExists = false;
-    let existingSha = "";
+    let existingSha = '';
     try {
       const existingRef = await github.rest.git.getRef({
         owner,
@@ -80,7 +80,9 @@ export default async ({ github, context, core, process }) => {
       core.info(`Tag ${targetTag} already exists on remote pointing to SHA ${existingSha}.`);
       if (sha) {
         if (existingSha !== sha) {
-          throw new Error(`Tag ${targetTag} already exists on remote pointing to SHA ${existingSha}, but requested SHA is ${sha}. Mismatch!`);
+          throw new Error(
+            `Tag ${targetTag} already exists on remote pointing to SHA ${existingSha}, but requested SHA is ${sha}. Mismatch!`,
+          );
         } else {
           core.info(`Existing tag SHA matches the requested SHA ${sha}. Proceeding gracefully.`);
         }
@@ -104,9 +106,9 @@ export default async ({ github, context, core, process }) => {
     }
 
     // Set outputs for downstream steps if needed
-    core.setOutput("tag", targetTag);
+    core.setOutput('tag', targetTag);
     if (calculateNextRc) {
-      core.setOutput("rc_tag", targetTag);
+      core.setOutput('rc_tag', targetTag);
     }
   } catch (error) {
     core.setFailed(`Failed to create tag: ${error.message}`);

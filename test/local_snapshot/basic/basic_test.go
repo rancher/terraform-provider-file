@@ -12,7 +12,7 @@ import (
 func TestSnapshotBasic(t *testing.T) {
 	t.Parallel()
 
-	id := util.GetId()
+	id := util.GetID()
 	directory := "local_snapshot_basic"
 	repoRoot, err := util.GetRepoRoot(t)
 	if err != nil {
@@ -64,10 +64,10 @@ func TestSnapshotBasic(t *testing.T) {
 		t.Log("Output failed, moving along...")
 	}
 
-	pesky_id := outputs["pesky_id"]
+	peskyID := outputs["peskyID"]
 	snapshot := outputs["snapshot"]
 	a := assert.New(t)
-	a.Equal(pesky_id, snapshot, "On the first run the snapshot will match the id.")
+	a.Equal(peskyID, snapshot, "On the first run the snapshot will match the id.")
 
 	_, err = terraform.InitAndApplyE(t, terraformOptions)
 	if err != nil {
@@ -80,9 +80,9 @@ func TestSnapshotBasic(t *testing.T) {
 		t.Log("Output failed, moving along...")
 	}
 
-	pesky_id = outputs["pesky_id"]
+	peskyID = outputs["peskyID"]
 	snapshot = outputs["snapshot"]
-	a.NotEqual(pesky_id, snapshot, "On subsequent runs the id will change, but the snapshot won't.")
+	a.NotEqual(peskyID, snapshot, "On subsequent runs the id will change, but the snapshot won't.")
 
 	if t.Failed() {
 		t.Log("Test failed...")

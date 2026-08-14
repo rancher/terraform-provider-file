@@ -20,9 +20,9 @@ const (
 	// echo -n "these contents are the default for testing" | gzip -c | base64 -w 0  #.
 	// testCompressed = "H4sIAAAAAAAAAwXBAQoAIAgDwK/sa1KzglDQ9f/utNnEyBBDDStCm5h0e1fwLIitE+sDr6miHioAAAA="
 	// echo -n "these contents are the default for testing" | base64 -w 0 | sha256sum | awk '{print $1}'  #.
-	testId = "ba8cd27d74eb572956e09da49530c5ab2dd66ee946956e9d55a4cd09b76ab527"
+	testID = "ba8cd27d74eb572956e09da49530c5ab2dd66ee946956e9d55a4cd09b76ab527"
 	// echo -n "these contents are the default for testing" | gzip -c | base64 -w 0 | sha256sum | awk '{print $1}'  #.
-	testCompressedId = "a358aafd3bebe1731735516b321d55bd8a58a64e0e2d92646a6a6fdb63751c5d"
+	testCompressedID = "a358aafd3bebe1731735516b321d55bd8a58a64e0e2d92646a6a6fdb63751c5d"
 	testName         = "tmpTestFileName.txt"
 	// You can use any arbitrary string to define the trigger, I chose to use the base64 encoded contents.
 	testTrigger = "dGhlc2UgY29udGVudHMgYXJlIHRoZSBkZWZhdWx0IGZvciB0ZXN0aW5n"
@@ -101,7 +101,7 @@ func TestLocalSnapshotResourceCreate(t *testing.T) {
 				}),
 				// want
 				getLocalSnapshotResourceCreateResponse(t, map[string]string{
-					"id":             testId,
+					"id":             testID,
 					"snapshot":       testEncoded,
 					"name":           testName,
 					"update_trigger": testTrigger,
@@ -150,7 +150,7 @@ func TestLocalSnapshotResourceRead(t *testing.T) {
 				LocalSnapshotResource{},
 				// have
 				getLocalSnapshotResourceReadRequest(t, map[string]string{
-					"id":             testId,
+					"id":             testID,
 					"snapshot":       testEncoded,
 					"name":           testName,
 					"update_trigger": testTrigger,
@@ -159,7 +159,7 @@ func TestLocalSnapshotResourceRead(t *testing.T) {
 				}),
 				// want
 				getLocalSnapshotResourceReadResponse(t, map[string]string{
-					"id":             testId,
+					"id":             testID,
 					"snapshot":       testEncoded,
 					"name":           testName,
 					"update_trigger": testTrigger,
@@ -196,7 +196,7 @@ func TestLocalSnapshotResourceUpdate(t *testing.T) {
 				// have
 				getLocalSnapshotResourceUpdateRequest(t, map[string]map[string]string{
 					"priorState": {
-						"id":             testId,
+						"id":             testID,
 						"snapshot":       testEncoded,
 						"name":           testName,
 						"update_trigger": testTrigger,
@@ -214,7 +214,7 @@ func TestLocalSnapshotResourceUpdate(t *testing.T) {
 				}),
 				// want
 				getLocalSnapshotResourceUpdateResponse(t, map[string]string{
-					"id":             testId,
+					"id":             testID,
 					"snapshot":       testEncoded,
 					"name":           testName,
 					"update_trigger": testTrigger,
@@ -234,7 +234,7 @@ func TestLocalSnapshotResourceUpdate(t *testing.T) {
 				// have
 				getLocalSnapshotResourceUpdateRequest(t, map[string]map[string]string{
 					"priorState": {
-						"id":             testId,
+						"id":             testID,
 						"snapshot":       testEncoded,
 						"name":           testName,
 						"update_trigger": testTrigger,
@@ -252,7 +252,7 @@ func TestLocalSnapshotResourceUpdate(t *testing.T) {
 				}),
 				// want
 				getLocalSnapshotResourceUpdateResponse(t, map[string]string{
-					"id":             testId,                                                 // id shouldn't change
+					"id":             testID,                                                 // id shouldn't change
 					"snapshot":       "dGhlc2UgY29udGVudHMgYXJlIHVwZGF0ZWQgZm9yIHRlc3Rpbmc=", // echo -n "these contents are updated for testing" | base64 -w 0 #.
 					"name":           testName,
 					"update_trigger": "updated-trigger",
@@ -272,7 +272,7 @@ func TestLocalSnapshotResourceUpdate(t *testing.T) {
 				// have
 				getLocalSnapshotResourceUpdateRequest(t, map[string]map[string]string{
 					"priorState": {
-						"id":             testId,
+						"id":             testID,
 						"snapshot":       testEncoded,
 						"name":           testName,
 						"update_trigger": testTrigger,
@@ -290,7 +290,7 @@ func TestLocalSnapshotResourceUpdate(t *testing.T) {
 				}),
 				// want
 				getLocalSnapshotResourceUpdateResponse(t, map[string]string{
-					"id":             testId,
+					"id":             testID,
 					"snapshot":       testEncoded,
 					"name":           testName,
 					"update_trigger": testTrigger,
@@ -340,7 +340,7 @@ func TestLocalSnapshotResourceDelete(t *testing.T) {
 				LocalSnapshotResource{client: &c.MemoryFileClient{}},
 				// have
 				getLocalSnapshotResourceDeleteRequest(t, map[string]string{
-					"id":             testId,
+					"id":             testID,
 					"name":           testName,
 					"directory":      defaultDirectory,
 					"snapshot":       testContents,

@@ -38,7 +38,7 @@ type LocalSnapshotResource struct {
 
 // LocalSnapshotResourceModel describes the resource data model.
 type LocalSnapshotResourceModel struct {
-	Id            types.String `tfsdk:"id"`
+	ID            types.String `tfsdk:"id"`
 	Name          types.String `tfsdk:"name"`
 	Directory     types.String `tfsdk:"directory"`
 	LocalSnapshot types.String `tfsdk:"snapshot"`
@@ -46,11 +46,11 @@ type LocalSnapshotResourceModel struct {
 	Compress      types.Bool   `tfsdk:"compress"`
 }
 
-func (r *LocalSnapshotResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (r *LocalSnapshotResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_local_snapshot" // file_local_snapshot
 }
 
-func (r *LocalSnapshotResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *LocalSnapshotResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "File LocalSnapshot resource. \n" +
 			"This resource saves some content in state and doesn't update it until the trigger argument changes. " +
@@ -105,7 +105,7 @@ func (r *LocalSnapshotResource) Schema(ctx context.Context, req resource.SchemaR
 	}
 }
 
-func (r *LocalSnapshotResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *LocalSnapshotResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	// Prevent panic if the provider has not been configured.
 	// This only configures the provider, so anything here must be available in the provider package to configure.
 	// If you want to configure a client, do that in the Create/Read/Update/Delete functions.
@@ -174,7 +174,7 @@ func (r *LocalSnapshotResource) Create(ctx context.Context, req resource.CreateR
 		resp.Diagnostics.AddError("Error hashing file: ", err.Error())
 		return
 	}
-	plan.Id = types.StringValue(hash)
+	plan.ID = types.StringValue(hash)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 
@@ -235,9 +235,9 @@ func (r *LocalSnapshotResource) Update(ctx context.Context, req resource.UpdateR
 	sUpdateTrigger := state.UpdateTrigger.ValueString()
 	sLocalSnapshot := state.LocalSnapshot.ValueString()
 	sCompress := state.Compress.ValueBool()
-	sId := state.Id.ValueString()
+	sID := state.ID.ValueString()
 
-	plan.Id = types.StringValue(sId)
+	plan.ID = types.StringValue(sID)
 
 	if pUpdateTrigger != sUpdateTrigger {
 		tflog.Debug(ctx, fmt.Sprintf("Update trigger has changed from %s to %s, updating snapshot.", sUpdateTrigger, pUpdateTrigger))
