@@ -28,7 +28,18 @@
     { "local": ".github/pull_request_template.md", "remote": ".github/pull_request_template.md" },
     { "local": ".github/copilot-instructions.md", "remote": ".github/copilot-instructions.md" },
     { "local": ".github/workflows/pull_request.yaml", "remote": ".github/workflows/pull_request.yaml" },
+    { "local": ".github/workflows/release.yml", "remote": ".github/workflows/release.yml" },
+    { "local": ".github/workflows/scripts/nix-run.sh", "remote": ".github/workflows/scripts/nix-run.sh" },
     { "local": ".github/workflows/scripts/lint.sh", "remote": ".github/workflows/scripts/lint.sh" },
+    {
+      "local": ".github/workflows/scripts/create-local-tag.sh",
+      "remote": ".github/workflows/scripts/create-local-tag.sh"
+    },
+    { "local": ".github/workflows/scripts/goreleaser.sh", "remote": ".github/workflows/scripts/goreleaser.sh" },
+    {
+      "local": ".github/workflows/scripts/publish-release.js",
+      "remote": ".github/workflows/scripts/publish-release.js"
+    },
     { "local": ".agent/hooks/block-rancher-git.js", "remote": ".agent/hooks/block-rancher-git.js" },
     { "local": ".agent/hooks/check-context.sh", "remote": ".agent/hooks/check-context.sh" },
     { "local": ".agent/hooks/enforce-planning.js", "remote": ".agent/hooks/enforce-planning.js" },

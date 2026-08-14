@@ -94,3 +94,8 @@ The sync utility `.agent/skills/sync-boilerplate.sh` executes the following sequ
 
 - [x] Expand `.boilerplate-sync.json` to map all `.agent` hooks, skills, and rules.
 - [x] Execute `sync-boilerplate.sh --push` to securely push the entire agentic framework back to the centralized `central-file-repo` template repository.
+
+### Phase 14.6: Release Process & Core Script Synchronization
+
+- [x] Expand `.boilerplate-sync.json` to map the GHA `release.yml` and the scripts it requires (`nix-run.sh`, `create-local-tag.sh`, `goreleaser.sh`, `publish-release.js`).
+- [x] Execute `sync-boilerplate.sh --push` to securely push these final GHA release files.
