@@ -123,4 +123,25 @@ To prevent plan sprawl and keep the `.agent/plans/` folder clean and high-value,
 - [x] Integrate GITHUB_MERGE_TOKEN from Vault into pr-executor.yml and verify-pr-requirements.mjs.
 - [x] Synchronize with upstream `main` off point.
 - [x] Present the unstaged diff to the developer in the chat for IDE review and manual approval.
-- [ ] Commit, push to fork, and generate a draft Pull Request.
+- [x] Commit, push to fork, and generate a draft Pull Request.
+
+### Phase 7: PR Auto-Merge Requirements & Dependabot Exceptions (PR #400)
+
+- [ ] Optimize the PR trigger & executor pipeline to prevent GHA waste:
+  - [ ] Refactor `.github/workflows/review-trigger.yml` to only succeed on a `/merge` comment (for human PRs) or a Copilot approval review (for Dependabot PRs), failing otherwise to abort executor triggers.
+  - [ ] Refactor `.github/workflows/pr-executor.yml` to only execute its jobs if the triggering parent workflow completed successfully.
+  - [ ] Refactor `.github/workflows/scripts/get-open-prs.js` to pre-resolve specific PR numbers from the parent run payload, falling back to listing only open PRs that are from Dependabot or have active `/merge` comments.
+- [ ] Adapt `.github/workflows/scripts/verify-pr-requirements.mjs` to check:
+  - [ ] For standard PRs (not dependabot): requires at least **1 trusted human approval** (admin, write, maintain, triage) AND at least **1 AI/Copilot review**.
+  - [ ] For dependabot PRs: requires at least **1 AI/Copilot review** (bypasses human approval requirement).
+- [ ] Create a comprehensive suite of native unit tests under `.github/workflows/scripts/tests/verify-pr-requirements.test.js` using `node:test` and `node:assert`:
+  - [ ] Test standard PR with human-only approval (should fail, missing AI review).
+  - [ ] Test standard PR with human and AI approvals (should pass).
+  - [ ] Test dependabot PR with AI-only approval (should pass, bypassing human requirement).
+  - [ ] Test dependabot PR without AI approval (should fail).
+  - [ ] Test PR with unresolved threads (should fail).
+- [ ] Run `./.github/workflows/scripts/test.sh scripts` to verify all unit tests pass flawlessly.
+- [ ] Run the complete linter suite (`lint.sh all`) to ensure 100% ESLint, Prettier, and spelling compliance.
+- [ ] Present the unstaged diff for visual review in the chat (Gate 2).
+- [ ] Obtain cryptographic manual approval signature via `user-approval.js`.
+- [ ] Execute `commit-push.sh` to commit and push the finalized configuration.

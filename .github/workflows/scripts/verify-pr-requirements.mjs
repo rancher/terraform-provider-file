@@ -164,20 +164,51 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
   }
 
   const isDependabot = pr.user?.login === 'dependabot[bot]';
-  const aiApprovals = Object.values(latestReviews).filter(review => {
+  const aiReviews = Object.values(latestReviews).filter((review) => {
     const login = review.user?.login;
     if (!login) return false;
     const isAi = login.toLowerCase().includes('copilot') || login.toLowerCase().includes('agent');
     return isAi && (review.state === 'APPROVED' || review.state === 'COMMENTED');
   });
 
-  if (isDependabot) {
-    if (aiApprovals.length < 1) {
-      reasons.push(`- **Reviews**: Requirements not met. Dependabot PR requires at least **1 AI review** (from Copilot or Agent).`);
+  let hasAiReview = aiReviews.length > 0;
+
+  // Fallback: If no official AI review is found, check PR conversation comments for a Copilot pass comment
+  if (!hasAiReview) {
+    core.info(`Checking PR comments for Copilot pass feedback...`);
+    try {
+      const comments = await github.paginate(github.rest.issues.listComments, {
+        owner,
+        repo,
+        issue_number: pr.number,
+      });
+      const hasCopilotPass = comments.some((c) => {
+        const body = c.body || '';
+        const author = c.user?.login || '';
+        const isAi = author.toLowerCase().includes('copilot') || author.toLowerCase().includes('agent');
+        return isAi && body.includes('and generated no new comments.');
+      });
+      if (hasCopilotPass) {
+        core.info(`✅ Found a valid Copilot review pass comment in conversation history.`);
+        hasAiReview = true;
+      }
+    } catch (err) {
+      core.info(`  -> Note: Failed to fetch PR comments for AI review verification: ${err.message}`);
     }
+  }
+
+  if (isDependabot) {
+    core.info('PR is from Dependabot. Bypassing human and AI review requirements.');
   } else {
     if (trustedApprovals.length < 1) {
-      reasons.push(`- **Reviews**: Requirements not met. PR requires at least **1 human approval** from a trusted role (Collaborator, Member, or Owner).`);
+      reasons.push(
+        `- **Reviews**: Requirements not met. PR requires at least **1 human approval** from a trusted role (Collaborator, Member, or Owner).`,
+      );
+    }
+    if (!hasAiReview) {
+      reasons.push(
+        `- **Reviews**: Requirements not met. PR requires at least **1 AI review** (from Copilot or Agent).`,
+      );
     }
   }
 

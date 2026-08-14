@@ -1,12 +1,10 @@
 name: pull_request_review_trigger
 
 on:
-  pull_request_review:
-    types: [submitted]
-  pull_request_review_comment:
-    types: [created, edited, deleted]
   issue_comment:
-    types: [created, edited, deleted]
+    types: [created]
+  pull_request:
+    types: [opened, synchronized, reopened]
 
 permissions: {}
 
@@ -15,11 +13,53 @@ jobs:
     name: 'Trigger Executor on Event'
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    permissions: {}
+    permissions:
+      pull-requests: read
+      issues: read
     steps:
-      - name: Log Trigger Event
-        run: |
-          echo "Trigger event: ${EVENT_NAME} by ${ACTOR}"
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          ACTOR: ${{ github.actor }}
+      - name: Verify Trigger Conditions
+        # https://github.com/actions/github-script/releases
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const eventName = context.eventName;
+            const payload = context.payload;
+            core.info(`Triggered by event: ${eventName}`);
+
+            let shouldTrigger = false;
+
+            if (eventName === 'issue_comment') {
+              const commentBody = payload.comment?.body || '';
+              const commentAuthor = payload.comment?.user?.login || '';
+              const isPR = !!payload.issue?.pull_request;
+
+              if (isPR) {
+                const isHumanMerge = commentBody.trim() === '/merge';
+                const isCopilotPass = commentBody.includes('and generated no new comments.');
+
+                if (isHumanMerge) {
+                  core.info(`✅ Valid /merge comment found from @${commentAuthor}.`);
+                  shouldTrigger = true;
+                } else if (isCopilotPass) {
+                  core.info(`✅ Valid Copilot review pass comment found from @${commentAuthor}.`);
+                  shouldTrigger = true;
+                } else {
+                  core.info(`Skipping: Comment from @${commentAuthor} is neither a /merge nor a Copilot pass.`);
+                }
+              } else {
+                core.info('Skipping: Comment is on a regular issue, not a Pull Request.');
+              }
+            } else if (eventName === 'pull_request') {
+              const prAuthor = payload.pull_request?.user?.login;
+              const isDependabot = prAuthor === 'dependabot[bot]';
+              if (isDependabot) {
+                core.info('✅ Dependabot Pull Request opened or updated.');
+                shouldTrigger = true;
+              } else {
+                core.info('Skipping: Pull request opened or updated by non-Dependabot actor.');
+              }
+            }
+
+            if (!shouldTrigger) {
+              core.setFailed('Trigger conditions not met. Parent run failed to prevent triggering the executor.');
+            }

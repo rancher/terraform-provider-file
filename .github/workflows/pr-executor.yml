@@ -15,6 +15,7 @@ permissions: {}
 jobs:
   get-open-prs:
     name: 'Get Open PRs'
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/rancher/ci-image/nix:20260603-18
