@@ -10,7 +10,7 @@ import (
 
 func TestProtectedProtects(t *testing.T) {
 	t.Parallel()
-	id := util.GetId()
+	id := util.GetID()
 	directory := "local_protected"
 	repoRoot, err := util.GetRepoRoot(t)
 	if err != nil {

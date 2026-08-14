@@ -26,14 +26,14 @@ func (c *MemoryFileClient) Create(directory string, name string, data string, pe
 	return nil
 }
 
-func (c *MemoryFileClient) Read(directory string, name string) (string, string, error) {
+func (c *MemoryFileClient) Read(_ string, _ string) (string, string, error) {
 	if c.file["directory"] == "" || c.file["name"] == "" {
 		return "", "", fmt.Errorf("file not found")
 	}
 	return c.file["permissions"], c.file["contents"], nil
 }
 
-func (c *MemoryFileClient) Update(currentDirectory string, currentName string, newDirectory string, newName string, data string, permissions string) error {
+func (c *MemoryFileClient) Update(_ string, _ string, newDirectory string, newName string, data string, permissions string) error {
 	c.file["directory"] = newDirectory
 	c.file["name"] = newName
 	c.file["contents"] = data
@@ -49,7 +49,7 @@ func (c *MemoryFileClient) Delete(directory string, name string) error {
 	return nil
 }
 
-func (c *MemoryFileClient) Encode(directory string, name string, encodedName string) error {
+func (c *MemoryFileClient) Encode(_ string, _ string, _ string) error {
 	contents := []byte(c.file["contents"])
 	encoded := make([]byte, base64.StdEncoding.EncodedLen(len(contents)))
 	base64.StdEncoding.Encode(encoded, contents)
@@ -57,7 +57,7 @@ func (c *MemoryFileClient) Encode(directory string, name string, encodedName str
 	return nil
 }
 
-func (c *MemoryFileClient) Compress(directory string, name string, compressedName string) error {
+func (c *MemoryFileClient) Compress(_ string, _ string, _ string) error {
 	c.file["compressed"] = "true"
 	contents := []byte(c.file["contents"])
 	var compressedBuffer bytes.Buffer
@@ -74,7 +74,7 @@ func (c *MemoryFileClient) Compress(directory string, name string, compressedNam
 	return nil
 }
 
-func (c *MemoryFileClient) Hash(directory string, name string) (string, error) {
+func (c *MemoryFileClient) Hash(_ string, _ string) (string, error) {
 	contents := []byte(c.file["contents"])
 
 	hasher := sha256.New()
@@ -85,7 +85,7 @@ func (c *MemoryFileClient) Hash(directory string, name string) (string, error) {
 	return hashString, nil
 }
 
-func (c *MemoryFileClient) Copy(currentPath string, newPath string) error {
+func (c *MemoryFileClient) Copy(_ string, newPath string) error {
 	c.file["directory"] = filepath.Dir(newPath)
 	c.file["name"] = filepath.Base(newPath)
 	return nil

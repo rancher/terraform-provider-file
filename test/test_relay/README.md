@@ -5,7 +5,7 @@ Normalizing the process, we can use the test relay to communicate what we expect
 Since we control what runs the terraform code we can better communicate dependencies and best practices for the terraform runner.
 We also bypass a lot of complexity/uncertainty about the terraform runner.
 We also have the opportunity to test/validate interesting configurations,
- like having the tf runner in the same air-gapped network as what it is deploying.
+like having the tf runner in the same air-gapped network as what it is deploying.
 
 ## Usage in Testing
 
@@ -38,7 +38,7 @@ Maybe installing tailscale for testing is a good idea.
 Nix has a tailscale package, but we would need to install tailscale on the relay
 Actually, no, because the tester would need a tailscale account and they would need to be able to allow the relay to act as an exit node.
 This pulls in the overhead of creating an account, authenticating, and allowing the relay to act as an exit node
- on top of installing and configuring the relay.
+on top of installing and configuring the relay.
 
 ## Custom Runner
 
@@ -46,14 +46,15 @@ This pulls in the overhead of creating an account, authenticating, and allowing 
    - we can add resources to retrieve the repo in the runner tf
    - we can add resources to install the necessary tools to run the tests on the new runner
 2. The test then runs a test on the runner?
-The test then needs to run the terraform commands on the remote runner...
+   The test then needs to run the terraform commands on the remote runner...
 
 What if the runner tf includes terraform commands to run on the remote runner?
+
 - We can pass the contents of the fixture to the runner tf
 - The runner tf can pass the output from the fixture back to the test
 - The output from the fixture will be included in the runner's output, which enables troubleshooting
 
-Using Terraform to run Terraform is a problem, 
+Using Terraform to run Terraform is a problem,
 should we use the external provider or a community provider like [tfcli](https://github.com/weakpixel/terraform-provider-tfcli)
 
 We will need to run terraform init, terraform plan, terraform apply, terraform destroy, and terraform output -json.
@@ -69,8 +70,9 @@ Terraform init is a one way script, we don't need to do anything to clean up on 
 Terraform plan is the same way
 Terraform apply and destroy need to be linked though.
 Terraform apply should run on create and terraform destroy on destroy.
+
 - we can use a destroy time provisioner for this
-What do we do if the terraform apply command fails?
+  What do we do if the terraform apply command fails?
 - if the terraform apply command called by the terraform_data fails, the runner module will fail
 - when the runner module fails, terratest will attempt to clean up by running destroy on the runner module
 - there is a quasi state where the terraform_data failed and is therefore tainted, but because no resource object was successfully created, so destroy is not run against it
@@ -83,6 +85,7 @@ What do we do if the terraform apply command fails?
 ## Secrets
 
 How do we get secrets to the remote server?
+
 - we could use AGE to encrypt the secrets and then decrypt them on the remote server
   - we would need the remote server to have its own private key to decrypt the secrets
   - we would need to know what secrets are necessary, then generate an rc file locally for them
@@ -91,10 +94,10 @@ How do we get secrets to the remote server?
   - then we decrypt the rc file on the remote server with its private AGE key
   - then we source the rc file on the remote server
   - then we run the terraform commands on the remote server
-Moving the secrets needs to be done as part of the runners terraform apply
+    Moving the secrets needs to be done as part of the runners terraform apply
 - we need to be careful not to get the secrets in the runner's tf state
 - if terraform never reads the contents of the rc file until it is encrypted then we can avoid the problem
 - before we generate the server, we need an age key on the test runner
 - so first the server is created, then an age keypair is generated on the runner server
 - we need the public key to encrypt the rc file, so we will need to use an external provider resource to generate things
-- 
+-

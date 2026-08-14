@@ -11,7 +11,7 @@ import (
 func TestLocalDirectoryAdvanced(t *testing.T) {
 	t.Parallel()
 
-	id := util.GetId()
+	id := util.GetID()
 	directory := "local_directory_advanced"
 	repoRoot, err := util.GetRepoRoot(t)
 	if err != nil {

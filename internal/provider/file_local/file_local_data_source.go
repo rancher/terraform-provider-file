@@ -30,7 +30,7 @@ type LocalDataSource struct {
 }
 
 type LocalDataSourceModel struct {
-	Id            types.String `tfsdk:"id"`
+	ID            types.String `tfsdk:"id"`
 	Name          types.String `tfsdk:"name"`
 	Directory     types.String `tfsdk:"directory"`
 	Contents      types.String `tfsdk:"contents"`
@@ -38,11 +38,11 @@ type LocalDataSourceModel struct {
 	HmacSecretKey types.String `tfsdk:"hmac_secret_key"`
 }
 
-func (r *LocalDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+func (r *LocalDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_local" // file_local datasource
 }
 
-func (r *LocalDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+func (r *LocalDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Local File DataSource",
 
@@ -80,7 +80,7 @@ func (r *LocalDataSource) Schema(ctx context.Context, req datasource.SchemaReque
 	}
 }
 
-func (r *LocalDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+func (r *LocalDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
 	// Prevent panic if the provider has not been configured.
 	if req.ProviderData == nil {
 		return
@@ -128,12 +128,12 @@ func (r *LocalDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 
 	// update state with actual contents
 	config.Contents = types.StringValue(contents)
-	id, err := calculateId(contents, cKey)
+	id, err := calculateID(contents, cKey)
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading file: ", "Problem calculating id from key: "+err.Error())
 		return
 	}
-	config.Id = types.StringValue(id)
+	config.ID = types.StringValue(id)
 
 	if perm != cPerm {
 		// update the state with the actual mode

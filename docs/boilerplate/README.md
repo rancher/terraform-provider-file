@@ -1,7 +1,7 @@
 # Boilerplate
 
 This is boilerplate code to get a contributor started writing a new resource.
-Just copy and paste this whole directory into the internal/provider directory or 
+Just copy and paste this whole directory into the internal/provider directory or
 copy the files and add to an existing directory there.
 What you get is a fully testable stub that you can use to shape your new resource.
 With the forms already in place for unit testing, just update the logic and you are good to go.
@@ -26,4 +26,3 @@ In most cases the client is a 3rd party API, it should be tested where it is wri
 If you feel there is a lot of logic in your client then you probably need to push that into the provider instead.
 Try to limit your client to a few calls to another API, mirror too closely and you won't be able to test errors effectively,
 mirror too loosely and you might end up putting too much logic into the client.
-

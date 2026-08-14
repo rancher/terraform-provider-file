@@ -12,7 +12,7 @@ import (
 func TestSnapshotExample(t *testing.T) {
 	t.Parallel()
 
-	id := util.GetId()
+	id := util.GetID()
 	directory := "file_local_snapshot"
 	repoRoot, err := util.GetRepoRoot(t)
 	if err != nil {

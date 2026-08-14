@@ -4,6 +4,7 @@
 **Purpose:** Fix the GoReleaser release workflow failure caused by an invalid `GPG_KEY_ID` lookup and remove broken references to deleted `.sh` files in the GitHub Actions workflows.
 
 ## Background & Motivation
+
 The `Release` workflow is failing at the `Run GoReleaser` step. The specific error is `gpg: error reading key: No secret key`. Investigation revealed that the `GPG_KEY_ID` retrieved from Vault contains a trailing newline or whitespace, causing `gpg --batch --list-secret-keys "${GPG_KEY_ID}"` to fail.
 
 Additionally, while investigating the fix, it was discovered that `import-gpg-key.sh` and `run-goreleaser.sh` were previously consolidated into `goreleaser.sh`, but the workflows (`release.yml`, `manual-release.yml`, and `manual-rc-release.yml`) were not fully updated. Several jobs still attempt to call the deleted scripts.
@@ -21,5 +22,6 @@ Additionally, while investigating the fix, it was discovered that `import-gpg-ke
    - **File `manual-rc-release.yml`**: Consolidate `Import GPG Key` and `Run GoReleaser` steps. Replace references with `goreleaser.sh`.
 
 ## Verification & Testing
+
 1. Ensure all shell script updates pass `shellcheck`.
 2. Ensure the workflows are valid by running `actionlint`.

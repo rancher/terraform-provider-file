@@ -2,11 +2,11 @@
 
 This is an example of how you could use the file_local_snapshot resource.
 WARNING! Please remember that Terraform must load the entire state into memory,
- make sure you have the resources available on the machine running Terraform to handle any file you save like this.
+make sure you have the resources available on the machine running Terraform to handle any file you save like this.
 
 This shows how to use the compress argument.
 We wanted a way to compress the data that we are saving into the state so that we can store larger files
- without running the machine running Terraform out of memory.
+without running the machine running Terraform out of memory.
 
 We use the uuid() function for testing purposes, every update the file will be changed and the snapshot will remain the same.
 

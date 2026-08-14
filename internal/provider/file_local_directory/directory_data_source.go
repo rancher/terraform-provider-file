@@ -32,7 +32,7 @@ type LocalDirectoryDataSource struct {
 }
 
 type LocalDirectoryDataSourceModel struct {
-	Id          types.String                  `tfsdk:"id"`
+	ID          types.String                  `tfsdk:"id"`
 	Path        types.String                  `tfsdk:"path"`
 	Permissions types.String                  `tfsdk:"permissions"`
 	Files       []LocalDirectoryFileInfoModel `tfsdk:"files"`
@@ -46,11 +46,11 @@ type LocalDirectoryFileInfoModel struct {
 	IsDirectory  types.String `tfsdk:"is_directory"`
 }
 
-func (r *LocalDirectoryDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+func (r *LocalDirectoryDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_local_directory" // file_local_directory datasource
 }
 
-func (r *LocalDirectoryDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+func (r *LocalDirectoryDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "LocalDirectory File DataSource",
 
@@ -100,7 +100,7 @@ func (r *LocalDirectoryDataSource) Schema(ctx context.Context, req datasource.Sc
 	}
 }
 
-func (r *LocalDirectoryDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+func (r *LocalDirectoryDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
 	// Prevent panic if the provider has not been configured.
 	if req.ProviderData == nil {
 		return
@@ -116,7 +116,7 @@ func (r *LocalDirectoryDataSource) Read(ctx context.Context, req datasource.Read
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	id := config.Id.ValueString()
+	id := config.ID.ValueString()
 	path := config.Path.ValueString()
 
 	perm, files, err := r.client.Read(path)
@@ -125,7 +125,7 @@ func (r *LocalDirectoryDataSource) Read(ctx context.Context, req datasource.Read
 		return
 	}
 	if err != nil {
-		resp.Diagnostics.AddError("failed to read directory", err.Error())
+		resp.Diagnostics.AddError("Error reading directory: ", err.Error())
 		return
 	}
 
@@ -133,7 +133,7 @@ func (r *LocalDirectoryDataSource) Read(ctx context.Context, req datasource.Read
 		hasher := sha256.New()
 		hasher.Write([]byte(path))
 		id = hex.EncodeToString(hasher.Sum(nil))
-		config.Id = types.StringValue(id)
+		config.ID = types.StringValue(id)
 	}
 	config.Permissions = types.StringValue(perm)
 

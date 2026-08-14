@@ -11,7 +11,7 @@ import (
 func TestLocalDirectorySubdirectory(t *testing.T) {
 	t.Parallel()
 
-	id := util.GetId()
+	id := util.GetID()
 	directory := "local_directory_basic"
 	repoRoot, err := util.GetRepoRoot(t)
 	if err != nil {

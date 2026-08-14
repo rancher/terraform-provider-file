@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	defaultId            = ""
+	defaultID            = ""
 	defaultDirectory     = "."
 	defaultPerm          = "0600"
 	defaultProtected     = "false"
@@ -82,7 +82,7 @@ func TestLocalResourceCreate(t *testing.T) {
 				LocalResource{client: &c.MemoryFileClient{}},
 				// have
 				getCreateRequest(t, map[string]string{
-					"id":              defaultId,
+					"id":              defaultID,
 					"name":            "test_basic.tmp",
 					"directory":       defaultDirectory,
 					"permissions":     defaultPerm,
@@ -348,7 +348,7 @@ func TestLocalResourceUpdate(t *testing.T) {
 				// have
 				getUpdateRequest(t, map[string]map[string]string{
 					"priorState": {
-						"id":              defaultId,
+						"id":              defaultID,
 						"name":            "update_basic.tmp",
 						"directory":       defaultDirectory,
 						"permissions":     defaultPerm,
@@ -357,7 +357,7 @@ func TestLocalResourceUpdate(t *testing.T) {
 						"hmac_secret_key": defaultHmacSecretKey,
 					},
 					"plan": {
-						"id":              defaultId,
+						"id":              defaultID,
 						"name":            "update_basic.tmp",
 						"directory":       defaultDirectory,
 						"permissions":     defaultPerm,

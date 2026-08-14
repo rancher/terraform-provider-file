@@ -31,7 +31,7 @@ func (c *MemoryDirectoryClient) Create(path string, permissions string) (string,
 	return base, nil
 }
 
-func (c *MemoryDirectoryClient) Read(path string) (string, map[string]map[string]string, error) {
+func (c *MemoryDirectoryClient) Read(_ string) (string, map[string]map[string]string, error) {
 	if c.directory == nil {
 		return "", nil, fmt.Errorf("directory not found")
 	}
@@ -40,12 +40,12 @@ func (c *MemoryDirectoryClient) Read(path string) (string, map[string]map[string
 	return permissions, info, nil
 }
 
-func (c *MemoryDirectoryClient) Update(path string, permissions string) error {
+func (c *MemoryDirectoryClient) Update(_ string, permissions string) error {
 	c.directory["permissions"] = permissions
 	return nil
 }
 
-func (c *MemoryDirectoryClient) Delete(path string) error {
+func (c *MemoryDirectoryClient) Delete(_ string) error {
 	c.directory = nil
 	return nil
 }

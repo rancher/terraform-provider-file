@@ -28,17 +28,17 @@ func NewLocalSnapshotDataSource() datasource.DataSource {
 type LocalSnapshotDataSource struct{}
 
 type LocalSnapshotDataSourceModel struct {
-	Id         types.String `tfsdk:"id"`
+	ID         types.String `tfsdk:"id"`
 	Contents   types.String `tfsdk:"contents"`
 	Data       types.String `tfsdk:"data"`
 	Decompress types.Bool   `tfsdk:"decompress"`
 }
 
-func (r *LocalSnapshotDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+func (r *LocalSnapshotDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_local_snapshot" // _local_snapshot
 }
 
-func (r *LocalSnapshotDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+func (r *LocalSnapshotDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "File LocalSnapshot data source. \n" +
 			"This data source retrieves the contents of a file from the output of a file_local_snapshot datasource." +
@@ -74,7 +74,7 @@ func (r *LocalSnapshotDataSource) Schema(ctx context.Context, req datasource.Sch
 	}
 }
 
-func (r *LocalSnapshotDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+func (r *LocalSnapshotDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
 	// Prevent panic if the provider has not been configured.
 	// This only configures the provider, so anything here must be available in the provider package to configure.
 	// If you want to configure a client, do that in the Create/Read/Update/Delete functions.
@@ -99,7 +99,7 @@ func (r *LocalSnapshotDataSource) Read(ctx context.Context, req datasource.ReadR
 	hashBytes := hasher.Sum(nil)
 	hashString := hex.EncodeToString(hashBytes)
 
-	config.Id = types.StringValue(hashString)
+	config.ID = types.StringValue(hashString)
 	d, err := base64.StdEncoding.DecodeString(contents)
 	if err != nil {
 		resp.Diagnostics.AddError("Error decoding file: ", err.Error())

@@ -79,7 +79,7 @@ while [ $EXITCODE -gt 0 ] && [ $ATTEMPTS -lt "$MAX" ]; do
   E1=0
   A=0
   echo "[ORCHESTRATOR DEBUG] [OUTER LOOP] Iteration ATTEMPTS=$ATTEMPTS. Resetting E=$E, E1=$E1, A=$A"
-  
+
   while [ $E -gt 0 ] && [ $A -lt "$MAX" ]; do
     echo "[ORCHESTRATOR DEBUG] [INNER APPLY LOOP] Iteration A=$A. Running terraform apply..."
     # shellcheck disable=SC2154
@@ -87,11 +87,11 @@ while [ $EXITCODE -gt 0 ] && [ $ATTEMPTS -lt "$MAX" ]; do
     E=$?
     echo "[ORCHESTRATOR DEBUG] [INNER APPLY LOOP] terraform apply completed with exit code: $E"
     if [ $E -eq 124 ]; then echo "[ORCHESTRATOR DEBUG] [INNER APPLY LOOP] Apply timed out after ${timeout}"; fi
-    A=$((A+1))
+    A=$((A + 1))
   done
-  
+
   # don't destroy if the last attempt fails
-  if [ $E -gt 0 ] && [ $ATTEMPTS != $((MAX-1)) ]; then
+  if [ $E -gt 0 ] && [ $ATTEMPTS != $((MAX - 1)) ]; then
     echo "[ORCHESTRATOR DEBUG] Apply failed and this is not the last outer attempt (ATTEMPTS=$ATTEMPTS, MAX=$MAX). Running destroy..."
     A1=0
     E1=1
@@ -101,17 +101,17 @@ while [ $EXITCODE -gt 0 ] && [ $ATTEMPTS -lt "$MAX" ]; do
       E1=$?
       echo "[ORCHESTRATOR DEBUG] [INNER DESTROY LOOP] terraform destroy completed with exit code: $E1"
       if [ $E1 -eq 124 ]; then echo "[ORCHESTRATOR DEBUG] [INNER DESTROY LOOP] Destroy timed out after ${timeout}"; fi
-      A1=$((A1+1))
+      A1=$((A1 + 1))
     done
   fi
-  
+
   if [ $E -gt 0 ]; then
     echo "[ORCHESTRATOR DEBUG] Apply failed..."
   fi
   if [ $E1 -gt 0 ]; then
     echo "[ORCHESTRATOR DEBUG] Destroy failed..."
   fi
-  
+
   if [ $E -gt 0 ] || [ $E1 -gt 0 ]; then
     EXITCODE=1
     echo "[ORCHESTRATOR DEBUG] Setting EXITCODE=1 (apply or destroy failed)"
@@ -119,10 +119,10 @@ while [ $EXITCODE -gt 0 ] && [ $ATTEMPTS -lt "$MAX" ]; do
     EXITCODE=0
     echo "[ORCHESTRATOR DEBUG] Setting EXITCODE=0 (both apply and destroy succeeded/no-oped)"
   fi
-  
-  ATTEMPTS=$((ATTEMPTS+1))
+
+  ATTEMPTS=$((ATTEMPTS + 1))
   echo "[ORCHESTRATOR DEBUG] Incrementing ATTEMPTS to $ATTEMPTS"
-  
+
   if [ $EXITCODE -gt 0 ] && [ $ATTEMPTS -lt "$MAX" ]; then
     # shellcheck disable=SC2154
     echo "[ORCHESTRATOR DEBUG] Retrying loop. Waiting ${interval} seconds between attempts..."
@@ -138,7 +138,7 @@ if [ $EXITCODE -ne 0 ]; then echo "[ORCHESTRATOR DEBUG] Failure, exit code $EXIT
 
 if [ $EXITCODE -eq 0 ]; then
   echo "[ORCHESTRATOR DEBUG] Success! Generating outputs.json..."
-  terraform output -json -state="tfstate" > outputs.json
+  terraform output -json -state="tfstate" >outputs.json
   echo "[ORCHESTRATOR DEBUG] outputs.json generated successfully."
 fi
 

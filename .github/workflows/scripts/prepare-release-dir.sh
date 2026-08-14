@@ -17,7 +17,7 @@ git tag "${TAG}" HEAD -f
 # Ensure manifest exists for the registry
 if [[ ! -f "terraform-registry-manifest.json" ]]; then
   echo "terraform-registry-manifest.json not found, creating a default one."
-  cat <<EOF > terraform-registry-manifest.json
+  cat <<EOF >terraform-registry-manifest.json
 {
     "version": 1,
     "metadata": {
