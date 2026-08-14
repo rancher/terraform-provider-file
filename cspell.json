@@ -24,5 +24,5 @@
     "CHANGELOG.md",
     "**/go.mod",
     "**/go.sum"
-  ],
+  ]
 }

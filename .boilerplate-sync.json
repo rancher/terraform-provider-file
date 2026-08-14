@@ -1,0 +1,17 @@
+{
+  "template_repo": "git@github.com:rancher/terraform-provider-file.git",
+  "files": [
+    {
+      "local": ".prettierrc",
+      "remote": ".prettierrc"
+    },
+    {
+      "local": ".markdownlint.yaml",
+      "remote": ".markdownlint.yaml"
+    },
+    {
+      "local": "cspell.json",
+      "remote": "cspell.json"
+    }
+  ]
+}
