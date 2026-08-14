@@ -56,6 +56,16 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
   const reasons = [];
   let ciPending = false;
 
+  const isDependabot = pr.user?.login === 'dependabot[bot]';
+  if (isDependabot) {
+    core.info(`PR #${pr.number} is from Dependabot. Skipping all verification requirements and approving for auto-merge.`);
+    return {
+      success: true,
+      reasons: [],
+      ciPending: false,
+    };
+  }
+
   // 1. Verify CI Check Runs
   if (checkCI) {
     core.info(`Checking CI status for PR #${pr.number} at SHA ${pr.head.sha}...`);
@@ -163,7 +173,6 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
     }
   }
 
-  const isDependabot = pr.user?.login === 'dependabot[bot]';
   const aiReviews = Object.values(latestReviews).filter((review) => {
     const login = review.user?.login;
     if (!login) return false;
@@ -197,19 +206,15 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
     }
   }
 
-  if (isDependabot) {
-    core.info('PR is from Dependabot. Bypassing human and AI review requirements.');
-  } else {
-    if (trustedApprovals.length < 1) {
-      reasons.push(
-        `- **Reviews**: Requirements not met. PR requires at least **1 human approval** from a trusted role (Collaborator, Member, or Owner).`,
-      );
-    }
-    if (!hasAiReview) {
-      reasons.push(
-        `- **Reviews**: Requirements not met. PR requires at least **1 AI review** (from Copilot or Agent).`,
-      );
-    }
+  if (trustedApprovals.length < 1) {
+    reasons.push(
+      `- **Reviews**: Requirements not met. PR requires at least **1 human approval** from a trusted role (Collaborator, Member, or Owner).`,
+    );
+  }
+  if (!hasAiReview) {
+    reasons.push(
+      `- **Reviews**: Requirements not met. PR requires at least **1 AI review** (from Copilot or Agent).`,
+    );
   }
 
   // 4. Verify Resolved Comments (GraphQL)
