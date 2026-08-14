@@ -50,7 +50,9 @@ The sync utility `.agent/skills/sync-boilerplate.sh` executes the following sequ
    - **Diff Mode (`--diff`)**: Runs `git diff --no-index` or standard `diff -u` between the local file and its remote template file counterpart.
    - **Sync/Pull Mode (`--pull`)**: Overwrites the local file by copying the template file into place, creating any missing parent directories natively.
    - **Sync/Push Mode (`--push`)**: Copies local files that differ back to the remote template clone, commits them conventionally, and pushes the updates to the template repository using native developer credentials.
+
 - **Environment Variable Override**: If the `CENTRAL_FILE_REPO` environment variable is defined, the utility automatically overrides the manifest's `.template_repo` with it, allowing safe targeting of private central repositories without hardcoding sensitive URLs in version-controlled JSON manifests.
+
 5. **Secure Workspace Cleanup**: Registers an exit trap (`trap 'cleanup' EXIT`) that mathematically guarantees the temporary directories are fully destroyed, preventing `/tmp` clutter or leak vectors.
 
 ---
@@ -87,3 +89,8 @@ The sync utility `.agent/skills/sync-boilerplate.sh` executes the following sequ
 
 - [ ] Generate the Draft PR using `.agent/skills/create-pr.sh --draft`.
 - [ ] Graduate the draft PR to Ready for Review upon receiving developer approval.
+
+### Phase 14.5: Central Repo Synchronization (Template Delivery)
+
+- [x] Expand `.boilerplate-sync.json` to map all `.agent` hooks, skills, and rules.
+- [x] Execute `sync-boilerplate.sh --push` to securely push the entire agentic framework back to the centralized `central-file-repo` template repository.
