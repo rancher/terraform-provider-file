@@ -11,7 +11,7 @@ Below is a snippet of calculating the Id in bash, you can see the logic for calc
 The secret key can be sent in to Terraform with the `TF_FILE_HMAC_SECRET_KEY` environment variable so that it stays out of the state,
 or you can add it as an argument when creating the resource.
 
-```
+```sh
 echo "Test data" > data.txt
 FILEPATH="./data.txt"
 SECRET="super-secret-key"
