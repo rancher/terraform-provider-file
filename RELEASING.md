@@ -4,44 +4,44 @@
 
 This swimlane diagram traces the detailed event triggers and data flow between development roles and automated GHA runners:
 
-```
+```text
 |                [ Actor ]                    |                  [ Automation (GHA / Nix / Vault) ]            |
-├─────────────────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+├---------------------------------------------┼----------------------------------------------------------------┤
 |                                             |                                                                |
 | === PART 1: PULL REQUEST TO SQUASH-MERGE ===|                                                                |
 |                                             |                                                                |
-|  1. PR Opened or Code Updated ------------> | ──► Trigger: pull_request (opened / synchronize)               |
-|     (Contributor submits change)            |    ├─► Native Copilot Review triggers automatically            |
-|                                             |    └─► Nix: Runs static tests, linting, and unit-checks        |
+|  1. PR Opened or Code Updated ------------> | --► Trigger: pull_request (opened / synchronize)               |
+|     (Contributor submits change)            |    ├-► Native Copilot Review triggers automatically            |
+|                                             |    └-► Nix: Runs static tests, linting, and unit-checks        |
 |                                             |         │                                                      |
 |                                             |         ▼ (Checks Completed successfully)                      |
 |                                             |       Trigger: workflow_run (completed)                        |
-|                                             |       ──► Coordinator executes (Dry-Run Mode)                  |
+|                                             |       --► Coordinator executes (Dry-Run Mode)                  |
 |                                             |           - Scans approval state                               |
 |                                             |           - Finds: No trusted reviews or approvals yet         |
 |                                             |           - Action: Posts comment: "PR Needs Collaborator Review"|
 |                                             |                                                                |
-|  2. Collaborator Reviews PR & Comments ---->| ──► Trigger: pull_request_review (submitted)                   |
-|     (Collaborator leaves feedback/questions)|       ──► Coordinator executes (Merge Mode)                    |
+|  2. Collaborator Reviews PR & Comments ---->| --► Trigger: pull_request_review (submitted)                   |
+|     (Collaborator leaves feedback/questions)|       --► Coordinator executes (Merge Mode)                    |
 |                                             |           - Finds: No approvals, unresolved comment threads    |
 |                                             |           - Action: Posts status comment: "Unresolved Comments"|
 |                                             |                                                                |
 |  3. Contributor Resolves Comments           |                                                                |
 |     (Option A: Fixes code & pushes commit)  |                                                                |
-|     └─► Pushes Commit ────────────────────> | ──► Re-runs Step 1 (Nix Unit Tests -> Dry-Run check)           |
+|     └-► Pushes Commit --------------------> | --► Re-runs Step 1 (Nix Unit Tests -> Dry-Run check)           |
 |                                             |                                                                |
 |     (Option B: Resolves via browser)        |                                                                |
-|     └─► Resolves conversation on GitHub     |      [ No GHA trigger fired for "clicking resolve" ]           |
+|     └-► Resolves conversation on GitHub     |      [ No GHA trigger fired for "clicking resolve" ]           |
 |                                             |                                                                |
 |     (Option C: "Pokes" via comment)         |                                                                |
-|     └─► Types top-level or thread comment -> | ──► Trigger: issue_comment / pull_request_review_comment       |
-|         (e.g., "resolved", "ready")         |       ──► Coordinator executes (Merge Mode)                    |
+|     └-► Types top-level or thread comment -> | --► Trigger: issue_comment / pull_request_review_comment       |
+|         (e.g., "resolved", "ready")         |       --► Coordinator executes (Merge Mode)                    |
 |                                             |           - GraphQL: Queries all review threads                |
 |                                             |           - Finds: All threads are marked resolved             |
 |                                             |           - Action: Updates status comment, waits for Approval │
 |                                             |                                                                |
-|  4. Collaborator Submits Final Approval ──> | ──► Trigger: pull_request_review (submitted)                   |
-|     (Trusted Collaborator clicks "Approve") |       ──► Coordinator executes (Merge Mode)                    |
+|  4. Collaborator Submits Final Approval --> | --► Trigger: pull_request_review (submitted)                   |
+|     (Trusted Collaborator clicks "Approve") |       --► Coordinator executes (Merge Mode)                    |
 |                                             |           - GQL Check: Confirms 100% of comment threads resolved│
 |                                             |           - Review Check: Validates ≥ 1 Collaborator Approval  |
 |                                             |           - Action: Fires Proxy Approval (vouching for review) │
@@ -50,36 +50,36 @@ This swimlane diagram traces the detailed event triggers and data flow between d
 |                                             |           - Action: Executes NATIVE AUTO-MERGE into 'main'     |
 |                                             |           - Action: Automatically deletes status comments      |
 |                                             |                                                                |
-| === PART 2: SQUASH-MERGE TO PRODUCTION RELEASE =================─────────────────────────────────────────────┤
+| === PART 2: SQUASH-MERGE TO PRODUCTION RELEASE =================---------------------------------------------┤
 |                                             |                                                                |
-|  5. Squash Merge Lands on main ───────────> | ──► Trigger: push to main                                      |
-|                                             |       ──► Release Please Action runs:                          |
+|  5. Squash Merge Lands on main -----------> | --► Trigger: push to main                                      |
+|                                             |       --► Release Please Action runs:                          |
 |                                             |           - Scans Conventional Commit squash titles            |
 |                                             |           - Calculates next version increment                  |
 |                                             |           - Action: Updates/creates draft "Release PR"         |
 |                                             |             (e.g., "chore: release v1.2.3")                    |
 |                                             |                                                                |
-|                                             | ──► Trigger: pull_request (targeting Release Please branch)    |
-|                                             |       ──► Release PR CI runs:                                  |
+|                                             | --► Trigger: pull_request (targeting Release Please branch)    |
+|                                             |       --► Release PR CI runs:                                  |
 |                                             |           - Nix: Runs Unit Tests                               |
 |                                             |           - AWS: Assumes OIDC IAM Role                         |
 |                                             |           - Nix: Executes FULL ACCEPTANCE TEST SUITE           |
-|                                             |                  (acc-relay: Real AWS resource deployment)      |
+|                                             |                  (acc-relay: Real AWS resource deployment)     |
 |                                             |         │                                                      |
 |                                             |         ▼ (Heavy Integration Tests Pass)                       |
-|                                             |       ──► Release Candidate (RC) Step:                         |
+|                                             |       --► Release Candidate (RC) Step:                         |
 |                                             |           - Calculates next RC tag (e.g., v1.2.3-rc.0) via API |
 |                                             |           - Vault: Securely extracts GPG keys                  |
 |                                             |           - Nix: GoReleaser compiles & signs RC binaries       |
 |                                             |           - Action: Publishes GPG-Signed RC Release            |
 |                                             |                                                                |
-|  6. Maintainer Merges Release PR ─────────> | ──► Trigger: push to main (Release PR merged)                  |
-|     (Maintainer approves/merges Release PR) |       ──► Release Please Action runs:                          |
+|  6. Maintainer Merges Release PR ---------> | --► Trigger: push to main (Release PR merged)                  |
+|     (Maintainer approves/merges Release PR) |       --► Release Please Action runs:                          |
 |                                             |           - Detects Release PR merge                           |
 |                                             |           - Action: Outputs: release_created = true            |
 |                                             |         │                                                      |
 |                                             |         ▼                                                      |
-|                                             |       ──► Full Release Step:                                   |
+|                                             |       --► Full Release Step:                                   |
 |                                             |           - Action: Automatically tags version (v1.2.3)        |
 |                                             |           - Vault: Securely extracts GPG credentials           |
 |                                             |           - Keyring Workaround: Dynamically parses primary ID  |

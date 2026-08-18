@@ -31,7 +31,7 @@ data "http" "myip" {
 
 module "access" {
   source                     = "rancher/access/aws"
-  version                    = "4.0.5"
+  version                    = "v4.0.6"
   vpc_name                   = "${local.project_name}-vpc"
   vpc_type                   = "dualstack"
   vpc_public                 = true
@@ -52,7 +52,7 @@ module "runner" {
     aws_key_pair.temp_key,
   ]
   source                     = "rancher/server/aws"
-  version                    = "2.0.3"
+  version                    = "v2.0.4"
   image_type                 = local.image
   server_name                = local.project_name
   server_type                = "xl"

@@ -82,7 +82,7 @@ Certain tests (e.g., high-concurrency stress testing, multi-user file lockups, a
 
 The **AWS Test Relay** is a multi-tier test execution harness designed to deploy real-world AWS infrastructure, cross-compile and copy test suites, run tests natively on SLES (or other Linux kernels), monitor them remotely, and guarantee a clean teardown on exit.
 
-```
+```text
 ┌──────────────────────────────────────┐          Deploy VPC/Subnets/EC2        ┌──────────────────────────────────────┐
 │        Local Workstation/CI          ├───────────────────────────────────────>│               AWS EC2                │
 │                                      │                                        │             (SLES 15 VM)             │
