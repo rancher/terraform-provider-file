@@ -23,11 +23,27 @@ function main() {
 
   const command = tool_input.command.trim();
 
+  // New Secret Block Check: Prevent agent from ever accessing or reading the TOTP secret key
+  if (command.includes('totp_secret') || command.includes('totp_secret.key')) {
+    console.log(
+      JSON.stringify({
+        decision: 'deny',
+        reason:
+          '🔒 Security Policy Violation: Direct access, reading, or modification of the TOTP secret key is strictly prohibited.\n\n' +
+          'The TOTP secret must remain completely isolated from the AI agent to prevent automated signature spoofing.',
+        systemMessage: '🔒 Security Block: TOTP secret key access is denied.',
+      }),
+    );
+    process.exit(0);
+  }
+
   // Strip leading env var assignments (e.g. KEY=value or KEY="value" or KEY='value') and optional sudo
   let commandClean = command;
   while (true) {
     const next = commandClean.replace(/^[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"[^"]*"|\S+)\s+/, '');
-    if (next === commandClean) break;
+    if (next === commandClean) {
+      break;
+    }
     commandClean = next;
   }
 

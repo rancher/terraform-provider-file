@@ -1,4 +1,4 @@
-export default async ({ github, context, core, process }) => {
+export default async ({ context, core, process }) => {
   try {
     const maintainersRaw = process.env.TERRAFORM_MAINTAINERS;
     if (!maintainersRaw) {

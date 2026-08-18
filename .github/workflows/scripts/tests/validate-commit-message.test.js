@@ -71,7 +71,7 @@ test('validate-commit-message.js runner tests', async (t) => {
     };
 
     const github = {
-      paginate: async (method, params) => {
+      paginate: async (method) => {
         if (method === github.rest.pulls.listCommits) {
           return [
             { commit: { message: 'feat: add internal provider feature' }, parents: [] },
@@ -118,7 +118,7 @@ test('validate-commit-message.js runner tests', async (t) => {
     };
 
     const github = {
-      paginate: async (method, params) => {
+      paginate: async (method) => {
         if (method === github.rest.pulls.listCommits) {
           return [{ commit: { message: 'feat: update README' }, parents: [] }];
         }

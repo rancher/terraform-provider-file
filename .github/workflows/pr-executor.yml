@@ -6,62 +6,94 @@ on:
     types:
       - completed
   workflow_dispatch:
-  schedule:
-    # Run once every hour to poll and process open PRs
-    - cron: '0 * * * *'
 
 permissions: {}
 
 jobs:
-  get-open-prs:
-    name: 'Get Open PRs'
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/rancher/ci-image/nix:20260603-18
-    outputs:
-      prs: ${{ steps.list-prs.outputs.result }}
-    permissions:
-      pull-requests: read
-      contents: read
-    steps:
-      - name: Checkout Repository
-        # https://github.com/actions/checkout/releases
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          show-progress: false
-          sparse-checkout: |
-            .github/workflows/scripts/get-open-prs.js
-
-      - name: List Open PRs
-        id: list-prs
-        # https://github.com/actions/github-script/releases
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            const scriptPath = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/get-open-prs.js`;
-            const { default: script } = await import(scriptPath);
-            return await script({github, context, core});
-
-  verify-and-merge:
-    name: 'Process PR #${{ matrix.pr }}'
-    needs: get-open-prs
-    if: ${{ needs.get-open-prs.outputs.prs != '[]' && needs.get-open-prs.outputs.prs != '' }}
+  verify-pr:
+    name: 'Verify PR'
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/rancher/ci-image/nix:20260603-18
     timeout-minutes: 30
-    strategy:
-      matrix:
-        pr: ${{ fromJson(needs.get-open-prs.outputs.prs) }}
-      fail-fast: false
+    outputs:
+      pr_number: ${{ steps.get-pr.outputs.result }}
     permissions:
-      contents: write
-      id-token: write
+      contents: read
       pull-requests: write
       issues: write
       checks: read
       copilot-requests: write
     steps:
+      - name: Get Target PR
+        id: get-pr
+        # https://github.com/actions/github-script/releases
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            let prNumber;
+            const parentRun = context.payload.workflow_run;
+            if (parentRun && parentRun.pull_requests && parentRun.pull_requests.length > 0) {
+              prNumber = parentRun.pull_requests[0].number;
+              core.info(`Identified target PR #${prNumber} from workflow_run payload.`);
+            } else if (parentRun) {
+              try {
+                const { data: runDetail } = await github.rest.actions.getWorkflowRun({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: parentRun.id,
+                });
+                if (runDetail.pull_requests && runDetail.pull_requests.length > 0) {
+                  prNumber = runDetail.pull_requests[0].number;
+                  core.info(`Identified target PR #${prNumber} via API fetch.`);
+                }
+              } catch (err) {
+                core.warning(`Failed to fetch workflow run details: ${err.message}`);
+              }
+            }
+
+            if (!prNumber) {
+              core.setFailed('Could not determine target PR number from payload.');
+              return;
+            }
+
+            // Fetch PR details
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            // Explicitly fail Release-please PRs to avoid GHA waste
+            const isReleasePlease = pr.user?.login === 'release-please[bot]' && pr.head?.ref?.startsWith('release-please--');
+            if (isReleasePlease) {
+              core.setFailed(`Skipping execution: Release-please PR #${prNumber} is strictly exempt from automated merging.`);
+              return;
+            }
+
+            const isDependabot = pr.user?.login === 'dependabot[bot]';
+            if (!isDependabot) {
+              // Check comments for /merge
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+              });
+              const hasMergeComment = comments.some((c) => {
+                const isMerge = (c.body || '').trim() === '/merge';
+                const assoc = c.author_association;
+                const isTrusted = assoc === 'OWNER' || assoc === 'MEMBER' || assoc === 'COLLABORATOR';
+                return isMerge && isTrusted;
+              });
+              if (!hasMergeComment) {
+                core.setFailed(`Skipping execution: Human PR #${prNumber} does not have an authorized /merge comment from a trusted repository member.`);
+                return;
+              }
+            }
+
+            return prNumber;
+
       - name: Checkout Repository
         id: checkout-repository
         # https://github.com/actions/checkout/releases
@@ -72,7 +104,7 @@ jobs:
         # https://github.com/actions/github-script/releases
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          PR_NUMBER: ${{ matrix.pr }}
+          PR_NUMBER: ${{ steps.get-pr.outputs.result }}
         with:
           script: |
             const scriptPath = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/verify-pr-requirements.mjs`;
@@ -85,7 +117,7 @@ jobs:
         # https://github.com/actions/github-script/releases
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          PR_NUMBER: ${{ matrix.pr }}
+          PR_NUMBER: ${{ steps.get-pr.outputs.result }}
           REASONS: ${{ steps.verify-pr.outputs.reasons }}
           CI_PENDING: ${{ steps.verify-pr.outputs.ci_pending }}
         with:
@@ -94,9 +126,27 @@ jobs:
             const { default: script } = await import(scriptPath);
             await script({github, context, core, process});
 
+  merge-pr:
+    name: 'Merge PR'
+    needs: verify-pr
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/rancher/ci-image/nix:20260603-18
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: write
+      issues: write
+      copilot-requests: write
+    steps:
+      - name: Checkout Repository
+        id: checkout-repository
+        # https://github.com/actions/checkout/releases
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Get Merge Token
         id: get-merge-token
-        if: ${{ steps.verify-pr.outcome == 'success' }}
         # https://github.com/rancher-eio/read-vault-secrets/commits
         uses: rancher-eio/read-vault-secrets@7282bf97898cd1c16c89f837e0bb442e6d384c89 # @main
         with:
@@ -105,11 +155,10 @@ jobs:
 
       - name: Merge PR
         id: merge-pr
-        if: ${{ steps.verify-pr.outcome == 'success' }}
         # https://github.com/actions/github-script/releases
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          PR_NUMBER: ${{ matrix.pr }}
+          PR_NUMBER: ${{ needs.verify-pr.outputs.pr_number }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MERGE_TOKEN: ${{ env.GITHUB_MERGE_TOKEN }}
         with:
@@ -125,7 +174,7 @@ jobs:
         # https://github.com/actions/github-script/releases
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          PR_NUMBER: ${{ matrix.pr }}
+          PR_NUMBER: ${{ needs.verify-pr.outputs.pr_number }}
           ERROR_MESSAGE: 'The automated merge execution failed. Please verify branch push restrictions, ruleset configurations, or merge token expiration status.'
         with:
           script: |
