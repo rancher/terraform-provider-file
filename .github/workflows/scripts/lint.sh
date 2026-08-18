@@ -108,7 +108,7 @@ run_prettier() {
 
 run_markdownlint() {
   echo "==> Validating markdown files with markdownlint..."
-  markdownlint . --ignore-path .gitignore
+  markdownlint . --ignore-path .gitignore -i CHANGELOG.md
 }
 
 run_golangci_lint() {

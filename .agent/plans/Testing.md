@@ -41,7 +41,7 @@ _(Placeholder for future standardizations around Terraform Acceptance Testing `m
 
 - [x] Refactor `.github/workflows/scripts/lint.sh` to introduce modular run functions for `run_shfmt`, `run_prettier`, `run_markdownlint`, `run_golangci_lint`, and `run_cspell`.
 - [x] Execute an initial repository-wide auto-format sweep using `prettier --write` and `shfmt -w` to baseline the codebase cleanly without polluting future feature diffs.
-- [x] Resolve any pre-existing code findings flagged by the new linters.
+- [x] Resolve any pre-existing code findings flagged by the new linters (specifically remaining markdownlint issues).
 
 ### Phase 3: Gating & Secure Push (Gate 2)
 

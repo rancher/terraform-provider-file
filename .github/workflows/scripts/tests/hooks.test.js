@@ -6,7 +6,8 @@ import crypto from 'crypto';
 import { execFileSync, execSync } from 'child_process';
 
 test('Native Hook scripts E2E-grade Unit Tests', async (t) => {
-  const tempHome = path.resolve('/tmp/gemini-hooks-test-home');
+  const uniqueId = crypto.randomBytes(8).toString('hex');
+  const tempHome = path.resolve(`/tmp/gemini-hooks-test-home-${uniqueId}`);
   const tempTmpDir = path.resolve(tempHome, '.gemini/tmp/terraform-provider-file');
 
   // Setup pristine temp test directories

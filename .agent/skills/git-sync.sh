@@ -179,12 +179,9 @@ cleanup() {
     fi
 
     if [[ "$STAY_STASH_CREATED" == "true" ]]; then
-      echo "Dropping temporary stay stash..." >&2
-      local stash_index
-      stash_index=$(git stash list | grep "git-sync-stay-stash" | head -n1 | cut -d: -f1 || true)
-      if [[ -n "$stash_index" ]]; then
-        git stash drop "$stash_index" >/dev/null 2>&1 || true
-      fi
+      echo "⚠️ WARNING: A temporary stay stash ('git-sync-stay-stash') was created containing your in-progress work!" >&2
+      echo "   The stash has been PRESERVED in your Git stash list to prevent data loss." >&2
+      echo "   Please inspect/restore it manually using 'git stash list' and 'git stash pop' after recovery." >&2
     fi
   fi
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# Skill: update-modules.sh
+# Helper: update-modules.sh
 # Description: Dynamically detects and updates all Terraform Registry module references in all .tf files to their latest registry versions.
-# Usage: .agent/skills/update-modules.sh
+# Usage: .github/workflows/scripts/update-modules.sh
 
 set -euo pipefail
 
@@ -20,8 +20,8 @@ Options:
   -h, --help           Show this help message and exit.
 
 Examples:
-  .agent/skills/update-modules.sh --list-modules
-  .agent/skills/update-modules.sh
+  .github/workflows/scripts/update-modules.sh --list-modules
+  .github/workflows/scripts/update-modules.sh
 EOF
 }
 
@@ -47,7 +47,7 @@ run_with_retry() {
 
     local delay
     delay=$((base_delay * (2 ** (attempt - 1))))
-    echo "Warning: Command failed (exit code ${exit_code}). Retrying in ${delay} seconds (attempt ${attempt}/${max_attempts})..." >&2
+    echo "Warning: Command failed (exit code ${exit_code}). Retrying in ${delay} seconds (attempt ${attempt}/${max_attempts})...." >&2
     sleep "${delay}"
     attempt=$((attempt + 1))
   done
@@ -130,8 +130,9 @@ update_all_modules() {
   echo "Scanning all Terraform files to discover public registry modules..." >&2
 
   # Extract unique public registry module names (pattern: namespace/name/provider)
+  # Highly optimized: explicitly exclude .terraform and .git to prevent slow recursive scans
   local modules
-  modules=$(grep -E -o 'source[ \t]*=[ \t]*"[A-Za-z0-9_-]+/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+"' -r --include="*.tf" "${search_dir}" 2>/dev/null \
+  modules=$(grep -E -o 'source[ \t]*=[ \t]*"[A-Za-z0-9_-]+/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+"' -r --exclude-dir=".terraform" --exclude-dir=".git" --include="*.tf" "${search_dir}" 2>/dev/null \
     | sed -E 's/.*source[ \t]*=[ \t]*"([^"]+)".*/\1/' \
     | sort -u || echo "")
 
@@ -150,13 +151,11 @@ update_all_modules() {
       continue
     fi
 
-    # Support prefixing with "v" (common convention in this repo)
-    local new_ver="v${latest_version}"
-    echo "Latest version of ${mod} is ${new_ver}. Updating references..." >&2
+    echo "Latest version of ${mod} is ${latest_version}. Updating references..." >&2
 
     local file
     while IFS= read -r -d '' file; do
-      awk -v new_ver="${new_ver}" -v mod="${mod}" '
+      awk -v raw_ver="${latest_version}" -v mod="${mod}" '
       # Match a line specifying the target module source
       # e.g., source = "rancher/access/aws"
       $0 ~ "source[ \t]+=[ \t]+\"" mod "\"" {
@@ -167,8 +166,19 @@ update_all_modules() {
         
         # Check if this next line defines the version attribute
         if ($0 ~ /version[ \t]+=/) {
-          # Substitute the old version string (e.g. "v1.0.0") with the new_ver string
-          sub(/"[^"]+"/, "\"" new_ver "\"")
+          # Extract the version value within quotes
+          match($0, /"[^"]+"/)
+          val = substr($0, RSTART + 1, RLENGTH - 2)
+          
+          # Choose new version format dynamically based on original prefix
+          if (val ~ /^v/) {
+            new_val = "v" raw_ver
+          } else {
+            new_val = raw_ver
+          }
+          
+          # Substitute the old version string with the dynamically chosen one
+          sub(/"[^"]+"/, "\"" new_val "\"")
         }
         print # Print the updated (or unchanged) version line
         next
@@ -179,7 +189,7 @@ update_all_modules() {
 
       if [[ "${mode}" == "validate" ]]; then
         if ! cmp -s "${file}" "${file}.tmp"; then
-          echo "Error: Outdated module version found for ${mod} in ${file}. Latest is ${new_ver}." >&2
+          echo "Error: Outdated module version found for ${mod} in ${file}. Latest is ${latest_version}." >&2
           outdated=true
         fi
         rm -f "${file}.tmp"

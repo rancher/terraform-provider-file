@@ -78,6 +78,10 @@
     { "local": ".agent/skills/update-action-versions.sh", "remote": ".agent/skills/update-action-versions.sh" },
     { "local": ".agent/skills/update-modules.sh", "remote": ".agent/skills/update-modules.sh" },
     { "local": ".agent/skills/user-approval.js", "remote": ".agent/skills/user-approval.js" },
+<<<<<<< HEAD
+=======
+    { "local": ".agent/skills/write-approval.sh", "remote": ".agent/skills/write-approval.sh" },
+>>>>>>> main
     {
       "local": ".github/workflows/scripts/tests/hooks.test.js",
       "remote": ".github/workflows/scripts/tests/hooks.test.js"
