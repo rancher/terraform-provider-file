@@ -198,24 +198,27 @@ verify_proactive_review() {
 
   # Verify ownership natively
   local file_uid=""
-  if [[ "${OSTYPE:-}" == "darwin"* ]]; then
-    file_uid=$(stat -f %u "$review_file" 2>/dev/null || echo "")
-  else
-    file_uid=$(stat -c %u "$review_file" 2>/dev/null || echo "")
+  file_uid=$(get_file_owner_uid "$review_file")
+
+  if [[ -z "$file_uid" ]]; then
+    echo "Error: Could not determine owner UID for proactive review approval file." >&2
+    exit 1
   fi
 
-  if [[ -n "$file_uid" && "$file_uid" -ne "$(id -u)" ]]; then
+  if [[ "$file_uid" -ne "$(id -u)" ]]; then
     echo "Error: Proactive review approval file is not owned by the current user (UID: $(id -u), Owner: $file_uid)." >&2
+    exit 1
+  fi
+
+  # Ensure jq utility is present
+  if ! command_exists jq; then
+    echo "Error: jq utility is required but not found on this system." >&2
     exit 1
   fi
 
   # Check diff_hash inside the JSON using jq and grep
   local active_hash=""
-  if command -v sha256sum >/dev/null 2>&1; then
-    active_hash=$(git diff HEAD | sha256sum | cut -d' ' -f1)
-  else
-    active_hash=$(git diff HEAD | shasum -a 256 | cut -d' ' -f1)
-  fi
+  active_hash=$(git diff HEAD | calculate_sha256)
 
   # Check if status is approved and diff_hash matches
   local status=""

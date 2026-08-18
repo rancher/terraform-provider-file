@@ -34,7 +34,7 @@ Resolve merge conflicts between `feature/secure-agent-pipeline` and `main`, and 
 
 - [x] **`update-modules.sh`**: Avoid unconditionally prefixing module versions with `v` if the registry version does not require it. Optimize the `grep` search to explicitly exclude `.terraform` and `.git` directories. Correct CLI help text.
 - [x] **`update-action-versions.sh`**: Correct CLI help text to point to `.github/workflows/scripts/`.
-- [ ] **`commit-push.sh`**: Restore proactive review validation check natively against `review-approval.json` to close the security gate.
+- [ ] **`commit-push.sh`**: Restore proactive review validation check natively against `review-approval.json` to close the security gate, and harden its ownership checks, jq presence check, and SHA-256 helper reuse.
 - [x] **`hooks.test.js`**: Refactor tests to use dynamically generated unique temp directories instead of hardcoded paths.
 - [x] **`.gemini/settings.json`**: Ensure `.agent/hooks/block-secrets.js` is invoked for `write_file` and `replace` hooks.
 - [x] **`block-secrets.js`**: Remove the unused `path` import.
