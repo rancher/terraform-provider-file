@@ -148,6 +148,10 @@ check_defunct_branch() {
 verify_staging_limits() {
   local max_allowed=5
   if [[ -n "${COMMIT_LIMIT_OVERRIDE:-}" ]]; then
+    if [[ ! "${COMMIT_LIMIT_OVERRIDE}" =~ ^[0-9]+$ ]]; then
+      echo "Error: COMMIT_LIMIT_OVERRIDE must be a positive integer, got: '${COMMIT_LIMIT_OVERRIDE}'" >&2
+      exit 1
+    fi
     max_allowed="${COMMIT_LIMIT_OVERRIDE}"
     echo "--> [OVERRIDE] Using custom staged file limit from COMMIT_LIMIT_OVERRIDE: ${max_allowed}" >&2
   fi
