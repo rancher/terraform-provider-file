@@ -159,6 +159,10 @@ verify_staging_limits() {
   STAGED_COUNT=$(git diff --cached --name-only | wc -l | tr -d ' ')
 
   if [[ "$STAGED_COUNT" -eq 0 ]]; then
+    if [[ -f .git/MERGE_HEAD || -f .git/CHERRY_PICK_HEAD || -f .git/REBASE_HEAD ]]; then
+      echo "--> [MERGE STATE] Active merge/rebase/cherry-pick in progress. Allowing 0 staged files to create merge commit."
+      return 0
+    fi
     echo "Error: No changes are currently staged for commit." >&2
     echo "       Please stage your changes first using 'git add <files>...'." >&2
     exit 1
