@@ -25,6 +25,7 @@ function calculateFileHash(filePath) {
     const content = fs.readFileSync(filePath);
     return crypto.createHash('sha256').update(content).digest('hex');
   } catch (err) {
+    console.error('🔒 Hook Debug: calculateFileHash failed:', err.message || err);
     return null;
   }
 }
@@ -35,6 +36,7 @@ function calculateDiffHash() {
     const diff = execSync('git diff HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
     return crypto.createHash('sha256').update(diff).digest('hex');
   } catch (err) {
+    console.error('🔒 Hook Debug: calculateDiffHash failed:', err.message || err);
     return null;
   }
 }
@@ -61,11 +63,14 @@ function findLatestActivePlan() {
       }
     }
 
-    if (planFiles.length === 0) return null;
+    if (planFiles.length === 0) {
+      return null;
+    }
 
     planFiles.sort((a, b) => b.mtime - a.mtime);
     return planFiles[0].path;
   } catch (err) {
+    console.error('🔒 Hook Debug: findLatestActivePlan failed:', err.message || err);
     return null;
   }
 }
@@ -80,22 +85,33 @@ function verifyPlanGate() {
     const content = JSON.parse(fs.readFileSync(PLAN_APPROVAL_FILE, 'utf-8'));
     const challenge = JSON.parse(fs.readFileSync(PLAN_CHALLENGE_FILE, 'utf-8'));
 
-    if (content.status !== 'approved') return null;
+    if (content.status !== 'approved') {
+      return null;
+    }
 
     const token = content.challenge_token;
-    if (!token) return null;
+    if (!token) {
+      return null;
+    }
 
     const calculatedHash = crypto.createHash('sha256').update(token).digest('hex');
-    if (calculatedHash !== challenge.challenge_hash) return null;
+    if (calculatedHash !== challenge.challenge_hash) {
+      return null;
+    }
 
     const activePlan = findLatestActivePlan();
-    if (!activePlan) return null;
+    if (!activePlan) {
+      return null;
+    }
 
     const currentPlanHash = calculateFileHash(activePlan);
-    if (content.plan_hash !== currentPlanHash) return null;
+    if (content.plan_hash !== currentPlanHash) {
+      return null;
+    }
 
     return content.plan_hash;
   } catch (err) {
+    console.error('🔒 Hook Debug: verifyPlanGate failed:', err.message || err);
     return null;
   }
 }
@@ -108,15 +124,22 @@ function verifyTestGate(expectedPlanHash) {
 
   try {
     const content = JSON.parse(fs.readFileSync(TEST_APPROVAL_FILE, 'utf-8'));
-    if (content.status !== 'approved') return false;
+    if (content.status !== 'approved') {
+      return false;
+    }
 
-    if (content.plan_hash !== expectedPlanHash) return false;
+    if (content.plan_hash !== expectedPlanHash) {
+      return false;
+    }
 
     const activeDiffHash = calculateDiffHash();
-    if (content.diff_hash !== activeDiffHash) return false;
+    if (content.diff_hash !== activeDiffHash) {
+      return false;
+    }
 
     return true;
   } catch (err) {
+    console.error('🔒 Hook Debug: verifyTestGate failed:', err.message || err);
     return false;
   }
 }
@@ -129,13 +152,20 @@ function verifyReviewGate(expectedDiffHash, expectedPlanHash) {
 
   try {
     const content = JSON.parse(fs.readFileSync(REVIEW_APPROVAL_FILE, 'utf-8'));
-    if (content.status !== 'approved') return false;
+    if (content.status !== 'approved') {
+      return false;
+    }
 
-    if (content.plan_hash !== expectedPlanHash) return false;
-    if (content.diff_hash !== expectedDiffHash) return false;
+    if (content.plan_hash !== expectedPlanHash) {
+      return false;
+    }
+    if (content.diff_hash !== expectedDiffHash) {
+      return false;
+    }
 
     return true;
   } catch (err) {
+    console.error('🔒 Hook Debug: verifyReviewGate failed:', err.message || err);
     return false;
   }
 }

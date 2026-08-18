@@ -41,7 +41,9 @@ function main() {
   let commandClean = command;
   while (true) {
     const next = commandClean.replace(/^[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"[^"]*"|\S+)\s+/, '');
-    if (next === commandClean) break;
+    if (next === commandClean) {
+      break;
+    }
     commandClean = next;
   }
 

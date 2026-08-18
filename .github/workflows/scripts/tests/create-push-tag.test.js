@@ -163,7 +163,7 @@ test('create-push-tag.js tests', async (t) => {
     const tagsList = [{ name: 'v1.2.3-rc.0' }, { name: 'v1.2.3-rc.1' }, { name: 'v1.1.0' }];
 
     const github = {
-      paginate: async (method, params) => {
+      paginate: async () => {
         return tagsList;
       },
       rest: {

@@ -101,4 +101,11 @@ Embedded javascript code blocks inside `.github/workflows/pr-executor.yml` must 
 - [x] Register `block-secrets.js` hook on `run_shell_command`, `write_file`, and `replace` matchers in `.gemini/settings.json`.
 - [x] Remove unused `path` import from `.agent/hooks/block-secrets.js` to ensure ESLint compliance.
 - [x] Add strict alphanumeric/symbol allowlist validation (`^[a-zA-Z0-9_./-]+$`) to `BASE_REF` in `.github/workflows/pull_request.yaml` before running git commands.
-- [ ] Harden Gate 1 validation inside `.agent/hooks/after-invoke-agent.js` to strictly check `plan-approval.challenge` hash chain.
+- [x] Harden Gate 1 validation inside `.agent/hooks/after-invoke-agent.js` to strictly check `plan-approval.challenge` hash chain.
+
+### Phase 7: Local Gaps Resolution (Hardening Local Tests & Linters)
+
+- [x] Update `eslint.config.mjs` to enable `'no-unused-vars': 'error'` globally and remove all ignore patterns to enforce strict warnings.
+- [x] Create a comprehensive unit test suite `.github/workflows/scripts/tests/hooks.test.js` to test all enforcer hooks (`block-secrets.js`, `enforce-planning.js`, `after-ask-user.js`, etc.) using `node:test` and `node:assert`.
+- [x] Surgically refactor all catch blocks, destructured parameters, and test mocks to resolve all unused-variable linter errors cleanly.
+- [x] Verify that all 29 GHA tests + our new hook unit tests pass cleanly.

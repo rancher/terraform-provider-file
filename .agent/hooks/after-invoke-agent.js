@@ -26,6 +26,7 @@ function calculateFileHash(filePath) {
     const content = fs.readFileSync(filePath);
     return crypto.createHash('sha256').update(content).digest('hex');
   } catch (err) {
+    console.error('🔒 Hook Debug: calculateFileHash failed:', err.message || err);
     return null;
   }
 }
@@ -36,6 +37,7 @@ function calculateDiffHash() {
     const diff = execSync('git diff HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
     return crypto.createHash('sha256').update(diff).digest('hex');
   } catch (err) {
+    console.error('🔒 Hook Debug: calculateDiffHash failed:', err.message || err);
     return null;
   }
 }
@@ -62,11 +64,14 @@ function findLatestActivePlan() {
       }
     }
 
-    if (planFiles.length === 0) return null;
+    if (planFiles.length === 0) {
+      return null;
+    }
 
     planFiles.sort((a, b) => b.mtime - a.mtime);
     return planFiles[0].path;
   } catch (err) {
+    console.error('🔒 Hook Debug: findLatestActivePlan failed:', err.message || err);
     return null;
   }
 }
@@ -81,22 +86,33 @@ function verifyPlanGate() {
     const content = JSON.parse(fs.readFileSync(PLAN_APPROVAL_FILE, 'utf-8'));
     const challenge = JSON.parse(fs.readFileSync(PLAN_CHALLENGE_FILE, 'utf-8'));
 
-    if (content.status !== 'approved') return null;
+    if (content.status !== 'approved') {
+      return null;
+    }
 
     const token = content.challenge_token;
-    if (!token) return null;
+    if (!token) {
+      return null;
+    }
 
     const calculatedHash = crypto.createHash('sha256').update(token).digest('hex');
-    if (calculatedHash !== challenge.challenge_hash) return null;
+    if (calculatedHash !== challenge.challenge_hash) {
+      return null;
+    }
 
     const activePlan = findLatestActivePlan();
-    if (!activePlan) return null;
+    if (!activePlan) {
+      return null;
+    }
 
     const currentPlanHash = calculateFileHash(activePlan);
-    if (content.plan_hash !== currentPlanHash) return null;
+    if (content.plan_hash !== currentPlanHash) {
+      return null;
+    }
 
     return content.plan_hash;
   } catch (err) {
+    console.error('🔒 Hook Debug: verifyPlanGate failed:', err.message || err);
     return null;
   }
 }
@@ -138,7 +154,9 @@ function main() {
     const reportFile = path.join(LOGS_DIR, `${agentName}_report.md`);
     try {
       fs.unlinkSync(reportFile);
-    } catch (e) {}
+    } catch (err) {
+      console.error(`🔒 Hook Debug: unlink existing report file failed for ${agentName}:`, err.message || err);
+    }
     fs.writeFileSync(reportFile, report, { mode: 0o600 });
   } catch (err) {
     console.error(`🔒 Hook Error: Failed to write sub-agent report for ${agentName}:`, err.message);
@@ -178,7 +196,9 @@ function main() {
       try {
         try {
           fs.unlinkSync(targetFile);
-        } catch (e) {}
+        } catch (err) {
+          console.error('🔒 Hook Debug: unlink targetFile failed:', err.message || err);
+        }
         fs.writeFileSync(targetFile, JSON.stringify(approvalData, null, 2), { mode: 0o600 });
         console.log(
           JSON.stringify({
@@ -196,7 +216,9 @@ function main() {
       // Self-Healing: Revoke existing signature if tests failed
       try {
         fs.unlinkSync(targetFile);
-      } catch (e) {}
+      } catch (err) {
+        console.error('🔒 Hook Debug: unlink targetFile failed during self-healing:', err.message || err);
+      }
       console.log(
         JSON.stringify({
           decision: 'allow',
@@ -251,7 +273,9 @@ function main() {
       try {
         try {
           fs.unlinkSync(targetFile);
-        } catch (e) {}
+        } catch (err) {
+          console.error('🔒 Hook Debug: unlink targetFile failed for review:', err.message || err);
+        }
         fs.writeFileSync(targetFile, JSON.stringify(approvalData, null, 2), { mode: 0o600 });
         console.log(
           JSON.stringify({
@@ -269,7 +293,9 @@ function main() {
       // Self-Healing: Revoke existing signature if review failed
       try {
         fs.unlinkSync(targetFile);
-      } catch (e) {}
+      } catch (err) {
+        console.error('🔒 Hook Debug: unlink targetFile failed during review self-healing:', err.message || err);
+      }
       console.log(
         JSON.stringify({
           decision: 'allow',

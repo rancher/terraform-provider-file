@@ -12,6 +12,7 @@ function calculateFileHash(filePath) {
     const content = fs.readFileSync(filePath);
     return crypto.createHash('sha256').update(content).digest('hex');
   } catch (err) {
+    console.error('🔒 Hook Debug: calculateFileHash failed:', err.message || err);
     return null;
   }
 }
@@ -21,6 +22,7 @@ function calculateDiffHash() {
     const diff = execSync('git diff HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
     return crypto.createHash('sha256').update(diff).digest('hex');
   } catch (err) {
+    console.error('🔒 Hook Debug: calculateDiffHash failed:', err.message || err);
     return null;
   }
 }
@@ -49,11 +51,14 @@ function findLatestActivePlan() {
       }
     }
 
-    if (planFiles.length === 0) return null;
+    if (planFiles.length === 0) {
+      return null;
+    }
 
     planFiles.sort((a, b) => b.mtime - a.mtime);
     return planFiles[0].path;
   } catch (err) {
+    console.error('🔒 Hook Debug: findLatestActivePlan failed:', err.message || err);
     return null;
   }
 }
@@ -82,7 +87,7 @@ function main() {
     // Extract first answer value
     answerText = Object.values(answers)[0] || '';
   } catch (err) {
-    // If not JSON, use raw display content
+    console.error('🔒 Hook Debug: Parse response JSON failed, using raw display content:', err.message || err);
     answerText = tool_response.llmContent;
   }
 
@@ -137,6 +142,10 @@ function main() {
       process.exit(1);
     }
     const planHash = calculateFileHash(activePlan);
+    if (!planHash) {
+      console.error('🔒 Cryptographic Pipeline Error: Failed to calculate active plan hash.');
+      process.exit(1);
+    }
 
     const challengeToken = crypto.randomBytes(32).toString('hex');
     const challengeHash = crypto.createHash('sha256').update(challengeToken).digest('hex');
@@ -179,7 +188,10 @@ function main() {
       );
       process.exit(0);
     } catch (err) {
-      console.error('🔒 Cryptographic Pipeline Error: Failed to execute Secure Enclave plan decryption:', err.message);
+      console.error(
+        '🔒 Cryptographic Pipeline Error: Failed to execute Secure Enclave plan decryption:',
+        err.message || err,
+      );
       process.exit(1);
     }
   } else if (isCommitAsk) {
@@ -237,7 +249,7 @@ function main() {
     } catch (err) {
       console.error(
         '🔒 Cryptographic Pipeline Error: Failed to execute Secure Enclave commit decryption:',
-        err.message,
+        err.message || err,
       );
       process.exit(1);
     }

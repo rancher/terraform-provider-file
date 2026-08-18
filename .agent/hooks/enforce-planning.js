@@ -76,7 +76,9 @@ function main() {
     // Check if git status has any modified (M), added (A), or untracked (??) plan files in .agent/plans/
     const hasActivePlan = statusOutput.split('\n').some((line) => {
       const trimmed = line.trim();
-      if (!trimmed.includes('.agent/plans/')) return false;
+      if (!trimmed.includes('.agent/plans/')) {
+        return false;
+      }
       const status = line.substring(0, 2);
       // Ensure the file is not deleted ('D') or ignored ('!')
       return !status.includes('D') && !status.includes('!');

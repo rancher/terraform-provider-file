@@ -6,7 +6,9 @@ async function withRetry(core, fn, retries = 3, delay = 2000) {
     try {
       return await fn();
     } catch (err) {
-      if (i === retries - 1) throw err;
+      if (i === retries - 1) {
+        throw err;
+      }
       core.warning(`API call failed (Attempt ${i + 1}/${retries}): ${err.message}. Retrying in ${delay}ms...`);
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
@@ -41,7 +43,6 @@ export default async ({ github, context, core, process }) => {
 
   const { success, reasons, ciPending } = await verifyPullRequest({
     github,
-    context,
     core,
     pr,
     owner,
@@ -64,7 +65,7 @@ export default async ({ github, context, core, process }) => {
 /**
  * Performs read-only verification on a single Pull Request.
  */
-async function verifyPullRequest({ github, context, core, pr, owner, repo, checkCI }) {
+async function verifyPullRequest({ github, core, pr, owner, repo, checkCI }) {
   const reasons = [];
   let ciPending = false;
 
@@ -163,13 +164,17 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
   const trustedApprovals = [];
   for (const review of Object.values(latestReviews)) {
     const login = review.user?.login;
-    if (!login) continue;
+    if (!login) {
+      continue;
+    }
     const isBot =
       review.user.type === 'Bot' ||
       login.endsWith('[bot]') ||
       login.toLowerCase().includes('copilot') ||
       login.toLowerCase().includes('agent');
-    if (isBot) continue;
+    if (isBot) {
+      continue;
+    }
 
     const assoc = review.author_association;
     let isTrusted = assoc === 'OWNER' || assoc === 'MEMBER' || assoc === 'COLLABORATOR';
@@ -196,7 +201,9 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
   const isDependabot = pr.user?.login === 'dependabot[bot]';
   const aiApprovals = Object.values(latestReviews).filter((review) => {
     const login = review.user?.login;
-    if (!login) return false;
+    if (!login) {
+      return false;
+    }
     const isAi = login.toLowerCase().includes('copilot') || login.toLowerCase().includes('agent');
     return isAi && (review.state === 'APPROVED' || review.state === 'COMMENTED');
   });

@@ -63,7 +63,7 @@ test('verify-pr-requirements.mjs tests', async (t) => {
           listComments: {},
         },
       },
-      paginate: async (apiFn, params) => {
+      paginate: async (apiFn) => {
         if (apiFn === mockGithub.rest.pulls.listCommits) {
           // Mock commits: all GPG verified
           return [
@@ -158,7 +158,7 @@ test('verify-pr-requirements.mjs tests', async (t) => {
           }),
         },
       },
-      paginate: async (apiFn, params) => {
+      paginate: async (apiFn) => {
         if (apiFn === mockGithub.rest.pulls.listCommits) {
           return [
             {
@@ -254,7 +254,7 @@ test('verify-pr-requirements.mjs tests', async (t) => {
           listComments: {},
         },
       },
-      paginate: async (apiFn, params) => {
+      paginate: async (apiFn) => {
         if (apiFn === mockGithub.rest.pulls.listCommits) {
           return [
             {
@@ -349,7 +349,7 @@ test('verify-pr-requirements.mjs tests', async (t) => {
           }),
         },
       },
-      paginate: async (apiFn, params) => {
+      paginate: async (apiFn) => {
         if (apiFn === mockGithub.rest.pulls.listCommits) {
           return [
             {
