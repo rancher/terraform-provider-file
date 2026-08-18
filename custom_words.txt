@@ -40,6 +40,9 @@ planmodifier
 popd
 providerserver
 pushd
+sandbox
+sandboxed
+sandboxing
 shellcheck
 shfmt
 stdenv
