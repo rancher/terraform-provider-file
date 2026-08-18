@@ -8,7 +8,9 @@ async function withRetry(core, fn, retries = 3, delay = 2000) {
     try {
       return await fn();
     } catch (err) {
-      if (i === retries - 1) throw err;
+      if (i === retries - 1) {
+        throw err;
+      }
       core.warning(`API call failed (Attempt ${i + 1}/${retries}): ${err.message}. Retrying in ${delay}ms...`);
       await new Promise((resolve) => setTimeout(resolve, delay));
     }

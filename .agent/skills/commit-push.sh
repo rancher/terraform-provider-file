@@ -148,6 +148,10 @@ check_defunct_branch() {
 verify_staging_limits() {
   local max_allowed=5
   if [[ -n "${COMMIT_LIMIT_OVERRIDE:-}" ]]; then
+    if [[ ! "${COMMIT_LIMIT_OVERRIDE}" =~ ^[0-9]+$ ]]; then
+      echo "Error: COMMIT_LIMIT_OVERRIDE must be a positive integer, got: '${COMMIT_LIMIT_OVERRIDE}'" >&2
+      exit 1
+    fi
     max_allowed="${COMMIT_LIMIT_OVERRIDE}"
     echo "--> [OVERRIDE] Using custom staged file limit from COMMIT_LIMIT_OVERRIDE: ${max_allowed}" >&2
   fi
@@ -155,6 +159,10 @@ verify_staging_limits() {
   STAGED_COUNT=$(git diff --cached --name-only | wc -l | tr -d ' ')
 
   if [[ "$STAGED_COUNT" -eq 0 ]]; then
+    if [[ -f .git/MERGE_HEAD || -f .git/CHERRY_PICK_HEAD || -f .git/REBASE_HEAD ]]; then
+      echo "--> [MERGE STATE] Active merge/rebase/cherry-pick in progress. Allowing 0 staged files to create merge commit."
+      return 0
+    fi
     echo "Error: No changes are currently staged for commit." >&2
     echo "       Please stage your changes first using 'git add <files>...'." >&2
     exit 1
@@ -169,16 +177,20 @@ verify_staging_limits() {
 
 # Enforce secure proactive review validation
 verify_proactive_review() {
-	# Delegate verification cleanly and securely to user-approval.js skill
-	if ! node .agent/skills/user-approval.js --verify; then
-		exit 1
-	fi
+  # Delegate verification cleanly and securely to write-approval.sh skill
+  if ! bash .agent/skills/write-approval.sh --verify; then
+    exit 1
+  fi
 }
 
 # Sync with Upstream parent repository
 sync_default_branch() {
   local branch="$1"
   if [[ "$branch" != "main" ]]; then
+    if [[ -f .git/MERGE_HEAD || -f .git/CHERRY_PICK_HEAD || -f .git/REBASE_HEAD ]]; then
+      echo "--> [MERGE STATE] Active merge/rebase/cherry-pick in progress. Skipping sync_default_branch to preserve merge state."
+      return 0
+    fi
     echo "Synchronizing local 'main' branch and tags with upstream parent repository..."
     # Temporarily stash unstaged/untracked files to allow git-sync.sh clean checks
     local stash_created=false

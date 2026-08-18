@@ -36,14 +36,14 @@ Workflows should act as orchestrators, not execution scripts.
 
 ### D. Decoupled PR Executor Architecture
 
-To avoid monolithic script sprawl and properly split verification and write-actions, our auto-merge pipeline (`pr-executor.yml`) is completely decoupled:
+To avoid monolithic script sprawl and securely isolate elevated privileges from untrusted fork code, our auto-merge pipeline is completely decoupled into a trigger-and-execute model:
 
-- **`get-open-prs` (Read-only GHA Job)**: Queries GitHub API for open, active PRs targeting main, outputting them as a JSON array.
-- **`verify-and-merge` (Parallel GHA Matrix Job)**: Dynamically scales in parallel for each open PR.
-  - **`verify-pr-requirements.mjs` (Read-only Step)**: Checks if the PR is ready (CI checks, verified commits, approvals, threads). This step uses the restricted `secrets.GITHUB_TOKEN`.
-  - **`merge-pr.js` (Elevated Write-only Step)**: Executes only if verification succeeded. Uses the elevated `MERGE_TOKEN` from HashiCorp Vault. It automatically generates the conventional commit squash title/body via Copilot, validating it, and running a self-correcting loop with feedback up to 3 times on validation failure before falling back to the default PR title and description. Finally, it executes the squash merge.
-  - **`handle-verification-failure.js` (Write-only step)**: Runs on verification failure to post status warnings/manage labels.
-  - **`handle-merge-failure.js` (Write-only step)**: Runs on merge failure to apply gracefully fork-protection fallbacks (labels/maintainer comments).
+- **`review-trigger.yml` (Unprivileged Gatekeeper)**: Listens for `issue_comment` events. Evaluates if the comment contains a human `/merge` command or a Copilot review pass. If valid, the workflow successfully completes; otherwise, it intentionally fails to prevent downstream execution. This exists to trigger the executor again; if CI passes but the reviews aren't complete, the executor will fail verification and won't merge. At this point we need something that isn't a code push to trigger the executor, so this triggers on PR comment to re-trigger the executor.
+- **`pr-executor.yml` (Elevated Execution Pipeline)**: Triggered securely via the `workflow_run` event when either the `pull_request` or `pull_request_review_trigger` workflows complete successfully. Running in the privileged base-repository context, it is split into two jobs:
+  - **`verify-pr` (Read-only GHA Job)**: Extracts the specific target PR directly from the parent `workflow_run` event payload. Executes `verify-pr-requirements.mjs` to check if the PR is ready (CI checks, verified commits, number of review approvals met, all threads closed) using the workflow's `GITHUB_TOKEN` (not the PR token).
+    - **Failure Handler (`handle-verification-failure.js`)**: Executes conditionally if verification fails, posting status warnings or managing labels.
+  - **`merge-pr` (Elevated Write-only GHA Job)**: Executes only if the `verify-pr` job succeeded (`needs: verify-pr`). Runs `merge-pr.js` to automatically generate the conventional commit squash title/body via Copilot, validating it, and running a self-correcting loop with feedback before falling back to the default PR title (using the workflow's `GITHUB_TOKEN`). Finally, it executes the squash merge using a GitHub App token provided by [EIO's Power Enhancer App](https://github.com/apps/eio-github-actions-power-enhancer) via Vault.
+    - **Failure Handler (`handle-merge-failure.js`)**: Executes conditionally if the automated merge fails, applying graceful fork-protection fallbacks.
 
 ---
 
@@ -139,4 +139,36 @@ To prevent plan sprawl and keep the `.agent/plans/` folder clean and high-value,
 - [x] Integrate GITHUB_MERGE_TOKEN from Vault into pr-executor.yml and verify-pr-requirements.mjs.
 - [x] Synchronize with upstream `main` off point.
 - [x] Present the unstaged diff to the developer in the chat for IDE review and manual approval.
-- [ ] Commit, push to fork, and generate a draft Pull Request.
+- [x] Commit, push to fork, and generate a draft Pull Request.
+
+### Phase 7: PR Auto-Merge Requirements & Dependabot Exceptions (PR #400)
+
+- [x] Optimize the PR trigger & executor pipeline to prevent GHA waste:
+  - [x] Refactor `.github/workflows/review-trigger.yml` to trigger exclusively on `issue_comment`, intentionally failing when conditions aren't met to securely abort downstream executor triggers.
+  - [x] Refactor `.github/workflows/pr-executor.yml` to split verification and merging into two jobs (`verify-pr` and `merge-pr`), extracting the target PR directly from the parent `workflow_run` payload instead of querying the API.
+  - [x] Delete `.github/workflows/scripts/get-open-prs.js` as it is no longer needed.
+- [x] Integrate `validate-action-versions` and `validate-module-versions` jobs in GHA `pull_request.yaml` to audit and enforce latest available action SHAs and Terraform module versions in CI using the new `--validate` script flags.
+- [x] Adapt `.github/workflows/scripts/verify-pr-requirements.mjs` to check:
+  - [x] For standard PRs (not dependabot): requires at least **1 trusted human approval** (admin, write, maintain, triage) AND at least **1 AI/Copilot review**.
+  - [x] For dependabot PRs: requires at least **1 AI/Copilot review** (bypasses human approval requirement).
+- [x] Create a comprehensive suite of native unit tests under `.github/workflows/scripts/tests/verify-pr-requirements.test.js` using `node:test` and `node:assert`:
+  - [x] Test standard PR with human-only approval (should fail, missing AI review).
+  - [x] Test standard PR with human and AI approvals (should pass).
+  - [x] Test dependabot PR with AI-only approval (should pass, bypassing human requirement).
+  - [x] Test dependabot PR without AI approval (should fail).
+  - [x] Test PR with unresolved threads (should fail).
+- [x] Run `./.github/workflows/scripts/test.sh scripts` to verify all unit tests pass flawlessly.
+- [x] Run the complete linter suite (`lint.sh all`) to ensure 100% ESLint, Prettier, and spelling compliance.
+- [x] Present the unstaged diff for visual review in the chat (Gate 2).
+- [x] Obtain cryptographic manual approval signature via `user-approval.js`.
+- [x] Execute `commit-push.sh` to commit and push the finalized configuration.
+
+### Phase 8: PR 401 Review Comments & Trigger Enhancements (August 18, 2026)
+
+- [ ] Optimize `pr-executor.yml` get-pr step to check for `/merge` comment for non-Dependabot human PRs as early as possible (before checkout/verification).
+- [ ] Explicitly skip and fail Release-please PRs in the get-pr step of `pr-executor.yml` to prevent unnecessary runs.
+- [ ] Secure `/merge` comment validation in `pr-executor.yml` by verifying that the commenter's `author_association` is `OWNER`, `MEMBER`, or `COLLABORATOR`.
+- [ ] Fix `verify_proactive_review()` in `commit-push.sh` to delegate validation to `write-approval.sh --verify` (securing the review quality gate).
+- [ ] Verify that ESLint and Prettier formatting checks pass with zero issues.
+- [ ] Run the complete test suite to verify zero regressions.
+- [ ] Request developer approval (Gate 2) and execute `commit-push.sh` to commit and push the finalized configuration.

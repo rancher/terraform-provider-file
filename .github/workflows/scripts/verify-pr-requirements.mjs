@@ -6,7 +6,9 @@ async function withRetry(core, fn, retries = 3, delay = 2000) {
     try {
       return await fn();
     } catch (err) {
-      if (i === retries - 1) throw err;
+      if (i === retries - 1) {
+        throw err;
+      }
       core.warning(`API call failed (Attempt ${i + 1}/${retries}): ${err.message}. Retrying in ${delay}ms...`);
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
@@ -64,9 +66,22 @@ export default async ({ github, context, core, process }) => {
 /**
  * Performs read-only verification on a single Pull Request.
  */
-async function verifyPullRequest({ github, context, core, pr, owner, repo, checkCI }) {
+async function verifyPullRequest({ github, core, pr, owner, repo, checkCI }) {
   const reasons = [];
   let ciPending = false;
+
+  // Explicitly fail release-please PRs to ensure they never merge automatically
+  const isReleasePlease = pr.user?.login === 'release-please[bot]' && pr.head?.ref?.startsWith('release-please--');
+  if (isReleasePlease) {
+    reasons.push('- **Exemption**: Release-please PRs are strictly exempt from automated merging.');
+    return {
+      success: false,
+      reasons,
+      ciPending: false,
+    };
+  }
+
+  const isDependabot = pr.user?.login === 'dependabot[bot]';
 
   // 1. Verify CI Check Runs
   if (checkCI) {
@@ -163,13 +178,17 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
   const trustedApprovals = [];
   for (const review of Object.values(latestReviews)) {
     const login = review.user?.login;
-    if (!login) continue;
+    if (!login) {
+      continue;
+    }
     const isBot =
       review.user.type === 'Bot' ||
       login.endsWith('[bot]') ||
       login.toLowerCase().includes('copilot') ||
       login.toLowerCase().includes('agent');
-    if (isBot) continue;
+    if (isBot) {
+      continue;
+    }
 
     const assoc = review.author_association;
     let isTrusted = assoc === 'OWNER' || assoc === 'MEMBER' || assoc === 'COLLABORATOR';
@@ -193,26 +212,50 @@ async function verifyPullRequest({ github, context, core, pr, owner, repo, check
     }
   }
 
-  const isDependabot = pr.user?.login === 'dependabot[bot]';
-  const aiApprovals = Object.values(latestReviews).filter((review) => {
+  const aiReviews = Object.values(latestReviews).filter((review) => {
     const login = review.user?.login;
-    if (!login) return false;
+    if (!login) {
+      return false;
+    }
     const isAi = login.toLowerCase().includes('copilot') || login.toLowerCase().includes('agent');
-    return isAi && (review.state === 'APPROVED' || review.state === 'COMMENTED');
+    const isBot = review.user?.type === 'Bot' || login.endsWith('[bot]');
+    return isAi && isBot && (review.state === 'APPROVED' || review.state === 'COMMENTED');
   });
 
-  if (isDependabot) {
-    if (aiApprovals.length < 1) {
-      reasons.push(
-        `- **Reviews**: Requirements not met. Dependabot PR requires at least **1 AI review** (from Copilot or Agent).`,
-      );
+  let hasAiReview = aiReviews.length > 0;
+
+  // Fallback: If no official AI review is found, check PR conversation comments for a Copilot pass comment
+  if (!hasAiReview && !isDependabot) {
+    core.info(`Checking PR comments for Copilot pass feedback...`);
+    try {
+      const comments = await github.paginate(github.rest.issues.listComments, {
+        owner,
+        repo,
+        issue_number: pr.number,
+      });
+      const hasCopilotPass = comments.some((c) => {
+        const body = c.body || '';
+        const author = c.user?.login || '';
+        const isAi = author.toLowerCase().includes('copilot') || author.toLowerCase().includes('agent');
+        const isBot = c.user?.type === 'Bot' || author.endsWith('[bot]');
+        return isAi && isBot && body.includes('and generated no new comments.');
+      });
+      if (hasCopilotPass) {
+        core.info(`✅ Found a valid Copilot review pass comment in conversation history.`);
+        hasAiReview = true;
+      }
+    } catch (err) {
+      core.info(`  -> Note: Failed to fetch PR comments for AI review verification: ${err.message}`);
     }
-  } else {
-    if (trustedApprovals.length < 1) {
-      reasons.push(
-        `- **Reviews**: Requirements not met. PR requires at least **1 human approval** from a trusted role (Collaborator, Member, or Owner).`,
-      );
-    }
+  }
+
+  if (!isDependabot && trustedApprovals.length < 1) {
+    reasons.push(
+      `- **Reviews**: Requirements not met. PR requires at least **1 human approval** from a trusted role (Collaborator, Member, or Owner).`,
+    );
+  }
+  if (!hasAiReview) {
+    reasons.push(`- **Reviews**: Requirements not met. PR requires at least **1 AI review** (from Copilot or Agent).`);
   }
 
   // 4. Verify Resolved Comments (GraphQL)

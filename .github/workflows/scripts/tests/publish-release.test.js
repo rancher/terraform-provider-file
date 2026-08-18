@@ -22,7 +22,7 @@ test('publish-release.js tests', async (t) => {
       },
     };
     const github = {
-      paginate: async (method, params) => {
+      paginate: async (method) => {
         assert.strictEqual(method, github.rest.repos.listReleases);
         return [{ tag_name: 'v1.2.3', id: 456, draft: true }];
       },
@@ -63,7 +63,7 @@ test('publish-release.js tests', async (t) => {
       },
     };
     const github = {
-      paginate: async (method, params) => {
+      paginate: async (method) => {
         assert.strictEqual(method, github.rest.repos.listReleases);
         return [{ tag_name: 'v1.2.3', id: 456, draft: false }];
       },
@@ -101,7 +101,7 @@ test('publish-release.js tests', async (t) => {
       },
     };
     const github = {
-      paginate: async (method, params) => {
+      paginate: async (method) => {
         assert.strictEqual(method, github.rest.repos.listReleases);
         return []; // Never find it
       },
@@ -113,7 +113,7 @@ test('publish-release.js tests', async (t) => {
     };
 
     const originalSetTimeout = global.setTimeout;
-    global.setTimeout = (callback, delay) => {
+    global.setTimeout = (callback) => {
       // Execute immediately to skip test delay!
       callback();
     };
