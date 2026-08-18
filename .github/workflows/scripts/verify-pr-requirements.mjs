@@ -43,7 +43,6 @@ export default async ({ github, context, core, process }) => {
 
   const { success, reasons, ciPending } = await verifyPullRequest({
     github,
-    context,
     core,
     pr,
     owner,

@@ -158,6 +158,7 @@
           macVscode
           swVers
           pkgs.colima
+          pkgs.age-plugin-se
         ] else []);
 
         devShellPackage = pkgs.symlinkJoin {

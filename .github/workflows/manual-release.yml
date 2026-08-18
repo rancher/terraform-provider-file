@@ -49,23 +49,31 @@ jobs:
         run: .github/workflows/scripts/nix-run.sh bash .github/workflows/scripts/validate-tag.sh
       - name: 'Create and Push Tag'
         id: create-push-tag
+        # https://github.com/actions/github-script/releases
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           TAG: ${{ inputs.tag }}
           SHA: ${{ inputs.sha || github.sha }}
-        run: .github/workflows/scripts/nix-run.sh bash .github/workflows/scripts/create-push-tag.sh
+          CREATE_REF: 'true'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const scriptPath = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/create-push-tag.js`;
+            const { default: script } = await import(scriptPath);
+            await script({github, context, core, process});
       - name: 'Checkout New Tag'
         id: checkout-new-tag
         # https://github.com/actions/checkout/releases
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.tag }}
-          path: tags/${{ inputs.tag }}
+          ref: ${{ steps.create-push-tag.outputs.tag }}
+          path: tags/${{ steps.create-push-tag.outputs.tag }}
           fetch-depth: 0
       - name: 'Prepare Release Directory'
         id: prepare-release-dir
         env:
           WORKSPACE: ${{ github.workspace }}
-          TAG: ${{ inputs.tag }}
+          TAG: ${{ steps.create-push-tag.outputs.tag }}
         run: .github/workflows/scripts/nix-run.sh bash .github/workflows/scripts/prepare-release-dir.sh
       - name: 'Retrieve GPG Credentials'
         id: retrieve-gpg-credentials
@@ -81,8 +89,8 @@ jobs:
         # https://github.com/actions/setup-go/releases
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: tags/${{ inputs.tag }}/go.mod
-          cache-dependency-path: tags/${{ inputs.tag }}/go.sum
+          go-version-file: tags/${{ steps.create-push-tag.outputs.tag }}/go.mod
+          cache-dependency-path: tags/${{ steps.create-push-tag.outputs.tag }}/go.sum
           cache: true
       - name: 'Run GoReleaser'
         id: run-goreleaser
@@ -91,8 +99,8 @@ jobs:
           GPG_KEY_ID: ${{ env.GPG_KEY_ID }}
           GPG_PASSPHRASE: ${{ env.GPG_PASSPHRASE }}
           GPG_KEY: ${{ env.GPG_KEY }}
-          TAG: ${{ inputs.tag }}
-          WORKING_DIR: ${{ github.workspace }}/tags/${{ inputs.tag }}
+          TAG: ${{ steps.create-push-tag.outputs.tag }}
+          WORKING_DIR: ${{ github.workspace }}/tags/${{ steps.create-push-tag.outputs.tag }}
           SKIP_VALIDATE: true
           GORELEASER_CONFIG: ../../.goreleaser_manual.yml
         run: .github/workflows/scripts/nix-run.sh bash .github/workflows/scripts/goreleaser.sh
@@ -101,7 +109,7 @@ jobs:
         # https://github.com/actions/github-script/releases
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          VERSION: ${{ inputs.tag }}
+          VERSION: ${{ steps.create-push-tag.outputs.tag }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |

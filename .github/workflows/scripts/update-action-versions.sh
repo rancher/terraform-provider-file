@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# Skill: update-action-versions.sh
+# Helper: update-action-versions.sh
 # Description: Automatically audits and updates the commit SHAs and version tags of GitHub Actions workflows to the latest available releases.
-# Usage: .agent/skills/update-action-versions.sh
+# Usage: .github/workflows/scripts/update-action-versions.sh
 
 set -euo pipefail
 
@@ -19,8 +19,8 @@ Options:
   -h, --help           Show this help message and exit.
 
 Examples:
-  .agent/skills/update-action-versions.sh --list-actions
-  .agent/skills/update-action-versions.sh
+  .github/workflows/scripts/update-action-versions.sh --list-actions
+  .github/workflows/scripts/update-action-versions.sh
 EOF
 }
 

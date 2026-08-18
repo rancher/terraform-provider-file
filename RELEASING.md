@@ -21,7 +21,7 @@ This swimlane diagram traces the detailed event triggers and data flow between d
 |                                             |           - Finds: No trusted reviews or approvals yet         |
 |                                             |           - Action: Posts comment: "PR Needs Collaborator Review"|
 |                                             |                                                                |
-|  2. Collaborator Reviews PR & Comments ---->| --► Trigger: pull_request_review (submitted)                   |
+|  2. Collaborator Reviews PR & Comments ---->| --► Trigger: issue_comment (created)                           |
 |     (Collaborator leaves feedback/questions)|       --► Coordinator executes (Merge Mode)                    |
 |                                             |           - Finds: No approvals, unresolved comment threads    |
 |                                             |           - Action: Posts status comment: "Unresolved Comments"|
@@ -34,13 +34,13 @@ This swimlane diagram traces the detailed event triggers and data flow between d
 |     └-► Resolves conversation on GitHub     |      [ No GHA trigger fired for "clicking resolve" ]           |
 |                                             |                                                                |
 |     (Option C: "Pokes" via comment)         |                                                                |
-|     └-► Types top-level or thread comment -> | --► Trigger: issue_comment / pull_request_review_comment       |
+|     └-► Types top-level or thread comment -> | --► Trigger: issue_comment (created)                           |
 |         (e.g., "resolved", "ready")         |       --► Coordinator executes (Merge Mode)                    |
 |                                             |           - GraphQL: Queries all review threads                |
 |                                             |           - Finds: All threads are marked resolved             |
 |                                             |           - Action: Updates status comment, waits for Approval │
 |                                             |                                                                |
-|  4. Collaborator Submits Final Approval --> | --► Trigger: pull_request_review (submitted)                   |
+|  4. Collaborator Submits Final Approval --> | --► Trigger: issue_comment (created)                           |
 |     (Trusted Collaborator clicks "Approve") |       --► Coordinator executes (Merge Mode)                    |
 |                                             |           - GQL Check: Confirms 100% of comment threads resolved│
 |                                             |           - Review Check: Validates ≥ 1 Collaborator Approval  |

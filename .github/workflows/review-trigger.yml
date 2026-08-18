@@ -9,46 +9,20 @@ permissions: {}
 jobs:
   trigger:
     name: 'Trigger Executor on Event'
+    if: |
+      github.event.issue.pull_request && (
+        (github.event.comment.body == '/merge' && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)) ||
+        (contains(github.event.comment.body, 'and generated no new comments.') && github.event.comment.user.login == 'github-actions[bot]')
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       pull-requests: read
       issues: read
     steps:
-      - name: Verify Trigger Conditions
-        # https://github.com/actions/github-script/releases
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            const eventName = context.eventName;
-            const payload = context.payload;
-            core.info(`Triggered by event: ${eventName}`);
-
-            let shouldTrigger = false;
-
-            if (eventName === 'issue_comment') {
-              const commentBody = payload.comment?.body || '';
-              const commentAuthor = payload.comment?.user?.login || '';
-              const isPR = !!payload.issue?.pull_request;
-
-              if (isPR) {
-                const isHumanMerge = commentBody.trim() === '/merge';
-                const isCopilotPass = commentBody.includes('and generated no new comments.');
-
-                if (isHumanMerge) {
-                  core.info(`✅ Valid /merge comment found from @${commentAuthor}.`);
-                  shouldTrigger = true;
-                } else if (isCopilotPass) {
-                  core.info(`✅ Valid Copilot review pass comment found from @${commentAuthor}.`);
-                  shouldTrigger = true;
-                } else {
-                  core.info(`Skipping: Comment from @${commentAuthor} is neither a /merge nor a Copilot pass.`);
-                }
-              } else {
-                core.info('Skipping: Comment is on a regular issue, not a Pull Request.');
-              }
-            }
-
-            if (!shouldTrigger) {
-              core.setFailed('Trigger conditions not met. Intentionally failing this workflow to prevent the downstream PR executor from running.');
-            }
+      - name: Log Successful Trigger
+        env:
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: .github/workflows/scripts/log-trigger.sh

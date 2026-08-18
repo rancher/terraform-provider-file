@@ -9,6 +9,7 @@ buildrace
 containerize
 dgst
 docker
+elif
 envrc
 fetchurl
 genproto
@@ -39,6 +40,9 @@ planmodifier
 popd
 providerserver
 pushd
+sandbox
+sandboxed
+sandboxing
 shellcheck
 shfmt
 stdenv
