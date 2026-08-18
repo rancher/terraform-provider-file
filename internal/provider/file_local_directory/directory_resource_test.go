@@ -16,12 +16,12 @@ import (
 )
 
 const (
-	defaultId      = ""
+	defaultID      = ""
 	defaultPerm    = "0700"
 	defaultCreated = ""
 	testPath       = "path/to/new/directory"
 	// echo -n "path/to/new/directory" | sha256sum | awk '{print $1}' #.
-	testId      = "2d020a0327fe0a114bf587a2b24894d67654203b0bd4428546ad5bf4ed7ed6a7"
+	testID      = "2d020a0327fe0a114bf587a2b24894d67654203b0bd4428546ad5bf4ed7ed6a7"
 	testCreated = "path"
 )
 
@@ -88,14 +88,14 @@ func TestLocalDirectoryResourceCreate(t *testing.T) {
 				getCreateRequest(t, map[string]string{
 					"path":        testPath,
 					"permissions": defaultPerm,
-					"id":          defaultId,
+					"id":          defaultID,
 					"created":     defaultCreated,
 				}),
 				// want
 				getCreateResponse(t, map[string]string{
 					"path":        testPath,
 					"permissions": defaultPerm,
-					"id":          testId,
+					"id":          testID,
 					"created":     testCreated,
 				}),
 			},
@@ -140,14 +140,14 @@ func TestLocalDirectoryResourceRead(t *testing.T) {
 				LocalDirectoryResource{client: &c.MemoryDirectoryClient{}},
 				// have
 				getReadRequest(t, map[string]string{
-					"id":          testId,
+					"id":          testID,
 					"path":        testPath,
 					"created":     testCreated,
 					"permissions": defaultPerm,
 				}),
 				// want
 				getReadResponse(t, map[string]string{
-					"id":          testId,
+					"id":          testID,
 					"path":        testPath,
 					"created":     testCreated,
 					"permissions": defaultPerm,
@@ -163,14 +163,14 @@ func TestLocalDirectoryResourceRead(t *testing.T) {
 				LocalDirectoryResource{client: &c.MemoryDirectoryClient{}},
 				// have
 				getReadRequest(t, map[string]string{
-					"id":          testId,
+					"id":          testID,
 					"path":        testPath,
 					"created":     testCreated,
 					"permissions": defaultPerm,
 				}),
 				// want
 				getReadResponse(t, map[string]string{
-					"id":          testId,
+					"id":          testID,
 					"path":        testPath,
 					"created":     testCreated,
 					"permissions": "0777",
@@ -221,13 +221,13 @@ func TestLocalDirectoryResourceUpdate(t *testing.T) {
 				// have
 				getUpdateRequest(t, map[string]map[string]string{
 					"priorState": {
-						"id":          testId,
+						"id":          testID,
 						"path":        testPath,
 						"permissions": defaultPerm,
 						"created":     testCreated,
 					},
 					"plan": {
-						"id":          testId,
+						"id":          testID,
 						"path":        testPath,
 						"permissions": defaultPerm,
 						"created":     testCreated,
@@ -235,7 +235,7 @@ func TestLocalDirectoryResourceUpdate(t *testing.T) {
 				}),
 				// want
 				getUpdateResponse(t, map[string]string{
-					"id":          testId,
+					"id":          testID,
 					"path":        testPath,
 					"permissions": defaultPerm,
 					"created":     testCreated,
@@ -252,13 +252,13 @@ func TestLocalDirectoryResourceUpdate(t *testing.T) {
 				// have
 				getUpdateRequest(t, map[string]map[string]string{
 					"priorState": {
-						"id":          testId,
+						"id":          testID,
 						"path":        testPath,
 						"permissions": defaultPerm,
 						"created":     testCreated,
 					},
 					"plan": {
-						"id":          testId,
+						"id":          testID,
 						"path":        testPath,
 						"permissions": "0755",
 						"created":     testCreated,
@@ -266,7 +266,7 @@ func TestLocalDirectoryResourceUpdate(t *testing.T) {
 				}),
 				// want
 				getUpdateResponse(t, map[string]string{
-					"id":          testId,
+					"id":          testID,
 					"path":        testPath,
 					"permissions": "0755",
 					"created":     testCreated,
@@ -333,7 +333,7 @@ func TestLocalDirectoryResourceDelete(t *testing.T) {
 				LocalDirectoryResource{client: &c.MemoryDirectoryClient{}},
 				// have
 				getDeleteRequest(t, map[string]string{
-					"id":          testId,
+					"id":          testID,
 					"path":        testPath,
 					"permissions": defaultPerm,
 					"created":     testCreated,

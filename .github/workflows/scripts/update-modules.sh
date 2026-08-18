@@ -46,7 +46,7 @@ run_with_retry() {
     fi
 
     local delay
-    delay=$(( base_delay * (2 ** (attempt - 1)) ))
+    delay=$((base_delay * (2 ** (attempt - 1))))
     echo "Warning: Command failed (exit code ${exit_code}). Retrying in ${delay} seconds (attempt ${attempt}/${max_attempts})..." >&2
     sleep "${delay}"
     attempt=$((attempt + 1))
@@ -56,13 +56,13 @@ run_with_retry() {
 get_latest_version() {
   local module_name="$1"
   local latest_version
-  
+
   latest_version=$(run_with_retry curl -s "https://registry.terraform.io/v1/modules/${module_name}" 2>/dev/null | jq -r '.version // empty')
-  
+
   if [[ -z "${latest_version}" || "${latest_version}" == "null" ]]; then
     return 1
   fi
-  
+
   echo "${latest_version}"
 }
 
@@ -143,7 +143,7 @@ update_all_modules() {
   local mod
   for mod in ${modules}; do
     echo "Processing module: ${mod}" >&2
-    
+
     local latest_version
     if ! latest_version=$(get_latest_version "${mod}"); then
       echo "Failed to retrieve version for module ${mod}. Skipping." >&2
@@ -175,7 +175,7 @@ update_all_modules() {
       }
       # Print all other non-matching lines unchanged
       {print}
-      ' "${file}" > "${file}.tmp"
+      ' "${file}" >"${file}.tmp"
 
       if [[ "${mode}" == "validate" ]]; then
         if ! cmp -s "${file}" "${file}.tmp"; then
@@ -207,7 +207,7 @@ main() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      -h|--help)
+      -h | --help)
         show_help
         exit 0
         ;;

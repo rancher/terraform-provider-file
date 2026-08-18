@@ -10,12 +10,13 @@ export function validateCommitTitle(title, affectsProduct, isMerge) {
     return { valid: true, isMerge: true };
   }
 
-  const CONVENTIONAL_COMMIT_REGEXP = /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(?:\([^)]+\))?(!?): .+/i;
+  const CONVENTIONAL_COMMIT_REGEXP =
+    /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(?:\([^)]+\))?(!?): .+/i;
 
   if (!CONVENTIONAL_COMMIT_REGEXP.test(title)) {
     return {
       valid: false,
-      reason: `Commit message title does not follow Conventional Commits format. Expected "type: description" or "type(scope): description". Got: "${title}"`
+      reason: `Commit message title does not follow Conventional Commits format. Expected "type: description" or "type(scope): description". Got: "${title}"`,
     };
   }
 
@@ -29,7 +30,7 @@ export function validateCommitTitle(title, affectsProduct, isMerge) {
     if (type === 'feat' || type === 'refactor' || hasExclamation) {
       return {
         valid: false,
-        reason: `Non-product change (outside 'internal/') must NOT use 'feat', 'refactor', or '!' breaking-change indicators (which trigger incorrect minor/major semver bumps on release-please).`
+        reason: `Non-product change (outside 'internal/') must NOT use 'feat', 'refactor', or '!' breaking-change indicators (which trigger incorrect minor/major semver bumps on release-please).`,
       };
     }
   }
@@ -63,7 +64,7 @@ export default async ({ github, context, core, process }) => {
     pull_number: prNumber,
   });
 
-  const affectsProduct = files.some(f => f.filename.startsWith('internal/'));
+  const affectsProduct = files.some((f) => f.filename.startsWith('internal/'));
   core.info(`PR #${prNumber} affects product (contains changes inside 'internal/'): ${affectsProduct}`);
 
   let allPassed = true;
@@ -106,8 +107,10 @@ export default async ({ github, context, core, process }) => {
         const cspellCmd = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/nix-run.sh cspell stdin --quiet --words-only`;
         const words = execSync(cspellCmd, {
           input: subjectLine,
-          stdio: ['pipe', 'pipe', 'ignore']
-        }).toString().trim();
+          stdio: ['pipe', 'pipe', 'ignore'],
+        })
+          .toString()
+          .trim();
 
         if (words) {
           core.error(`Error: Commit message contains spelling errors on: ${words.replace(/\r?\n/g, ', ')}`);

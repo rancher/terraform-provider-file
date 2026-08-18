@@ -45,7 +45,7 @@ run_with_retry() {
     fi
 
     local delay
-    delay=$(( base_delay * (2 ** (attempt - 1)) ))
+    delay=$((base_delay * (2 ** (attempt - 1))))
     echo "Warning: Command failed (exit code ${exit_code}). Retrying in ${delay} seconds (attempt ${attempt}/${max_attempts})..." >&2
     sleep "${delay}"
     attempt=$((attempt + 1))
@@ -192,7 +192,7 @@ update_workflow_releases() {
         # Print all other non-anchor lines unchanged
         print $0
       }
-      ' "${workflow}" > "${tmp_file}"
+      ' "${workflow}" >"${tmp_file}"
 
       if [[ "${mode}" == "validate" ]]; then
         if ! cmp -s "${workflow}" "${tmp_file}"; then
@@ -222,7 +222,7 @@ main() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      -h|--help)
+      -h | --help)
         show_help
         exit 0
         ;;

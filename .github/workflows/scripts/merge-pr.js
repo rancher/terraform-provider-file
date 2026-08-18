@@ -11,9 +11,11 @@ async function withRetry(core, fn, retries = 3, delay = 2000) {
     try {
       return await fn();
     } catch (err) {
-      if (i === retries - 1) throw err;
+      if (i === retries - 1) {
+        throw err;
+      }
       core.warning(`API call failed (Attempt ${i + 1}/${retries}): ${err.message}. Retrying in ${delay}ms...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 }
@@ -32,34 +34,39 @@ export default async ({ github, context, core, process }) => {
   }
 
   core.info(`Fetching PR #${prNumber} details to execute merge...`);
-  const { data: pr } = await withRetry(core, () => github.rest.pulls.get({
-    owner,
-    repo,
-    pull_number: parseInt(prNumber, 10),
-  }));
+  const { data: pr } = await withRetry(core, () =>
+    github.rest.pulls.get({
+      owner,
+      repo,
+      pull_number: parseInt(prNumber, 10),
+    }),
+  );
 
   const sha = pr.head.sha;
-  const isFork = pr.head.repo?.full_name !== pr.base.repo?.full_name;
 
   core.info(`Fetching PR #${prNumber} changed files list to evaluate product scope...`);
-  const files = await withRetry(core, () => github.paginate(github.rest.pulls.listFiles, {
-    owner,
-    repo,
-    pull_number: parseInt(prNumber, 10),
-  }));
+  const files = await withRetry(core, () =>
+    github.paginate(github.rest.pulls.listFiles, {
+      owner,
+      repo,
+      pull_number: parseInt(prNumber, 10),
+    }),
+  );
 
-  const affectsProduct = files.some(f => f.filename.startsWith('internal/'));
+  const affectsProduct = files.some((f) => f.filename.startsWith('internal/'));
   core.info(`PR #${prNumber} affects product (contains changes inside 'internal/'): ${affectsProduct}`);
 
   core.info(`Fetching PR #${prNumber} commits to craft squash message...`);
-  const commits = await withRetry(core, () => github.paginate(github.rest.pulls.listCommits, {
-    owner,
-    repo,
-    pull_number: parseInt(prNumber, 10),
-  }));
+  const commits = await withRetry(core, () =>
+    github.paginate(github.rest.pulls.listCommits, {
+      owner,
+      repo,
+      pull_number: parseInt(prNumber, 10),
+    }),
+  );
 
-  const commitsList = commits.map(c => `- ${c.commit.message}`).join('\n');
-  
+  const commitsList = commits.map((c) => `- ${c.commit.message}`).join('\n');
+
   const mergeParams = {
     owner,
     repo,
@@ -69,7 +76,7 @@ export default async ({ github, context, core, process }) => {
   };
 
   let conventionalMsg = null;
-  let validationError = "";
+  let validationError = '';
   let isValid = false;
   const maxTries = 3;
 
@@ -80,11 +87,11 @@ export default async ({ github, context, core, process }) => {
       commitsList,
       affectsProduct,
       process,
-      feedback: validationError
+      feedback: validationError,
     });
 
     if (!conventionalMsg) {
-      validationError = "Failed to generate any response from Copilot.";
+      validationError = 'Failed to generate any response from Copilot.';
       core.warning(`Attempt ${attempt}/${maxTries} failed to obtain response from Copilot.`);
       continue;
     }
@@ -94,7 +101,9 @@ export default async ({ github, context, core, process }) => {
       isValid = true;
       break;
     } else {
-      core.warning(`Attempt ${attempt}/${maxTries} generated INVALID title "${conventionalMsg.commitTitle}". Reason: ${reason}`);
+      core.warning(
+        `Attempt ${attempt}/${maxTries} generated INVALID title "${conventionalMsg.commitTitle}". Reason: ${reason}`,
+      );
       validationError = `The title you generated ("${conventionalMsg.commitTitle}") was rejected for the following reason:\n${reason}\n\nPlease regenerate the commit message. Ensure you strictly adhere to the rules and fix the error above.`;
     }
   }
@@ -102,7 +111,9 @@ export default async ({ github, context, core, process }) => {
   if (isValid && conventionalMsg) {
     mergeParams.commit_title = conventionalMsg.commitTitle;
     mergeParams.commit_message = conventionalMsg.commitMessage;
-    core.info(`Generated AI Conventional Squash Message is VALID:\nTitle: ${mergeParams.commit_title}\nBody:\n${mergeParams.commit_message}`);
+    core.info(
+      `Generated AI Conventional Squash Message is VALID:\nTitle: ${mergeParams.commit_title}\nBody:\n${mergeParams.commit_message}`,
+    );
   } else {
     // Fallback: Default to the initial commit message, appending "fix: " if it doesn't already have a type
     const initialMsgFull = commits[0]?.commit?.message || `squash PR #${prNumber}`;
@@ -115,7 +126,8 @@ export default async ({ github, context, core, process }) => {
     defaultBodyLines.push(commitsList);
     const defaultBody = defaultBodyLines.join('\n').trim();
 
-    const CONVENTIONAL_COMMIT_REGEXP = /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(?:\([^)]+\))?(!?): .+/i;
+    const CONVENTIONAL_COMMIT_REGEXP =
+      /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(?:\([^)]+\))?(!?): .+/i;
     const hasType = CONVENTIONAL_COMMIT_REGEXP.test(defaultTitle);
     if (!hasType) {
       defaultTitle = `fix: ${defaultTitle}`;
@@ -127,14 +139,18 @@ export default async ({ github, context, core, process }) => {
 
         if (type === 'feat' || type === 'refactor' || hasExclamation) {
           defaultTitle = defaultTitle.replace(/^([a-z]+)/i, 'chore').replace('!:', ':');
-          core.warning(`Downgraded fallback commit title to "${defaultTitle}" to prevent incorrect SemVer bump on non-product change.`);
+          core.warning(
+            `Downgraded fallback commit title to "${defaultTitle}" to prevent incorrect SemVer bump on non-product change.`,
+          );
         }
       }
     }
 
     mergeParams.commit_title = defaultTitle;
     mergeParams.commit_message = defaultBody;
-    core.info(`Using safe, initial-commit conventional fallback message:\nTitle: ${mergeParams.commit_title}\nBody:\n${mergeParams.commit_message}`);
+    core.info(
+      `Using safe, initial-commit conventional fallback message:\nTitle: ${mergeParams.commit_title}\nBody:\n${mergeParams.commit_message}`,
+    );
   }
 
   // Delete warning comments before merging
@@ -154,7 +170,9 @@ export default async ({ github, context, core, process }) => {
       execSync(directMergeCmd, { env: { ...process.env, GH_TOKEN: process.env.MERGE_TOKEN } });
       core.info(`PR #${prNumber} merged directly via gh CLI successfully!`);
     } catch (directError) {
-      core.warning(`Failed direct merge via gh CLI: ${directError.message}. Retrying REST API merge with merge token...`);
+      core.warning(
+        `Failed direct merge via gh CLI: ${directError.message}. Retrying REST API merge with merge token...`,
+      );
       try {
         await withRetry(core, () => github.rest.pulls.merge(mergeParams));
         core.info(`PR #${prNumber} merged via REST API successfully!`);
@@ -207,7 +225,9 @@ ${commitsList}
     fs.writeFileSync(promptFile, prompt);
 
     const cmd = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/nix-run.sh GITHUB_TOKEN='${process.env.GITHUB_TOKEN}' COPILOT_GITHUB_TOKEN='${process.env.GITHUB_TOKEN}' copilot -s --yolo -p '"$(cat ${promptFile})"'`;
-    const output = execSync(cmd, { env: { ...process.env, GITHUB_TOKEN: process.env.GITHUB_TOKEN } }).toString().trim();
+    const output = execSync(cmd, { env: { ...process.env, GITHUB_TOKEN: process.env.GITHUB_TOKEN } })
+      .toString()
+      .trim();
 
     try {
       fs.unlinkSync(promptFile);
@@ -234,12 +254,14 @@ ${commitsList}
  * Validates a single commit title against Conventional Commits and strict product-boundary semver rules.
  */
 function validateCommitTitle(title, affectsProduct) {
-  const CONVENTIONAL_COMMIT_REGEXP = /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(?:\([^)]+\))?(!?): .+/i;
+  const CONVENTIONAL_COMMIT_REGEXP =
+    /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(?:\([^)]+\))?(!?): .+/i;
 
   if (!CONVENTIONAL_COMMIT_REGEXP.test(title)) {
     return {
       valid: false,
-      reason: 'Commit title does not follow Conventional Commits format. Expected "type: description" or "type(scope): description".'
+      reason:
+        'Commit title does not follow Conventional Commits format. Expected "type: description" or "type(scope): description".',
     };
   }
 
@@ -251,7 +273,7 @@ function validateCommitTitle(title, affectsProduct) {
     if (type === 'feat' || type === 'refactor' || hasExclamation) {
       return {
         valid: false,
-        reason: `Non-product change (outside 'internal/') must NOT use 'feat', 'refactor', or '!' breaking-change indicators (which trigger incorrect minor/major semver bumps on release-please).`
+        reason: `Non-product change (outside 'internal/') must NOT use 'feat', 'refactor', or '!' breaking-change indicators (which trigger incorrect minor/major semver bumps on release-please).`,
       };
     }
   }
@@ -263,21 +285,25 @@ function validateCommitTitle(title, affectsProduct) {
  * Deletes the warning comment if it exists.
  */
 async function deleteBotCommentIfExists({ github, core, owner, repo, prNumber }) {
-  const comments = await withRetry(core, () => github.paginate(github.rest.issues.listComments, {
-    owner,
-    repo,
-    issue_number: prNumber,
-  }));
+  const comments = await withRetry(core, () =>
+    github.paginate(github.rest.issues.listComments, {
+      owner,
+      repo,
+      issue_number: prNumber,
+    }),
+  );
 
-  const botComment = comments.find(c => c.body && c.body.includes(COMMENT_SIGNATURE));
+  const botComment = comments.find((c) => c.body && c.body.includes(COMMENT_SIGNATURE));
   if (botComment) {
     core.info(`Deleting old auto-merge warning comment on PR #${prNumber} before merging`);
     try {
-      await withRetry(core, () => github.rest.issues.deleteComment({
-        owner,
-        repo,
-        comment_id: botComment.id,
-      }));
+      await withRetry(core, () =>
+        github.rest.issues.deleteComment({
+          owner,
+          repo,
+          comment_id: botComment.id,
+        }),
+      );
     } catch (error) {
       core.warning(`Could not delete comment ${botComment.id}: ${error.message}`);
     }

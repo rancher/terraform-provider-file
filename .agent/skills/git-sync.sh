@@ -12,8 +12,11 @@ set -euo pipefail
 # CORE FUNCTIONS
 # ==============================================================================
 
-# Global variable to track auto-stash state
+# Global variables to track state
 AUTO_STASH_CREATED=false
+STAY_STASH_CREATED=false
+ORIGINAL_BRANCH=""
+ORIGINAL_BRANCH_COMMIT=""
 
 verify_git_env() {
   if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -159,16 +162,29 @@ sync_branch() {
 # MAIN ORCHESTRATION
 # ==============================================================================
 
-ORIGINAL_BRANCH=""
-
 cleanup() {
   local exit_code=$?
   if [[ $exit_code -ne 0 ]]; then
     echo "⚠️ Script interrupted or failed. Running cleanup..." >&2
     git remote rm upstream 2>/dev/null || true
+    
     if [[ -n "$ORIGINAL_BRANCH" ]]; then
       echo "Restoring original branch '$ORIGINAL_BRANCH'..." >&2
       git checkout "$ORIGINAL_BRANCH" 2>/dev/null || true
+      
+      if [[ -n "$ORIGINAL_BRANCH_COMMIT" ]]; then
+        echo "Resetting '$ORIGINAL_BRANCH' back to its original commit: $ORIGINAL_BRANCH_COMMIT..." >&2
+        git reset --hard "$ORIGINAL_BRANCH_COMMIT" >/dev/null 2>&1 || true
+      fi
+    fi
+
+    if [[ "$STAY_STASH_CREATED" == "true" ]]; then
+      echo "Dropping temporary stay stash..." >&2
+      local stash_index
+      stash_index=$(git stash list | grep "git-sync-stay-stash" | head -n1 | cut -d: -f1 || true)
+      if [[ -n "$stash_index" ]]; then
+        git stash drop "$stash_index" >/dev/null 2>&1 || true
+      fi
     fi
   fi
 
@@ -236,6 +252,7 @@ main() {
   verify_git_env
 
   ORIGINAL_BRANCH="$(git branch --show-current)"
+  ORIGINAL_BRANCH_COMMIT="$(git rev-parse HEAD 2>/dev/null || true)"
   echo "Current branch is $ORIGINAL_BRANCH..."
 
   local origin_url
@@ -272,13 +289,67 @@ main() {
   # Clear any legacy upstream remotes
   git remote rm upstream 2>/dev/null || true
 
-  # Sync the default branch
+  # Expert 6-Step Stay-Sync Workflow
+  local has_changes="false"
+  if [[ -n "$stay" ]]; then
+    echo "User requested to stay on current branch. Implementing expert 6-step sync workflow..."
+    
+    # 1. set history back to when the branch was first merged from main (merge-base)
+    echo "  -> Step 1: Finding merge base between '$ORIGINAL_BRANCH' and '$default_branch'..."
+    local merge_base
+    merge_base=$(git merge-base "$default_branch" "$ORIGINAL_BRANCH" 2>/dev/null || true)
+    if [[ -z "$merge_base" ]]; then
+      echo "Error: Could not determine merge base between '$ORIGINAL_BRANCH' and '$default_branch'." >&2
+      exit 1
+    fi
+
+    if ! git diff --quiet "$merge_base" "$ORIGINAL_BRANCH"; then
+      has_changes="true"
+      echo "  -> Resetting branch history soft-wise to merge base: $merge_base..."
+      git checkout "$ORIGINAL_BRANCH"
+      git reset --soft "$merge_base"
+      
+      # 2. add and stash the changes
+      echo "  -> Step 2: Adding and stashing changes securely..."
+      git add -A
+      git stash push -u -m "git-sync-stay-stash"
+      STAY_STASH_CREATED="true"
+    else
+      echo "  -> No unique changes detected on '$ORIGINAL_BRANCH' compared to merge base."
+    fi
+  fi
+
+  # 3. checkout main and sync it using the git-sync skill (default branch sync)
+  echo "  -> Step 3: Checking out and syncing default branch '$default_branch'..."
+  git checkout "$default_branch"
   git reset --hard
   sync_branch "$default_branch" "$upstream_url" true
 
+  # 4 & 5 & 6. switch back to branch, merge main, pop stash, and force push
   if [[ -n "$stay" ]]; then
-    echo "User requested to stay on current branch. Syncing '$ORIGINAL_BRANCH'..."
-    sync_branch "$ORIGINAL_BRANCH" "$upstream_url" false
+    # 4. switch back to the branch and merge main into it
+    echo "  -> Step 4: Switching back to original branch '$ORIGINAL_BRANCH' and merging '$default_branch'..."
+    git checkout "$ORIGINAL_BRANCH"
+    git merge "$default_branch"
+    
+    # 5. pop the stash and resolve any conflicts
+    if [[ "$has_changes" == "true" ]]; then
+      echo "  -> Step 5: Restoring stashed branch changes..."
+      STAY_STASH_CREATED="false" # Popping now, so don't drop on failure
+      if ! git stash pop; then
+        echo "⚠️ WARNING: Merge conflicts detected during stash pop!" >&2
+        echo "   Please resolve conflicts manually in your IDE, then run:" >&2
+        echo "   git push -f origin $ORIGINAL_BRANCH" >&2
+        ORIGINAL_BRANCH_COMMIT="" # Disable destructive rollback
+        exit 1
+      fi
+    else
+      echo "  -> Step 5: Skipping stash pop (no changes were stashed)."
+    fi
+    
+    # 6. force push the change to origin
+    echo "  -> Step 6: Force-pushing finalized branch changes to origin..."
+    safe_git_push -f origin "$ORIGINAL_BRANCH"
   fi
 
   echo "✅ Git sync completed successfully!"

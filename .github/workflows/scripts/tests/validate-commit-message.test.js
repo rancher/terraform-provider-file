@@ -53,40 +53,42 @@ test('validate-commit-message.js runner tests', async (t) => {
     const core = {
       info: (msg) => infoLogs.push(msg),
       warning: () => {},
-      error: (msg) => { throw new Error(msg); },
-      setFailed: (msg) => { throw new Error(msg); }
+      error: (msg) => {
+        throw new Error(msg);
+      },
+      setFailed: (msg) => {
+        throw new Error(msg);
+      },
     };
 
     const context = {
       issue: { number: 42 },
-      repo: { owner: 'rancher', repo: 'terraform-provider-file' }
+      repo: { owner: 'rancher', repo: 'terraform-provider-file' },
     };
 
     const localProcess = {
-      env: { PR_NUMBER: '42' }
+      env: { PR_NUMBER: '42' },
     };
 
     const github = {
-      paginate: async (method, params) => {
+      paginate: async (method) => {
         if (method === github.rest.pulls.listCommits) {
           return [
             { commit: { message: 'feat: add internal provider feature' }, parents: [] },
-            { commit: { message: 'chore: minor updates' }, parents: [] }
+            { commit: { message: 'chore: minor updates' }, parents: [] },
           ];
         }
         if (method === github.rest.pulls.listFiles) {
-          return [
-            { filename: 'internal/provider/provider.go' }
-          ];
+          return [{ filename: 'internal/provider/provider.go' }];
         }
         return [];
       },
       rest: {
         pulls: {
           listCommits: () => {},
-          listFiles: () => {}
-        }
-      }
+          listFiles: () => {},
+        },
+      },
     };
 
     await runner({ github, context, core, process: localProcess });
@@ -101,43 +103,41 @@ test('validate-commit-message.js runner tests', async (t) => {
       info: () => {},
       warning: () => {},
       error: (msg) => errors.push(msg),
-      setFailed: (msg) => { failedMsg = msg; }
+      setFailed: (msg) => {
+        failedMsg = msg;
+      },
     };
 
     const context = {
       issue: { number: 42 },
-      repo: { owner: 'rancher', repo: 'terraform-provider-file' }
+      repo: { owner: 'rancher', repo: 'terraform-provider-file' },
     };
 
     const localProcess = {
-      env: { PR_NUMBER: '42' }
+      env: { PR_NUMBER: '42' },
     };
 
     const github = {
-      paginate: async (method, params) => {
+      paginate: async (method) => {
         if (method === github.rest.pulls.listCommits) {
-          return [
-            { commit: { message: 'feat: update README' }, parents: [] }
-          ];
+          return [{ commit: { message: 'feat: update README' }, parents: [] }];
         }
         if (method === github.rest.pulls.listFiles) {
-          return [
-            { filename: 'README.md' }
-          ];
+          return [{ filename: 'README.md' }];
         }
         return [];
       },
       rest: {
         pulls: {
           listCommits: () => {},
-          listFiles: () => {}
-        }
-      }
+          listFiles: () => {},
+        },
+      },
     };
 
     await runner({ github, context, core, process: localProcess });
 
-    assert.ok(errors.some(e => e.includes("must NOT use 'feat'")));
+    assert.ok(errors.some((e) => e.includes("must NOT use 'feat'")));
     assert.ok(failedMsg.includes('Commit message validation failed'));
   });
 });

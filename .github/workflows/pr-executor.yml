@@ -2,7 +2,7 @@ name: PR Executor and Auto-Merge
 
 on:
   workflow_run:
-    workflows: ["pull_request", "pull_request_review_trigger"]
+    workflows: ['pull_request', 'pull_request_review_trigger']
     types:
       - completed
   workflow_dispatch:
@@ -136,7 +136,7 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PR_NUMBER: ${{ needs.verify-pr.outputs.pr_number }}
-          ERROR_MESSAGE: "The automated merge execution failed. Please verify branch push restrictions, ruleset configurations, or merge token expiration status."
+          ERROR_MESSAGE: 'The automated merge execution failed. Please verify branch push restrictions, ruleset configurations, or merge token expiration status.'
         with:
           script: |
             const scriptPath = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/handle-merge-failure.js`;

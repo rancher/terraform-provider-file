@@ -1,12 +1,11 @@
 #!/bin/bash
 
-
 # summarize.sh - reads report.json and prints a summary
 
 # Ensure jq is installed
-if ! command -v jq > /dev/null; then
-    echo "Error: 'jq' is not installed. Please install it to generate the summary."
-    exit 1
+if ! command -v jq >/dev/null; then
+  echo "Error: 'jq' is not installed. Please install it to generate the summary."
+  exit 1
 fi
 
 process_tests() {
@@ -21,7 +20,7 @@ process_tests() {
     # filter out any test names that dont exactly match the current test name, but do have the test name in them followed by a slash
     select(any($tests[]; . != $prefix and startswith($prefix+"/"))|not)
     # this leaves only test names that dont have duplicate prefixes, ie. the actual tests and not the parent blocks
-    '\
+    ' \
     report.json
 }
 

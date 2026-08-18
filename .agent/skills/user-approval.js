@@ -30,19 +30,19 @@ function calculateSHA256() {
 // VERIFY OPERATION
 // ------------------------------------------------------------------------------
 function verifyApproval() {
-  console.log("Verifying developer manual IDE review approval status...");
+  console.log('Verifying developer manual IDE review approval status...');
 
   if (!fs.existsSync(APPROVAL_FILE)) {
-    console.error("Error: Developer manual IDE review approval not found!");
+    console.error('Error: Developer manual IDE review approval not found!');
     console.error("       In accordance with Gate 2 (IDE & Commit Gate) of 'development-process.md',");
-    console.error("       you MUST request developer approval first: @user-approval");
+    console.error('       you MUST request developer approval first: @user-approval');
     process.exit(1);
   }
 
   // Reject symbolic links to prevent symlink bypasses
   const stat = fs.lstatSync(APPROVAL_FILE);
   if (stat.isSymbolicLink()) {
-    console.error("Error: Developer approval file is a symbolic link (Prohibited).");
+    console.error('Error: Developer approval file is a symbolic link (Prohibited).');
     process.exit(1);
   }
 
@@ -51,7 +51,9 @@ function verifyApproval() {
     const fileUid = fs.statSync(APPROVAL_FILE).uid;
     const currentUid = process.getuid();
     if (fileUid !== currentUid) {
-      console.error(`Error: Developer approval file is not owned by the current user (UID: ${currentUid}, Owner: ${fileUid}).`);
+      console.error(
+        `Error: Developer approval file is not owned by the current user (UID: ${currentUid}, Owner: ${fileUid}).`,
+      );
       process.exit(1);
     }
   }
@@ -65,17 +67,17 @@ function verifyApproval() {
 
     const activeHash = calculateSHA256();
     if (content.diff_hash !== activeHash) {
-      console.error("Error: Local changes have been modified since your last manual developer approval!");
+      console.error('Error: Local changes have been modified since your last manual developer approval!');
       console.error(`       Approved SHA-256 hash: ${content.diff_hash}`);
       console.error(`       Current active SHA-256 hash: ${activeHash}`);
-      console.error("       Please request developer approval again on your latest changes.");
+      console.error('       Please request developer approval again on your latest changes.');
       process.exit(1);
     }
 
     console.log(`✅ Developer visual IDE review approval verified! (SHA-256 Hash: ${activeHash})`);
     process.exit(0);
   } catch (err) {
-    console.error("Error: Failed to parse developer approval file:", err.message);
+    console.error('Error: Failed to parse developer approval file:', err.message);
     process.exit(1);
   }
 }
@@ -86,7 +88,7 @@ function verifyApproval() {
 function writeApproval() {
   const activeHash = calculateSHA256();
   if (!activeHash) {
-    console.error("Error: Failed to calculate active diff hash.");
+    console.error('Error: Failed to calculate active diff hash.');
     process.exit(1);
   }
 
@@ -95,7 +97,7 @@ function writeApproval() {
     status: 'approved',
     diff_hash: activeHash,
     timestamp: new Date().toISOString(),
-    otp: otpToken
+    otp: otpToken,
   };
 
   try {
@@ -113,7 +115,7 @@ function writeApproval() {
     console.log(`✅ Developer approval successfully recorded and tied to diff hash: ${activeHash}`);
     process.exit(0);
   } catch (err) {
-    console.error("Error: Failed to write developer approval file:", err.message);
+    console.error('Error: Failed to write developer approval file:', err.message);
     process.exit(1);
   }
 }
@@ -122,14 +124,14 @@ function writeApproval() {
 // PROMPT OPERATION
 // ------------------------------------------------------------------------------
 function promptApproval(message, defaultOption) {
-  console.log("============================================================");
-  console.log("🚨 HOOK GATEWAY: DEVELOPER CONFIRMATION REQUIRED");
-  console.log("============================================================");
+  console.log('============================================================');
+  console.log('🚨 HOOK GATEWAY: DEVELOPER CONFIRMATION REQUIRED');
+  console.log('============================================================');
   console.log(message);
-  console.log("=============================================================");
+  console.log('=============================================================');
 
   const isDefaultYes = defaultOption.toLowerCase() === 'y' || defaultOption.toLowerCase() === 'yes';
-  const optionPrompt = isDefaultYes ? "[Y/n]" : "[y/N]";
+  const optionPrompt = isDefaultYes ? '[Y/n]' : '[y/N]';
 
   let response = defaultOption;
 
@@ -156,7 +158,7 @@ function promptApproval(message, defaultOption) {
   if (response.toLowerCase() === 'y' || response.toLowerCase() === 'yes') {
     writeApproval();
   } else {
-    console.error("❌ Action aborted by developer.");
+    console.error('❌ Action aborted by developer.');
     process.exit(1);
   }
 }
@@ -168,7 +170,7 @@ function main() {
   const arg = process.argv[2] || '';
 
   if (arg === '-h' || arg === '--help') {
-    console.log("Usage: node user-approval.js [--verify | --approve | message]");
+    console.log('Usage: node user-approval.js [--verify | --approve | message]');
     process.exit(0);
   }
 
@@ -180,8 +182,8 @@ function main() {
     writeApproval();
   }
 
-  const message = arg || "Do you approve GPG-signing, committing, and pushing these changes?";
-  const defaultOption = process.argv[3] || "N";
+  const message = arg || 'Do you approve GPG-signing, committing, and pushing these changes?';
+  const defaultOption = process.argv[3] || 'N';
   promptApproval(message, defaultOption);
 }
 

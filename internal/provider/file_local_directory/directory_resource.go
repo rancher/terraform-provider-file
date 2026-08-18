@@ -38,17 +38,17 @@ type LocalDirectoryResource struct {
 
 // LocalDirectoryResourceModel describes the resource data model.
 type LocalDirectoryResourceModel struct {
-	Id          types.String `tfsdk:"id"`
+	ID          types.String `tfsdk:"id"`
 	Path        types.String `tfsdk:"path"`
 	Permissions types.String `tfsdk:"permissions"`
 	Created     types.String `tfsdk:"created"`
 }
 
-func (r *LocalDirectoryResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (r *LocalDirectoryResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_local_directory" // file_local_directory resource
 }
 
-func (r *LocalDirectoryResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *LocalDirectoryResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Local Directory resource.",
 
@@ -90,7 +90,7 @@ func (r *LocalDirectoryResource) Schema(ctx context.Context, req resource.Schema
 }
 
 // Configure the provider for the resource if necessary.
-func (r *LocalDirectoryResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *LocalDirectoryResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	// Prevent panic if the provider has not been configured.
 	if req.ProviderData == nil {
 		return
@@ -118,7 +118,7 @@ func (r *LocalDirectoryResource) Create(ctx context.Context, req resource.Create
 	hasher := sha256.New()
 	hasher.Write([]byte(path))
 	id := hex.EncodeToString(hasher.Sum(nil))
-	plan.Id = types.StringValue(id)
+	plan.ID = types.StringValue(id)
 
 	cutPath, err := r.client.Create(path, permString)
 	if err != nil {
@@ -142,14 +142,14 @@ func (r *LocalDirectoryResource) Read(ctx context.Context, req resource.ReadRequ
 	sPath := state.Path.ValueString()
 	sPerm := state.Permissions.ValueString()
 	sCreated := state.Created.ValueString()
-	sId := state.Id.ValueString()
+	sID := state.ID.ValueString()
 
-	if (state.Id.IsUnknown() || state.Id.IsNull()) && sId == "" {
-		tflog.Debug(ctx, "Unknown or null state Id.")
+	if (state.ID.IsUnknown() || state.ID.IsNull()) && sID == "" {
+		tflog.Debug(ctx, "Unknown or null state ID.")
 		hasher := sha256.New()
 		hasher.Write([]byte(sPath))
 		id := hex.EncodeToString(hasher.Sum(nil))
-		state.Id = types.StringValue(id)
+		state.ID = types.StringValue(id)
 	}
 
 	if (state.Created.IsUnknown() || state.Created.IsNull()) && sCreated == "" {

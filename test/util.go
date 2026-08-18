@@ -72,7 +72,7 @@ func createTestDirectories(t *testing.T, testDirectory string, id string) error 
 	return nil
 }
 
-func GetId() string {
+func GetID() string {
 	id := os.Getenv("IDENTIFIER")
 	if id == "" {
 		id = random.UniqueId()

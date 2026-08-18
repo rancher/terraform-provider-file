@@ -2,14 +2,14 @@
 set -e
 data=""
 INPUTS="$(jq -r '.')"
-KEYS="$(jq -r '.|keys|.[]' <<< "$INPUTS")"
+KEYS="$(jq -r '.|keys|.[]' <<<"$INPUTS")"
 for k in $KEYS; do
   # create an env variable for inputs, in this case it generates the "data" env variable from the "query"
   eval "$(echo "$INPUTS" | jq -r '@sh "'"$k"'=\(.'"$k"')"')"
 done
 
 DATA="$(jq -r '.' "$data")"
-KEYS="$(jq -r '.|keys|.[]' <<< "$DATA")"
+KEYS="$(jq -r '.|keys|.[]' <<<"$DATA")"
 for k in $KEYS; do
   # create an env variable for each key in "$data"
   # WARNING! this can't handle complex types, only key(string) : value(string)

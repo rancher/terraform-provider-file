@@ -1,4 +1,7 @@
 {
+  "ui": {
+    "compactToolOutputs": false
+  },
   "hooks": {
     "SessionStart": [
       {
@@ -16,6 +19,54 @@
     ],
     "BeforeTool": [
       {
+        "matcher": "invoke_agent",
+        "hooks": [
+          {
+            "name": "sequential-gate-check-before-subagent",
+            "type": "command",
+            "command": "node .agent/hooks/before-invoke-agent.js",
+            "timeout": 5000,
+            "description": "Enforces sequential pipeline progression before executing sub-agents"
+          }
+        ]
+      },
+      {
+        "matcher": "ask_user",
+        "hooks": [
+          {
+            "name": "sequential-gate-check-before-ask-user",
+            "type": "command",
+            "command": "node .agent/hooks/before-ask-user.js",
+            "timeout": 5000,
+            "description": "Enforces sequential pipeline progression before asking for developer commit approval"
+          }
+        ]
+      },
+      {
+        "matcher": "exit_plan_mode",
+        "hooks": [
+          {
+            "name": "enforce-planning-before-exit-plan-mode",
+            "type": "command",
+            "command": "node .agent/skills/user-approval.js --verify-plan",
+            "timeout": 5000,
+            "description": "Enforces that a valid TOTP plan-approval.json signature exists before exiting plan mode"
+          }
+        ]
+      },
+      {
+        "matcher": "read_file",
+        "hooks": [
+          {
+            "name": "block-totp-secrets-on-read",
+            "type": "command",
+            "command": "node .agent/hooks/block-secrets.js",
+            "timeout": 5000,
+            "description": "Prevents the agent from reading the TOTP secret key"
+          }
+        ]
+      },
+      {
         "matcher": "run_shell_command",
         "hooks": [
           {
@@ -23,7 +74,14 @@
             "type": "command",
             "command": "node .agent/hooks/block-rancher-git.js",
             "timeout": 5000,
-            "description": "Prevents running git remote operations against rancher-owned remotes"
+            "description": "Prevents running git remote operations against rancher-owned remotes and blocks TOTP secret access"
+          },
+          {
+            "name": "block-totp-secrets-on-shell",
+            "type": "command",
+            "command": "node .agent/hooks/block-secrets.js",
+            "timeout": 5000,
+            "description": "Prevents the agent from accessing the TOTP secret key via shell commands"
           }
         ]
       },
@@ -35,7 +93,14 @@
             "type": "command",
             "command": "node .agent/hooks/enforce-planning.js",
             "timeout": 5000,
-            "description": "Enforces that a plan/checklist must be created or modified before writing files"
+            "description": "Enforces that a plan/checklist must be created or modified before writing files and blocks TOTP secret access"
+          },
+          {
+            "name": "block-totp-secrets-on-write",
+            "type": "command",
+            "command": "node .agent/hooks/block-secrets.js",
+            "timeout": 5000,
+            "description": "Prevents the agent from writing to the TOTP secret key"
           }
         ]
       },
@@ -47,7 +112,40 @@
             "type": "command",
             "command": "node .agent/hooks/enforce-planning.js",
             "timeout": 5000,
-            "description": "Enforces that a plan/checklist must be created or modified before replacing text in files"
+            "description": "Enforces that a plan/checklist must be created or modified before replacing text in files and blocks TOTP secret access"
+          },
+          {
+            "name": "block-totp-secrets-on-replace",
+            "type": "command",
+            "command": "node .agent/hooks/block-secrets.js",
+            "timeout": 5000,
+            "description": "Prevents the agent from replacing text in the TOTP secret key"
+          }
+        ]
+      }
+    ],
+    "AfterTool": [
+      {
+        "matcher": "ask_user",
+        "hooks": [
+          {
+            "name": "generate-approvals-after-ask",
+            "type": "command",
+            "command": "node .agent/hooks/after-ask-user.js",
+            "timeout": 5000,
+            "description": "Automatically and securely generates plan or commit approvals after developer clicks/types approval"
+          }
+        ]
+      },
+      {
+        "matcher": "invoke_agent",
+        "hooks": [
+          {
+            "name": "generate-signatures-after-subagent",
+            "type": "command",
+            "command": "node .agent/hooks/after-invoke-agent.js",
+            "timeout": 5000,
+            "description": "Automatically saves sub-agent reports and secures testing/review signatures upon verified success"
           }
         ]
       }

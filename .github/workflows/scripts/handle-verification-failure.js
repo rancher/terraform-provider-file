@@ -8,9 +8,11 @@ async function withRetry(core, fn, retries = 3, delay = 2000) {
     try {
       return await fn();
     } catch (err) {
-      if (i === retries - 1) throw err;
+      if (i === retries - 1) {
+        throw err;
+      }
       core.warning(`API call failed (Attempt ${i + 1}/${retries}): ${err.message}. Retrying in ${delay}ms...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 }
@@ -30,13 +32,15 @@ export default async ({ github, context, core, process }) => {
   core.info(`Handling requirements validation failure for PR #${prNumber} (ciPending: ${ciPending})`);
 
   // Fetch PR to check current labels
-  const { data: pr } = await withRetry(core, () => github.rest.pulls.get({
-    owner,
-    repo,
-    pull_number: parseInt(prNumber, 10),
-  }));
+  const { data: pr } = await withRetry(core, () =>
+    github.rest.pulls.get({
+      owner,
+      repo,
+      pull_number: parseInt(prNumber, 10),
+    }),
+  );
 
-  const hasReadyLabel = pr.labels.some(l => l.name === 'ready-to-merge');
+  const hasReadyLabel = pr.labels.some((l) => l.name === 'ready-to-merge');
 
   // 1. Remove label if requirements aren't met
   if (hasReadyLabel) {
@@ -55,7 +59,9 @@ export default async ({ github, context, core, process }) => {
 
   // 2. Post status comment if CI is not pending and it is scheduled hour
   if (ciPending) {
-    core.info(`PR #${prNumber} has in-progress CI check runs. Postponing merge and skipping comments until CI completes.`);
+    core.info(
+      `PR #${prNumber} has in-progress CI check runs. Postponing merge and skipping comments until CI completes.`,
+    );
   } else {
     // Only post status comments on scheduled runs (e.g. at 18:00 UTC) or manual triggers
     const isScheduled = context.eventName === 'schedule';
@@ -73,40 +79,48 @@ ${reasons}
 
       await updateOrPostComment({ github, core, owner, repo, prNumber: parseInt(prNumber, 10), message: commentBody });
     } else {
-      core.info(`PR #${prNumber} requirements missing, but skipping status comment (currently Hour ${currentHour} UTC).`);
+      core.info(
+        `PR #${prNumber} requirements missing, but skipping status comment (currently Hour ${currentHour} UTC).`,
+      );
     }
   }
 };
 
 async function updateOrPostComment({ github, core, owner, repo, prNumber, message }) {
-  const comments = await withRetry(core, () => github.paginate(github.rest.issues.listComments, {
-    owner,
-    repo,
-    issue_number: prNumber,
-  }));
+  const comments = await withRetry(core, () =>
+    github.paginate(github.rest.issues.listComments, {
+      owner,
+      repo,
+      issue_number: prNumber,
+    }),
+  );
 
-  const botComment = comments.find(c => c.body && c.body.includes(COMMENT_SIGNATURE));
+  const botComment = comments.find((c) => c.body && c.body.includes(COMMENT_SIGNATURE));
   const fullBody = `${message}\n\n${COMMENT_SIGNATURE}`;
 
   if (botComment) {
     if (botComment.body !== fullBody) {
       core.info(`Updating existing status comment on PR #${prNumber}`);
-      await withRetry(core, () => github.rest.issues.updateComment({
-        owner,
-        repo,
-        comment_id: botComment.id,
-        body: fullBody,
-      }));
+      await withRetry(core, () =>
+        github.rest.issues.updateComment({
+          owner,
+          repo,
+          comment_id: botComment.id,
+          body: fullBody,
+        }),
+      );
     } else {
       core.info(`Status comment on PR #${prNumber} is already up to date`);
     }
   } else {
     core.info(`Posting new status comment on PR #${prNumber}`);
-    await withRetry(core, () => github.rest.issues.createComment({
-      owner,
-      repo,
-      issue_number: prNumber,
-      body: fullBody,
-    }));
+    await withRetry(core, () =>
+      github.rest.issues.createComment({
+        owner,
+        repo,
+        issue_number: prNumber,
+        body: fullBody,
+      }),
+    );
   }
 }

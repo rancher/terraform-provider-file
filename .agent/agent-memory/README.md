@@ -7,6 +7,7 @@ Agents can read from and write to this directory to remember past decisions, pro
 Here is an example to use as a template:
 
 A file in this directory named "WorkflowStandards-TemporaryPlan.md" which tracks progress of a plan named "WorkflowStandards.md" in the plans directory.
+
 ```
 # Temporary Plan: Workflow Standards
 

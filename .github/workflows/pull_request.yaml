@@ -104,9 +104,14 @@ jobs:
         id: verify-shas
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
+          if [[ ! "$BASE_REF" =~ ^[a-zA-Z0-9_./-]+$ ]]; then
+            echo "Error: Unsafe characters detected in BASE_REF: $BASE_REF" >&2
+            exit 1
+          fi
           echo "==> Checking for workflow modifications..."
-          if ! git diff --name-only origin/${{ github.base_ref }} HEAD | grep -q "^.github/workflows/"; then
+          if ! git diff --name-only "origin/$BASE_REF" HEAD | grep -q "^.github/workflows/"; then
             echo "No changes to .github/workflows/ detected. Skipping validation."
             exit 0
           fi
@@ -132,9 +137,15 @@ jobs:
           fetch-depth: 0
       - name: Verify Latest Module Versions
         id: verify-modules
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
+          if [[ ! "$BASE_REF" =~ ^[a-zA-Z0-9_./-]+$ ]]; then
+            echo "Error: Unsafe characters detected in BASE_REF: $BASE_REF" >&2
+            exit 1
+          fi
           echo "==> Checking for example modifications..."
-          if ! git diff --name-only origin/${{ github.base_ref }} HEAD | grep -q "^examples/"; then
+          if ! git diff --name-only "origin/$BASE_REF" HEAD | grep -q "^examples/"; then
             echo "No changes to examples/ detected. Skipping validation."
             exit 0
           fi

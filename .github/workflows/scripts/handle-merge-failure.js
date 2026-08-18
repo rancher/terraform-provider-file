@@ -8,9 +8,11 @@ async function withRetry(core, fn, retries = 3, delay = 2000) {
     try {
       return await fn();
     } catch (err) {
-      if (i === retries - 1) throw err;
+      if (i === retries - 1) {
+        throw err;
+      }
       core.warning(`API call failed (Attempt ${i + 1}/${retries}): ${err.message}. Retrying in ${delay}ms...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 }
@@ -29,11 +31,13 @@ export default async ({ github, context, core, process }) => {
   core.info(`Handling merge failure for PR #${prNumber}...`);
 
   // Fetch PR to determine if it is a fork
-  const { data: pr } = await withRetry(core, () => github.rest.pulls.get({
-    owner,
-    repo,
-    pull_number: parseInt(prNumber, 10),
-  }));
+  const { data: pr } = await withRetry(core, () =>
+    github.rest.pulls.get({
+      owner,
+      repo,
+      pull_number: parseInt(prNumber, 10),
+    }),
+  );
 
   const isFork = pr.head.repo?.full_name !== pr.base.repo?.full_name;
 
@@ -41,12 +45,14 @@ export default async ({ github, context, core, process }) => {
     core.info(`PR #${prNumber} is a fork. Executing graceful maintainer fallback labeling and commenting.`);
     try {
       // 1. Add ready-to-merge label
-      await withRetry(core, () => github.rest.issues.addLabels({
-        owner,
-        repo,
-        issue_number: parseInt(prNumber, 10),
-        labels: ['ready-to-merge'],
-      }));
+      await withRetry(core, () =>
+        github.rest.issues.addLabels({
+          owner,
+          repo,
+          issue_number: parseInt(prNumber, 10),
+          labels: ['ready-to-merge'],
+        }),
+      );
 
       // 2. Post or update detailed fork permission barrier comment
       const fallbackMsg = `### 🤖 Automated Merge Failed (Permission Barrier)
@@ -76,34 +82,40 @@ ${errorMessage}
 };
 
 async function updateOrPostComment({ github, core, owner, repo, prNumber, message }) {
-  const comments = await withRetry(core, () => github.paginate(github.rest.issues.listComments, {
-    owner,
-    repo,
-    issue_number: prNumber,
-  }));
+  const comments = await withRetry(core, () =>
+    github.paginate(github.rest.issues.listComments, {
+      owner,
+      repo,
+      issue_number: prNumber,
+    }),
+  );
 
-  const botComment = comments.find(c => c.body && c.body.includes(COMMENT_SIGNATURE));
+  const botComment = comments.find((c) => c.body && c.body.includes(COMMENT_SIGNATURE));
   const fullBody = `${message}\n\n${COMMENT_SIGNATURE}`;
 
   if (botComment) {
     if (botComment.body !== fullBody) {
       core.info(`Updating existing fork-merge-failure comment on PR #${prNumber}`);
-      await withRetry(core, () => github.rest.issues.updateComment({
-        owner,
-        repo,
-        comment_id: botComment.id,
-        body: fullBody,
-      }));
+      await withRetry(core, () =>
+        github.rest.issues.updateComment({
+          owner,
+          repo,
+          comment_id: botComment.id,
+          body: fullBody,
+        }),
+      );
     } else {
       core.info(`Fork-merge-failure comment on PR #${prNumber} is already up to date`);
     }
   } else {
     core.info(`Posting new fork-merge-failure comment on PR #${prNumber}`);
-    await withRetry(core, () => github.rest.issues.createComment({
-      owner,
-      repo,
-      issue_number: prNumber,
-      body: fullBody,
-    }));
+    await withRetry(core, () =>
+      github.rest.issues.createComment({
+        owner,
+        repo,
+        issue_number: prNumber,
+        body: fullBody,
+      }),
+    );
   }
 }

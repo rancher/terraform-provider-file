@@ -6,10 +6,10 @@ export default async ({ github, context, core, process }) => {
     const body = process.env.COMMENT_BODY;
 
     if (!issueNumber) {
-      throw new Error("PR_NUMBER environment variable is required");
+      throw new Error('PR_NUMBER environment variable is required');
     }
     if (!body) {
-      throw new Error("COMMENT_BODY environment variable is required");
+      throw new Error('COMMENT_BODY environment variable is required');
     }
 
     core.info(`Posting comment to ${owner}/${repo} PR #${issueNumber}...`);
@@ -19,7 +19,7 @@ export default async ({ github, context, core, process }) => {
       repo,
       body,
     });
-    core.info("Comment posted successfully.");
+    core.info('Comment posted successfully.');
   } catch (error) {
     core.setFailed(`Failed to post comment: ${error.message}`);
   }

@@ -2,7 +2,7 @@ export default async ({ github, context, core, process }) => {
   try {
     const version = process.env.VERSION;
     if (!version) {
-      throw new Error("VERSION environment variable is required");
+      throw new Error('VERSION environment variable is required');
     }
     const tag = version.startsWith('v') ? version : `v${version}`;
 
@@ -18,7 +18,7 @@ export default async ({ github, context, core, process }) => {
         per_page: 100,
       });
 
-      release = releases.find(r => r.tag_name === tag);
+      release = releases.find((r) => r.tag_name === tag);
       if (release) {
         break;
       }
@@ -26,7 +26,7 @@ export default async ({ github, context, core, process }) => {
       if (attempt < maxRetries) {
         const delay = baseDelayMs * Math.pow(2, attempt - 1);
         core.info(`Release not found yet. Retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
 
@@ -42,7 +42,7 @@ export default async ({ github, context, core, process }) => {
         repo: context.repo.repo,
         release_id: release.id,
         draft: false,
-        make_latest: tag.includes('-rc.') ? "false" : "true"
+        make_latest: tag.includes('-rc.') ? 'false' : 'true',
       });
       core.info(`Successfully published release for tag ${tag}`);
     } else {
@@ -60,15 +60,16 @@ export default async ({ github, context, core, process }) => {
         commit_sha: context.sha,
       });
 
-      const pr = prs.data.find(p => p.state === 'closed' && p.merged_at);
+      const pr = prs.data.find((p) => p.state === 'closed' && p.merged_at);
       if (pr) {
         core.info(`Found associated merged PR #${pr.number}: "${pr.title}"`);
-        
-        const isReleasePlease = pr.head.ref === 'release-please--branches--main' || pr.head.ref?.startsWith('release-please');
+
+        const isReleasePlease =
+          pr.head.ref === 'release-please--branches--main' || pr.head.ref?.startsWith('release-please');
         if (isReleasePlease) {
           core.info(`PR #${pr.number} is a release-please PR. Reconciling labels...`);
-          
-          const labels = pr.labels.map(l => l.name);
+
+          const labels = pr.labels.map((l) => l.name);
           core.info(`Current labels on PR #${pr.number}: ${labels.join(', ')}`);
 
           const labelsToRemove = ['autorelease: pending', 'ready-to-merge'];

@@ -20,10 +20,10 @@ const (
 	testDataCompressed = "H4sIAAAAAAAAAwXBAQoAIAgDwK/sa1KzglDQ9f/utNnEyBBDDStCm5h0e1fwLIitE+sDr6miHioAAAA="
 
 	// echo -n "these contents are the default for testing" | base64 -w 0 | sha256sum | awk '{print $1}'  #.
-	testDataEncodedId = "ba8cd27d74eb572956e09da49530c5ab2dd66ee946956e9d55a4cd09b76ab527"
+	testDataEncodedID = "ba8cd27d74eb572956e09da49530c5ab2dd66ee946956e9d55a4cd09b76ab527"
 
 	// echo -n "these contents are the default for testing" | gzip -c | base64 -w 0 | sha256sum | awk '{print $1}'  #.
-	testDataCompressedId = "a358aafd3bebe1731735516b321d55bd8a58a64e0e2d92646a6a6fdb63751c5d"
+	testDataCompressedID = "a358aafd3bebe1731735516b321d55bd8a58a64e0e2d92646a6a6fdb63751c5d"
 
 	defaultDecompress = "false"
 )
@@ -94,7 +94,7 @@ func TestLocalSnapshotDataSourceRead(t *testing.T) {
 				}),
 				// want
 				getLocalSnapshotDataSourceReadResponse(t, map[string]string{
-					"id":         testDataEncodedId,
+					"id":         testDataEncodedID,
 					"data":       testDataContents,
 					"contents":   testDataEncoded,
 					"decompress": defaultDecompress,
@@ -112,7 +112,7 @@ func TestLocalSnapshotDataSourceRead(t *testing.T) {
 				}),
 				// want
 				getLocalSnapshotDataSourceReadResponse(t, map[string]string{
-					"id":         testDataCompressedId,
+					"id":         testDataCompressedID,
 					"data":       testDataContents,
 					"contents":   testDataCompressed,
 					"decompress": "true",
