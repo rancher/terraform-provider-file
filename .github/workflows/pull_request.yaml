@@ -84,6 +84,75 @@ jobs:
         id: action-lint
         run: .github/workflows/scripts/nix-run.sh bash .github/workflows/scripts/lint.sh actionlint
 
+  validate-action-versions:
+    name: 'Validate Action SHAs'
+    needs: enforce-fork-contribution
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/rancher/ci-image/nix:20260603-18
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Repository
+        id: checkout-repository
+        # https://github.com/actions/checkout/releases
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Verify Latest Action SHAs
+        id: verify-shas
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [[ ! "$BASE_REF" =~ ^[a-zA-Z0-9_./-]+$ ]]; then
+            echo "Error: Unsafe characters detected in BASE_REF: $BASE_REF" >&2
+            exit 1
+          fi
+          echo "==> Checking for workflow modifications..."
+          if ! git diff --name-only "origin/$BASE_REF" HEAD | grep -q "^.github/workflows/"; then
+            echo "No changes to .github/workflows/ detected. Skipping validation."
+            exit 0
+          fi
+          echo "==> Auditing GitHub Actions workflow SHAs..."
+          .github/workflows/scripts/nix-run.sh bash .github/workflows/scripts/update-action-versions.sh --validate
+          echo "🟢 Success: All GitHub Action workflow SHAs are fully updated and pinned to their latest releases!"
+
+  validate-module-versions:
+    name: 'Validate Module Versions'
+    needs: enforce-fork-contribution
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/rancher/ci-image/nix:20260603-18
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Repository
+        id: checkout-repository
+        # https://github.com/actions/checkout/releases
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Verify Latest Module Versions
+        id: verify-modules
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [[ ! "$BASE_REF" =~ ^[a-zA-Z0-9_./-]+$ ]]; then
+            echo "Error: Unsafe characters detected in BASE_REF: $BASE_REF" >&2
+            exit 1
+          fi
+          echo "==> Checking for example modifications..."
+          if ! git diff --name-only "origin/$BASE_REF" HEAD | grep -q "^examples/"; then
+            echo "No changes to examples/ detected. Skipping validation."
+            exit 0
+          fi
+          echo "==> Auditing Terraform module versions..."
+          .github/workflows/scripts/nix-run.sh bash .github/workflows/scripts/update-modules.sh --validate
+          echo "🟢 Success: All module versions are fully updated to their latest releases!"
+
   eslint:
     name: 'Lint Scripts'
     needs: enforce-fork-contribution

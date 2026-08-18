@@ -9,6 +9,7 @@ buildrace
 containerize
 dgst
 docker
+elif
 envrc
 fetchurl
 genproto
