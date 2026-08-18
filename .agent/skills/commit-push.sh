@@ -76,15 +76,18 @@ verify_push_safety() {
 }
 
 # ==============================================================================
+# GLOBAL VARIABLES
+# ==============================================================================
+COMMIT_MSG=""
+FORCE_PUSH=false
+STAGED_COUNT=0
+
+# ==============================================================================
 # OPERATION STAGES
 # ==============================================================================
 
 # Parse options and arguments
 parse_args() {
-  # Initialize variables with global defaults
-  commit_msg=""
-  force_push=false
-
   while [[ $# -gt 0 ]]; do
     case "$1" in
       -h|--help)
@@ -92,7 +95,7 @@ parse_args() {
         exit 0
         ;;
       -f|--force)
-        force_push=true
+        FORCE_PUSH=true
         shift
         ;;
       -m)
@@ -100,7 +103,7 @@ parse_args() {
           echo "Error: -m option requires a non-empty commit message argument." >&2
           exit 1
         fi
-        commit_msg="$2"
+        COMMIT_MSG="$2"
         shift 2
         ;;
       *)
@@ -111,7 +114,7 @@ parse_args() {
     esac
   done
 
-  if [[ -z "$commit_msg" ]]; then
+  if [[ -z "$COMMIT_MSG" ]]; then
     echo "Error: Commit message is required. Specify using -m \"message\"." >&2
     show_help >&2
     exit 1
@@ -149,16 +152,16 @@ verify_staging_limits() {
     echo "--> [OVERRIDE] Using custom staged file limit from COMMIT_LIMIT_OVERRIDE: ${max_allowed}" >&2
   fi
 
-  staged_count=$(git diff --cached --name-only | wc -l | tr -d ' ')
+  STAGED_COUNT=$(git diff --cached --name-only | wc -l | tr -d ' ')
 
-  if [[ "$staged_count" -eq 0 ]]; then
+  if [[ "$STAGED_COUNT" -eq 0 ]]; then
     echo "Error: No changes are currently staged for commit." >&2
     echo "       Please stage your changes first using 'git add <files>...'." >&2
     exit 1
   fi
 
-  if [[ "$staged_count" -gt "$max_allowed" ]]; then
-    echo "Error: Committing too much code at once is prohibited ($staged_count files staged; max allowed is $max_allowed)." >&2
+  if [[ "$STAGED_COUNT" -gt "$max_allowed" ]]; then
+    echo "Error: Committing too much code at once is prohibited ($STAGED_COUNT files staged; max allowed is $max_allowed)." >&2
     echo "       In accordance with Phase 5, Step 11 of 'development-process.md', please split your commit into smaller, surgical layers." >&2
     exit 1
   fi
@@ -166,10 +169,10 @@ verify_staging_limits() {
 
 # Enforce secure proactive review validation
 verify_proactive_review() {
-  # Delegate verification cleanly and securely to write-approval.sh skill
-  if ! bash .agent/skills/write-approval.sh --verify; then
-    exit 1
-  fi
+	# Delegate verification cleanly and securely to user-approval.js skill
+	if ! node .agent/skills/user-approval.js --verify; then
+		exit 1
+	fi
 }
 
 # Sync with Upstream parent repository
@@ -223,7 +226,7 @@ sync_default_branch() {
 # Verify ancestry check to fail fast if we are behind remote
 verify_remote_ancestry() {
   local branch="$1"
-  if [[ "$force_push" == "true" ]]; then
+  if [[ "$FORCE_PUSH" == "true" ]]; then
     echo "Force-push option specified. Skipping ancestry check."
   else
     echo "Checking remote branch status on origin..."
@@ -262,8 +265,8 @@ verify_developer_approval() {
 
 # Execute signed and signed-off git commit
 execute_signed_commit() {
-  echo "Committing $staged_count staged file(s) with signature (-S) and sign-off (-s)..."
-  if ! git commit -s -S -m "$commit_msg"; then
+  echo "Committing $STAGED_COUNT staged file(s) with signature (-S) and sign-off (-s)..."
+  if ! git commit -s -S -m "$COMMIT_MSG"; then
     echo "Error: Git commit failed. Ensure GPG/SSH signing is configured." >&2
     exit 1
   fi
@@ -272,7 +275,7 @@ execute_signed_commit() {
 # Perform secure push to fork remote
 secure_push() {
   local branch="$1"
-  if [[ "$force_push" == "true" ]]; then
+  if [[ "$FORCE_PUSH" == "true" ]]; then
     echo "Pushing signed commit with FORCE securely to fork remote 'origin/$branch'..."
     if ! git push origin "$branch" --force-with-lease; then
       echo "Error: Git push failed." >&2
@@ -291,9 +294,6 @@ secure_push() {
 # MAIN ENTRY POINT
 # ==============================================================================
 main() {
-  # Global state variables
-  staged_count=0
-
   parse_args "$@"
   verify_environment
   verify_push_safety origin

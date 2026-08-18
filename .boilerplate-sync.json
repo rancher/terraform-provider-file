@@ -40,7 +40,12 @@
       "local": ".github/workflows/scripts/publish-release.js",
       "remote": ".github/workflows/scripts/publish-release.js"
     },
+    { "local": ".agent/hooks/after-ask-user.js", "remote": ".agent/hooks/after-ask-user.js" },
+    { "local": ".agent/hooks/after-invoke-agent.js", "remote": ".agent/hooks/after-invoke-agent.js" },
+    { "local": ".agent/hooks/before-ask-user.js", "remote": ".agent/hooks/before-ask-user.js" },
+    { "local": ".agent/hooks/before-invoke-agent.js", "remote": ".agent/hooks/before-invoke-agent.js" },
     { "local": ".agent/hooks/block-rancher-git.js", "remote": ".agent/hooks/block-rancher-git.js" },
+    { "local": ".agent/hooks/block-secrets.js", "remote": ".agent/hooks/block-secrets.js" },
     { "local": ".agent/hooks/check-context.sh", "remote": ".agent/hooks/check-context.sh" },
     { "local": ".agent/hooks/enforce-planning.js", "remote": ".agent/hooks/enforce-planning.js" },
     { "local": ".agent/hooks/startup-context.sh", "remote": ".agent/hooks/startup-context.sh" },
@@ -73,6 +78,9 @@
     { "local": ".agent/skills/update-action-versions.sh", "remote": ".agent/skills/update-action-versions.sh" },
     { "local": ".agent/skills/update-modules.sh", "remote": ".agent/skills/update-modules.sh" },
     { "local": ".agent/skills/user-approval.js", "remote": ".agent/skills/user-approval.js" },
-    { "local": ".agent/skills/write-approval.sh", "remote": ".agent/skills/write-approval.sh" }
+    {
+      "local": ".github/workflows/scripts/tests/hooks.test.js",
+      "remote": ".github/workflows/scripts/tests/hooks.test.js"
+    }
   ]
 }
