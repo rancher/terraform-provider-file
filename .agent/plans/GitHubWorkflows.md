@@ -159,6 +159,14 @@ To prevent plan sprawl and keep the `.agent/plans/` folder clean and high-value,
   - [x] Test PR with unresolved threads (should fail).
 - [x] Run `./.github/workflows/scripts/test.sh scripts` to verify all unit tests pass flawlessly.
 - [x] Run the complete linter suite (`lint.sh all`) to ensure 100% ESLint, Prettier, and spelling compliance.
-- [ ] Present the unstaged diff for visual review in the chat (Gate 2).
-- [ ] Obtain cryptographic manual approval signature via `user-approval.js`.
-- [ ] Execute `commit-push.sh` to commit and push the finalized configuration.
+- [x] Present the unstaged diff for visual review in the chat (Gate 2).
+- [x] Obtain cryptographic manual approval signature via `user-approval.js`.
+- [x] Execute `commit-push.sh` to commit and push the finalized configuration.
+
+### Phase 8: PR 401 Review Comments & Trigger Enhancements (August 18, 2026)
+
+- [ ] Optimize `pr-executor.yml` get-pr step to check for `/merge` comment for non-Dependabot human PRs as early as possible (before checkout/verification).
+- [ ] Explicitly skip and fail Release-please PRs in the get-pr step of `pr-executor.yml` to prevent unnecessary runs.
+- [ ] Verify that ESLint and Prettier formatting checks pass with zero issues.
+- [ ] Run the complete test suite to verify zero regressions.
+- [ ] Request developer approval (Gate 2) and execute `commit-push.sh` to commit and push the finalized configuration.

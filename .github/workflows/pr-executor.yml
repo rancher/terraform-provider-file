@@ -32,11 +32,11 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
+            let prNumber;
             const parentRun = context.payload.workflow_run;
             if (parentRun && parentRun.pull_requests && parentRun.pull_requests.length > 0) {
-              const prNumber = parentRun.pull_requests[0].number;
+              prNumber = parentRun.pull_requests[0].number;
               core.info(`Identified target PR #${prNumber} from workflow_run payload.`);
-              return prNumber;
             } else if (parentRun) {
               try {
                 const { data: runDetail } = await github.rest.actions.getWorkflowRun({
@@ -45,15 +45,49 @@ jobs:
                   run_id: parentRun.id,
                 });
                 if (runDetail.pull_requests && runDetail.pull_requests.length > 0) {
-                  const prNumber = runDetail.pull_requests[0].number;
+                  prNumber = runDetail.pull_requests[0].number;
                   core.info(`Identified target PR #${prNumber} via API fetch.`);
-                  return prNumber;
                 }
               } catch (err) {
                 core.warning(`Failed to fetch workflow run details: ${err.message}`);
               }
             }
-            core.setFailed('Could not determine target PR number from payload.');
+
+            if (!prNumber) {
+              core.setFailed('Could not determine target PR number from payload.');
+              return;
+            }
+
+            // Fetch PR details
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            // Explicitly fail Release-please PRs to avoid GHA waste
+            const isReleasePlease = pr.user?.login === 'release-please[bot]' && pr.head?.ref?.startsWith('release-please--');
+            if (isReleasePlease) {
+              core.setFailed(`Skipping execution: Release-please PR #${prNumber} is strictly exempt from automated merging.`);
+              return;
+            }
+
+            const isDependabot = pr.user?.login === 'dependabot[bot]';
+            if (!isDependabot) {
+              // Check comments for /merge
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+              });
+              const hasMergeComment = comments.some(c => (c.body || '').trim() === '/merge');
+              if (!hasMergeComment) {
+                core.setFailed(`Skipping execution: Human PR #${prNumber} does not have an active /merge comment.`);
+                return;
+              }
+            }
+
+            return prNumber;
 
       - name: Checkout Repository
         id: checkout-repository
