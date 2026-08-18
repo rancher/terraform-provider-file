@@ -80,9 +80,14 @@ jobs:
                 repo: context.repo.repo,
                 issue_number: prNumber,
               });
-              const hasMergeComment = comments.some(c => (c.body || '').trim() === '/merge');
+              const hasMergeComment = comments.some((c) => {
+                const isMerge = (c.body || '').trim() === '/merge';
+                const assoc = c.author_association;
+                const isTrusted = assoc === 'OWNER' || assoc === 'MEMBER' || assoc === 'COLLABORATOR';
+                return isMerge && isTrusted;
+              });
               if (!hasMergeComment) {
-                core.setFailed(`Skipping execution: Human PR #${prNumber} does not have an active /merge comment.`);
+                core.setFailed(`Skipping execution: Human PR #${prNumber} does not have an authorized /merge comment from a trusted repository member.`);
                 return;
               }
             }

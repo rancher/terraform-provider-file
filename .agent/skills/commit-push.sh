@@ -177,8 +177,8 @@ verify_staging_limits() {
 
 # Enforce secure proactive review validation
 verify_proactive_review() {
-  # Delegate verification cleanly and securely to user-approval.js skill
-  if ! node .agent/skills/user-approval.js --verify; then
+  # Delegate verification cleanly and securely to write-approval.sh skill
+  if ! bash .agent/skills/write-approval.sh --verify; then
     exit 1
   fi
 }

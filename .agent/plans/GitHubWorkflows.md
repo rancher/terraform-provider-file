@@ -167,6 +167,8 @@ To prevent plan sprawl and keep the `.agent/plans/` folder clean and high-value,
 
 - [ ] Optimize `pr-executor.yml` get-pr step to check for `/merge` comment for non-Dependabot human PRs as early as possible (before checkout/verification).
 - [ ] Explicitly skip and fail Release-please PRs in the get-pr step of `pr-executor.yml` to prevent unnecessary runs.
+- [ ] Secure `/merge` comment validation in `pr-executor.yml` by verifying that the commenter's `author_association` is `OWNER`, `MEMBER`, or `COLLABORATOR`.
+- [ ] Fix `verify_proactive_review()` in `commit-push.sh` to delegate validation to `write-approval.sh --verify` (securing the review quality gate).
 - [ ] Verify that ESLint and Prettier formatting checks pass with zero issues.
 - [ ] Run the complete test suite to verify zero regressions.
 - [ ] Request developer approval (Gate 2) and execute `commit-push.sh` to commit and push the finalized configuration.
