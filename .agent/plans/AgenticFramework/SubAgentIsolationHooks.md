@@ -109,3 +109,8 @@ Embedded javascript code blocks inside `.github/workflows/pr-executor.yml` must 
 - [x] Create a comprehensive unit test suite `.github/workflows/scripts/tests/hooks.test.js` to test all enforcer hooks (`block-secrets.js`, `enforce-planning.js`, `after-ask-user.js`, etc.) using `node:test` and `node:assert`.
 - [x] Surgically refactor all catch blocks, destructured parameters, and test mocks to resolve all unused-variable linter errors cleanly.
 - [x] Verify that all 29 GHA tests + our new hook unit tests pass cleanly.
+
+### Phase 8: Central Template Repository Synchronization
+
+- [x] Update `.boilerplate-sync.json` to register all our new agent hooks, skills, and unit tests, and remove deleted legacy skills.
+- [ ] Push our newly refactored agentic framework files to the centralized template repository using `.agent/skills/sync-boilerplate.sh --push`.
