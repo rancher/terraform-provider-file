@@ -120,3 +120,41 @@ We are fixing a reliability issue with the `generate-approvals-after-ask` hook (
 - [x] Refactor `.gemini/hooks/after-ask-user.js` to isolate the automated commit, push, and PR generation into its own dedicated, beautifully logged `try-catch` block to prevent masking of cryptographic Touch ID signature failures and provide high-signal debugging output.
 - [x] Verify that all Javascript unit tests pass cleanly after refactoring.
 - [x] Perform a dry-run linter execution to ensure formatting and coding standards compliance.
+
+---
+
+## 🛠️ Modular Controller & Function Decoupling Plan (Agent-Scripts)
+
+To prevent code duplication, facilitate clean multi-agent workspace sharing, and support modular extensibility, we are decoupling the core "Agentic" logic (skills and hooks) from the Gemini-specific CLI integration layer:
+
+1. **Root-Level `agent-scripts/` Directory**:
+   - All generic, reusable agent scripts (both ESM Node.js files and POSIX Shell helpers) will live directly in a **flat root-level `agent-scripts/` directory**. There are no `hooks` or `skills` subdirectories under `agent-scripts/` because hooks/skills are Gemini-specific CLI integration concepts; the extracted logic represents generic agent procedures.
+2. **Controller/Shim Architecture**:
+   - Each hook in `.gemini/hooks/` and skill in `.gemini/skills/` will act strictly as a **controller**.
+   - These controllers parse Gemini-specific tool execution payloads, make clean function or script calls to the modular scripts under `agent-scripts/`, handle the responses, and output expected Gemini standard protocols.
+   - Core implementation functions are broken down into tight, clean files adhering strictly to `shell-scripts.instructions.md` and `github-script.instructions.md` standards.
+
+### **Sequential Implementation Checklist**
+
+- [x] Create the root-level `agent-scripts/` directory.
+- [x] **Hooks Decoupling**:
+  - [x] Extract `checkActivePlan` planning gate logic from `enforce-planning.js` to `agent-scripts/planning.js`.
+  - [x] Extract cryptographic verification functions (`verifyPlanGate`, `verifyTestGate`, `verifyReviewGate`) from `before-ask-user.js` and `before-invoke-agent.js` to `agent-scripts/gating.js`.
+  - [x] Extract sub-agent report parsing and JSON signature creation logic (`saveReport`, `verifyTestReport`, `verifyReviewReport`) from `after-invoke-agent.js` to `agent-scripts/after-invoke.js`.
+  - [x] Extract Apple Secure Enclave / Touch ID Touch biometric challenges and signing operations (`handlePlanApproval`, `handleCommitApproval`) from `after-ask-user.js` to `agent-scripts/after-ask.js`.
+  - [x] Extract Rancher git remote protection logic (`verifyGitCommand`) from `block-rancher-git.js` to `agent-scripts/security.js`.
+  - [x] Convert `.gemini/hooks/` files into lightweight controllers that import the ESM modules in `agent-scripts/` and make structured function calls.
+- [x] **Skills Decoupling**:
+  - [x] Extract modular shell helpers (`command_exists`, `get_file_owner_uid`, `calculate_sha256`) to `agent-scripts/git-utils.sh`.
+  - [x] Extract defunct branch checks and remote ancestry checking to `agent-scripts/check-branch.sh`.
+  - [x] Extract staging limits and override verification to `agent-scripts/verify-limits.sh`.
+  - [x] Extract Gate 3 review verification on disk to `agent-scripts/verify-gates.sh`.
+  - [x] Extract conventional GPG/SSH commit signature helpers to `agent-scripts/commit-helper.sh`.
+  - [x] Extract push safety and lease pushing to `agent-scripts/push-helper.sh`.
+  - [x] Convert `.gemini/skills/commit-push.sh` and other bash skills in `.gemini/skills/` to orchestrator controllers that invoke these modular files sequentially.
+  - [x] Extract GitHub draft PR creation and graduation functions from `create-pr.sh` into `agent-scripts/pr-helper.sh`, and convert `create-pr.sh` into an orchestrator controller.
+- [x] **Tooling & Validation Compliance**:
+  - [x] Update `.github/workflows/scripts/lint.sh` to include validation, shellcheck, and format checks for `agent-scripts/`.
+  - [x] Update `eslint.config.mjs` to target files in `agent-scripts/` with correct ESM module language options.
+  - [x] Update Javascript unit tests in `.github/workflows/scripts/tests/hooks.test.js` to run on both controllers and the refactored modular files.
+  - [x] Execute all linters (`./.github/workflows/scripts/lint.sh`) and tests (`make test`, JS tests) to ensure 100% green status.

@@ -94,7 +94,7 @@ test('Native Hook scripts E2E-grade Unit Tests', async (t) => {
     assert.ok(response.reason.includes('Gate 1 (Planning Gate) is missing or invalid'));
   });
 
-  await t.test('before-invoke-agent.js: blocks review_agent if Gate 2 (Testing Gate) is missing', () => {
+  await t.test('before-invoke-agent.js: blocks review_agent if Testing prerequisite is missing', () => {
     // Write valid plan approval to satisfy Gate 1
     const challengeToken = crypto.randomBytes(32).toString('hex');
     const challengeHash = crypto.createHash('sha256').update(challengeToken).digest('hex');
@@ -143,6 +143,6 @@ test('Native Hook scripts E2E-grade Unit Tests', async (t) => {
 
     const response = JSON.parse(result);
     assert.strictEqual(response.decision, 'deny');
-    assert.ok(response.reason.includes('Gate 2 (Testing Gate) is missing or invalid'));
+    assert.ok(response.reason.includes('Testing prerequisite is missing or invalid'));
   });
 });

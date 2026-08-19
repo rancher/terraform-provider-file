@@ -45,7 +45,7 @@ run_actionlint() {
 
 run_eslint() {
   echo "==> Running eslint check on scripts..."
-  eslint .github/workflows/scripts/ .gemini/hooks/
+  eslint .github/workflows/scripts/ .gemini/hooks/ agent-scripts/
 }
 
 run_shellcheck() {

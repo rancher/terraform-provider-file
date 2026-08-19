@@ -7,10 +7,11 @@
 
 import fs from 'fs';
 import path from 'path';
-import crypto from 'crypto';
+import os from 'os';
 import { execSync } from 'child_process';
+import { verifyPlanGate, verifyTestGate, calculateDiffHash } from '../../agent-scripts/gating.js';
 
-const HOME_DIR = process.env.HOME || '/tmp';
+const HOME_DIR = os.homedir();
 let repoName = '';
 try {
   const topLevel = execSync('git rev-parse --show-toplevel', { stdio: ['ignore', 'pipe', 'ignore'] })
@@ -21,136 +22,6 @@ try {
   repoName = path.basename(process.cwd()) || 'generic-repo';
 }
 const TARGET_DIR = path.resolve(HOME_DIR, '.gemini/tmp', repoName);
-
-const PLAN_APPROVAL_FILE = path.join(TARGET_DIR, 'plan-approval.json');
-const PLAN_CHALLENGE_FILE = path.join(TARGET_DIR, 'plan-approval.challenge');
-
-const TEST_APPROVAL_FILE = path.join(TARGET_DIR, 'test-approval.json');
-
-// Calculate SHA-256 hash of a file's content
-function calculateFileHash(filePath) {
-  try {
-    const content = fs.readFileSync(filePath);
-    return crypto.createHash('sha256').update(content).digest('hex');
-  } catch (err) {
-    console.error('🔒 Hook Debug: calculateFileHash failed:', err.message || err);
-    return null;
-  }
-}
-
-// Calculate active local diff hash securely (staged + unstaged combined)
-function calculateDiffHash() {
-  try {
-    const diff = execSync('git diff HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
-    return crypto.createHash('sha256').update(diff).digest('hex');
-  } catch (err) {
-    console.error('🔒 Hook Debug: calculateDiffHash failed:', err.message || err);
-    return null;
-  }
-}
-
-// Automatically scans the Gemini tmp directories to find the latest active plan file
-function findLatestActivePlan() {
-  try {
-    const activeSessions = fs.readdirSync(TARGET_DIR);
-    const planFiles = [];
-
-    for (const session of activeSessions) {
-      const plansPath = path.join(TARGET_DIR, session, 'plans');
-      if (fs.existsSync(plansPath) && fs.statSync(plansPath).isDirectory()) {
-        const files = fs.readdirSync(plansPath);
-        for (const file of files) {
-          if (file.endsWith('.md')) {
-            const filePath = path.join(plansPath, file);
-            planFiles.push({
-              path: filePath,
-              mtime: fs.statSync(filePath).mtimeMs,
-            });
-          }
-        }
-      }
-    }
-
-    if (planFiles.length === 0) {
-      return null;
-    }
-
-    planFiles.sort((a, b) => b.mtime - a.mtime);
-    return planFiles[0].path;
-  } catch (err) {
-    console.error('🔒 Hook Debug: findLatestActivePlan failed:', err.message || err);
-    return null;
-  }
-}
-
-// Verify Gate 1: Plan Gate and return plan_hash
-function verifyPlanGate() {
-  if (!fs.existsSync(PLAN_APPROVAL_FILE) || !fs.existsSync(PLAN_CHALLENGE_FILE)) {
-    return null;
-  }
-
-  try {
-    const content = JSON.parse(fs.readFileSync(PLAN_APPROVAL_FILE, 'utf-8'));
-    const challenge = JSON.parse(fs.readFileSync(PLAN_CHALLENGE_FILE, 'utf-8'));
-
-    if (content.status !== 'approved') {
-      return null;
-    }
-
-    const token = content.challenge_token;
-    if (!token) {
-      return null;
-    }
-
-    const calculatedHash = crypto.createHash('sha256').update(token).digest('hex');
-    if (calculatedHash !== challenge.challenge_hash) {
-      return null;
-    }
-
-    const activePlan = findLatestActivePlan();
-    if (!activePlan) {
-      return null;
-    }
-
-    const currentPlanHash = calculateFileHash(activePlan);
-    if (content.plan_hash !== currentPlanHash) {
-      return null;
-    }
-
-    return content.plan_hash;
-  } catch (err) {
-    console.error('🔒 Hook Debug: verifyPlanGate failed:', err.message || err);
-    return null;
-  }
-}
-
-// Verify Gate 2: Test Gate
-function verifyTestGate(expectedPlanHash) {
-  if (!fs.existsSync(TEST_APPROVAL_FILE)) {
-    return false;
-  }
-
-  try {
-    const content = JSON.parse(fs.readFileSync(TEST_APPROVAL_FILE, 'utf-8'));
-    if (content.status !== 'approved') {
-      return false;
-    }
-
-    if (content.plan_hash !== expectedPlanHash) {
-      return false;
-    }
-
-    const activeDiffHash = calculateDiffHash();
-    if (content.diff_hash !== activeDiffHash) {
-      return false;
-    }
-
-    return true;
-  } catch (err) {
-    console.error('🔒 Hook Debug: verifyTestGate failed:', err.message || err);
-    return false;
-  }
-}
 
 function main() {
   let inputData;
@@ -174,7 +45,7 @@ function main() {
 
   if (agentName === 'testing_agent') {
     // --- Enforce Gate 1: Planning Approved before Testing ---
-    const planHash = verifyPlanGate();
+    const planHash = verifyPlanGate(TARGET_DIR);
     if (!planHash) {
       console.log(
         JSON.stringify({
@@ -192,8 +63,8 @@ function main() {
       process.exit(0);
     }
   } else if (agentName === 'review_agent') {
-    // --- Enforce Gates 1 & 2: Plan and Test Approved before Review ---
-    const planHash = verifyPlanGate();
+    // --- Enforce Plan and Test Approved before Review ---
+    const planHash = verifyPlanGate(TARGET_DIR);
     if (!planHash) {
       console.log(
         JSON.stringify({
@@ -207,19 +78,20 @@ function main() {
       process.exit(0);
     }
 
-    const testPassed = verifyTestGate(planHash);
+    const diffHash = calculateDiffHash();
+    const testPassed = verifyTestGate(TARGET_DIR, planHash, diffHash);
     if (!testPassed) {
       console.log(
         JSON.stringify({
           decision: 'deny',
           reason:
-            '🔒 Security Policy Violation: You cannot execute the Review Subagent because Gate 2 (Testing Gate) is missing or invalid!\n\n' +
+            '🔒 Security Policy Violation: You cannot execute the Review Subagent because the Testing prerequisite is missing or invalid!\n\n' +
             'In accordance with our zero-trust pipeline, you MUST successfully run all linters and tests via the Testing Subagent first.\n\n' +
             'To proceed:\n' +
             '1. Invoke the Testing Subagent: `invoke_agent(agent_name="testing_agent", prompt="Please run all tests and linters.")`\n' +
             '2. The testing agent must complete successfully and conclude with the standard success marker to generate `test-approval.json`.\n' +
             '3. Once testing is verified, you will be authorized to execute the Review Subagent.',
-          systemMessage: '🔒 Security Block: Gate 2 (Testing Gate) must be approved before review.',
+          systemMessage: '🔒 Security Block: Testing must be approved before review.',
         }),
       );
       process.exit(0);

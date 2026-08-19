@@ -2,20 +2,34 @@
 #
 # Skill: commit-push.sh
 # Description: Programmatically commit and push local changes with GPG/SSH signature, sign-off, and fork synchronization.
+#              This acts as a lightweight controller, importing and coordinating modular operations under agent-scripts/.
 # Conforms to shell-scripts.instructions.md guidelines.
 
 set -euo pipefail
 
-# ==============================================================================
-# HELPER FUNCTIONS
-# ==============================================================================
+# Locate absolute directory path of the workspace root dynamically
+WORKSPACE_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 
-# Helper to check if a command exists
-command_exists() {
-  command -v "$1" >/dev/null 2>&1
-}
+# 1. Source modular utilities from agent-scripts/
+# shellcheck source=agent-scripts/git-utils.sh
+source "${WORKSPACE_ROOT}/agent-scripts/git-utils.sh"
+# shellcheck source=agent-scripts/check-branch.sh
+source "${WORKSPACE_ROOT}/agent-scripts/check-branch.sh"
+# shellcheck source=agent-scripts/verify-limits.sh
+source "${WORKSPACE_ROOT}/agent-scripts/verify-limits.sh"
+# shellcheck source=agent-scripts/verify-gates.sh
+source "${WORKSPACE_ROOT}/agent-scripts/verify-gates.sh"
+# shellcheck source=agent-scripts/commit-helper.sh
+source "${WORKSPACE_ROOT}/agent-scripts/commit-helper.sh"
+# shellcheck source=agent-scripts/push-helper.sh
+source "${WORKSPACE_ROOT}/agent-scripts/push-helper.sh"
 
-# Display script help usage instructions
+# ==============================================================================
+# GLOBAL VARIABLES
+# ==============================================================================
+COMMIT_MSG=""
+FORCE_PUSH=false
+
 show_help() {
   cat <<EOF
 Usage: commit-push.sh [options] -m "COMMIT_MESSAGE"
@@ -26,67 +40,9 @@ Options:
   -h, --help            Show this message and exit.
   -m MESSAGE            The conventional commit message (Required).
   -f, --force           Bypass remote ancestry check and perform safe force-push with lease.
-
-Examples:
-  .gemini/skills/commit-push.sh -m "ci(workflows): add new automated checks"
-  .gemini/skills/commit-push.sh -f -m "refactor(hooks): force push after rebase"
 EOF
 }
 
-verify_environment() {
-  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    echo "Error: Must be run inside a Git repository." >&2
-    exit 1
-  fi
-}
-
-get_file_owner_uid() {
-  local file="$1"
-  stat -c %u "$file" 2>/dev/null || stat -f %u "$file" 2>/dev/null || echo ""
-}
-
-calculate_sha256() {
-  if command_exists shasum; then
-    shasum -a 256 | cut -d' ' -f1
-  elif command_exists sha256sum; then
-    sha256sum | cut -d' ' -f1
-  else
-    echo "Error: No SHA-256 utility (shasum or sha256sum) found on this system." >&2
-    exit 1
-  fi
-}
-
-verify_push_safety() {
-  local remote_name="$1"
-  local url
-  url=$(git remote get-url "$remote_name" 2>/dev/null || true)
-  if [[ -z "$url" ]]; then
-    echo "Error: Remote '$remote_name' has no configured URL." >&2
-    exit 1
-  fi
-  if [[ "$url" =~ [/:](rancher|rancherlabs)/ ]]; then
-    echo "======================================================================" >&2
-    echo "❌ CRITICAL SECURITY ERROR: UNSAFE PUSH PREVENTED!" >&2
-    echo "   The remote '$remote_name' points to a Rancher-owned repository:" >&2
-    echo "   $url" >&2
-    echo "   Pushing directly to upstream Rancher repositories is strictly forbidden." >&2
-    echo "======================================================================" >&2
-    exit 1
-  fi
-}
-
-# ==============================================================================
-# GLOBAL VARIABLES
-# ==============================================================================
-COMMIT_MSG=""
-FORCE_PUSH=false
-STAGED_COUNT=0
-
-# ==============================================================================
-# OPERATION STAGES
-# ==============================================================================
-
-# Parse options and arguments
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -121,129 +77,6 @@ parse_args() {
   fi
 }
 
-# Check if the current branch has an already merged PR on GitHub (Branch Defunct Protection)
-check_defunct_branch() {
-  local branch="$1"
-  if [[ "$branch" != "main" ]]; then
-    local pr_status
-    if pr_status=$(gh pr view "$branch" --json state,number --template '{{.state}} {{.number}}' 2>/dev/null); then
-      local pr_state
-      pr_state=$(echo "$pr_status" | cut -d' ' -f1)
-      local pr_number
-      pr_number=$(echo "$pr_status" | cut -d' ' -f2)
-      
-      if [[ "$pr_state" == "MERGED" ]]; then
-        echo "Error: The current branch '$branch' already has a merged Pull Request (#$pr_number) on GitHub." >&2
-        echo "       This branch is defunct. In accordance with 'development-process.md' Phase 5, Step 12, you MUST:" >&2
-        echo "       1. Switch to 'main': git checkout main" >&2
-        echo "       2. Synchronize with upstream default branch: bash .gemini/skills/git-sync.sh" >&2
-        echo "       3. Check out a clean, new branch off updated main: git checkout -b feature/workflows-new-branch" >&2
-        exit 1
-      fi
-    fi
-  fi
-}
-
-# Verify staging files and file-count limits
-verify_staging_limits() {
-  local max_allowed=5
-  if [[ -n "${COMMIT_LIMIT_OVERRIDE:-}" ]]; then
-    if [[ ! "${COMMIT_LIMIT_OVERRIDE}" =~ ^[0-9]+$ ]]; then
-      echo "Error: COMMIT_LIMIT_OVERRIDE must be a positive integer, got: '${COMMIT_LIMIT_OVERRIDE}'" >&2
-      exit 1
-    fi
-    max_allowed="${COMMIT_LIMIT_OVERRIDE}"
-    echo "--> [OVERRIDE] Using custom staged file limit from COMMIT_LIMIT_OVERRIDE: ${max_allowed}" >&2
-  fi
-
-  STAGED_COUNT=$(git diff --cached --name-only | wc -l | tr -d ' ')
-
-  if [[ "$STAGED_COUNT" -eq 0 ]]; then
-    if [[ -f .git/MERGE_HEAD || -f .git/CHERRY_PICK_HEAD || -f .git/REBASE_HEAD ]]; then
-      echo "--> [MERGE STATE] Active merge/rebase/cherry-pick in progress. Allowing 0 staged files to create merge commit."
-      return 0
-    fi
-    echo "Error: No changes are currently staged for commit." >&2
-    echo "       Please stage your changes first using 'git add <files>...'." >&2
-    exit 1
-  fi
-
-  if [[ "$STAGED_COUNT" -gt "$max_allowed" ]]; then
-    echo "Error: Committing too much code at once is prohibited ($STAGED_COUNT files staged; max allowed is $max_allowed)." >&2
-    echo "       In accordance with Phase 5, Step 11 of 'development-process.md', please split your commit into smaller, surgical layers." >&2
-    exit 1
-  fi
-}
-
-# Enforce secure proactive review validation
-verify_proactive_review() {
-  local target_dir
-  local repo_name
-  repo_name=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
-  target_dir="${HOME}/.gemini/tmp/${repo_name}"
-  local review_file="${target_dir}/review-approval.json"
-
-  echo "Verifying proactive review approval status..." >&2
-
-  if [[ ! -f "$review_file" ]]; then
-    echo "Error: Proactive review approval file not found!" >&2
-    echo "       In accordance with Gate 3 (Review Gate) of 'development-process.md'," >&2
-    echo "       you MUST run the review agent first: @review_agent" >&2
-    exit 1
-  fi
-
-  # Reject symbolic links
-  if [[ -L "$review_file" ]]; then
-    echo "Error: Proactive review approval file is a symbolic link (Prohibited)." >&2
-    exit 1
-  fi
-
-  # Verify ownership natively
-  local file_uid=""
-  file_uid=$(get_file_owner_uid "$review_file")
-
-  if [[ -z "$file_uid" ]]; then
-    echo "Error: Could not determine owner UID for proactive review approval file." >&2
-    exit 1
-  fi
-
-  if [[ "$file_uid" -ne "$(id -u)" ]]; then
-    echo "Error: Proactive review approval file is not owned by the current user (UID: $(id -u), Owner: $file_uid)." >&2
-    exit 1
-  fi
-
-  # Ensure jq utility is present
-  if ! command_exists jq; then
-    echo "Error: jq utility is required but not found on this system." >&2
-    exit 1
-  fi
-
-  # Check diff_hash inside the JSON using jq and grep
-  local active_hash=""
-  active_hash=$(git diff HEAD | calculate_sha256)
-
-  # Check if status is approved and diff_hash matches
-  local status=""
-  status=$(jq -r '.status // empty' "$review_file" 2>/dev/null || echo "")
-  local diff_hash=""
-  diff_hash=$(jq -r '.diff_hash // empty' "$review_file" 2>/dev/null || echo "")
-
-  if [[ "$status" != "approved" ]]; then
-    echo "Error: Proactive review approval status is '$status' (not approved)." >&2
-    exit 1
-  fi
-
-  if [[ "$diff_hash" != "$active_hash" ]]; then
-    echo "Error: Local changes have been modified since your last proactive review!" >&2
-    echo "       Approved SHA-256 hash: $diff_hash" >&2
-    echo "       Current active SHA-256 hash: $active_hash" >&2
-    echo "       Please run the review agent again on your latest changes." >&2
-    exit 1
-  fi
-
-  echo "✅ Proactive review approval verified! (SHA-256 Hash: $active_hash)" >&2
-}
-
 # Sync with Upstream parent repository
 sync_default_branch() {
   local branch="$1"
@@ -253,7 +86,6 @@ sync_default_branch() {
       return 0
     fi
     echo "Synchronizing local 'main' branch and tags with upstream parent repository..."
-    # Temporarily stash unstaged/untracked files to allow git-sync.sh clean checks
     local stash_created=false
     if git status --porcelain | grep -v '^[A-Z]' >/dev/null; then
       echo "  -> Temporarily stashing unstaged/untracked files..."
@@ -262,7 +94,7 @@ sync_default_branch() {
     fi
 
     # Run sync skill
-    if ! bash .gemini/skills/git-sync.sh; then
+    if ! bash "${WORKSPACE_ROOT}/.gemini/skills/git-sync.sh"; then
       echo "Error: Upstream synchronization failed." >&2
       if [[ "$stash_created" == "true" ]]; then
         if ! git stash pop --index >/dev/null 2>&1; then
@@ -272,7 +104,6 @@ sync_default_branch() {
       exit 1
     fi
 
-    # Switch back to the active feature branch because git-sync.sh leaves the checkout on main
     echo "Switching back to branch '$branch'..."
     if ! git checkout "$branch" >/dev/null 2>&1; then
       echo "Error: Failed to switch back to branch '$branch' after sync." >&2
@@ -284,110 +115,46 @@ sync_default_branch() {
       exit 1
     fi
 
-    # Restore stashed changes gracefully with conflict checking
     if [[ "$stash_created" == "true" ]]; then
       echo "  -> Restoring stashed unstaged/untracked files..."
       if ! git stash pop --index >/dev/null 2>&1; then
         echo "Warning: Re-applying stashed changes resulted in merge conflicts." >&2
         echo "         Your stashed changes have been PRESERVED in the Git stash list." >&2
-        echo "         Please resolve conflicts manually (e.g. using 'git stash pop --index' or 'git diff' to inspect)." >&2
       fi
     fi
   fi
 }
 
-# Verify ancestry check to fail fast if we are behind remote
-verify_remote_ancestry() {
-  local branch="$1"
-  if [[ "$FORCE_PUSH" == "true" ]]; then
-    echo "Force-push option specified. Skipping ancestry check."
-  else
-    echo "Checking remote branch status on origin..."
-    # Fetch latest remote ref without mutating working tree
-    if git fetch origin "$branch" >/dev/null 2>&1; then
-      # Remote branch exists, check if we are behind
-      local behind_count
-      behind_count=$(git rev-list --count "HEAD..origin/$branch" 2>/dev/null || echo "0")
-      if [[ "$behind_count" -gt 0 ]]; then
-        echo "Error: Your local branch is behind 'origin/$branch' by $behind_count commit(s)." >&2
-        echo "       Please pull and integrate the remote changes before pushing." >&2
-        exit 1
-      fi
-      echo "  -> Local branch is up to date with remote."
-    else
-      echo "  -> Remote branch 'origin/$branch' does not exist yet. Safe to proceed."
-    fi
-  fi
-}
-
-# Verify developer manual IDE review approval
-verify_developer_approval() {
-  # If a valid user-approval signature is already present, verify it cleanly
-  if node .gemini/skills/user-approval.js --verify >/dev/null 2>&1; then
-    echo "✅ Developer visual IDE review approval verified!" >&2
-    return 0
-  fi
-
-  # Otherwise, programmatically prompt the developer for approval now
-  echo "No prior developer approval signature found on disk." >&2
-  if ! node .gemini/skills/user-approval.js "Do you approve GPG-signing, committing, and pushing these changes?"; then
-    echo "❌ Commit and push aborted by developer." >&2
-    exit 1
-  fi
-}
-
-# Execute signed and signed-off git commit
-execute_signed_commit() {
-  echo "Committing $STAGED_COUNT staged file(s) with signature (-S) and sign-off (-s)..."
-  if ! git commit -s -S -m "$COMMIT_MSG"; then
-    echo "Error: Git commit failed. Ensure GPG/SSH signing is configured." >&2
-    exit 1
-  fi
-}
-
-# Perform secure push to fork remote
-secure_push() {
-  local branch="$1"
-  if [[ "$FORCE_PUSH" == "true" ]]; then
-    echo "Pushing signed commit with FORCE securely to fork remote 'origin/$branch'..."
-    if ! git push origin "$branch" --force-with-lease; then
-      echo "Error: Git push failed." >&2
-      exit 1
-    fi
-  else
-    echo "Pushing signed commit securely to fork remote 'origin/$branch'..."
-    if ! git push origin "$branch"; then
-      echo "Error: Git push failed." >&2
-      exit 1
-    fi
-  fi
-}
-
-# ==============================================================================
-# MAIN ENTRY POINT
-# ==============================================================================
 main() {
   parse_args "$@"
-  verify_environment
-  verify_push_safety origin
 
-  local current_branch
-  current_branch=$(git branch --show-current)
-  if [[ -z "$current_branch" ]]; then
-    echo "Error: Could not determine current branch name." >&2
-    exit 1
+  local active_branch
+  active_branch=$(git branch --show-current)
+
+  # 1. Defunct branch protection check
+  check_defunct_branch "$active_branch"
+
+  # 2. Gate 3 (Proactive Review) validation on disk
+  verify_proactive_review
+
+  # 3. Stage & limit checks
+  # Stage files first so we can verify limits accurately
+  git add -A
+  verify_staging_limits
+
+  # 4. Sync up with parent repository if we are not on main
+  sync_default_branch "$active_branch"
+
+  # 5. Remote ancestry validation (unless force is requested)
+  if [[ "$FORCE_PUSH" == "false" ]]; then
+    verify_remote_ancestry "$active_branch"
   fi
 
-  check_defunct_branch "$current_branch"
-  verify_staging_limits
-  verify_proactive_review
-  sync_default_branch "$current_branch"
-  verify_remote_ancestry "$current_branch"
-  verify_developer_approval
-  execute_signed_commit
-  secure_push "$current_branch"
+  # 6. Conventional commit execution (adds staging, sign-off and signature)
+  execute_commit "$COMMIT_MSG" "$active_branch"
 
-  echo "✅ Changes programmatically committed and pushed successfully!"
+  # 7. Safe Push with lease
+  execute_push "origin" "$active_branch" "$FORCE_PUSH"
 }
 
 main "$@"

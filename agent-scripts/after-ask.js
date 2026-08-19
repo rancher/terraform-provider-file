@@ -1,0 +1,185 @@
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
+import { execFileSync } from 'child_process';
+import { calculateFileHash, calculateDiffHash, findLatestActivePlan } from './gating.js';
+
+/**
+ * Handles the Planning Gate 1 biometric GPG signing challenge and output.
+ */
+export function handlePlanApproval(targetDir, pubKeyFile, privKeyFile, promptText) {
+  let planContent = '';
+  const matchCodeBlock = promptText.match(/```markdown\n([\s\S]*?)\n```/);
+  if (matchCodeBlock) {
+    planContent = matchCodeBlock[1];
+  } else {
+    const hashIdx = promptText.indexOf('# ');
+    if (hashIdx !== -1) {
+      planContent = promptText.substring(hashIdx);
+    }
+  }
+
+  let activePlan = findLatestActivePlan(targetDir);
+  if (!activePlan && planContent) {
+    const activeSessions = fs.readdirSync(targetDir);
+    let plansDir = null;
+    for (const session of activeSessions) {
+      const plansPath = path.join(targetDir, session, 'plans');
+      if (fs.existsSync(plansPath) && fs.statSync(plansPath).isDirectory()) {
+        plansDir = plansPath;
+        break;
+      }
+    }
+    if (plansDir) {
+      const matchTitle = planContent.match(/^#\s+(.+)$/m);
+      const title = matchTitle ? matchTitle[1].trim().replace(/[^a-zA-Z0-9-_]/g, '') : 'Plan';
+      activePlan = path.join(plansDir, `${title}.md`);
+    }
+  }
+
+  if (planContent && activePlan) {
+    try {
+      fs.writeFileSync(activePlan, planContent, { mode: 0o600 });
+      console.error(`🔒 Hook Info: Successfully bypassed write block to save plan to ${activePlan}`);
+    } catch (err) {
+      console.error(`🔒 Hook Error: Failed to write plan to ${activePlan}:`, err.message);
+    }
+  }
+
+  activePlan = activePlan || findLatestActivePlan(targetDir);
+  if (!activePlan) {
+    console.error('🔒 Cryptographic Pipeline Error: Active plan file not found.');
+    process.exit(1);
+  }
+  const planHash = calculateFileHash(activePlan);
+  if (!planHash) {
+    console.error('🔒 Cryptographic Pipeline Error: Failed to calculate active plan hash.');
+    process.exit(1);
+  }
+
+  const challengeToken = crypto.randomBytes(32).toString('hex');
+  const challengeHash = crypto.createHash('sha256').update(challengeToken).digest('hex');
+
+  const envelope = {
+    status: 'approved',
+    challenge_token: challengeToken,
+    plan_file: activePlan,
+    plan_hash: planHash,
+    timestamp: new Date().toISOString(),
+  };
+
+  try {
+    const envelopeJson = JSON.stringify(envelope, null, 2);
+    const envelopeFile = path.join(targetDir, 'plan-approval.age');
+    const challengeFile = path.join(targetDir, 'plan-approval.challenge');
+    const signatureFile = path.join(targetDir, 'plan-approval.json');
+
+    fs.rmSync(envelopeFile, { force: true });
+    fs.rmSync(challengeFile, { force: true });
+    fs.rmSync(signatureFile, { force: true });
+
+    execFileSync('age', ['-R', pubKeyFile, '-o', envelopeFile], { input: envelopeJson });
+    fs.writeFileSync(challengeFile, JSON.stringify({ challenge_hash: challengeHash }, null, 2));
+
+    const decrypted = execFileSync('age', ['-d', '-i', privKeyFile, envelopeFile]);
+    fs.writeFileSync(signatureFile, decrypted);
+
+    fs.rmSync(envelopeFile, { force: true });
+
+    return {
+      status: 'approved',
+      systemMessage: '✅ Gate 1 Approved: Secure Enclave Touch ID validated. Plan cryptographically signed!',
+    };
+  } catch (err) {
+    console.error(
+      '🔒 Cryptographic Pipeline Error: Failed to execute Secure Enclave plan decryption:',
+      err.message || err,
+    );
+    process.exit(1);
+  }
+}
+
+/**
+ * Handles the Commit Gate 4 biometric GPG signing challenge and automatic commit/push.
+ */
+export function handleCommitApproval(targetDir, pubKeyFile, privKeyFile, promptText) {
+  const activePlan = findLatestActivePlan(targetDir);
+  const planHash = activePlan ? calculateFileHash(activePlan) : 'unknown';
+  const diffHash = calculateDiffHash();
+
+  if (!diffHash) {
+    console.error('🔒 Cryptographic Pipeline Error: Failed to calculate active diff hash.');
+    process.exit(1);
+  }
+
+  const challengeToken = crypto.randomBytes(32).toString('hex');
+  const challengeHash = crypto.createHash('sha256').update(challengeToken).digest('hex');
+
+  const envelope = {
+    status: 'approved',
+    challenge_token: challengeToken,
+    diff_hash: diffHash,
+    plan_hash: planHash,
+    timestamp: new Date().toISOString(),
+  };
+
+  try {
+    const envelopeJson = JSON.stringify(envelope, null, 2);
+    const envelopeFile = path.join(targetDir, 'user-approval.age');
+    const challengeFile = path.join(targetDir, 'user-approval.challenge');
+    const signatureFile = path.join(targetDir, 'user-approval.json');
+
+    fs.rmSync(envelopeFile, { force: true });
+    fs.rmSync(challengeFile, { force: true });
+    fs.rmSync(signatureFile, { force: true });
+
+    execFileSync('age', ['-R', pubKeyFile, '-o', envelopeFile], { input: envelopeJson });
+    fs.writeFileSync(challengeFile, JSON.stringify({ challenge_hash: challengeHash }, null, 2));
+
+    const decrypted = execFileSync('age', ['-d', '-i', privKeyFile, envelopeFile]);
+    fs.writeFileSync(signatureFile, decrypted);
+
+    fs.rmSync(envelopeFile, { force: true });
+
+    console.log(
+      JSON.stringify({
+        decision: 'allow',
+        systemMessage:
+          '✅ Gate 4 Approved: Secure Enclave Touch ID validated. Developer Commit cryptographically signed!',
+      }),
+    );
+
+    // Run the automated execution in a decoupled block
+    try {
+      const matchCommit =
+        promptText.match(/Commit Message:\s*"([^"]+)"/i) || promptText.match(/Commit Message:\s*`([^`]+)`/i);
+      const commitMessage = matchCommit ? matchCommit[1] : 'chore: automated development commit';
+
+      console.error(`\n🚀 AUTOMATION TRIGGERED: Initiating commit and push...`);
+      execFileSync('bash', ['.gemini/skills/commit-push.sh', '-m', commitMessage], {
+        env: { ...process.env, COMMIT_LIMIT_OVERRIDE: '100' },
+        stdio: 'inherit',
+      });
+
+      console.error(`\n🚀 AUTOMATION TRIGGERED: Generating Draft Pull Request...`);
+      execFileSync('bash', ['.gemini/skills/create-pr.sh', '--draft'], {
+        env: { ...process.env },
+        stdio: 'inherit',
+      });
+
+      process.exit(0);
+    } catch (err) {
+      console.error(
+        '\n🔒 Automated Push/PR Error: Failed to automatically commit, push, or create the Draft Pull Request:',
+        err.message || err,
+      );
+      process.exit(1);
+    }
+  } catch (err) {
+    console.error(
+      '🔒 Cryptographic Pipeline Error: Failed to execute Secure Enclave commit decryption:',
+      err.message || err,
+    );
+    process.exit(1);
+  }
+}

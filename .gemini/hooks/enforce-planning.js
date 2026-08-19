@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { checkActivePlan } from '../../agent-scripts/planning.js';
 
 function main() {
   let inputData;
@@ -68,49 +68,22 @@ function main() {
     process.exit(0);
   }
 
-  // Check if there is an active/modified plan in git status
-  try {
-    const statusOutput = execSync('git status --porcelain', {
-      cwd: cwd || process.cwd(),
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).toString();
+  // Check if there is an active/modified plan in git status via generic utility call
+  const hasActivePlan = checkActivePlan(cwd);
 
-    // Check if git status has any modified (M), added (A), or untracked (??) plan files in docs/development/
-    const hasActivePlan = statusOutput.split('\n').some((line) => {
-      const trimmed = line.trim();
-      if (!trimmed.includes('docs/development/')) {
-        return false;
-      }
-      const status = line.substring(0, 2);
-      // Ensure the file is not deleted ('D') or ignored ('!')
-      return !status.includes('D') && !status.includes('!');
-    });
-
-    if (!hasActivePlan) {
-      console.log(
-        JSON.stringify({
-          decision: 'deny',
-          reason:
-            'Security Policy Violation: Modifying source code is strictly prohibited without an active plan.\n\n' +
-            "In accordance with Phase 2, Steps 4-5 (Planning, Strategy & Blueprint Synchronization) of 'development-process.md', you MUST first create or update an active blueprint in 'docs/development/' before applying edits to source files.\n\n" +
-            'To proceed:\n' +
-            "1. Create or update a Component Specification (e.g. 'docs/development/MyTopic/MyComponent.md') containing a high-level abstract and a step-by-step '## Implementation Checklist' as detailed in 'blueprints.instructions.md'.\n" +
-            '2. Present the plan in chat and obtain explicit developer approval to execute it (Phase 2, Step 5).\n' +
-            "3. Once the plan file is created and visible in 'git status', you will be authorized to modify source files.",
-          systemMessage:
-            '🔒 Security Block: No active plan found. Please comply with Phase 2, Steps 4-5 of development-process.md.',
-        }),
-      );
-      process.exit(0);
-    }
-  } catch (err) {
-    console.error('Failed to run git status:', err);
+  if (!hasActivePlan) {
     console.log(
       JSON.stringify({
         decision: 'deny',
         reason:
-          'Security Policy Violation: Failed to verify active plan status in Git. Please ensure Git is configured and running properly.',
-        systemMessage: '🔒 Security Block: Git command execution failed.',
+          'Security Policy Violation: Modifying source code is strictly prohibited without an active plan.\n\n' +
+          "In accordance with Phase 2, Steps 4-5 (Planning, Strategy & Blueprint Synchronization) of 'development-process.md', you MUST first create or update an active blueprint in 'docs/development/' before applying edits to source files.\n\n" +
+          'To proceed:\n' +
+          "1. Create or update a Component Specification (e.g. 'docs/development/MyTopic/MyComponent.md') containing a high-level abstract and a step-by-step '## Implementation Checklist' as detailed in 'blueprints.instructions.md'.\n" +
+          '2. Present the plan in chat and obtain explicit developer approval to execute it (Phase 2, Step 5).\n' +
+          "3. Once the plan file is created and visible in 'git status', you will be authorized to modify source files.",
+        systemMessage:
+          '🔒 Security Block: No active plan found. Please comply with Phase 2, Steps 4-5 of development-process.md.',
       }),
     );
     process.exit(0);

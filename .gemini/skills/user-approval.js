@@ -10,6 +10,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import crypto from 'crypto';
 import { execSync } from 'child_process';
 
@@ -23,7 +24,7 @@ try {
   repoName = path.basename(process.cwd()) || 'generic-repo';
 }
 
-const TARGET_DIR = path.resolve(process.env.HOME || '/tmp', '.gemini/tmp', repoName);
+const TARGET_DIR = path.resolve(os.homedir(), '.gemini/tmp', repoName);
 const APPROVAL_FILE = path.join(TARGET_DIR, 'user-approval.json');
 const PLAN_APPROVAL_FILE = path.join(TARGET_DIR, 'plan-approval.json');
 const PLAN_CHALLENGE_FILE = path.join(TARGET_DIR, 'plan-approval.challenge');
@@ -151,7 +152,9 @@ function verifyApproval() {
 
   if (!fs.existsSync(APPROVAL_FILE)) {
     console.error('Error: Developer manual IDE review approval not found!');
-    console.error("       In accordance with Gate 2 (IDE & Commit Gate) of 'development-process.md',");
+    console.error(
+      "       In accordance with Gate 2 (IDE & Commit Gate) of 'docs/development/AgenticFramework/DevelopmentProcess.md',",
+    );
     console.error('       you MUST request developer approval first: @user-approval');
     process.exit(1);
   }
@@ -264,8 +267,11 @@ function promptApproval(message, defaultOption) {
     fs.closeSync(ttyWrite);
 
     response = buffer.toString('utf8', 0, bytesRead).trim();
+    if (!response) {
+      response = defaultOption;
+    }
   } catch (err) {
-    // Fallback gracefully in headless/piped environments without throwing
+    // Fallback gracefully in headless/piped environments
     console.warn(`Non-interactive terminal detected. Fallback to default: ${defaultOption}`);
     response = defaultOption;
   }

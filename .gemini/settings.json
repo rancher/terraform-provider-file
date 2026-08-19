@@ -53,7 +53,7 @@
             "type": "command",
             "command": "node .gemini/skills/user-approval.js --verify-plan",
             "timeout": 5000,
-            "description": "Enforces that a valid TOTP plan-approval.json signature exists before exiting plan mode"
+            "description": "Enforces that a valid plan-approval.json signature exists before exiting plan mode"
           }
         ]
       },

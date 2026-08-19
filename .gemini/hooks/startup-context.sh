@@ -11,7 +11,7 @@ combined_context=""
 combined_context+=$'###############################################################################\n'
 combined_context+=$'#                           CRITICAL AGENT MANDATES                           #\n'
 combined_context+=$'#                                                                             #\n'
-combined_context+=$'# 1. YOU MUST FOLLOW THE DEVELOPMENT PROCESS IN \'development-process.md\'.     #\n'
+combined_context+=$'# 1. YOU MUST FOLLOW THE DEVELOPMENT PROCESS IN \'docs/development/AgenticFramework/DevelopmentProcess.md\'. #\n'
 combined_context+=$'# 2. YOU MUST NEVER COMMIT OR PUSH DIRECTLY. YOU MUST ALWAYS USE THE CUSTOM   #\n'
 combined_context+=$'#    COMMIT-PUSH SKILL: \'.gemini/skills/commit-push.sh -m "message"\'.          #\n'
 combined_context+=$'# 3. FOR ALL TASKS, YOU MUST DEFINE A SEQUENTIAL IMPLEMENTATION CHECKLIST AT  #\n'
@@ -20,22 +20,22 @@ combined_context+=$'#                                                           
 combined_context+=$'# FAILURE TO COMPLY WILL TRIGGER SECURITY BLOCKS AND PROCESS TERMINATION.     #\n'
 combined_context+=$'###############################################################################\n\n'
 
-if [[ -f "AGENTS.md" ]]; then
-  combined_context+=$'# Context from AGENTS.md\n\n'
-  combined_context+=$(cat AGENTS.md)
+if [[ -f "docs/development/AgenticFramework.md" ]]; then
+  combined_context+=$'# Context from docs/development/AgenticFramework.md\n\n'
+  combined_context+=$(cat docs/development/AgenticFramework.md)
   combined_context+=$'\n\n'
-  echo "Loaded AGENTS.md" >&2
+  echo "Loaded docs/development/AgenticFramework.md" >&2
 else
-  echo "Warning: AGENTS.md not found" >&2
+  echo "Warning: docs/development/AgenticFramework.md not found" >&2
 fi
 
-if [[ -f ".gemini/workflows/development-process.md" ]]; then
-  combined_context+=$'# Context from .gemini/workflows/development-process.md\n\n'
-  combined_context+=$(cat .gemini/workflows/development-process.md)
+if [[ -f "docs/development/AgenticFramework/DevelopmentProcess.md" ]]; then
+  combined_context+=$'# Context from docs/development/AgenticFramework/DevelopmentProcess.md\n\n'
+  combined_context+=$(cat docs/development/AgenticFramework/DevelopmentProcess.md)
   combined_context+=$'\n\n'
-  echo "Loaded .gemini/workflows/development-process.md" >&2
+  echo "Loaded docs/development/AgenticFramework/DevelopmentProcess.md" >&2
 else
-  echo "Warning: .gemini/workflows/development-process.md not found" >&2
+  echo "Warning: docs/development/AgenticFramework/DevelopmentProcess.md not found" >&2
 fi
 
 # Output clean JSON structure to stdout
@@ -43,5 +43,5 @@ jq -n --arg ctx "$combined_context" '{
   "hookSpecificOutput": {
     "additionalContext": $ctx
   },
-  "systemMessage": "✨ AGENTS.md and development-process.md context injected successfully."
+  "systemMessage": "✨ AgenticFramework.md and DevelopmentProcess.md context injected successfully."
 }'
