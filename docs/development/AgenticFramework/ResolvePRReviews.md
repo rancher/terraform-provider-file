@@ -71,3 +71,10 @@ Once changes are pushed and verified on GitHub, programmatically resolve all com
 ```
 
 Verify that all threads are fully closed on GitHub, concluding the resolution session.
+
+### PR 404 Resolution Implementation Checklist
+
+- [ ] Update `hooks.test.js` to change the `.gemini and .gemini folders` test description to `.gemini and .claude folders`.
+- [ ] Update `hooks.test.js` to dynamically use `path.basename(process.cwd())` when resolving `tempTmpDir`, removing the hardcoded `terraform-provider-file` string.
+- [ ] Run `node --test .github/workflows/scripts/tests/**/*.test.js` to verify all tests pass perfectly.
+- [ ] Run `./.github/workflows/scripts/lint.sh` to ensure full lint compliance.

@@ -8,7 +8,8 @@ import { execFileSync, execSync } from 'child_process';
 test('Native Hook scripts E2E-grade Unit Tests', async (t) => {
   const uniqueId = crypto.randomBytes(8).toString('hex');
   const tempHome = path.resolve(`/tmp/gemini-hooks-test-home-${uniqueId}`);
-  const tempTmpDir = path.resolve(tempHome, '.gemini/tmp/terraform-provider-file');
+  const repoName = path.basename(process.cwd());
+  const tempTmpDir = path.resolve(tempHome, '.gemini/tmp', repoName);
 
   // Setup pristine temp test directories
   fs.mkdirSync(tempTmpDir, { recursive: true });
@@ -20,7 +21,7 @@ test('Native Hook scripts E2E-grade Unit Tests', async (t) => {
     fs.rmSync(tempHome, { recursive: true, force: true });
   });
 
-  await t.test('enforce-planning.js: allows writes/replaces inside .gemini and .gemini folders', () => {
+  await t.test('enforce-planning.js: allows writes/replaces inside .gemini and .claude folders', () => {
     const input = {
       tool_name: 'write_file',
       tool_input: { file_path: '.gemini/hooks/test.js' },
