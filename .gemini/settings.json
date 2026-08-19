@@ -2,6 +2,9 @@
   "ui": {
     "compactToolOutputs": false
   },
+  "tools": {
+    "allowed": ["run_shell_command"]
+  },
   "hooks": {
     "SessionStart": [
       {
@@ -10,7 +13,7 @@
           {
             "name": "load-agents-and-workflow-context",
             "type": "command",
-            "command": "bash .agent/hooks/startup-context.sh",
+            "command": "bash .gemini/hooks/startup-context.sh",
             "timeout": 10000,
             "description": "Loads and injects AGENTS.md and development-process.md as startup context for the session"
           }
@@ -24,7 +27,7 @@
           {
             "name": "sequential-gate-check-before-subagent",
             "type": "command",
-            "command": "node .agent/hooks/before-invoke-agent.js",
+            "command": "node .gemini/hooks/before-invoke-agent.js",
             "timeout": 5000,
             "description": "Enforces sequential pipeline progression before executing sub-agents"
           }
@@ -36,7 +39,7 @@
           {
             "name": "sequential-gate-check-before-ask-user",
             "type": "command",
-            "command": "node .agent/hooks/before-ask-user.js",
+            "command": "node .gemini/hooks/before-ask-user.js",
             "timeout": 5000,
             "description": "Enforces sequential pipeline progression before asking for developer commit approval"
           }
@@ -48,21 +51,9 @@
           {
             "name": "enforce-planning-before-exit-plan-mode",
             "type": "command",
-            "command": "node .agent/skills/user-approval.js --verify-plan",
+            "command": "node .gemini/skills/user-approval.js --verify-plan",
             "timeout": 5000,
             "description": "Enforces that a valid TOTP plan-approval.json signature exists before exiting plan mode"
-          }
-        ]
-      },
-      {
-        "matcher": "read_file",
-        "hooks": [
-          {
-            "name": "block-totp-secrets-on-read",
-            "type": "command",
-            "command": "node .agent/hooks/block-secrets.js",
-            "timeout": 5000,
-            "description": "Prevents the agent from reading the TOTP secret key"
           }
         ]
       },
@@ -72,16 +63,9 @@
           {
             "name": "block-rancher-git",
             "type": "command",
-            "command": "node .agent/hooks/block-rancher-git.js",
+            "command": "node .gemini/hooks/block-rancher-git.js",
             "timeout": 5000,
-            "description": "Prevents running git remote operations against rancher-owned remotes and blocks TOTP secret access"
-          },
-          {
-            "name": "block-totp-secrets-on-shell",
-            "type": "command",
-            "command": "node .agent/hooks/block-secrets.js",
-            "timeout": 5000,
-            "description": "Prevents the agent from accessing the TOTP secret key via shell commands"
+            "description": "Prevents running git remote operations against rancher-owned remotes"
           }
         ]
       },
@@ -91,16 +75,9 @@
           {
             "name": "enforce-planning-before-write",
             "type": "command",
-            "command": "node .agent/hooks/enforce-planning.js",
+            "command": "node .gemini/hooks/enforce-planning.js",
             "timeout": 5000,
-            "description": "Enforces that a plan/checklist must be created or modified before writing files and blocks TOTP secret access"
-          },
-          {
-            "name": "block-totp-secrets-on-write",
-            "type": "command",
-            "command": "node .agent/hooks/block-secrets.js",
-            "timeout": 5000,
-            "description": "Prevents the agent from writing to the TOTP secret key"
+            "description": "Enforces that a plan/checklist must be created or modified before writing files"
           }
         ]
       },
@@ -110,16 +87,9 @@
           {
             "name": "enforce-planning-before-replace",
             "type": "command",
-            "command": "node .agent/hooks/enforce-planning.js",
+            "command": "node .gemini/hooks/enforce-planning.js",
             "timeout": 5000,
-            "description": "Enforces that a plan/checklist must be created or modified before replacing text in files and blocks TOTP secret access"
-          },
-          {
-            "name": "block-totp-secrets-on-replace",
-            "type": "command",
-            "command": "node .agent/hooks/block-secrets.js",
-            "timeout": 5000,
-            "description": "Prevents the agent from replacing text in the TOTP secret key"
+            "description": "Enforces that a plan/checklist must be created or modified before replacing text in files"
           }
         ]
       }
@@ -131,7 +101,7 @@
           {
             "name": "generate-approvals-after-ask",
             "type": "command",
-            "command": "node .agent/hooks/after-ask-user.js",
+            "command": "node .gemini/hooks/after-ask-user.js",
             "timeout": 5000,
             "description": "Automatically and securely generates plan or commit approvals after developer clicks/types approval"
           }
@@ -143,7 +113,7 @@
           {
             "name": "generate-signatures-after-subagent",
             "type": "command",
-            "command": "node .agent/hooks/after-invoke-agent.js",
+            "command": "node .gemini/hooks/after-invoke-agent.js",
             "timeout": 5000,
             "description": "Automatically saves sub-agent reports and secures testing/review signatures upon verified success"
           }

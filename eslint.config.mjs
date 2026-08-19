@@ -30,7 +30,7 @@ export default [
     },
   },
   {
-    files: ['.agent/hooks/**/*.js', '.agent/skills/**/*.js'],
+    files: ['.gemini/hooks/**/*.js', '.gemini/skills/**/*.js'],
     languageOptions: {
       globals: {
         process: 'readonly',

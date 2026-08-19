@@ -11,7 +11,7 @@ jobs:
     name: 'Trigger Executor on Event'
     if: |
       github.event.issue.pull_request && (
-        (github.event.comment.body == '/merge' && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)) ||
+        (startsWith(github.event.comment.body, '/merge') && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)) ||
         (contains(github.event.comment.body, 'and generated no new comments.') && github.event.comment.user.login == 'github-actions[bot]')
       )
     runs-on: ubuntu-latest

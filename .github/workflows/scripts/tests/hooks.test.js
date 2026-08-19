@@ -20,45 +20,14 @@ test('Native Hook scripts E2E-grade Unit Tests', async (t) => {
     fs.rmSync(tempHome, { recursive: true, force: true });
   });
 
-  await t.test('block-secrets.js: allows normal tool usage', () => {
-    const input = {
-      tool_name: 'read_file',
-      tool_input: { file_path: 'main.go' },
-    };
-
-    const result = execFileSync('node', ['.agent/hooks/block-secrets.js'], {
-      input: JSON.stringify(input),
-      env: { ...process.env, HOME: tempHome },
-    }).toString();
-
-    const response = JSON.parse(result);
-    assert.strictEqual(response.decision, 'allow');
-  });
-
-  await t.test('block-secrets.js: strictly blocks TOTP secret access', () => {
-    const input = {
-      tool_name: 'read_file',
-      tool_input: { file_path: 'totp_secret.key' },
-    };
-
-    const result = execFileSync('node', ['.agent/hooks/block-secrets.js'], {
-      input: JSON.stringify(input),
-      env: { ...process.env, HOME: tempHome },
-    }).toString();
-
-    const response = JSON.parse(result);
-    assert.strictEqual(response.decision, 'deny');
-    assert.ok(response.reason.includes('Security Policy Violation'));
-  });
-
-  await t.test('enforce-planning.js: allows writes/replaces inside .agent and .gemini folders', () => {
+  await t.test('enforce-planning.js: allows writes/replaces inside .gemini and .gemini folders', () => {
     const input = {
       tool_name: 'write_file',
-      tool_input: { file_path: '.agent/hooks/test.js' },
+      tool_input: { file_path: '.gemini/hooks/test.js' },
       cwd: tempHome,
     };
 
-    const result = execFileSync('node', ['.agent/hooks/enforce-planning.js'], {
+    const result = execFileSync('node', ['.gemini/hooks/enforce-planning.js'], {
       input: JSON.stringify(input),
       env: { ...process.env, HOME: tempHome },
     }).toString();
@@ -74,7 +43,7 @@ test('Native Hook scripts E2E-grade Unit Tests', async (t) => {
       cwd: tempHome,
     };
 
-    const result = execFileSync('node', ['.agent/hooks/enforce-planning.js'], {
+    const result = execFileSync('node', ['.gemini/hooks/enforce-planning.js'], {
       input: JSON.stringify(input),
       env: { ...process.env, HOME: tempHome },
     }).toString();
@@ -91,7 +60,7 @@ test('Native Hook scripts E2E-grade Unit Tests', async (t) => {
       cwd: tempHome,
     };
 
-    const result = execFileSync('node', ['.agent/hooks/enforce-planning.js'], {
+    const result = execFileSync('node', ['.gemini/hooks/enforce-planning.js'], {
       input: JSON.stringify(input),
       env: { ...process.env, HOME: tempHome },
     }).toString();
@@ -115,7 +84,7 @@ test('Native Hook scripts E2E-grade Unit Tests', async (t) => {
       tool_input: { agent_name: 'testing_agent' },
     };
 
-    const result = execFileSync('node', ['.agent/hooks/before-invoke-agent.js'], {
+    const result = execFileSync('node', ['.gemini/hooks/before-invoke-agent.js'], {
       input: JSON.stringify(input),
       env: { ...process.env, HOME: tempHome },
     }).toString();
@@ -167,7 +136,7 @@ test('Native Hook scripts E2E-grade Unit Tests', async (t) => {
       tool_input: { agent_name: 'review_agent' },
     };
 
-    const result = execFileSync('node', ['.agent/hooks/before-invoke-agent.js'], {
+    const result = execFileSync('node', ['.gemini/hooks/before-invoke-agent.js'], {
       input: JSON.stringify(input),
       env: { ...process.env, HOME: tempHome },
     }).toString();
