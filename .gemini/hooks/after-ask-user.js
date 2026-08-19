@@ -295,8 +295,16 @@ function main() {
             '✅ Gate 4 Approved: Secure Enclave Touch ID validated. Developer Commit cryptographically signed!',
         }),
       );
+    } catch (err) {
+      console.error(
+        '🔒 Cryptographic Pipeline Error: Failed to execute Secure Enclave commit decryption:',
+        err.message || err,
+      );
+      process.exit(1);
+    }
 
-      // --- NEW AUTOMATED COMMIT, PUSH, AND PR EXECUTION ---
+    // --- NEW AUTOMATED COMMIT, PUSH, AND PR EXECUTION ---
+    try {
       const promptText = tool_input.questions && tool_input.questions[0] ? tool_input.questions[0].question : '';
       const matchCommit =
         promptText.match(/Commit Message:\s*"([^"]+)"/i) || promptText.match(/Commit Message:\s*`([^`]+)`/i);
@@ -317,7 +325,7 @@ function main() {
       process.exit(0);
     } catch (err) {
       console.error(
-        '🔒 Cryptographic Pipeline Error: Failed to execute Secure Enclave commit decryption:',
+        '\n🔒 Automated Push/PR Error: Failed to automatically commit, push, or create the Draft Pull Request:',
         err.message || err,
       );
       process.exit(1);

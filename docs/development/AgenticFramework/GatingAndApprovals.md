@@ -104,3 +104,19 @@ To guarantee absolute objectivity, the subagents are **fully isolated and sandbo
    - If any violation or failure is reported, the hook instantly unlinks (deletes) the signatures, revoking any previous approvals.
 
 This architecture prevents the main agent or subagent from manually writing approvals or manipulating results, enforcing a completely deterministic quality gateway.
+
+---
+
+## 🛠️ Hook Robustness & Timeout Fix Plan
+
+We are fixing a reliability issue with the `generate-approvals-after-ask` hook (`after-ask-user.js`), which is triggered on developer commit approval. The hook currently fails because:
+
+1. **Timeout Exceeded**: The hook timeout in `.gemini/settings.json` is set to `5000` (5 seconds). Because the hook executes remote Git pushes and GitHub PR creation, it naturally exceeds this limit and gets terminated.
+2. **Misleading Error Reporting**: If any step in the automated commit, push, or PR generation fails, the entire hook fails inside the generic Secure Enclave cryptographic verification `try-catch` block, outputting a misleading "Secure Enclave commit decryption failed" error.
+
+### **Sequential Implementation Checklist**
+
+- [x] Increase the `generate-approvals-after-ask` hook timeout in `.gemini/settings.json` from `5000` to `60000` ms (60 seconds) to allow sufficient time for Git remote push and PR creation operations.
+- [x] Refactor `.gemini/hooks/after-ask-user.js` to isolate the automated commit, push, and PR generation into its own dedicated, beautifully logged `try-catch` block to prevent masking of cryptographic Touch ID signature failures and provide high-signal debugging output.
+- [x] Verify that all Javascript unit tests pass cleanly after refactoring.
+- [x] Perform a dry-run linter execution to ensure formatting and coding standards compliance.

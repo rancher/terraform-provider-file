@@ -102,7 +102,7 @@
             "name": "generate-approvals-after-ask",
             "type": "command",
             "command": "node .gemini/hooks/after-ask-user.js",
-            "timeout": 5000,
+            "timeout": 60000,
             "description": "Automatically and securely generates plan or commit approvals after developer clicks/types approval"
           }
         ]
