@@ -9,7 +9,13 @@
 //
 
 import fs from 'fs';
-import { verifyPlanGate, verifyTestGate, verifyReviewGate, calculateDiffHash } from '../../agent-scripts/gating.js';
+import {
+  verifyPlanGate,
+  verifyTestGate,
+  verifyReviewGate,
+  calculateDiffHash,
+  checkAndRevokeStaleGates,
+} from '../../agent-scripts/gating.js';
 import { getStateDir } from './lib/state-dir.js';
 
 const TARGET_DIR = getStateDir();
@@ -50,6 +56,9 @@ function main() {
   }
 
   const diffHash = calculateDiffHash();
+
+  // Actively verify and revoke stale signatures on diff mismatch before blocking
+  checkAndRevokeStaleGates(TARGET_DIR, diffHash, planHash);
 
   if (!verifyTestGate(TARGET_DIR, planHash, diffHash)) {
     deny(

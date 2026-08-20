@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { execFileSync, execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { calculateFileHash, calculateDiffHash, findLatestActivePlan } from './gating.js';
 
 /**
@@ -159,22 +159,49 @@ export function handleCommitApproval(targetDir, pubKeyFile, privKeyFile, promptT
 
       const pushArgs = ['-m', commitMessage];
       try {
-        const activeBranch = execSync('git branch --show-current', { stdio: ['ignore', 'pipe', 'ignore'] })
+        const activeBranch = execFileSync('git', ['branch', '--show-current'], { stdio: ['ignore', 'pipe', 'ignore'] })
           .toString()
           .trim();
-        const hasTracking = execSync(`git rev-parse --verify origin/${activeBranch} 2>/dev/null || echo ""`, {
-          stdio: ['ignore', 'pipe', 'ignore'],
-        })
-          .toString()
-          .trim();
+        let hasTracking = '';
+        try {
+          hasTracking = execFileSync('git', ['rev-parse', '--verify', `origin/${activeBranch}`], {
+            stdio: ['ignore', 'pipe', 'ignore'],
+          })
+            .toString()
+            .trim();
+        } catch {
+          // Tracking reference does not exist yet
+        }
         if (hasTracking) {
           try {
-            execSync(`git merge-base --is-ancestor origin/${activeBranch} HEAD`, { stdio: 'ignore' });
+            let isOriginAncestorOfHead = false;
+            try {
+              execFileSync('git', ['merge-base', '--is-ancestor', `origin/${activeBranch}`, 'HEAD'], {
+                stdio: 'ignore',
+              });
+              isOriginAncestorOfHead = true;
+            } catch {
+              isOriginAncestorOfHead = false;
+            }
+
+            let isHeadAncestorOfOrigin = false;
+            try {
+              execFileSync('git', ['merge-base', '--is-ancestor', 'HEAD', `origin/${activeBranch}`], {
+                stdio: 'ignore',
+              });
+              isHeadAncestorOfOrigin = true;
+            } catch {
+              isHeadAncestorOfOrigin = false;
+            }
+
+            if (!isOriginAncestorOfHead && !isHeadAncestorOfOrigin) {
+              console.error(
+                '⚠️ [DIVERGED] Local branch has diverged from origin tracking ref (interactive rebase detected). Enabling safe force-push (--force-with-lease).',
+              );
+              pushArgs.unshift('-f');
+            }
           } catch {
-            console.error(
-              '⚠️ [DIVERGED] Local branch has diverged from origin tracking ref (interactive rebase detected). Enabling safe force-push (--force-with-lease).',
-            );
-            pushArgs.unshift('-f');
+            // Ignore rebase detection errors, fallback to standard push args
           }
         }
       } catch {
@@ -194,10 +221,34 @@ export function handleCommitApproval(targetDir, pubKeyFile, privKeyFile, promptT
 
       process.exit(0);
     } catch (err) {
-      console.error(
-        '\n🔒 Automated Push/PR Error: Failed to automatically commit, push, or create the Draft Pull Request:',
-        err.message || err,
-      );
+      console.error('\n======================================================================');
+      console.error('❌ AUTOMATED COMMIT/PUSH PIPELINE FAILURE DETECTED!');
+      console.error('======================================================================');
+      console.error(`Error Message: ${err.message || err}`);
+      console.error('\n🛠️ Troubleshooting Guide:');
+      console.error('1. Check if your local branch has un-synchronized remote commits.');
+      console.error('2. Ensure your GPG keys are unlocked and Touch ID biometrics are functioning.');
+      console.error('3. Check GitHub API status and ensure your gh CLI is authenticated.');
+      console.error('\n🔒 Zero-Trust Security Reset: Revoking all approvals and gating signatures...');
+
+      const sigFiles = [
+        path.join(targetDir, 'user-approval.json'),
+        path.join(targetDir, 'user-approval.challenge'),
+        path.join(targetDir, 'test-approval.json'),
+        path.join(targetDir, 'review-approval.json'),
+        path.join(targetDir, 'plan-approval.json'),
+      ];
+      for (const file of sigFiles) {
+        try {
+          fs.unlinkSync(file);
+          console.error(`  -> Revoked signature file: ${path.basename(file)}`);
+        } catch (unlinkErr) {
+          if (unlinkErr.code !== 'ENOENT') {
+            console.error(`  -> Failed to delete ${path.basename(file)}:`, unlinkErr.message);
+          }
+        }
+      }
+      console.error('======================================================================\n');
       process.exit(1);
     }
   } catch (err) {

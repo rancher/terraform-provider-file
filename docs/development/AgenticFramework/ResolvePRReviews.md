@@ -131,3 +131,70 @@ We are resolving the PR review findings and fixing the Conventional Commit valid
 - [x] Refactor `agent-scripts/security.js` to extend approval-file manipulation checks to cover all planning, testing, review, and commit gate JSON files (`plan-approval.json`, `plan-approval.challenge`, `test-approval.json`, `review-approval.json`, `user-approval.json`, `user-approval.challenge`).
 - [x] Guide the developer to reword the unconventional commit message `Potential fix for pull request finding` in their local branch history to `fix(agent): align testing and review agent gate verifications`.
 - [x] Verify that all 18 agent-scripts tests and all linters are 100% green.
+
+---
+
+## 🛠️ PR 405 Subagent Revocation & Timeout Plan
+
+We are resolving the new PR review comment by:
+
+1. Hardening both `.claude/hooks/subagent-report-gate.js` and `.gemini/hooks/after-invoke-agent.js` to treat unparsable/missing transcripts as a failure and immediately delete existing signatures (Gate 2/3) to prevent stale states.
+2. Confirming and locking Gating timeouts to 60 seconds (`60000` ms) inside `.gemini/settings.json` and `.claude/settings.json`.
+
+### **Sequential Implementation Checklist**
+
+- [x] Refactor `.claude/hooks/subagent-report-gate.js` to revoke/unlink Gate 2/3 signatures if the subagent report/transcript is unparsable or missing.
+- [x] Refactor `.gemini/hooks/after-invoke-agent.js` to revoke/unlink Gate 2/3 signatures if the subagent report/transcript is unparsable or missing.
+- [x] Confirm that `.gemini/settings.json` and `.claude/settings.json` timeouts are set to 60 seconds.
+- [ ] Verify that all 18 agent-scripts tests and linters are 100% green.
+
+---
+
+## 🛠️ PR 405 Gating Hardening & Precise Divergence Plan
+
+We are resolving the two new PR review findings by:
+
+1. Refining the divergence check in `agent-scripts/after-ask.js` to only auto-enable the force flag (`-f`) if Histories have actually **diverged** (neither is an ancestor of the other), not when local is behind.
+2. Expanding the manual writing/editing spoof block in `.claude/hooks/enforce-blueprint.js` and `.gemini/hooks/enforce-planning.js` to cover all gate-related signature files including challenges (`.challenge`) and age envelopes (`.age`).
+
+### **Sequential Implementation Checklist**
+
+- [x] Refactor `agent-scripts/after-ask.js` to perform precise divergence vs. behind checks.
+- [x] Refactor `.claude/hooks/enforce-blueprint.js` to block manual edits to all `.json`, `.challenge`, and `.age` gate signature files.
+- [x] Refactor `.gemini/hooks/enforce-planning.js` to block manual edits to all `.json`, `.challenge`, and `.age` gate signature files.
+- [x] Verify that all 18 agent-scripts tests and linters are 100% green.
+
+---
+
+## 🛠️ PR 405 GPG Hook Recovery & Active Gate Revocation Plan
+
+We are resolving the new recovery and revocation requirements by:
+
+1. Hardening `.gemini/hooks/before-ask-user.js` and `.claude/hooks/gate-before-commit-ask.js` to actively check if the current diff_hash matches the test/review signature files before commit approval prompts. If a mismatch is detected, it actively unlinks/deletes the testing/review signatures, logs an active revocation message, and fails.
+2. Hardening `handleCommitApproval` inside `agent-scripts/after-ask.js` to catch any failures during standard push, force push, or PR generation. Upon error, it executes a zero-trust reset by unlinking all signature files (`plan-approval.json`, `test-approval.json`, `review-approval.json`, `user-approval.json`) and outputting a highly visible troubleshooting log with actionable guide points.
+
+### **Sequential Implementation Checklist**
+
+- [x] Write `checkAndRevokeStaleGates(targetDir, activeDiffHash, expectedPlanHash)` inside `agent-scripts/gating.js` to actively verify and delete stale Gate 2/3 signature files.
+- [x] Refactor `.gemini/hooks/before-ask-user.js` to call `checkAndRevokeStaleGates` and actively revoke stale signature files before commit ask checks.
+- [x] Refactor `.claude/hooks/gate-before-commit-ask.js` to call `checkAndRevokeStaleGates` and actively revoke stale signature files before commit ask checks.
+- [x] Refactor `handleCommitApproval` in `agent-scripts/after-ask.js` to perform a zero-trust signature revocation reset and log structured troubleshooting steps upon automated push/PR failure.
+- [x] Verify that all 18 agent-scripts tests and linters are 100% green.
+
+---
+
+## 🛠️ PR 406 Gating Hardening Plan
+
+We are resolving the 4 new PR review findings by:
+
+1. Hardening `checkAndRevokeStaleGates` in `agent-scripts/gating.js` to only revoke signature files when activeDiffHash and expectedPlanHash are fully truthy.
+2. Refactoring `agent-scripts/after-ask.js` to replace shell-interpolated `execSync` commands with safe, injection-immune `execFileSync('git', [...])` calls.
+3. Plucking the early guard loophole in `.gemini/hooks/after-invoke-agent.js` to actively revoke signature files if the response or report is empty/missing.
+4. Tuning GHA hook timeout documentation in `ResolvePRReviews.md` to clarify that only networked ask-approval hooks are set to 60 seconds.
+
+### **Sequential Implementation Checklist**
+
+- [ ] Refactor `checkAndRevokeStaleGates` in `agent-scripts/gating.js` to evaluate truthy hashes before unlinking.
+- [ ] Refactor `agent-scripts/after-ask.js` to use secure, shell-injection-immune `execFileSync('git', [...])` commands for merge-base ancestor checks.
+- [ ] Refactor `.gemini/hooks/after-invoke-agent.js` early guards to actively call `revokeGate` on missing or empty LLM responses.
+- [ ] Verify that all 18 agent-scripts tests and linters are 100% green.

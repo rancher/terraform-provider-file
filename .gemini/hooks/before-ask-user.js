@@ -9,7 +9,13 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { execSync } from 'child_process';
-import { verifyPlanGate, verifyTestGate, verifyReviewGate, calculateDiffHash } from '../../agent-scripts/gating.js';
+import {
+  verifyPlanGate,
+  verifyTestGate,
+  verifyReviewGate,
+  calculateDiffHash,
+  checkAndRevokeStaleGates,
+} from '../../agent-scripts/gating.js';
 
 const HOME_DIR = os.homedir();
 let repoName = '';
@@ -64,6 +70,10 @@ function main() {
     }
 
     const diffHash = calculateDiffHash();
+
+    // Actively verify and revoke stale signatures on diff mismatch before blocking
+    checkAndRevokeStaleGates(TARGET_DIR, diffHash, planHash);
+
     const testPassed = verifyTestGate(TARGET_DIR, planHash, diffHash);
     if (!testPassed) {
       console.log(

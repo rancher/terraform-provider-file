@@ -159,3 +159,61 @@ export function verifyReviewGate(targetDir, expectedDiffHash, expectedPlanHash) 
     return false;
   }
 }
+
+// Check and actively revoke stale signatures (Gate 2/3) if the diff hash has changed
+export function checkAndRevokeStaleGates(targetDir, activeDiffHash, expectedPlanHash) {
+  const testApprovalFile = path.join(targetDir, 'test-approval.json');
+  const reviewApprovalFile = path.join(targetDir, 'review-approval.json');
+
+  let hasRevoked = false;
+
+  // Check test approval
+  if (fs.existsSync(testApprovalFile)) {
+    try {
+      const content = JSON.parse(fs.readFileSync(testApprovalFile, 'utf-8'));
+      if (
+        activeDiffHash &&
+        expectedPlanHash &&
+        (content.diff_hash !== activeDiffHash || content.plan_hash !== expectedPlanHash)
+      ) {
+        fs.unlinkSync(testApprovalFile);
+        console.error(
+          '❌ Active Gate Revocation: Stale testing signature deleted because workspace changes were modified since your last test run!',
+        );
+        hasRevoked = true;
+      }
+    } catch {
+      // If unparsable, delete it
+      try {
+        fs.unlinkSync(testApprovalFile);
+      } catch {}
+      hasRevoked = true;
+    }
+  }
+
+  // Check review approval
+  if (fs.existsSync(reviewApprovalFile)) {
+    try {
+      const content = JSON.parse(fs.readFileSync(reviewApprovalFile, 'utf-8'));
+      if (
+        activeDiffHash &&
+        expectedPlanHash &&
+        (content.diff_hash !== activeDiffHash || content.plan_hash !== expectedPlanHash)
+      ) {
+        fs.unlinkSync(reviewApprovalFile);
+        console.error(
+          '❌ Active Gate Revocation: Stale review signature deleted because workspace changes were modified since your last review!',
+        );
+        hasRevoked = true;
+      }
+    } catch {
+      // If unparsable, delete it
+      try {
+        fs.unlinkSync(reviewApprovalFile);
+      } catch {}
+      hasRevoked = true;
+    }
+  }
+
+  return hasRevoked;
+}
