@@ -51,7 +51,7 @@ If the workflow fell back to matching a branch name like `patch-1` or `update` a
 
 A bad actor might attempt to modify the `pr-executor.yml` workflow file or the validation/merge scripts inside their PR branch to bypass checks or run arbitrary code.
 
-- **Mitigation**: GitHub Actions executes `workflow_run` workflows **exclusively using the workflow YAML file from the base repository's default branch (`main`)**. Furthermore, the `actions/checkout` step checks out `main` by default. As a result, all executed YAML definitions and imported scripts (`verify-pr-requirements.mjs`, `merge-pr.js`) are read strictly from the base repository's trusted `main` branch, making PR branch tampering impossible.
+- **Mitigation**: GitHub Actions executes `workflow_run` workflows **exclusively using the workflow YAML file from the base repository's default branch ref**. Furthermore, the `actions/checkout` step checks out the default branch ref of the base repository by default. As a result, all executed YAML definitions and imported scripts (`verify-pr-requirements.mjs`, `merge-pr.js`) are read strictly from the base repository's trusted default branch commit, making PR branch tampering impossible.
 
 ### C. Immutable Gated Verification Checks
 
@@ -108,4 +108,6 @@ export default async ({ github, context, core }) => {
 - [x] Update unit tests to mock and verify ambiguous open PR resolution failures.
 - [x] Implement defensively guarded ambiguity checking for `listPullRequestsAssociatedWithCommit` fallback.
 - [x] Add unit tests verifying ambiguous associated PR resolution failures and deleted repo safety.
+- [x] Paginate associated PR lookups using `github.paginate` to handle >30 associated PRs.
+- [x] Align unit test `github.paginate` mock to realistically unwrap Octokit `{ data: [...] }` structures.
 - [ ] Seek final IDE and commit approval.

@@ -42,7 +42,8 @@ test('get-target-pr.js tests', async (t) => {
         },
       },
       paginate: async (method, params) => {
-        return await method(params);
+        const response = await method(params);
+        return response.data || response;
       },
     };
 
@@ -216,7 +217,7 @@ test('get-target-pr.js tests', async (t) => {
     };
 
     mocks.github.rest.pulls.list = async () => {
-      return [];
+      return { data: [] };
     };
 
     await getTargetPR({
@@ -260,7 +261,7 @@ test('get-target-pr.js tests', async (t) => {
       };
 
       mocks.github.rest.pulls.list = async () => {
-        return [];
+        return { data: [] };
       };
 
       await getTargetPR({
@@ -315,7 +316,7 @@ test('get-target-pr.js tests', async (t) => {
       };
 
       mocks.github.rest.pulls.list = async () => {
-        return [];
+        return { data: [] };
       };
 
       await getTargetPR({
@@ -378,7 +379,7 @@ test('get-target-pr.js tests', async (t) => {
       };
 
       mocks.github.rest.pulls.list = async () => {
-        return [];
+        return { data: [] };
       };
 
       await getTargetPR({
@@ -408,10 +409,12 @@ test('get-target-pr.js tests', async (t) => {
     };
 
     mocks.github.rest.pulls.list = async () => {
-      return [
-        { number: 202, head: { sha: 'sha-matched-open-pr' } },
-        { number: 303, head: { sha: 'other-sha' } },
-      ];
+      return {
+        data: [
+          { number: 202, head: { sha: 'sha-matched-open-pr' } },
+          { number: 303, head: { sha: 'other-sha' } },
+        ],
+      };
     };
 
     mocks.github.rest.pulls.get = async () => {
@@ -461,15 +464,17 @@ test('get-target-pr.js tests', async (t) => {
     };
 
     mocks.github.rest.pulls.list = async () => {
-      return [
-        {
-          number: 202,
-          head: {
-            sha: 'sha-matched-open-pr',
-            repo: { owner: { login: 'trusted-owner' } },
+      return {
+        data: [
+          {
+            number: 202,
+            head: {
+              sha: 'sha-matched-open-pr',
+              repo: { owner: { login: 'trusted-owner' } },
+            },
           },
-        },
-      ];
+        ],
+      };
     };
 
     mocks.github.rest.pulls.get = async () => {
@@ -519,15 +524,17 @@ test('get-target-pr.js tests', async (t) => {
     };
 
     mocks.github.rest.pulls.list = async () => {
-      return [
-        {
-          number: 202,
-          head: {
-            sha: 'sha-matched-open-pr',
-            repo: { owner: { login: 'malicious-owner' } },
+      return {
+        data: [
+          {
+            number: 202,
+            head: {
+              sha: 'sha-matched-open-pr',
+              repo: { owner: { login: 'malicious-owner' } },
+            },
           },
-        },
-      ];
+        ],
+      };
     };
 
     await getTargetPR({
@@ -560,24 +567,26 @@ test('get-target-pr.js tests', async (t) => {
     };
 
     mocks.github.rest.pulls.list = async () => {
-      return [
-        {
-          number: 404,
-          head: {
-            sha: 'other-sha',
-            ref: 'feature-branch',
-            repo: { owner: { login: 'fork-owner' } },
+      return {
+        data: [
+          {
+            number: 404,
+            head: {
+              sha: 'other-sha',
+              ref: 'feature-branch',
+              repo: { owner: { login: 'fork-owner' } },
+            },
           },
-        },
-        {
-          number: 505,
-          head: {
-            sha: 'other-sha-2',
-            ref: 'feature-branch',
-            repo: { owner: { login: 'malicious-owner' } },
+          {
+            number: 505,
+            head: {
+              sha: 'other-sha-2',
+              ref: 'feature-branch',
+              repo: { owner: { login: 'malicious-owner' } },
+            },
           },
-        },
-      ];
+        ],
+      };
     };
 
     mocks.github.rest.pulls.get = async () => {
@@ -624,20 +633,22 @@ test('get-target-pr.js tests', async (t) => {
     };
 
     mocks.github.rest.pulls.list = async () => {
-      return [
-        {
-          number: 801,
-          head: {
-            sha: 'ambiguous-sha',
+      return {
+        data: [
+          {
+            number: 801,
+            head: {
+              sha: 'ambiguous-sha',
+            },
           },
-        },
-        {
-          number: 802,
-          head: {
-            sha: 'ambiguous-sha',
+          {
+            number: 802,
+            head: {
+              sha: 'ambiguous-sha',
+            },
           },
-        },
-      ];
+        ],
+      };
     };
 
     await getTargetPR({
@@ -669,7 +680,7 @@ test('get-target-pr.js tests', async (t) => {
     };
 
     mocks.github.rest.pulls.list = async () => {
-      return [];
+      return { data: [] };
     };
 
     await getTargetPR({

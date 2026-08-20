@@ -23,7 +23,7 @@ export default async ({ github, context, core }) => {
     // Fallback 1: Query open pull requests associated with the head commit SHA
     if (!prNumber && parentRun.head_sha) {
       try {
-        const { data: associatedPRs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+        const associatedPRs = await github.paginate(github.rest.repos.listPullRequestsAssociatedWithCommit, {
           owner: context.repo.owner,
           repo: context.repo.repo,
           commit_sha: parentRun.head_sha,
