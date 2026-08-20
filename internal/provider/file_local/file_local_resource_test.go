@@ -130,17 +130,17 @@ func TestLocalResourceCreate(t *testing.T) {
 				LocalResource{client: &c.MemoryFileClient{}},
 				// have
 				getCreateRequest(t, map[string]string{
-					"id":              "59fed8691a76c7693fc9dcd4fda28390a1fd3090114bc64f3e5a3abe312a92f5",
+					"id":              "156113a2ce197ae6899691f2eca8629e0d6707ccafeab8e488b68e0a5a68ec31",
 					"name":            "test_protected.tmp",
 					"directory":       defaultDirectory,
 					"permissions":     defaultPerm,
 					"contents":        "this is a test",
 					"protected":       "true",
-					"hmac_secret_key": defaultHmacSecretKey, // this relies on TF_FILE_HMAC_SECRET_KEY=thisisasupersecretkey in your environment
+					"hmac_secret_key": defaultHmacSecretKey, // this relies on TF_FILE_HMAC_SECRET_KEY=test-hmac-secret-key-123 in your environment
 				}),
 				// want
 				getCreateResponse(t, map[string]string{
-					"id":              "59fed8691a76c7693fc9dcd4fda28390a1fd3090114bc64f3e5a3abe312a92f5",
+					"id":              "156113a2ce197ae6899691f2eca8629e0d6707ccafeab8e488b68e0a5a68ec31",
 					"name":            "test_protected.tmp",
 					"directory":       defaultDirectory,
 					"permissions":     defaultPerm,
@@ -161,7 +161,7 @@ func TestLocalResourceCreate(t *testing.T) {
 				plannedDirectory := plannedState.Directory.ValueString()
 				plannedName := plannedState.Name.ValueString()
 				if plannedProtected && plannedHmacSecretKey == "" {
-					t.Setenv("TF_FILE_HMAC_SECRET_KEY", "thisisasupersecretkey")
+					t.Setenv("TF_FILE_HMAC_SECRET_KEY", "test-hmac-secret-key-123")
 				}
 				r := getCreateResponseContainer()
 				t.Logf("Creating file with: %+v", tc.have)

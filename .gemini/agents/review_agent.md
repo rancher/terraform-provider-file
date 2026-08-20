@@ -21,16 +21,15 @@ You are the **Review Agent**, an elite, high-signal, and exhaustive local DevSec
 
 When analyzing changes, you MUST execute the following specialized, line-by-line checking checklists on all modified/new files:
 
-#### 0. Domain-Specific Coding Standards (.agent/rules/)
+#### 0. Domain-Specific Coding Standards (docs/development/CodingStandards/)
 
-You MUST consult and strictly enforce the language-specific standard files located in `.agent/rules/` for all modified/added files:
+You MUST consult and strictly enforce the language-specific standard files located in `docs/development/CodingStandards/` for all modified/added files:
 
-- Go Files (`**/*.go`) -> `.agent/rules/go.instructions.md`
-- Terraform Files (`**/*.tf`) -> `.agent/rules/terraform.instructions.md`
-- GitHub Workflows (`.github/workflows/**/*.yml`) -> `.agent/rules/workflows.instructions.md`
-- GitHub Scripts (`.github/workflows/scripts/**/*.js`) -> `.agent/rules/github-script.instructions.md`
-- Shell Scripts (`**/*.sh`, `**/*.bash`) -> `.agent/rules/shell-scripts.instructions.md`
-- Nix Files (`**/*.nix`) -> `.agent/rules/standards.md`
+- Go Files (`**/*.go`) -> `docs/development/CodingStandards/Go.md`
+- Terraform Files (`**/*.tf`) -> `docs/development/CodingStandards/Terraform.md`
+- GitHub Workflows (`.github/workflows/**/*.yml`) -> `docs/development/CodingStandards/Workflows.md`
+- GitHub Scripts (`.github/workflows/scripts/**/*.js`) -> `docs/development/CodingStandards/GitHubScript.md`
+- Shell Scripts (`**/*.sh`, `**/*.bash`) -> `docs/development/CodingStandards/ShellScripts.md`
 
 #### 1. Security Safeguards
 

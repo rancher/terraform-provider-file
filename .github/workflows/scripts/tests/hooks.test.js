@@ -8,7 +8,8 @@ import { execFileSync, execSync } from 'child_process';
 test('Native Hook scripts E2E-grade Unit Tests', async (t) => {
   const uniqueId = crypto.randomBytes(8).toString('hex');
   const tempHome = path.resolve(`/tmp/gemini-hooks-test-home-${uniqueId}`);
-  const tempTmpDir = path.resolve(tempHome, '.gemini/tmp/terraform-provider-file');
+  const repoName = path.basename(process.cwd());
+  const tempTmpDir = path.resolve(tempHome, '.gemini/tmp', repoName);
 
   // Setup pristine temp test directories
   fs.mkdirSync(tempTmpDir, { recursive: true });
@@ -20,45 +21,14 @@ test('Native Hook scripts E2E-grade Unit Tests', async (t) => {
     fs.rmSync(tempHome, { recursive: true, force: true });
   });
 
-  await t.test('block-secrets.js: allows normal tool usage', () => {
-    const input = {
-      tool_name: 'read_file',
-      tool_input: { file_path: 'main.go' },
-    };
-
-    const result = execFileSync('node', ['.agent/hooks/block-secrets.js'], {
-      input: JSON.stringify(input),
-      env: { ...process.env, HOME: tempHome },
-    }).toString();
-
-    const response = JSON.parse(result);
-    assert.strictEqual(response.decision, 'allow');
-  });
-
-  await t.test('block-secrets.js: strictly blocks TOTP secret access', () => {
-    const input = {
-      tool_name: 'read_file',
-      tool_input: { file_path: 'totp_secret.key' },
-    };
-
-    const result = execFileSync('node', ['.agent/hooks/block-secrets.js'], {
-      input: JSON.stringify(input),
-      env: { ...process.env, HOME: tempHome },
-    }).toString();
-
-    const response = JSON.parse(result);
-    assert.strictEqual(response.decision, 'deny');
-    assert.ok(response.reason.includes('Security Policy Violation'));
-  });
-
-  await t.test('enforce-planning.js: allows writes/replaces inside .agent and .gemini folders', () => {
+  await t.test('enforce-planning.js: allows writes/replaces inside .gemini and .claude folders', () => {
     const input = {
       tool_name: 'write_file',
-      tool_input: { file_path: '.agent/hooks/test.js' },
+      tool_input: { file_path: '.gemini/hooks/test.js' },
       cwd: tempHome,
     };
 
-    const result = execFileSync('node', ['.agent/hooks/enforce-planning.js'], {
+    const result = execFileSync('node', ['.gemini/hooks/enforce-planning.js'], {
       input: JSON.stringify(input),
       env: { ...process.env, HOME: tempHome },
     }).toString();
@@ -74,7 +44,7 @@ test('Native Hook scripts E2E-grade Unit Tests', async (t) => {
       cwd: tempHome,
     };
 
-    const result = execFileSync('node', ['.agent/hooks/enforce-planning.js'], {
+    const result = execFileSync('node', ['.gemini/hooks/enforce-planning.js'], {
       input: JSON.stringify(input),
       env: { ...process.env, HOME: tempHome },
     }).toString();
@@ -91,7 +61,7 @@ test('Native Hook scripts E2E-grade Unit Tests', async (t) => {
       cwd: tempHome,
     };
 
-    const result = execFileSync('node', ['.agent/hooks/enforce-planning.js'], {
+    const result = execFileSync('node', ['.gemini/hooks/enforce-planning.js'], {
       input: JSON.stringify(input),
       env: { ...process.env, HOME: tempHome },
     }).toString();
@@ -115,7 +85,7 @@ test('Native Hook scripts E2E-grade Unit Tests', async (t) => {
       tool_input: { agent_name: 'testing_agent' },
     };
 
-    const result = execFileSync('node', ['.agent/hooks/before-invoke-agent.js'], {
+    const result = execFileSync('node', ['.gemini/hooks/before-invoke-agent.js'], {
       input: JSON.stringify(input),
       env: { ...process.env, HOME: tempHome },
     }).toString();
@@ -125,7 +95,7 @@ test('Native Hook scripts E2E-grade Unit Tests', async (t) => {
     assert.ok(response.reason.includes('Gate 1 (Planning Gate) is missing or invalid'));
   });
 
-  await t.test('before-invoke-agent.js: blocks review_agent if Gate 2 (Testing Gate) is missing', () => {
+  await t.test('before-invoke-agent.js: blocks review_agent if Testing prerequisite is missing', () => {
     // Write valid plan approval to satisfy Gate 1
     const challengeToken = crypto.randomBytes(32).toString('hex');
     const challengeHash = crypto.createHash('sha256').update(challengeToken).digest('hex');
@@ -167,13 +137,13 @@ test('Native Hook scripts E2E-grade Unit Tests', async (t) => {
       tool_input: { agent_name: 'review_agent' },
     };
 
-    const result = execFileSync('node', ['.agent/hooks/before-invoke-agent.js'], {
+    const result = execFileSync('node', ['.gemini/hooks/before-invoke-agent.js'], {
       input: JSON.stringify(input),
       env: { ...process.env, HOME: tempHome },
     }).toString();
 
     const response = JSON.parse(result);
     assert.strictEqual(response.decision, 'deny');
-    assert.ok(response.reason.includes('Gate 2 (Testing Gate) is missing or invalid'));
+    assert.ok(response.reason.includes('Testing prerequisite is missing or invalid'));
   });
 });

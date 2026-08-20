@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# Helper: update-modules.sh
+# Skill: update-modules.sh
 # Description: Dynamically detects and updates all Terraform Registry module references in all .tf files to their latest registry versions.
-# Usage: .github/workflows/scripts/update-modules.sh
+# Usage: .gemini/skills/update-modules.sh
 
 set -euo pipefail
 
@@ -16,12 +16,11 @@ and updates their version parameters to the latest available releases.
 
 Options:
   --list-modules       List all modules declared in Terraform files and their current versions.
-  --validate           Check if all modules are up to date. Exits 1 if updates are needed.
   -h, --help           Show this help message and exit.
 
 Examples:
-  .github/workflows/scripts/update-modules.sh --list-modules
-  .github/workflows/scripts/update-modules.sh
+  .gemini/skills/update-modules.sh --list-modules
+  .gemini/skills/update-modules.sh
 EOF
 }
 
@@ -46,7 +45,7 @@ run_with_retry() {
     fi
 
     local delay
-    delay=$((base_delay * (2 ** (attempt - 1))))
+    delay=$(( base_delay * (2 ** (attempt - 1)) ))
     echo "Warning: Command failed (exit code ${exit_code}). Retrying in ${delay} seconds (attempt ${attempt}/${max_attempts})..." >&2
     sleep "${delay}"
     attempt=$((attempt + 1))
@@ -56,13 +55,13 @@ run_with_retry() {
 get_latest_version() {
   local module_name="$1"
   local latest_version
-
+  
   latest_version=$(run_with_retry curl -s "https://registry.terraform.io/v1/modules/${module_name}" 2>/dev/null | jq -r '.version // empty')
-
+  
   if [[ -z "${latest_version}" || "${latest_version}" == "null" ]]; then
     return 1
   fi
-
+  
   echo "${latest_version}"
 }
 
@@ -124,15 +123,12 @@ list_current_modules() {
 }
 
 update_all_modules() {
-  local mode="${1:-update}"
-  local outdated=false
   local search_dir="."
   echo "Scanning all Terraform files to discover public registry modules..." >&2
 
   # Extract unique public registry module names (pattern: namespace/name/provider)
-  # Highly optimized: explicitly exclude .terraform and .git to prevent slow recursive scans
   local modules
-  modules=$(grep -E -o 'source[ \t]*=[ \t]*"[A-Za-z0-9_-]+/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+"' -r --exclude-dir=".terraform" --exclude-dir=".git" --exclude-dir="tf_plugin_cache" --include="*.tf" "${search_dir}" 2>/dev/null \
+  modules=$(grep -E -o 'source[ \t]*=[ \t]*"[A-Za-z0-9_-]+/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+"' -r --include="*.tf" "${search_dir}" 2>/dev/null \
     | sed -E 's/.*source[ \t]*=[ \t]*"([^"]+)".*/\1/' \
     | sort -u || echo "")
 
@@ -144,18 +140,20 @@ update_all_modules() {
   local mod
   for mod in ${modules}; do
     echo "Processing module: ${mod}" >&2
-
+    
     local latest_version
     if ! latest_version=$(get_latest_version "${mod}"); then
       echo "Failed to retrieve version for module ${mod}. Skipping." >&2
       continue
     fi
 
-    echo "Latest version of ${mod} is ${latest_version}. Updating references..." >&2
+    # Support prefixing with "v" (common convention in this repo)
+    local new_ver="v${latest_version}"
+    echo "Latest version of ${mod} is ${new_ver}. Updating references..." >&2
 
     local file
     while IFS= read -r -d '' file; do
-      awk -v raw_ver="${latest_version}" -v mod="${mod}" '
+      awk -v new_ver="${new_ver}" -v mod="${mod}" '
       # Match a line specifying the target module source
       # e.g., source = "rancher/access/aws"
       $0 ~ "source[ \t]+=[ \t]+\"" mod "\"" {
@@ -166,50 +164,19 @@ update_all_modules() {
         
         # Check if this next line defines the version attribute
         if ($0 ~ /version[ \t]+=/) {
-          # Extract the version value within quotes
-          match($0, /"[^"]+"/)
-          val = substr($0, RSTART + 1, RLENGTH - 2)
-          
-          # Choose new version format dynamically based on original prefix
-          if (val ~ /^v/) {
-            new_val = "v" raw_ver
-          } else {
-            new_val = raw_ver
-          }
-          
-          # Substitute the old version string with the dynamically chosen one
-          sub(/"[^"]+"/, "\"" new_val "\"")
+          # Substitute the old version string (e.g. "v1.0.0") with the new_ver string
+          sub(/"[^"]+"/, "\"" new_ver "\"")
         }
         print # Print the updated (or unchanged) version line
         next
       }
       # Print all other non-matching lines unchanged
       {print}
-      ' "${file}" >"${file}.tmp"
-
-      if [[ "${mode}" == "validate" ]]; then
-        if ! cmp -s "${file}" "${file}.tmp"; then
-          echo "Error: Outdated module version found for ${mod} in ${file}. Latest is ${latest_version}." >&2
-          outdated=true
-        fi
-        rm -f "${file}.tmp"
-      else
-        mv "${file}.tmp" "${file}"
-      fi
+      ' "${file}" > "${file}.tmp" && mv "${file}.tmp" "${file}"
     done < <(find "${search_dir}" -type d \( -name ".git" -o -name ".terraform" -o -name "tf_plugin_cache" \) -prune -o -type f -name "*.tf" -print0)
   done
 
-  if [[ "${mode}" == "validate" ]]; then
-    if [[ "${outdated}" == "true" ]]; then
-      echo "Validation failed: One or more modules are out of date." >&2
-      return 1
-    else
-      echo "Validation passed: All modules are up to date." >&2
-      return 0
-    fi
-  else
-    echo "All module updates complete." >&2
-  fi
+  echo "All module updates complete." >&2
 }
 
 main() {
@@ -217,16 +184,12 @@ main() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      -h | --help)
+      -h|--help)
         show_help
         exit 0
         ;;
       --list-modules)
         action="list"
-        shift
-        ;;
-      --validate)
-        action="validate"
         shift
         ;;
       -*)
@@ -247,7 +210,7 @@ main() {
     exit 0
   fi
 
-  update_all_modules "${action}"
+  update_all_modules
 }
 
 main "$@"
