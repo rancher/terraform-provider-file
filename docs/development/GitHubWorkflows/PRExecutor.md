@@ -10,6 +10,8 @@
 
 This component details the architectural modifications to the PR Executor and Auto-Merge workflow (`.github/workflows/pr-executor.yml`) to ensure reliable pull request resolution. It resolves a platform-level limitation where the GHA `workflow_run` event payload's `pull_requests` array is left empty when triggered by a pull request originating from a fork.
 
+In accordance with our workflow controller standards, the logic is extracted from the GHA workflow file into a standalone, testable Node.js module at `.github/workflows/scripts/get-target-pr.js`. The repository checkout step is moved to the top of the job to facilitate executing this module.
+
 ---
 
 ## 1. Architectural Strategy & Context
@@ -24,6 +26,8 @@ When both the payload and the direct `getWorkflowRun` query fail to provide a `p
 
 1. **Associated Commit Lookup**: Fetch any pull requests associated with the head commit SHA (`parentRun.head_sha`) using the GitHub REST API (`listPullRequestsAssociatedWithCommit`).
 2. **Open PR Search**: Fetch all active open pull requests for the repository and match the head commit SHA (`parentRun.head_sha`) or branch name (`parentRun.head_branch`) against the active head ref (`pr.head.sha` or `pr.head.ref`).
+
+To keep workflows clean and adhere to controller-only design standards, this logic is modularized into `.github/workflows/scripts/get-target-pr.js` and thoroughly unit-tested.
 
 ---
 
@@ -63,81 +67,34 @@ Even if a bad actor manages to resolve their PR number in the executor, they can
 
 ## 3. Technical Blueprint
 
-The inline `actions/github-script` step in `.github/workflows/pr-executor.yml` will be updated with the following robust logic:
+The inline `actions/github-script` step in `.github/workflows/pr-executor.yml` will be updated to import and execute the external module:
 
 ```javascript
-let prNumber;
-const parentRun = context.payload.workflow_run;
+const scriptPath = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/get-target-pr.js`;
+const { default: script } = await import(scriptPath);
+return await script({ github, context, core });
+```
 
-if (parentRun && parentRun.pull_requests && parentRun.pull_requests.length > 0) {
-  prNumber = parentRun.pull_requests[0].number;
-  core.info(`Identified target PR #${prNumber} from workflow_run payload.`);
-} else if (parentRun) {
-  try {
-    const { data: runDetail } = await github.rest.actions.getWorkflowRun({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      run_id: parentRun.id,
-    });
-    if (runDetail.pull_requests && runDetail.pull_requests.length > 0) {
-      prNumber = runDetail.pull_requests[0].number;
-      core.info(`Identified target PR #${prNumber} via API fetch.`);
-    }
-  } catch (err) {
-    core.warning(`Failed to fetch workflow run details: ${err.message}`);
-  }
+The external module `.github/workflows/scripts/get-target-pr.js` exports the robust resolution logic:
 
-  // Fallback 1: Query open pull requests associated with the head commit SHA
-  if (!prNumber && parentRun.head_sha) {
-    try {
-      const { data: associatedPRs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-        owner: context.repo.owner,
-        repo: context.repo.repo,
-        commit_sha: parentRun.head_sha,
-      });
-      if (associatedPRs && associatedPRs.length > 0) {
-        prNumber = associatedPRs[0].number;
-        core.info(`Identified target PR #${prNumber} via associated commit SHA: ${parentRun.head_sha}`);
-      }
-    } catch (err) {
-      core.warning(`Failed to fetch associated PRs by commit SHA: ${err.message}`);
-    }
-  }
+```javascript
+export default async ({ github, context, core }) => {
+  let prNumber;
+  const parentRun = context.payload.workflow_run;
 
-  // Fallback 2: Search all open pull requests for matching head branch and repository owner, or head SHA
-  if (!prNumber) {
-    try {
-      const { data: openPRs } = await github.rest.pulls.list({
-        owner: context.repo.owner,
-        repo: context.repo.repo,
-        state: 'open',
-      });
+  // ... (PR resolution & fallback lookup logic) ...
 
-      const headOwner = parentRun.head_repository?.owner?.login;
-      const matchedPR = openPRs.find(
-        (p) =>
-          p.head.sha === parentRun.head_sha ||
-          (parentRun.head_branch &&
-            p.head.ref === parentRun.head_branch &&
-            headOwner &&
-            p.head.repo?.owner?.login === headOwner),
-      );
-
-      if (matchedPR) {
-        prNumber = matchedPR.number;
-        core.info(`Identified target PR #${prNumber} from open PRs list by matching head SHA or branch/owner.`);
-      }
-    } catch (err) {
-      core.warning(`Failed to search open pull requests: ${err.message}`);
-    }
-  }
-}
+  return prNumber;
+};
 ```
 
 ---
 
 ## 4. Implementation Checklist
 
-- [x] Implement robust multi-layered PR resolution logic in `.github/workflows/pr-executor.yml` using head SHA and head branch fallbacks.
-- [x] Run codebase linters and static checks to verify workflow file formatting.
+- [x] Implement robust multi-layered PR resolution logic using head SHA and head branch fallbacks.
+- [x] Move the PR resolution logic from inline script to `.github/workflows/scripts/get-target-pr.js`.
+- [x] Move up the repository checkout step to the top of the `verify-pr` job in `pr-executor.yml`.
+- [x] Write comprehensive unit tests for `get-target-pr.js` in `.github/workflows/scripts/tests/get-target-pr.test.js`.
+- [x] Run codebase linters and static checks to verify workflow and script file formatting.
 - [ ] Seek final IDE and commit approval.
