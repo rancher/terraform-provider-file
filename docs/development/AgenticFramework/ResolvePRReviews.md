@@ -82,3 +82,7 @@ Verify that all threads are fully closed on GitHub, concluding the resolution se
 ### Custom Words Cleanup Checklist
 
 - [x] Remove duplicate `elif` and `thisisasupersecretkey` from `custom_words.txt`.
+
+### Claude Session Start Hook Refactoring Checklist
+
+- [x] Refactor `.claude/hooks/session-start-context.sh` to comply with the modular, standard-compliant shell script guidelines.

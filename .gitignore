@@ -24,3 +24,4 @@ modules-dev/
 report.json
 
 .nix-script.sh
+.claude/settings.local.json

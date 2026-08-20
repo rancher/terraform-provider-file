@@ -8,7 +8,7 @@ verify_proactive_review() {
   local target_dir
   local repo_name
   repo_name=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
-  target_dir="${HOME}/.gemini/tmp/${repo_name}"
+  target_dir="${AGENT_STATE_DIR:-${HOME}/.gemini/tmp/${repo_name}}"
   local review_file="${target_dir}/review-approval.json"
 
   echo "Verifying proactive review approval status..." >&2

@@ -1,0 +1,123 @@
+{
+  "permissions": {
+    "ask": ["Bash(git commit:*)", "Bash(git push:*)"]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "load-agentic-framework-context",
+            "type": "command",
+            "command": "bash .claude/hooks/session-start-context.sh",
+            "timeout": 10000,
+            "description": "Loads AgenticFramework.md and DevelopmentProcess.md as session context"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "name": "block-direct-git",
+            "type": "command",
+            "command": "node .claude/hooks/block-direct-git.js",
+            "timeout": 5000,
+            "description": "Blocks direct git commit/push and pushes to Rancher-owned remotes"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "name": "enforce-blueprint-before-write",
+            "type": "command",
+            "command": "node .claude/hooks/enforce-blueprint.js",
+            "timeout": 5000,
+            "description": "Blocks source edits until an active blueprint exists under docs/development/"
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "name": "gate-before-subagent",
+            "type": "command",
+            "command": "node .claude/hooks/gate-before-subagent.js",
+            "timeout": 5000,
+            "description": "Enforces sequential gate progression before testing-agent/review-agent run"
+          }
+        ]
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "name": "gate-before-commit-ask",
+            "type": "command",
+            "command": "node .claude/hooks/gate-before-commit-ask.js",
+            "timeout": 5000,
+            "description": "Fails fast if Gates 1-3 aren't valid before a commit-approval question is shown"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "ExitPlanMode",
+        "hooks": [
+          {
+            "name": "sign-plan-gate",
+            "type": "command",
+            "command": "node .claude/hooks/sign-plan-gate.js",
+            "timeout": 60000,
+            "description": "Persists the approved plan to docs/development/ and signs Gate 1 via Touch ID"
+          }
+        ]
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "name": "sign-commit-gate",
+            "type": "command",
+            "command": "node .claude/hooks/sign-commit-gate.js",
+            "timeout": 60000,
+            "description": "Signs Gate 4 via Touch ID and automatically commits/pushes/opens a draft PR"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "testing-agent",
+        "hooks": [
+          {
+            "name": "sign-test-gate",
+            "type": "command",
+            "command": "node .claude/hooks/subagent-report-gate.js testing-agent",
+            "timeout": 5000,
+            "description": "Parses the testing-agent report and signs/revokes Gate 2"
+          }
+        ]
+      },
+      {
+        "matcher": "review-agent",
+        "hooks": [
+          {
+            "name": "sign-review-gate",
+            "type": "command",
+            "command": "node .claude/hooks/subagent-report-gate.js review-agent",
+            "timeout": 5000,
+            "description": "Parses the review-agent report and signs/revokes Gate 3"
+          }
+        ]
+      }
+    ]
+  }
+}
