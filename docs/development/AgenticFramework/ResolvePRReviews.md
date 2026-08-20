@@ -74,7 +74,11 @@ Verify that all threads are fully closed on GitHub, concluding the resolution se
 
 ### PR 404 Resolution Implementation Checklist
 
-- [ ] Update `hooks.test.js` to change the `.gemini and .gemini folders` test description to `.gemini and .claude folders`.
-- [ ] Update `hooks.test.js` to dynamically use `path.basename(process.cwd())` when resolving `tempTmpDir`, removing the hardcoded `terraform-provider-file` string.
-- [ ] Run `node --test .github/workflows/scripts/tests/**/*.test.js` to verify all tests pass perfectly.
-- [ ] Run `./.github/workflows/scripts/lint.sh` to ensure full lint compliance.
+- [x] Update `hooks.test.js` to change the `.gemini and .gemini folders` test description to `.gemini and .claude folders`.
+- [x] Update `hooks.test.js` to dynamically use `path.basename(process.cwd())` when resolving `tempTmpDir`, removing the hardcoded `terraform-provider-file` string.
+- [x] Run `node --test .github/workflows/scripts/tests/**/*.test.js` to verify all tests pass perfectly.
+- [x] Run `./.github/workflows/scripts/lint.sh` to ensure full lint compliance.
+
+### Custom Words Cleanup Checklist
+
+- [x] Remove duplicate `elif` and `thisisasupersecretkey` from `custom_words.txt`.

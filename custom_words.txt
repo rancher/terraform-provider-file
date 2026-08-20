@@ -65,10 +65,9 @@ tfstate
 tftype
 tftypes
 tfvars
-thisisasupersecretkey
 toplevel
+TOTP
 updatecli
 variablize
-elif
 Webfetch
 yamux
