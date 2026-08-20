@@ -50,13 +50,13 @@ function main() {
   }
 
   const rawInput = JSON.stringify(toolInput);
-  const isCommitAsk = /\bcommit\b/i.test(rawInput) || rawInput.includes('GPG') || /\bpush\b/i.test(rawInput);
+  const isCommitAsk = /Commit Message:\s*(?:"[^"]+"|`[^`]+`)/i.test(rawInput);
   if (!isCommitAsk) {
     process.exit(0);
   }
 
-  const answerText = extractAnswerText(toolResponse).toLowerCase();
-  const isApproved = ['yes', 'y', 'approve', 'approve commit', 'looks good'].includes(answerText.trim());
+  const answerText = extractAnswerText(toolResponse).trim().toLowerCase();
+  const isApproved = /^(y|yes|approve|looks good)(\b|[!.])/i.test(answerText);
   if (!isApproved) {
     process.exit(0);
   }
