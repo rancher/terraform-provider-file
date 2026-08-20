@@ -489,6 +489,52 @@ test('get-target-pr.js tests', async (t) => {
     assert.strictEqual(mocks.failedMessages.length, 0);
   });
 
+  await t.test('fails to resolve prNumber when open PR matches are ambiguous (multiple matches)', async () => {
+    const mocks = createBaseMocks();
+    mocks.context.payload.workflow_run = {
+      id: 12345,
+      pull_requests: [],
+      head_sha: 'ambiguous-sha',
+    };
+
+    mocks.github.rest.actions.getWorkflowRun = async () => {
+      return { data: { pull_requests: [] } };
+    };
+
+    mocks.github.rest.repos.listPullRequestsAssociatedWithCommit = async () => {
+      return { data: [] };
+    };
+
+    mocks.github.rest.pulls.list = async () => {
+      return [
+        {
+          number: 801,
+          head: {
+            sha: 'ambiguous-sha',
+          },
+        },
+        {
+          number: 802,
+          head: {
+            sha: 'ambiguous-sha',
+          },
+        },
+      ];
+    };
+
+    await getTargetPR({
+      github: mocks.github,
+      context: mocks.context,
+      core: mocks.core,
+    });
+
+    assert.ok(
+      mocks.failedMessages.some((msg) =>
+        msg.includes('Ambiguous PR match: Found 2 open pull requests matching head SHA or branch/owner.'),
+      ),
+    );
+  });
+
   await t.test('fails when prNumber cannot be determined', async () => {
     const mocks = createBaseMocks();
     mocks.context.payload.workflow_run = {

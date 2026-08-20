@@ -55,7 +55,7 @@ export default async ({ github, context, core }) => {
         });
 
         const headOwner = parentRun.head_repository?.owner?.login;
-        const matchedPR = openPRs.find(
+        const matchingPRs = openPRs.filter(
           (p) =>
             (p.head.sha === parentRun.head_sha && (!headOwner || p.head.repo?.owner?.login === headOwner)) ||
             (parentRun.head_branch &&
@@ -64,8 +64,15 @@ export default async ({ github, context, core }) => {
               p.head.repo?.owner?.login === headOwner),
         );
 
-        if (matchedPR) {
-          prNumber = matchedPR.number;
+        if (matchingPRs.length > 1) {
+          core.setFailed(
+            `Ambiguous PR match: Found ${matchingPRs.length} open pull requests matching head SHA or branch/owner.`,
+          );
+          return;
+        }
+
+        if (matchingPRs.length === 1) {
+          prNumber = matchingPRs[0].number;
           core.info(`Identified target PR #${prNumber} from open PRs list by matching head SHA or branch/owner.`);
         }
       } catch (err) {

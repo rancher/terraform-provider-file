@@ -2,7 +2,7 @@
 
 - **Related Topic:** [GitHub Workflows & Automation](../GitHubWorkflows.md)
 - **Target Component:** `.github/workflows/pr-executor.yml`
-- **Issue Reference:** rancher/terraform-provider-file#389
+- **Issue Reference:** rancher/terraform-provider-file#391
 
 ---
 
@@ -103,4 +103,7 @@ export default async ({ github, context, core }) => {
 - [x] Update the PR description with a highly detailed, clear summary.
 - [x] Filter `listPullRequestsAssociatedWithCommit` results to ensure the target PR is open and belongs to the base repository.
 - [x] Update unit tests to mock and verify the new associated PR filters.
+- [x] Collect open PR lookup candidates and fail if the match is ambiguous to prevent mis-targeted merges.
+- [x] Update issue reference in spec file from #389 to #391.
+- [x] Update unit tests to mock and verify ambiguous open PR resolution failures.
 - [ ] Seek final IDE and commit approval.
