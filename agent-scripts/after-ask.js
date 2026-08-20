@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { execFileSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
 import { calculateFileHash, calculateDiffHash, findLatestActivePlan } from './gating.js';
 
 /**
@@ -156,7 +156,32 @@ export function handleCommitApproval(targetDir, pubKeyFile, privKeyFile, promptT
       const commitMessage = matchCommit ? matchCommit[1] : 'chore: automated development commit';
 
       console.error(`\n🚀 AUTOMATION TRIGGERED: Initiating commit and push...`);
-      execFileSync('bash', ['.gemini/skills/commit-push.sh', '-m', commitMessage], {
+
+      const pushArgs = ['-m', commitMessage];
+      try {
+        const activeBranch = execSync('git branch --show-current', { stdio: ['ignore', 'pipe', 'ignore'] })
+          .toString()
+          .trim();
+        const hasTracking = execSync(`git rev-parse --verify origin/${activeBranch} 2>/dev/null || echo ""`, {
+          stdio: ['ignore', 'pipe', 'ignore'],
+        })
+          .toString()
+          .trim();
+        if (hasTracking) {
+          try {
+            execSync(`git merge-base --is-ancestor origin/${activeBranch} HEAD`, { stdio: 'ignore' });
+          } catch {
+            console.error(
+              '⚠️ [DIVERGED] Local branch has diverged from origin tracking ref (interactive rebase detected). Enabling safe force-push (--force-with-lease).',
+            );
+            pushArgs.unshift('-f');
+          }
+        }
+      } catch {
+        // Fallback safely
+      }
+
+      execFileSync('bash', ['.gemini/skills/commit-push.sh', ...pushArgs], {
         env: { ...process.env, COMMIT_LIMIT_OVERRIDE: '100' },
         stdio: 'inherit',
       });

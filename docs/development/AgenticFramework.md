@@ -31,6 +31,7 @@ These components form our zero-bypass security sandbox, preventing unauthorized 
 - **Workflow Optimization & Subagent Design**: Configures our custom specialized subagents (`review_agent` and `testing_agent`) with hardened, read-only permissions and prunes mechanical style checks from core LLM prompts. More details can be found in **[Workflow Optimization & Design](./AgenticFramework/WorkflowDesign.md)**.
 - **Review Subagent**: Detailed specifications and sandboxing parameters for our pre-commit Review Agent. More details can be found in **[Review Subagent](./AgenticFramework/ReviewAgent.md)**.
 - **Testing Subagent**: Detailed specifications and orchestration capabilities for our automated Testing Agent. More details can be found in **[Testing Subagent](./AgenticFramework/TestingAgent.md)**.
+- **Claude Code Integration**: Documents how this same gated process is implemented for Claude Code via its own native primitives, in parallel with the Gemini CLI implementation described above. More details can be found in **[Claude Code Integration](./AgenticFramework/ClaudeCodeIntegration.md)**.
 
 ### 3. Shared Skills & Persona Formatting Guidelines
 
