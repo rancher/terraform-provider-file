@@ -36,14 +36,23 @@ test('security.js: verifyGitCommand unit tests', async (t) => {
     assert.strictEqual(resultAgentScripts.decision, 'deny');
   });
 
-  await t.test('denies direct manipulation of review-approval.json', () => {
+  await t.test('denies direct manipulation of gate approval and challenge files', () => {
     const resultEcho = verifyGitCommand('echo "approved" > review-approval.json', tempHome);
     assert.strictEqual(resultEcho.decision, 'deny');
     assert.ok(
       resultEcho.reason.includes(
-        'Manually writing, editing, or spoofing the proactive review approval file is strictly prohibited',
+        'Manually writing, editing, or spoofing any planning, testing, review, or commit gate approval files is strictly prohibited',
       ),
     );
+
+    const resultPlan = verifyGitCommand('cat /tmp/spoof > plan-approval.challenge', tempHome);
+    assert.strictEqual(resultPlan.decision, 'deny');
+
+    const resultTest = verifyGitCommand('touch test-approval.json', tempHome);
+    assert.strictEqual(resultTest.decision, 'deny');
+
+    const resultCommit = verifyGitCommand('rm user-approval.age', tempHome);
+    assert.strictEqual(resultCommit.decision, 'deny');
   });
 
   await t.test('denies direct git commit or git push', () => {

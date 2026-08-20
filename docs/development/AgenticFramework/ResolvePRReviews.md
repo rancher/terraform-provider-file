@@ -113,3 +113,21 @@ We are implementing a fully decoupled, tool-agnostic unit test suite for the cor
 - [x] Update `.github/workflows/pull_request.yaml` script-tests job to target `workflow-scripts` and add `agent-script-tests` job targeting `agent-scripts` mode.
 - [x] Execute `node --test agent-scripts/tests/**/*.test.js` to verify 100% of the new unit tests pass cleanly.
 - [x] Execute `./.github/workflows/scripts/lint.sh` to ensure full lint compliance.
+
+---
+
+## 🛠️ PR 405 Gating Parity & Review Comments Plan
+
+We are resolving the PR review findings and fixing the Conventional Commit validation CI failure by:
+
+1. Rewording the unconventional commit message to conform to strict Conventional Commit rules.
+2. Hardening `gate-before-commit-ask.js` and `sign-commit-gate.js` to strictly match the Gate 4 commit prompt format to prevent false positive commit blocks or signature bypasses.
+3. Upgrading `agent-scripts/security.js` to block manual spoofing of any planning, testing, review, or commit gate signature/challenge JSON files.
+
+### **Sequential Implementation Checklist**
+
+- [x] Refactor `.claude/hooks/gate-before-commit-ask.js` to strictly match the Gate 4 commit prompt format (`Commit Message: "..."` or `Commit Message: \`...\``).
+- [x] Refactor `.claude/hooks/sign-commit-gate.js` to strictly match the Gate 4 commit prompt format.
+- [x] Refactor `agent-scripts/security.js` to extend approval-file manipulation checks to cover all planning, testing, review, and commit gate JSON files (`plan-approval.json`, `plan-approval.challenge`, `test-approval.json`, `review-approval.json`, `user-approval.json`, `user-approval.challenge`).
+- [ ] Guide the developer to reword the unconventional commit message `Potential fix for pull request finding` in their local branch history to `fix(agent): align testing and review agent gate verifications`.
+- [ ] Verify that all 18 agent-scripts tests and all linters are 100% green.

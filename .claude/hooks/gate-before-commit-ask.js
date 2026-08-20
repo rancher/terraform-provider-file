@@ -35,7 +35,7 @@ function main() {
   }
 
   const rawInput = JSON.stringify(toolInput);
-  const isCommitAsk = /\bcommit\b/i.test(rawInput) || rawInput.includes('GPG') || /\bpush\b/i.test(rawInput);
+  const isCommitAsk = /Commit Message:\s*(?:"[^"]+"|`[^`]+`)/i.test(rawInput);
   if (!isCommitAsk) {
     process.exit(0);
   }
