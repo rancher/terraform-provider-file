@@ -129,5 +129,5 @@ We are resolving the PR review findings and fixing the Conventional Commit valid
 - [x] Refactor `.claude/hooks/gate-before-commit-ask.js` to strictly match the Gate 4 commit prompt format (`Commit Message: "..."` or `Commit Message: \`...\``).
 - [x] Refactor `.claude/hooks/sign-commit-gate.js` to strictly match the Gate 4 commit prompt format.
 - [x] Refactor `agent-scripts/security.js` to extend approval-file manipulation checks to cover all planning, testing, review, and commit gate JSON files (`plan-approval.json`, `plan-approval.challenge`, `test-approval.json`, `review-approval.json`, `user-approval.json`, `user-approval.challenge`).
-- [ ] Guide the developer to reword the unconventional commit message `Potential fix for pull request finding` in their local branch history to `fix(agent): align testing and review agent gate verifications`.
-- [ ] Verify that all 18 agent-scripts tests and all linters are 100% green.
+- [x] Guide the developer to reword the unconventional commit message `Potential fix for pull request finding` in their local branch history to `fix(agent): align testing and review agent gate verifications`.
+- [x] Verify that all 18 agent-scripts tests and all linters are 100% green.
