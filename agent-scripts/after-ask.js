@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { execFileSync, execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { calculateFileHash, calculateDiffHash, findLatestActivePlan } from './gating.js';
 
 /**
@@ -159,30 +159,40 @@ export function handleCommitApproval(targetDir, pubKeyFile, privKeyFile, promptT
 
       const pushArgs = ['-m', commitMessage];
       try {
-        const activeBranch = execSync('git branch --show-current', { stdio: ['ignore', 'pipe', 'ignore'] })
+        const activeBranch = execFileSync('git', ['branch', '--show-current'], { stdio: ['ignore', 'pipe', 'ignore'] })
           .toString()
           .trim();
-        const hasTracking = execSync(`git rev-parse --verify origin/${activeBranch} 2>/dev/null || echo ""`, {
-          stdio: ['ignore', 'pipe', 'ignore'],
-        })
-          .toString()
-          .trim();
+        let hasTracking = '';
+        try {
+          hasTracking = execFileSync('git', ['rev-parse', '--verify', `origin/${activeBranch}`], {
+            stdio: ['ignore', 'pipe', 'ignore'],
+          })
+            .toString()
+            .trim();
+        } catch {
+          // Tracking reference does not exist yet
+        }
         if (hasTracking) {
           try {
-            const isOriginAncestorOfHead =
-              execSync(
-                `(git merge-base --is-ancestor origin/${activeBranch} HEAD 2>/dev/null && echo "true") || echo "false"`,
-                { stdio: ['ignore', 'pipe', 'ignore'] },
-              )
-                .toString()
-                .trim() === 'true';
-            const isHeadAncestorOfOrigin =
-              execSync(
-                `(git merge-base --is-ancestor HEAD origin/${activeBranch} 2>/dev/null && echo "true") || echo "false"`,
-                { stdio: ['ignore', 'pipe', 'ignore'] },
-              )
-                .toString()
-                .trim() === 'true';
+            let isOriginAncestorOfHead = false;
+            try {
+              execFileSync('git', ['merge-base', '--is-ancestor', `origin/${activeBranch}`, 'HEAD'], {
+                stdio: 'ignore',
+              });
+              isOriginAncestorOfHead = true;
+            } catch {
+              isOriginAncestorOfHead = false;
+            }
+
+            let isHeadAncestorOfOrigin = false;
+            try {
+              execFileSync('git', ['merge-base', '--is-ancestor', 'HEAD', `origin/${activeBranch}`], {
+                stdio: 'ignore',
+              });
+              isHeadAncestorOfOrigin = true;
+            } catch {
+              isHeadAncestorOfOrigin = false;
+            }
 
             if (!isOriginAncestorOfHead && !isHeadAncestorOfOrigin) {
               console.error(

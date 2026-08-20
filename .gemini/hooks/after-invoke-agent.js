@@ -62,13 +62,23 @@ function main() {
   const { tool_name, tool_input, tool_response } = inputData;
 
   // We only inspect invoke_agent tool executions
-  if (tool_name !== 'invoke_agent' || !tool_input || !tool_response || !tool_response.llmContent) {
+  if (tool_name !== 'invoke_agent' || !tool_input) {
     console.log(JSON.stringify({ decision: 'allow' }));
     process.exit(0);
   }
 
   const agentName = tool_input.agent_name;
-  if (agentName !== 'review_agent' && agentName !== 'testing_agent') {
+  const isTargetAgent = agentName === 'review_agent' || agentName === 'testing_agent';
+
+  // If the target subagent finished but returned no response or empty report, actively revoke stale gates!
+  if (isTargetAgent && (!tool_response || !tool_response.llmContent)) {
+    console.error('🔒 Hook Error: Sub-agent response is missing, empty, or unparsable; revoking stale approvals.');
+    revokeGate(agentName);
+    console.log(JSON.stringify({ decision: 'allow' }));
+    process.exit(0);
+  }
+
+  if (!isTargetAgent) {
     console.log(JSON.stringify({ decision: 'allow' }));
     process.exit(0);
   }

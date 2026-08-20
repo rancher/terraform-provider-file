@@ -171,7 +171,11 @@ export function checkAndRevokeStaleGates(targetDir, activeDiffHash, expectedPlan
   if (fs.existsSync(testApprovalFile)) {
     try {
       const content = JSON.parse(fs.readFileSync(testApprovalFile, 'utf-8'));
-      if (content.diff_hash !== activeDiffHash || content.plan_hash !== expectedPlanHash) {
+      if (
+        activeDiffHash &&
+        expectedPlanHash &&
+        (content.diff_hash !== activeDiffHash || content.plan_hash !== expectedPlanHash)
+      ) {
         fs.unlinkSync(testApprovalFile);
         console.error(
           '❌ Active Gate Revocation: Stale testing signature deleted because workspace changes were modified since your last test run!',
@@ -191,7 +195,11 @@ export function checkAndRevokeStaleGates(targetDir, activeDiffHash, expectedPlan
   if (fs.existsSync(reviewApprovalFile)) {
     try {
       const content = JSON.parse(fs.readFileSync(reviewApprovalFile, 'utf-8'));
-      if (content.diff_hash !== activeDiffHash || content.plan_hash !== expectedPlanHash) {
+      if (
+        activeDiffHash &&
+        expectedPlanHash &&
+        (content.diff_hash !== activeDiffHash || content.plan_hash !== expectedPlanHash)
+      ) {
         fs.unlinkSync(reviewApprovalFile);
         console.error(
           '❌ Active Gate Revocation: Stale review signature deleted because workspace changes were modified since your last review!',

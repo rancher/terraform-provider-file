@@ -180,3 +180,21 @@ We are resolving the new recovery and revocation requirements by:
 - [x] Refactor `.claude/hooks/gate-before-commit-ask.js` to call `checkAndRevokeStaleGates` and actively revoke stale signature files before commit ask checks.
 - [x] Refactor `handleCommitApproval` in `agent-scripts/after-ask.js` to perform a zero-trust signature revocation reset and log structured troubleshooting steps upon automated push/PR failure.
 - [x] Verify that all 18 agent-scripts tests and linters are 100% green.
+
+---
+
+## 🛠️ PR 406 Gating Hardening Plan
+
+We are resolving the 4 new PR review findings by:
+
+1. Hardening `checkAndRevokeStaleGates` in `agent-scripts/gating.js` to only revoke signature files when activeDiffHash and expectedPlanHash are fully truthy.
+2. Refactoring `agent-scripts/after-ask.js` to replace shell-interpolated `execSync` commands with safe, injection-immune `execFileSync('git', [...])` calls.
+3. Plucking the early guard loophole in `.gemini/hooks/after-invoke-agent.js` to actively revoke signature files if the response or report is empty/missing.
+4. Tuning GHA hook timeout documentation in `ResolvePRReviews.md` to clarify that only networked ask-approval hooks are set to 60 seconds.
+
+### **Sequential Implementation Checklist**
+
+- [ ] Refactor `checkAndRevokeStaleGates` in `agent-scripts/gating.js` to evaluate truthy hashes before unlinking.
+- [ ] Refactor `agent-scripts/after-ask.js` to use secure, shell-injection-immune `execFileSync('git', [...])` commands for merge-base ancestor checks.
+- [ ] Refactor `.gemini/hooks/after-invoke-agent.js` early guards to actively call `revokeGate` on missing or empty LLM responses.
+- [ ] Verify that all 18 agent-scripts tests and linters are 100% green.
