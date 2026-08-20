@@ -29,6 +29,26 @@ const LOGS_DIR = path.join(TARGET_DIR, 'logs');
 const TEST_APPROVAL_FILE = path.join(TARGET_DIR, 'test-approval.json');
 const REVIEW_APPROVAL_FILE = path.join(TARGET_DIR, 'review-approval.json');
 
+function revokeGate(agentName) {
+  try {
+    if (agentName === 'testing_agent') {
+      fs.unlinkSync(TEST_APPROVAL_FILE);
+      console.error(
+        '❌ Gate 2 Revoked: Stale testing signature deleted because the subagent run failed or was unparsable.',
+      );
+    } else if (agentName === 'review_agent') {
+      fs.unlinkSync(REVIEW_APPROVAL_FILE);
+      console.error(
+        '❌ Gate 3 Revoked: Stale review signature deleted because the subagent run failed or was unparsable.',
+      );
+    }
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      console.error('🔒 Hook Error: Failed to revoke gate signature:', err.message || err);
+    }
+  }
+}
+
 function main() {
   let inputData;
   try {
@@ -58,6 +78,13 @@ function main() {
     report = tool_response.llmContent.map((item) => item.text || '').join('\n');
   } else if (typeof tool_response.llmContent === 'string') {
     report = tool_response.llmContent;
+  }
+
+  if (!report || report.trim() === '') {
+    console.error('🔒 Hook Error: Sub-agent report is empty or unparsable; revoking stale approvals.');
+    revokeGate(agentName);
+    console.log(JSON.stringify({ decision: 'allow' }));
+    process.exit(0);
   }
 
   // 1. Always save the unedited report using generic modular utility

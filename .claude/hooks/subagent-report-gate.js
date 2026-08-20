@@ -26,6 +26,26 @@ const LOGS_DIR = path.join(TARGET_DIR, 'logs');
 const TEST_APPROVAL_FILE = path.join(TARGET_DIR, 'test-approval.json');
 const REVIEW_APPROVAL_FILE = path.join(TARGET_DIR, 'review-approval.json');
 
+function revokeGate(expectedAgent) {
+  try {
+    if (expectedAgent === 'testing-agent') {
+      fs.unlinkSync(TEST_APPROVAL_FILE);
+      console.error(
+        '❌ Gate 2 Revoked: Stale testing signature deleted because the subagent run failed or was unparsable.',
+      );
+    } else if (expectedAgent === 'review-agent') {
+      fs.unlinkSync(REVIEW_APPROVAL_FILE);
+      console.error(
+        '❌ Gate 3 Revoked: Stale review signature deleted because the subagent run failed or was unparsable.',
+      );
+    }
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      console.error('🔒 Hook Error: Failed to revoke gate signature:', err.message || err);
+    }
+  }
+}
+
 function extractFinalAssistantText(transcriptPath) {
   let lines;
   try {
@@ -83,13 +103,17 @@ function main() {
 
   const transcriptPath = inputData.transcript_path;
   if (!transcriptPath) {
-    console.error('🔒 Hook Debug: No transcript_path provided; skipping gate signature.');
+    console.error('🔒 Hook Debug: No transcript_path provided; skipping gate signature and revoking stale states.');
+    revokeGate(expectedAgent);
     process.exit(0);
   }
 
   const report = extractFinalAssistantText(transcriptPath);
   if (!report) {
-    console.error('🔒 Hook Debug: Could not extract a final report from the subagent transcript; skipping.');
+    console.error(
+      '🔒 Hook Debug: Could not extract a final report from the subagent transcript; revoking stale states.',
+    );
+    revokeGate(expectedAgent);
     process.exit(0);
   }
 
