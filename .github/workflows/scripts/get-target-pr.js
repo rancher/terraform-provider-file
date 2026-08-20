@@ -29,15 +29,23 @@ export default async ({ github, context, core }) => {
           commit_sha: parentRun.head_sha,
         });
 
-        const matchedPR = associatedPRs.find(
+        // Filter and defensively guard results
+        const matchedPRs = associatedPRs.filter(
           (p) =>
             p.state === 'open' &&
-            p.base.repo.owner.login === context.repo.owner &&
-            p.base.repo.name === context.repo.repo,
+            p.base?.repo?.owner?.login === context.repo.owner &&
+            p.base?.repo?.name === context.repo.repo,
         );
 
-        if (matchedPR) {
-          prNumber = matchedPR.number;
+        if (matchedPRs.length > 1) {
+          core.setFailed(
+            `Ambiguous associated PR match: Found ${matchedPRs.length} open pull requests associated with commit SHA: ${parentRun.head_sha}.`,
+          );
+          return;
+        }
+
+        if (matchedPRs.length === 1) {
+          prNumber = matchedPRs[0].number;
           core.info(`Identified target PR #${prNumber} via associated commit SHA: ${parentRun.head_sha}`);
         }
       } catch (err) {

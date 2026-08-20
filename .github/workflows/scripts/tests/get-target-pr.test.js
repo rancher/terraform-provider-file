@@ -273,6 +273,124 @@ test('get-target-pr.js tests', async (t) => {
     },
   );
 
+  await t.test(
+    'fails to resolve prNumber via Associated Commit Lookup when multiple open associated PRs match (ambiguous)',
+    async () => {
+      const mocks = createBaseMocks();
+      mocks.context.payload.workflow_run = {
+        id: 12345,
+        pull_requests: [],
+        head_sha: 'abcdef123456',
+      };
+
+      mocks.github.rest.actions.getWorkflowRun = async () => {
+        return { data: { pull_requests: [] } };
+      };
+
+      mocks.github.rest.repos.listPullRequestsAssociatedWithCommit = async () => {
+        return {
+          data: [
+            {
+              number: 101,
+              state: 'open',
+              base: {
+                repo: {
+                  owner: { login: 'rancher' },
+                  name: 'terraform-provider-file',
+                },
+              },
+            },
+            {
+              number: 102,
+              state: 'open',
+              base: {
+                repo: {
+                  owner: { login: 'rancher' },
+                  name: 'terraform-provider-file',
+                },
+              },
+            },
+          ],
+        };
+      };
+
+      mocks.github.rest.pulls.list = async () => {
+        return [];
+      };
+
+      await getTargetPR({
+        github: mocks.github,
+        context: mocks.context,
+        core: mocks.core,
+      });
+
+      assert.ok(
+        mocks.failedMessages.some((msg) =>
+          msg.includes(
+            'Ambiguous associated PR match: Found 2 open pull requests associated with commit SHA: abcdef123456.',
+          ),
+        ),
+      );
+    },
+  );
+
+  await t.test(
+    'skips safely when Associated Commit Lookup returns a PR with deleted or inaccessible base repository',
+    async () => {
+      const mocks = createBaseMocks();
+      mocks.context.payload.workflow_run = {
+        id: 12345,
+        pull_requests: [],
+        head_sha: 'abcdef123456',
+      };
+
+      mocks.github.rest.actions.getWorkflowRun = async () => {
+        return { data: { pull_requests: [] } };
+      };
+
+      mocks.github.rest.repos.listPullRequestsAssociatedWithCommit = async () => {
+        return {
+          data: [
+            {
+              number: 101,
+              state: 'open',
+              base: null, // deleted base repo
+            },
+            {
+              number: 102,
+              state: 'open',
+              base: {
+                repo: null, // missing repo object
+              },
+            },
+            {
+              number: 103,
+              state: 'open',
+              base: {
+                repo: {
+                  owner: null, // missing owner
+                  name: 'terraform-provider-file',
+                },
+              },
+            },
+          ],
+        };
+      };
+
+      mocks.github.rest.pulls.list = async () => {
+        return [];
+      };
+
+      await getTargetPR({
+        github: mocks.github,
+        context: mocks.context,
+        core: mocks.core,
+      });
+
+      assert.ok(mocks.failedMessages.includes('Could not determine target PR number from payload.'));
+    },
+  );
+
   await t.test('resolves prNumber by matching open PRs SHA fallback', async () => {
     const mocks = createBaseMocks();
     mocks.context.payload.workflow_run = {

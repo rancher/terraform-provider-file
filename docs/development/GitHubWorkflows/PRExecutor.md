@@ -106,4 +106,6 @@ export default async ({ github, context, core }) => {
 - [x] Collect open PR lookup candidates and fail if the match is ambiguous to prevent mis-targeted merges.
 - [x] Update issue reference in spec file from #389 to #391.
 - [x] Update unit tests to mock and verify ambiguous open PR resolution failures.
+- [x] Implement defensively guarded ambiguity checking for `listPullRequestsAssociatedWithCommit` fallback.
+- [x] Add unit tests verifying ambiguous associated PR resolution failures and deleted repo safety.
 - [ ] Seek final IDE and commit approval.
