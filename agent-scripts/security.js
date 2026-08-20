@@ -19,10 +19,12 @@ export function verifyGitCommand(command, cwd) {
     commandClean = next;
   }
 
-  // Anti-Bypass Guardrail: Unconditionally deny any manual execution of enforcer hook scripts inside .gemini/hooks/
+  // Anti-Bypass Guardrail: Unconditionally deny any manual execution of enforcer hook scripts inside .gemini/hooks/ or .claude/hooks/
   const isExecutingHooksManually =
     trimmedCmd.includes('.gemini/hooks/') ||
     trimmedCmd.includes('.gemini/hooks') ||
+    trimmedCmd.includes('.claude/hooks/') ||
+    trimmedCmd.includes('.claude/hooks') ||
     trimmedCmd.includes('agent-scripts/');
   if (isExecutingHooksManually) {
     return {

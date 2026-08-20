@@ -32,6 +32,10 @@ run_workflow_script_tests() {
   node --test .github/workflows/scripts/tests/**/*.test.js
 }
 
+run_agent_script_tests() {
+  echo "==> Running workflow script unit tests..."
+  node --test agent-scripts/tests/**/*.test.js
+}
 case "${MODE}" in
   compile)
     run_compile_check
@@ -45,8 +49,11 @@ case "${MODE}" in
   acc-relay)
     run_relay_acc_tests
     ;;
-  scripts)
+  workflow-scripts)
     run_workflow_script_tests
+    ;;
+  agent-scripts)
+    run_agent_script_tests
     ;;
   *)
     echo "Error: Unknown test mode: ${MODE}" >&2

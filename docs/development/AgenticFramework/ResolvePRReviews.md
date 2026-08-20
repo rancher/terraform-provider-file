@@ -86,3 +86,30 @@ Verify that all threads are fully closed on GitHub, concluding the resolution se
 ### Claude Session Start Hook Refactoring Checklist
 
 - [x] Refactor `.claude/hooks/session-start-context.sh` to comply with the modular, standard-compliant shell script guidelines.
+
+---
+
+## 🛠️ Decoupled Agent-Scripts Unit Test Suite Plan
+
+We are implementing a fully decoupled, tool-agnostic unit test suite for the core modules under `agent-scripts/`. This replaces the previous agent-specific test files and organizes test assertions directly under the root-level `agent-scripts/tests/` directory:
+
+1. **Test Suite Structure**:
+   - `agent-scripts/tests/planning.test.js`: Validates planning gate checks (`checkActivePlan`) under different git status scenarios.
+   - `agent-scripts/tests/security.test.js`: Validates direct git push/commit blocks, remote safety verification, and script manual execution protection.
+   - `agent-scripts/tests/gating.test.js`: Validates all cryptographic gating check helpers (`verifyPlanGate`, `verifyTestGate`, `verifyReviewGate`).
+   - `agent-scripts/tests/after-invoke.test.js`: Validates subagent report parsing, saving, and Gate 2/3 signature generation/revocation.
+   - `agent-scripts/tests/after-ask.test.js`: Validates Touch ID GPG-signing biometric challenges.
+2. **Unified Execution**:
+   - Verify `agent-scripts` test mode in `.github/workflows/scripts/test.sh`.
+
+### **Sequential Implementation Checklist**
+
+- [x] Write the modular planning unit tests in `agent-scripts/tests/planning.test.js`.
+- [x] Write the modular security unit tests in `agent-scripts/tests/security.test.js`.
+- [x] Write the modular gating unit tests in `agent-scripts/tests/gating.test.js`.
+- [x] Write the modular after-invoke unit tests in `agent-scripts/tests/after-invoke.test.js`.
+- [x] Write the modular after-ask unit tests in `agent-scripts/tests/after-ask.test.js`.
+- [x] Update eslint glob configs in `eslint.config.mjs` and `lint.sh` to target and lint the new `agent-scripts/tests/` directory.
+- [x] Update `.github/workflows/pull_request.yaml` script-tests job to target `workflow-scripts` and add `agent-script-tests` job targeting `agent-scripts` mode.
+- [x] Execute `node --test agent-scripts/tests/**/*.test.js` to verify 100% of the new unit tests pass cleanly.
+- [x] Execute `./.github/workflows/scripts/lint.sh` to ensure full lint compliance.
