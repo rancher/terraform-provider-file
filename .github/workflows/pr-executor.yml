@@ -51,6 +51,47 @@ jobs:
               } catch (err) {
                 core.warning(`Failed to fetch workflow run details: ${err.message}`);
               }
+
+              // Fallback 1: Query open pull requests associated with the head commit SHA
+              if (!prNumber && parentRun.head_sha) {
+                try {
+                  const { data: associatedPRs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    commit_sha: parentRun.head_sha,
+                  });
+                  if (associatedPRs && associatedPRs.length > 0) {
+                    prNumber = associatedPRs[0].number;
+                    core.info(`Identified target PR #${prNumber} via associated commit SHA: ${parentRun.head_sha}`);
+                  }
+                } catch (err) {
+                  core.warning(`Failed to fetch associated PRs by commit SHA: ${err.message}`);
+                }
+              }
+
+              // Fallback 2: Search all open pull requests for matching head branch and repository owner, or head SHA
+              if (!prNumber) {
+                try {
+                  const { data: openPRs } = await github.rest.pulls.list({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    state: 'open',
+                  });
+                  
+                  const headOwner = parentRun.head_repository?.owner?.login;
+                  const matchedPR = openPRs.find(p => 
+                    p.head.sha === parentRun.head_sha || 
+                    (parentRun.head_branch && p.head.ref === parentRun.head_branch && headOwner && p.head.repo?.owner?.login === headOwner)
+                  );
+                  
+                  if (matchedPR) {
+                    prNumber = matchedPR.number;
+                    core.info(`Identified target PR #${prNumber} from open PRs list by matching head SHA or branch/owner.`);
+                  }
+                } catch (err) {
+                  core.warning(`Failed to search open pull requests: ${err.message}`);
+                }
+              }
             }
 
             if (!prNumber) {
