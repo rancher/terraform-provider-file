@@ -97,4 +97,8 @@ export default async ({ github, context, core }) => {
 - [x] Move up the repository checkout step to the top of the `verify-pr` job in `pr-executor.yml`.
 - [x] Write comprehensive unit tests for `get-target-pr.js` in `.github/workflows/scripts/tests/get-target-pr.test.js`.
 - [x] Run codebase linters and static checks to verify workflow and script file formatting.
+- [x] Paginate open PR search fallback using `github.paginate` to handle >30 open PRs.
+- [x] Strengthen head commit SHA fallback to validate head owner when available to avoid ambiguous matches.
+- [x] Update unit tests to verify the new pagination and owner checking.
+- [x] Update the PR description with a highly detailed, clear summary.
 - [ ] Seek final IDE and commit approval.

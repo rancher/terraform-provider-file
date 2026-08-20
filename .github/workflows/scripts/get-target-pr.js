@@ -40,7 +40,7 @@ export default async ({ github, context, core }) => {
     // Fallback 2: Search all open pull requests for matching head branch and repository owner, or head SHA
     if (!prNumber) {
       try {
-        const { data: openPRs } = await github.rest.pulls.list({
+        const openPRs = await github.paginate(github.rest.pulls.list, {
           owner: context.repo.owner,
           repo: context.repo.repo,
           state: 'open',
@@ -49,7 +49,7 @@ export default async ({ github, context, core }) => {
         const headOwner = parentRun.head_repository?.owner?.login;
         const matchedPR = openPRs.find(
           (p) =>
-            p.head.sha === parentRun.head_sha ||
+            (p.head.sha === parentRun.head_sha && (!headOwner || p.head.repo?.owner?.login === headOwner)) ||
             (parentRun.head_branch &&
               p.head.ref === parentRun.head_branch &&
               headOwner &&

@@ -192,12 +192,10 @@ test('get-target-pr.js tests', async (t) => {
     };
 
     mocks.github.rest.pulls.list = async () => {
-      return {
-        data: [
-          { number: 202, head: { sha: 'sha-matched-open-pr' } },
-          { number: 303, head: { sha: 'other-sha' } },
-        ],
-      };
+      return [
+        { number: 202, head: { sha: 'sha-matched-open-pr' } },
+        { number: 303, head: { sha: 'other-sha' } },
+      ];
     };
 
     mocks.github.rest.pulls.get = async () => {
@@ -227,6 +225,104 @@ test('get-target-pr.js tests', async (t) => {
     assert.strictEqual(mocks.failedMessages.length, 0);
   });
 
+  await t.test('resolves prNumber by matching open PRs SHA and validating fork owner successfully', async () => {
+    const mocks = createBaseMocks();
+    mocks.context.payload.workflow_run = {
+      id: 12345,
+      pull_requests: [],
+      head_sha: 'sha-matched-open-pr',
+      head_repository: {
+        owner: { login: 'trusted-owner' },
+      },
+    };
+
+    mocks.github.rest.actions.getWorkflowRun = async () => {
+      return { data: { pull_requests: [] } };
+    };
+
+    mocks.github.rest.repos.listPullRequestsAssociatedWithCommit = async () => {
+      return { data: [] };
+    };
+
+    mocks.github.rest.pulls.list = async () => {
+      return [
+        {
+          number: 202,
+          head: {
+            sha: 'sha-matched-open-pr',
+            repo: { owner: { login: 'trusted-owner' } },
+          },
+        },
+      ];
+    };
+
+    mocks.github.rest.pulls.get = async () => {
+      return {
+        data: {
+          number: 202,
+          user: { login: 'some-user' },
+          head: { ref: 'some-branch' },
+        },
+      };
+    };
+
+    mocks.github.rest.issues.listComments = async () => {
+      return [{ body: '/merge', author_association: 'MEMBER' }];
+    };
+
+    const result = await getTargetPR({
+      github: mocks.github,
+      context: mocks.context,
+      core: mocks.core,
+    });
+
+    assert.strictEqual(result, 202);
+    assert.ok(
+      mocks.infoLogs.includes('Identified target PR #202 from open PRs list by matching head SHA or branch/owner.'),
+    );
+    assert.strictEqual(mocks.failedMessages.length, 0);
+  });
+
+  await t.test('fails to resolve prNumber when open PRs SHA matches but fork owner is different', async () => {
+    const mocks = createBaseMocks();
+    mocks.context.payload.workflow_run = {
+      id: 12345,
+      pull_requests: [],
+      head_sha: 'sha-matched-open-pr',
+      head_repository: {
+        owner: { login: 'trusted-owner' },
+      },
+    };
+
+    mocks.github.rest.actions.getWorkflowRun = async () => {
+      return { data: { pull_requests: [] } };
+    };
+
+    mocks.github.rest.repos.listPullRequestsAssociatedWithCommit = async () => {
+      return { data: [] };
+    };
+
+    mocks.github.rest.pulls.list = async () => {
+      return [
+        {
+          number: 202,
+          head: {
+            sha: 'sha-matched-open-pr',
+            repo: { owner: { login: 'malicious-owner' } },
+          },
+        },
+      ];
+    };
+
+    await getTargetPR({
+      github: mocks.github,
+      context: mocks.context,
+      core: mocks.core,
+    });
+
+    assert.ok(mocks.failedMessages.includes('Could not determine target PR number from payload.'));
+  });
+
   await t.test('resolves prNumber by matching open PRs branch and owner fallback', async () => {
     const mocks = createBaseMocks();
     mocks.context.payload.workflow_run = {
@@ -248,26 +344,24 @@ test('get-target-pr.js tests', async (t) => {
     };
 
     mocks.github.rest.pulls.list = async () => {
-      return {
-        data: [
-          {
-            number: 404,
-            head: {
-              sha: 'other-sha',
-              ref: 'feature-branch',
-              repo: { owner: { login: 'fork-owner' } },
-            },
+      return [
+        {
+          number: 404,
+          head: {
+            sha: 'other-sha',
+            ref: 'feature-branch',
+            repo: { owner: { login: 'fork-owner' } },
           },
-          {
-            number: 505,
-            head: {
-              sha: 'other-sha-2',
-              ref: 'feature-branch',
-              repo: { owner: { login: 'malicious-owner' } },
-            },
+        },
+        {
+          number: 505,
+          head: {
+            sha: 'other-sha-2',
+            ref: 'feature-branch',
+            repo: { owner: { login: 'malicious-owner' } },
           },
-        ],
-      };
+        },
+      ];
     };
 
     mocks.github.rest.pulls.get = async () => {
@@ -313,7 +407,7 @@ test('get-target-pr.js tests', async (t) => {
     };
 
     mocks.github.rest.pulls.list = async () => {
-      return { data: [] };
+      return [];
     };
 
     await getTargetPR({
