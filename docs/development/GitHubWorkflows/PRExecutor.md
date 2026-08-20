@@ -51,7 +51,7 @@ If the workflow fell back to matching a branch name like `patch-1` or `update` a
 
 A bad actor might attempt to modify the `pr-executor.yml` workflow file or the validation/merge scripts inside their PR branch to bypass checks or run arbitrary code.
 
-- **Mitigation**: GitHub Actions executes `workflow_run` workflows **exclusively using the workflow YAML file from the base repository's default branch (`main`)**. Furthermore, the `actions/checkout` step checkouts `main` by default. As a result, all executed YAML definitions and imported scripts (`verify-pr-requirements.mjs`, `merge-pr.js`) are read strictly from the base repository's trusted `main` branch, making PR branch tampering impossible.
+- **Mitigation**: GitHub Actions executes `workflow_run` workflows **exclusively using the workflow YAML file from the base repository's default branch (`main`)**. Furthermore, the `actions/checkout` step checks out `main` by default. As a result, all executed YAML definitions and imported scripts (`verify-pr-requirements.mjs`, `merge-pr.js`) are read strictly from the base repository's trusted `main` branch, making PR branch tampering impossible.
 
 ### C. Immutable Gated Verification Checks
 
@@ -101,4 +101,6 @@ export default async ({ github, context, core }) => {
 - [x] Strengthen head commit SHA fallback to validate head owner when available to avoid ambiguous matches.
 - [x] Update unit tests to verify the new pagination and owner checking.
 - [x] Update the PR description with a highly detailed, clear summary.
+- [x] Filter `listPullRequestsAssociatedWithCommit` results to ensure the target PR is open and belongs to the base repository.
+- [x] Update unit tests to mock and verify the new associated PR filters.
 - [ ] Seek final IDE and commit approval.

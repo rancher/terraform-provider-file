@@ -28,8 +28,16 @@ export default async ({ github, context, core }) => {
           repo: context.repo.repo,
           commit_sha: parentRun.head_sha,
         });
-        if (associatedPRs && associatedPRs.length > 0) {
-          prNumber = associatedPRs[0].number;
+
+        const matchedPR = associatedPRs.find(
+          (p) =>
+            p.state === 'open' &&
+            p.base.repo.owner.login === context.repo.owner &&
+            p.base.repo.name === context.repo.repo,
+        );
+
+        if (matchedPR) {
+          prNumber = matchedPR.number;
           core.info(`Identified target PR #${prNumber} via associated commit SHA: ${parentRun.head_sha}`);
         }
       } catch (err) {

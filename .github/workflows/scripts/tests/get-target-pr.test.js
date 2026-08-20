@@ -146,7 +146,18 @@ test('get-target-pr.js tests', async (t) => {
     mocks.github.rest.repos.listPullRequestsAssociatedWithCommit = async ({ commit_sha }) => {
       assert.strictEqual(commit_sha, 'abcdef123456');
       return {
-        data: [{ number: 101 }],
+        data: [
+          {
+            number: 101,
+            state: 'open',
+            base: {
+              repo: {
+                owner: { login: 'rancher' },
+                name: 'terraform-provider-file',
+              },
+            },
+          },
+        ],
       };
     };
 
@@ -174,6 +185,93 @@ test('get-target-pr.js tests', async (t) => {
     assert.ok(mocks.infoLogs.includes('Identified target PR #101 via associated commit SHA: abcdef123456'));
     assert.strictEqual(mocks.failedMessages.length, 0);
   });
+
+  await t.test('fails to resolve prNumber via Associated Commit Lookup when PR is closed', async () => {
+    const mocks = createBaseMocks();
+    mocks.context.payload.workflow_run = {
+      id: 12345,
+      pull_requests: [],
+      head_sha: 'abcdef123456',
+    };
+
+    mocks.github.rest.actions.getWorkflowRun = async () => {
+      return { data: { pull_requests: [] } };
+    };
+
+    mocks.github.rest.repos.listPullRequestsAssociatedWithCommit = async () => {
+      return {
+        data: [
+          {
+            number: 101,
+            state: 'closed',
+            base: {
+              repo: {
+                owner: { login: 'rancher' },
+                name: 'terraform-provider-file',
+              },
+            },
+          },
+        ],
+      };
+    };
+
+    mocks.github.rest.pulls.list = async () => {
+      return [];
+    };
+
+    await getTargetPR({
+      github: mocks.github,
+      context: mocks.context,
+      core: mocks.core,
+    });
+
+    assert.ok(mocks.failedMessages.includes('Could not determine target PR number from payload.'));
+  });
+
+  await t.test(
+    'fails to resolve prNumber via Associated Commit Lookup when PR belongs to a different repository',
+    async () => {
+      const mocks = createBaseMocks();
+      mocks.context.payload.workflow_run = {
+        id: 12345,
+        pull_requests: [],
+        head_sha: 'abcdef123456',
+      };
+
+      mocks.github.rest.actions.getWorkflowRun = async () => {
+        return { data: { pull_requests: [] } };
+      };
+
+      mocks.github.rest.repos.listPullRequestsAssociatedWithCommit = async () => {
+        return {
+          data: [
+            {
+              number: 101,
+              state: 'open',
+              base: {
+                repo: {
+                  owner: { login: 'other-owner' },
+                  name: 'other-repo',
+                },
+              },
+            },
+          ],
+        };
+      };
+
+      mocks.github.rest.pulls.list = async () => {
+        return [];
+      };
+
+      await getTargetPR({
+        github: mocks.github,
+        context: mocks.context,
+        core: mocks.core,
+      });
+
+      assert.ok(mocks.failedMessages.includes('Could not determine target PR number from payload.'));
+    },
+  );
 
   await t.test('resolves prNumber by matching open PRs SHA fallback', async () => {
     const mocks = createBaseMocks();
