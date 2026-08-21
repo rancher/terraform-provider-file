@@ -57,13 +57,8 @@ export default async ({ github, context, core, process }) => {
     }
   }
 
-  // 2. Post status comment if CI is not pending
-  if (ciPending) {
-    core.info(
-      `PR #${prNumber} has in-progress CI check runs. Postponing merge and skipping comments until CI completes.`,
-    );
-  } else {
-    const commentBody = `### 🤖 Auto-Merge Status
+  // 2. Post status comment
+  const commentBody = `### 🤖 Auto-Merge Status
 
 Thank you for your contribution! The auto-merge job ran, but this PR cannot be merged yet because the following requirements are missing:
 
@@ -71,8 +66,7 @@ ${reasons}
 
 *Please resolve these items so that the job can automatically merge your PR.*`;
 
-    await updateOrPostComment({ github, core, owner, repo, prNumber: parseInt(prNumber, 10), message: commentBody });
-  }
+  await updateOrPostComment({ github, core, owner, repo, prNumber: parseInt(prNumber, 10), message: commentBody });
 };
 
 async function updateOrPostComment({ github, core, owner, repo, prNumber, message }) {

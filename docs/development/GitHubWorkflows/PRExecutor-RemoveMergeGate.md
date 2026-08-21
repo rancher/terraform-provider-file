@@ -37,7 +37,7 @@ This early failure blocks the downstream `Verify PR Requirements` job (`verify-p
 
 ## 2. Security Analysis & Threat Mitigations
 
-- **Workflow Trigger Security**: The PR Executor is triggered by standard workflow completions (`pull_request`) and comment events (`pull_request_review_trigger`). Unauthorized repository external actors are already blocked from executing these trigger workflows, mitigating risk.
+- **Workflow Trigger Scope**: Pull request workflows (including fork PR contributions) trigger `pr-executor.yml` via the `workflow_run` event. While external actors can trigger these executions, they cannot bypass our downstream merge validation checks.
 - **Rigor of Downstream Verification**: Removing the `/merge` comment gate from `get-target-pr.js` does not bypass any PR merge requirements. The `Verify PR Requirements` job still executes and rigorously checks for passing CI, verified commit signatures, trusted human approval reviews, and unresolved comments. It is impossible to merge a PR that does not satisfy these constraints.
 
 ---
@@ -47,7 +47,7 @@ This early failure blocks the downstream `Verify PR Requirements` job (`verify-p
 - [x] Create the Component Specification blueprint under `docs/development/GitHubWorkflows/`.
 - [x] Update `.github/workflows/scripts/get-target-pr.js` to remove the `/merge` comment check and the `isDependabot` check.
 - [x] Update `.github/workflows/scripts/tests/get-target-pr.test.js` to remove the `/merge`-related unit tests (`fails when human PR lacks /merge comment` and `skips /merge check and passes for dependabot[bot]`).
-- [x] Update `.github/workflows/scripts/handle-verification-failure.js` to remove schedule constraints and update the signature to `<!-- auto-merge-verification-signature -->`.
+- [x] Update `.github/workflows/scripts/handle-verification-failure.js` to remove schedule constraints, ensure comments are always posted/updated even when CI is pending, and update the signature to `<!-- auto-merge-verification-signature -->`.
 - [x] Update `.github/workflows/scripts/merge-pr.js` to use the new signature.
 - [ ] Run `node --test .github/workflows/scripts/tests/**/*.test.js` to verify all tests pass.
 - [ ] Seek final commit review.
