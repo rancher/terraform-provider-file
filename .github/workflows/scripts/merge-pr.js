@@ -4,7 +4,7 @@
 import { execSync } from 'child_process';
 import fs from 'fs';
 
-const COMMENT_SIGNATURE = '<!-- scheduled-pr-verification-signature -->';
+const COMMENT_SIGNATURE = '<!-- auto-merge-verification-signature -->';
 
 async function withRetry(core, fn, retries = 3, delay = 2000) {
   for (let i = 0; i < retries; i++) {
