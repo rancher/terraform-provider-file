@@ -29,6 +29,13 @@ When both the payload and the direct `getWorkflowRun` query fail to provide a `p
 
 To keep workflows clean and adhere to controller-only design standards, this logic is modularized into `.github/workflows/scripts/get-target-pr.js` and thoroughly unit-tested.
 
+### `pull_request_review_trigger` Workflow Checkout Requirement
+
+The `pull_request_review_trigger` (`review-trigger.yml`) workflow is a parent/trigger workflow for the PR Executor. It executes the script `.github/workflows/scripts/log-trigger.sh` upon detecting valid comments.
+
+- **Missing Checkout Bug**: Like other controller workflows, it must check out the codebase prior to executing any script located under `.github/workflows/scripts/`. Without the checkout step, the runner environment lacks access to the script, resulting in exit code 127.
+- **Resolution**: Introduce `contents: read` permissions and run the standard `actions/checkout@v7.0.1` step (targeting the `main` branch) within the `trigger` job prior to running the script.
+
 ---
 
 ## 2. Security Analysis & Threat Mitigations
@@ -110,4 +117,5 @@ export default async ({ github, context, core }) => {
 - [x] Add unit tests verifying ambiguous associated PR resolution failures and deleted repo safety.
 - [x] Paginate associated PR lookups using `github.paginate` to handle >30 associated PRs.
 - [x] Align unit test `github.paginate` mock to realistically unwrap Octokit `{ data: [...] }` structures.
+- [x] Add `actions/checkout` (targeting the `main` branch) and `contents: read` permissions to `.github/workflows/review-trigger.yml` to fix CI failures when executing `log-trigger.sh`.
 - [ ] Seek final IDE and commit approval.
