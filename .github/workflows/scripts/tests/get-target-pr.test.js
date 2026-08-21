@@ -720,4 +720,35 @@ test('get-target-pr.js tests', async (t) => {
       ),
     );
   });
+
+  await t.test('resolves successfully for a human pull request without any comments', async () => {
+    const mocks = createBaseMocks();
+    mocks.context.payload.workflow_run = {
+      pull_requests: [{ number: 700 }],
+    };
+
+    mocks.github.rest.pulls.get = async () => {
+      return {
+        data: {
+          number: 700,
+          user: { login: 'some-human' },
+          head: { ref: 'some-feature' },
+        },
+      };
+    };
+
+    // Ensure listComments is NOT called by asserting it throws if called
+    mocks.github.rest.issues.listComments = async () => {
+      throw new Error('listComments should not be called');
+    };
+
+    const result = await getTargetPR({
+      github: mocks.github,
+      context: mocks.context,
+      core: mocks.core,
+    });
+
+    assert.strictEqual(result, 700);
+    assert.strictEqual(mocks.failedMessages.length, 0);
+  });
 });
