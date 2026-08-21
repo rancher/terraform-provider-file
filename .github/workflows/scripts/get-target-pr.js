@@ -108,27 +108,5 @@ export default async ({ github, context, core }) => {
     return;
   }
 
-  const isDependabot = pr.user?.login === 'dependabot[bot]';
-  if (!isDependabot) {
-    // Check comments for /merge
-    const comments = await github.paginate(github.rest.issues.listComments, {
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      issue_number: prNumber,
-    });
-    const hasMergeComment = comments.some((c) => {
-      const isMerge = (c.body || '').trim() === '/merge';
-      const assoc = c.author_association;
-      const isTrusted = assoc === 'OWNER' || assoc === 'MEMBER' || assoc === 'COLLABORATOR';
-      return isMerge && isTrusted;
-    });
-    if (!hasMergeComment) {
-      core.setFailed(
-        `Skipping execution: Human PR #${prNumber} does not have an authorized /merge comment from a trusted repository member.`,
-      );
-      return;
-    }
-  }
-
   return prNumber;
 };

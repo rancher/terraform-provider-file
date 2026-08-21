@@ -721,33 +721,7 @@ test('get-target-pr.js tests', async (t) => {
     );
   });
 
-  await t.test('skips /merge check and passes for dependabot[bot]', async () => {
-    const mocks = createBaseMocks();
-    mocks.context.payload.workflow_run = {
-      pull_requests: [{ number: 600 }],
-    };
-
-    mocks.github.rest.pulls.get = async () => {
-      return {
-        data: {
-          number: 600,
-          user: { login: 'dependabot[bot]' },
-          head: { ref: 'dependabot-npm-packages' },
-        },
-      };
-    };
-
-    const result = await getTargetPR({
-      github: mocks.github,
-      context: mocks.context,
-      core: mocks.core,
-    });
-
-    assert.strictEqual(result, 600);
-    assert.strictEqual(mocks.failedMessages.length, 0);
-  });
-
-  await t.test('fails when human PR lacks /merge comment', async () => {
+  await t.test('resolves successfully for a human pull request without any comments', async () => {
     const mocks = createBaseMocks();
     mocks.context.payload.workflow_run = {
       pull_requests: [{ number: 700 }],
@@ -763,23 +737,18 @@ test('get-target-pr.js tests', async (t) => {
       };
     };
 
+    // Ensure listComments is NOT called by asserting it throws if called
     mocks.github.rest.issues.listComments = async () => {
-      return [
-        { body: 'Looks good!', author_association: 'MEMBER' },
-        { body: '/merge', author_association: 'NONE' }, // non-member merge comment
-      ];
+      throw new Error('listComments should not be called');
     };
 
-    await getTargetPR({
+    const result = await getTargetPR({
       github: mocks.github,
       context: mocks.context,
       core: mocks.core,
     });
 
-    assert.ok(
-      mocks.failedMessages.includes(
-        'Skipping execution: Human PR #700 does not have an authorized /merge comment from a trusted repository member.',
-      ),
-    );
+    assert.strictEqual(result, 700);
+    assert.strictEqual(mocks.failedMessages.length, 0);
   });
 });

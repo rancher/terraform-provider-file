@@ -1,7 +1,7 @@
 // handle-verification-failure.js - Deletes or updates auto-merge status warning comments on failure.
 // Conforms to github-script.instructions.md guidelines.
 
-const COMMENT_SIGNATURE = '<!-- scheduled-pr-verification-signature -->';
+const COMMENT_SIGNATURE = '<!-- auto-merge-verification-signature -->';
 
 async function withRetry(core, fn, retries = 3, delay = 2000) {
   for (let i = 0; i < retries; i++) {
@@ -57,33 +57,16 @@ export default async ({ github, context, core, process }) => {
     }
   }
 
-  // 2. Post status comment if CI is not pending and it is scheduled hour
-  if (ciPending) {
-    core.info(
-      `PR #${prNumber} has in-progress CI check runs. Postponing merge and skipping comments until CI completes.`,
-    );
-  } else {
-    // Only post status comments on scheduled runs (e.g. at 18:00 UTC) or manual triggers
-    const isScheduled = context.eventName === 'schedule';
-    const currentHour = new Date().getUTCHours();
-    const shouldComment = !isScheduled || currentHour === 18;
+  // 2. Post status comment
+  const commentBody = `### 🤖 Auto-Merge Status
 
-    if (shouldComment) {
-      const commentBody = `### 🤖 Scheduled Auto-Merge Status
-
-Thank you for your contribution! The scheduled auto-merge job ran, but this PR cannot be merged yet because the following requirements are missing:
+Thank you for your contribution! The auto-merge job ran, but this PR cannot be merged yet because the following requirements are missing:
 
 ${reasons}
 
-*Please resolve these items so that the scheduled job can automatically merge your PR.*`;
+*Please resolve these items so that the job can automatically merge your PR.*`;
 
-      await updateOrPostComment({ github, core, owner, repo, prNumber: parseInt(prNumber, 10), message: commentBody });
-    } else {
-      core.info(
-        `PR #${prNumber} requirements missing, but skipping status comment (currently Hour ${currentHour} UTC).`,
-      );
-    }
-  }
+  await updateOrPostComment({ github, core, owner, repo, prNumber: parseInt(prNumber, 10), message: commentBody });
 };
 
 async function updateOrPostComment({ github, core, owner, repo, prNumber, message }) {
