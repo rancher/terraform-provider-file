@@ -42,12 +42,10 @@ This early failure blocks the downstream `Verify PR Requirements` job (`verify-p
 
 ---
 
-## 3. Implementation Checklist
+## Implementation Checklist
 
 - [x] Create the Component Specification blueprint under `docs/development/GitHubWorkflows/`.
 - [x] Update `.github/workflows/scripts/get-target-pr.js` to remove the `/merge` comment check and the `isDependabot` check.
 - [x] Update `.github/workflows/scripts/tests/get-target-pr.test.js` to remove the `/merge`-related unit tests (`fails when human PR lacks /merge comment` and `skips /merge check and passes for dependabot[bot]`).
 - [x] Update `.github/workflows/scripts/handle-verification-failure.js` to remove schedule constraints, ensure comments are always posted/updated even when CI is pending, and update the signature to `<!-- auto-merge-verification-signature -->`.
 - [x] Update `.github/workflows/scripts/merge-pr.js` to use the new signature.
-- [ ] Run `node --test .github/workflows/scripts/tests/**/*.test.js` to verify all tests pass.
-- [ ] Seek final commit review.
