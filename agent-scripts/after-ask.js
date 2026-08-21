@@ -3,6 +3,8 @@ import path from 'path';
 import crypto from 'crypto';
 import { execFileSync } from 'child_process';
 import { calculateFileHash, calculateDiffHash, findLatestActivePlan } from './gating.js';
+import { validatePlanContent } from './planning.js';
+import { runCommitPushHelper, runCreatePrHelper } from './git-helpers.js';
 
 /**
  * Handles the Planning Gate 1 biometric GPG signing challenge and output.
@@ -51,6 +53,18 @@ export function handlePlanApproval(targetDir, pubKeyFile, privKeyFile, promptTex
     console.error('🔒 Cryptographic Pipeline Error: Active plan file not found.');
     process.exit(1);
   }
+
+  // Programmatic verification of Plan structural content
+  const validation = validatePlanContent(activePlan);
+  if (!validation.valid) {
+    console.error('\n❌ Cryptographic Pipeline Error: Active plan has invalid structure!');
+    for (const err of validation.errors) {
+      console.error(`  - ${err}`);
+    }
+    console.error('\nPlanning approval rejected. Please update your imperative Plan to satisfy all requirements.');
+    process.exit(1);
+  }
+
   const planHash = calculateFileHash(activePlan);
   if (!planHash) {
     console.error('🔒 Cryptographic Pipeline Error: Failed to calculate active plan hash.');
@@ -208,16 +222,11 @@ export function handleCommitApproval(targetDir, pubKeyFile, privKeyFile, promptT
         // Fallback safely
       }
 
-      execFileSync('bash', ['.gemini/skills/commit-push.sh', ...pushArgs], {
-        env: { ...process.env, COMMIT_LIMIT_OVERRIDE: '100' },
-        stdio: 'inherit',
-      });
+      process.env.COMMIT_LIMIT_OVERRIDE = '100';
+      runCommitPushHelper(pushArgs);
 
       console.error(`\n🚀 AUTOMATION TRIGGERED: Generating Draft Pull Request...`);
-      execFileSync('bash', ['.gemini/skills/create-pr.sh', '--draft'], {
-        env: { ...process.env },
-        stdio: 'inherit',
-      });
+      runCreatePrHelper(['--draft']);
 
       process.exit(0);
     } catch (err) {

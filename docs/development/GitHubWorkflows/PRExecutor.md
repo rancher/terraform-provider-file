@@ -1,50 +1,64 @@
-# Component Specification: PR Executor Target PR Resolution
+# Component Specification: PR Executor Target Resolution & Workflow Execution Protections
 
 - **Related Topic:** [GitHub Workflows & Automation](../GitHubWorkflows.md)
-- **Target Component:** `.github/workflows/pr-executor.yml`
-- **Issue Reference:** rancher/terraform-provider-file#391
+- **Target Components:** `.github/workflows/pr-executor.yml`, `.github/workflows/scripts/get-target-pr.js`, `.github/workflows/scripts/handle-verification-failure.js`, `.github/workflows/scripts/merge-pr.js`
+- **Issue Reference:** rancher/terraform-provider-file#391, rancher/terraform-provider-file#389
 
 ---
 
 ## Abstract
 
-This component details the architectural modifications to the PR Executor and Auto-Merge workflow (`.github/workflows/pr-executor.yml`) to ensure reliable pull request resolution. It resolves a platform-level limitation where the GHA `workflow_run` event payload's `pull_requests` array is left empty when triggered by a pull request originating from a fork.
+This component details the architectural specification and platform-level protections governing the automated pull request verification, auto-merge, and workflow execution pipelines.
 
-In accordance with our workflow controller standards, the logic is extracted from the GHA workflow file into a standalone, testable Node.js module at `.github/workflows/scripts/get-target-pr.js`. The repository checkout step is moved to the top of the job to facilitate executing this module.
+To resolve GitHub API limitations regarding pull requests originating from forks (where the `workflow_run` payload's `pull_requests` array is left empty), the workflow implements a multi-layered fallback target PR resolution strategy. To ensure high maintainability, the logic is extracted into a standalone, fully unit-tested Node.js module (`get-target-pr.js`). Furthermore, the redundant `/merge` comment gate is removed from target resolution to enable automated status feedback on all PR trigger events.
 
----
-
-## 1. Architectural Strategy & Context
-
-The `PR Executor and Auto-Merge` workflow is triggered upon the completion of a parent `pull_request` or `pull_request_review_trigger` workflow. To verify and merge the correct pull request, it must resolve the triggering pull request number.
-
-Currently, the workflow extracts this number directly from `github.event.workflow_run.pull_requests[0].number` or queries `getWorkflowRun`. However, due to GitHub Actions security and API constraints, the `pull_requests` array is **always empty** when the parent workflow is triggered by a pull request originating from a **fork repo**. Since all human contributions in this repository are required to originate from forks, this completely blocks the automated merge execution pipeline.
-
-### Proposed Robust Fallback Strategy
-
-When both the payload and the direct `getWorkflowRun` query fail to provide a `pull_requests` entry, the executor will execute a multi-layered fallback strategy:
-
-1. **Associated Commit Lookup**: Fetch any pull requests associated with the head commit SHA (`parentRun.head_sha`) using the GitHub REST API (`listPullRequestsAssociatedWithCommit`).
-2. **Open PR Search**: Fetch all active open pull requests for the repository and match the head commit SHA (`parentRun.head_sha`) or branch name (`parentRun.head_branch`) against the active head ref (`pr.head.sha` or `pr.head.ref`).
-
-To keep workflows clean and adhere to controller-only design standards, this logic is modularized into `.github/workflows/scripts/get-target-pr.js` and thoroughly unit-tested.
-
-### `pull_request_review_trigger` Workflow Checkout Requirement
-
-The `pull_request_review_trigger` (`review-trigger.yml`) workflow is a parent/trigger workflow for the PR Executor. It executes the script `.github/workflows/scripts/log-trigger.sh` upon detecting valid comments.
-
-- **Missing Checkout Bug**: Like other controller workflows, it must check out the codebase prior to executing any script located under `.github/workflows/scripts/`. Without the checkout step, the runner environment lacks access to the script, resulting in exit code 127.
-- **Resolution**: Introduce `contents: read` permissions and run the standard `actions/checkout@v7.0.1` step (targeting the `main` branch) within the `trigger` job prior to running the script.
+Finally, this component specifies the declarative platform-level rulesets (Workflow Execution Protections) configured via GitHub Actions Policies to restrict untrusted actors or unauthorized webhook events from executing workflows.
 
 ---
 
-## 2. Security Analysis & Threat Mitigations
+## 1. Target PR Resolution & Fallback Strategy
+
+The `PR Executor and Auto-Merge` workflow (`pr-executor.yml`) is triggered upon the completion of a parent `pull_request` or `pull_request_review_trigger` workflow. To verify and merge the correct pull request, it must resolve the triggering pull request number.
+
+Because the GHA payload's `pull_requests` array is empty when parent runs are initiated from a fork, the executor implements a multi-layered fallback strategy to resolve the target PR:
+
+1. **Associated Commit Lookup**: Queries pull requests associated with the head commit SHA (`parentRun.head_sha`) using the GitHub REST API (`listPullRequestsAssociatedWithCommit`).
+2. **Open PR Search**: Queries all active open pull requests for the repository and matches the head commit SHA (`parentRun.head_sha`) or branch name (`parentRun.head_branch`) against the active head ref (`pr.head.sha` or `pr.head.ref`).
+
+### Refactored Script Components
+
+- **`get-target-pr.js`**: Contains no redundant `/merge` comment checks. Its single responsibility is the resolution and return of the target PR number based on payload metadata or SHA/branch fallbacks.
+- **`handle-verification-failure.js`**: Status comment posting has no time-based or scheduling constraints, ensuring that any failure immediately reports feedback to the PR. Comments are uniquely signed via `<!-- auto-merge-verification-signature -->` and updated in place to prevent duplicates.
+- **`merge-pr.js`**: Locates and purges warning threads containing `<!-- auto-merge-verification-signature -->` upon successful PR merge.
+
+### `pull_request_review_trigger` Checkout Enforcement
+
+The trigger workflow (`review-trigger.yml`) executes the script `.github/workflows/scripts/log-trigger.sh` upon detecting valid comments. To allow secure script execution, the workflow includes `contents: read` permissions and executes the standard `actions/checkout@v7.0.1` step (targeting the `main` branch) within the `trigger` job prior to running the script. This ensures the runner environment possesses access to the required scripts, avoiding exit code 127.
+
+---
+
+## 2. Ruleset Administration & Configuration Interface
+
+GitHub Actions Policies and Workflow Execution Protections introduce a centralized ruleset framework that acts as a gatekeeper _prior_ to a workflow run starting. If the event or the actor who initiated it is not permitted, execution is blocked before any runner is provisioned.
+
+The GitHub Ruleset interface provides the configuration steps required to activate these protections:
+
+- **Navigation Path:** Access is located within the repository’s settings screen under the **Actions > Policies** sub-menu.
+- **Scoping & Scopes:** Scopes are established at the **Repository** level globally (there is no branch selector).
+- **Rule Definitions:** Desired rules are mapped and enabled within the interface:
+  - **Restrict Actors:** Maps specific write-level roles (e.g., `Read`, `Maintain`, `Admin`) or installed apps (e.g. the **GitHub Actions** App for GITHUB_TOKEN pushes) permitted to trigger workflow runs.
+  - **Restrict Events:** Defines allowed webhook triggers (e.g., permitting `push` and `workflow_run` while restricting dangerous events).
+  - **Require Lockfile:** Enforces secure locking metrics for files to prevent pipeline modifications during execution.
+
+---
+
+## 3. Security Analysis & Threat Mitigations
 
 Because the PR Executor runs with elevated permissions (`contents: write`, `pull-requests: write`), security and tamper-proofing are paramount:
 
 ### A. Fork Branch Name Hijacking Protection (Collision Prevention)
 
-If the workflow fell back to matching a branch name like `patch-1` or `update` alone, a malicious actor could name a branch on their fork to collide with a trusted branch/PR, potentially hijacking the target `prNumber` and triggering a merge run.
+Matching a branch name like `patch-1` or `update` alone could allow a malicious actor to name a branch on their fork to collide with a trusted branch/PR, hijacking the target `prNumber` and triggering a merge run.
 
 - **Mitigation**: The fallback branch matching logic strictly validates the fork repository owner:
 
@@ -56,9 +70,9 @@ If the workflow fell back to matching a branch name like `patch-1` or `update` a
 
 ### B. Event & Code Isolation (Base Ref Guarantee)
 
-A bad actor might attempt to modify the `pr-executor.yml` workflow file or the validation/merge scripts inside their PR branch to bypass checks or run arbitrary code.
+A bad actor might attempt to modify the `pr-executor.yml` workflow file or the validation/merge scripts inside their PR branch to bypass checks.
 
-- **Mitigation**: GitHub Actions executes `workflow_run` workflows **exclusively using the workflow YAML file from the base repository's default branch ref**. Furthermore, the `actions/checkout` step checks out the default branch ref of the base repository by default. As a result, all executed YAML definitions and imported scripts (`verify-pr-requirements.mjs`, `merge-pr.js`) are read strictly from the base repository's trusted default branch commit, making PR branch tampering impossible.
+- **Mitigation**: GitHub Actions executes `workflow_run` workflows **exclusively using the workflow YAML file from the base repository's default branch ref**. Furthermore, the `actions/checkout` step checks out the default branch ref of the base repository by default. All executed YAML definitions and imported scripts (`verify-pr-requirements.mjs`, `merge-pr.js`) are read strictly from the base repository's trusted default branch commit, making PR branch tampering impossible.
 
 ### C. Immutable Gated Verification Checks
 
@@ -68,54 +82,21 @@ Even if a bad actor manages to resolve their PR number in the executor, they can
 2. **Trusted Role Approval**: The PR must have at least one approval from a trusted role (Owner, Member, Collaborator) with write permissions.
 3. **AI Review Gate**: The PR must have a valid AI review from Copilot or our agent.
 4. **Resolved Review Conversations**: 100% of review comment threads must be resolved.
-5. **Trusted /merge Trigger**: For human PRs, a `/merge` comment must be explicitly posted in the conversation thread by a trusted repository member.
+
+### Threat Mitigation Scopes
+
+| Attack Vector               | Threat Description                                                                                                                 | Ruleset Mitigation Strategy                                                                                        |
+| :-------------------------- | :--------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------- |
+| **Poisoned Pipeline (PPE)** | Attackers submit a PR from a fork modifying workflow files or exploiting events to run malicious code in privileged base contexts. | Prohibit dangerous events or use event rules to run YAML files exclusively from base repository default refs.      |
+| **Manual-Trigger Abuse**    | Non-maintainer contributors with write access invoke sensitive deployment/release pipelines manually.                              | Use **Restrict Actors** to limit `workflow_dispatch` to specific roles (e.g. `Maintain` or `Admin`).               |
+| **Untrusted Actor Runs**    | External contributors or compromised integration tokens trigger costly automated runs.                                             | Use **Restrict Actors** to block low-trust identities or unauthorized bots from initiating any workflow execution. |
+| **Workflow File Tampering** | Attackers bypass file-level branch protection rules (like CODEOWNERS) to force-execute compromised workflows.                      | Centralized repository policies override any configuration declared in the local workspace YAML files.             |
 
 ---
 
-## 3. Technical Blueprint
+## Component Verification State
 
-The inline `actions/github-script` step in `.github/workflows/pr-executor.yml` will be updated to import and execute the external module:
-
-```javascript
-const scriptPath = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/get-target-pr.js`;
-const { default: script } = await import(scriptPath);
-return await script({ github, context, core });
-```
-
-The external module `.github/workflows/scripts/get-target-pr.js` exports the robust resolution logic:
-
-```javascript
-export default async ({ github, context, core }) => {
-  let prNumber;
-  const parentRun = context.payload.workflow_run;
-
-  // ... (PR resolution & fallback lookup logic) ...
-
-  return prNumber;
-};
-```
-
----
-
-## 4. Implementation Checklist
-
-- [x] Implement robust multi-layered PR resolution logic using head SHA and head branch fallbacks.
-- [x] Move the PR resolution logic from inline script to `.github/workflows/scripts/get-target-pr.js`.
-- [x] Move up the repository checkout step to the top of the `verify-pr` job in `pr-executor.yml`.
-- [x] Write comprehensive unit tests for `get-target-pr.js` in `.github/workflows/scripts/tests/get-target-pr.test.js`.
-- [x] Run codebase linters and static checks to verify workflow and script file formatting.
-- [x] Paginate open PR search fallback using `github.paginate` to handle >30 open PRs.
-- [x] Strengthen head commit SHA fallback to validate head owner when available to avoid ambiguous matches.
-- [x] Update unit tests to verify the new pagination and owner checking.
-- [x] Update the PR description with a highly detailed, clear summary.
-- [x] Filter `listPullRequestsAssociatedWithCommit` results to ensure the target PR is open and belongs to the base repository.
-- [x] Update unit tests to mock and verify the new associated PR filters.
-- [x] Collect open PR lookup candidates and fail if the match is ambiguous to prevent mis-targeted merges.
-- [x] Update issue reference in spec file from #389 to #391.
-- [x] Update unit tests to mock and verify ambiguous open PR resolution failures.
-- [x] Implement defensively guarded ambiguity checking for `listPullRequestsAssociatedWithCommit` fallback.
-- [x] Add unit tests verifying ambiguous associated PR resolution failures and deleted repo safety.
-- [x] Paginate associated PR lookups using `github.paginate` to handle >30 associated PRs.
-- [x] Align unit test `github.paginate` mock to realistically unwrap Octokit `{ data: [...] }` structures.
-- [x] Add `actions/checkout` (targeting the `main` branch) and `contents: read` permissions to `.github/workflows/review-trigger.yml` to fix CI failures when executing `log-trigger.sh`.
-- [ ] Seek final IDE and commit approval.
+- **PR Resolution Architecture:** The resolution logic is fully modularized under `.github/workflows/scripts/get-target-pr.js` and securely integrated into `pr-executor.yml`.
+- **Pagination & Ambiguity Protection:** Open PR and associated PR search fallbacks securely utilize `github.paginate` to handle large candidate lists, implementing strict head-owner validations and defensive early-failures on ambiguous matching to prevent mis-targeted merges.
+- **Blueprint Consolidation:** The legacy `PRExecutor-RemoveMergeGate.md` and `WorkflowExecutionProtections.md` specifications have been fully consolidated natively into this master blueprint.
+- **Testing & Verification:** Comprehensive unit tests (`get-target-pr.test.js`) explicitly mock and verify paginated Octokit unrolling, deleted-repo safety checks, and strict ambiguity resolution failures. All codebase linters and static checks guarantee flawless workflow formatting.

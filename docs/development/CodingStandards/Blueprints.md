@@ -27,17 +27,15 @@ A technical design document and actionable specification for a single sub-compon
 - **Top Half: Technical Specification**:
   - **Abstract**: A clear, technical abstract section named `## Abstract` explaining the component's goals and architectural intent.
   - **Specification Details**: Detailed structural design rules, configuration requirements, sequence diagrams, and code snippets.
-- **Bottom Half: Implementation Checklist**:
-  - **Implementation Checklist**: A section named `## Implementation Checklist` containing a sequential, step-by-step checklist of specific tasks.
-  - **Dynamic Expansion**: The checklist is a living document. It must be dynamically expanded to add new sub-tasks, verification steps, or specific bug fixes discovered during development.
-  - **Sequential Work Protocol**: Work strictly in turn. You are not allowed to skip steps or run steps in parallel if they depend on one another. Update checkboxes in place (`- [ ]` -> `- [x]`) **once completed and before starting the next step**.
-  - _(Note: Standard quality gates like local tests, linting, and reviews are natively enforced by our git-push and user-approval hooks. You do NOT need to include them as manual checkbox items in the checklist)._
+- **Bottom Half: Declarative System State**:
+  - **System State & Components**: Outlines the target architecture, declarative structure, files, schemas, and verification states.
+  - **No Imperative Checklists**: Blueprints MUST NOT contain step-by-step active task checklists or checkboxes. All imperative task steps and checklists live strictly inside the imperative **Plan** drafted in the session's temporary plans folder during Plan Mode.
 
 ---
 
 ## Planning Repository Changes
 
-- **Rule:** Before starting any code modification, a plan must be drafted and approved by the user.
-- **Avoid Blueprint Sprawl:** You MUST NOT create a brand new Topic Overview or Component Specification if the task fits under an existing architectural domain. Instead, _edit_ and _adapt_ the existing files, expanding their specifications and checklists.
-- **Order of Execution:** The very first task after plan approval is updating the Topic Overview and Component Specification. No source code changes can occur until these documents are updated on disk.
-- **Lifecycle:** Not every Pull Request requires a new specification file. Adapting and expanding existing specifications is the preferred, high-standard mode of development.
+- **Rule:** Before starting any code modification, an imperative **Plan** is drafted in the session's temp plans directory and approved by the user via GPG/Touch ID sign-off.
+- **Avoid Blueprint Sprawl:** If the implementation alters the system's declarative design, the corresponding declarative **blueprints** in `docs/development/` are updated to document the new target architecture state. New files are avoided if the changes fit within an existing domain overview; editing and adapting existing blueprints is the standard practice.
+- **Order of Execution:** The blueprints under `docs/development/` are updated first during the Implement phase to reflect the new declarative state before modifying source code. No source changes are permitted without a valid `plan-approval.json` seal.
+- **Lifecycle:** Blueprints are persistent specifications representing the codebase's current and target declarative state. Plans are transient, imperative execution steps that are discarded once the PR is complete.

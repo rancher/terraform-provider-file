@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+#
+# Native Git Hook: pre-push
+# Description: Strictly validates commit and push approvals for AI agents.
+#              Bypasses validation for human developers (detected via process-tree walking).
+#
+
+# Walk up process tree to detect if run by an AI agent
+PID=$$
+IS_AGENT=0
+while [ "$PID" -gt 1 ]; do
+  CMD=$(ps -p "$PID" -o command= 2>/dev/null)
+  if echo "$CMD" | grep -qE "(gemini-cli|node.*\.gemini|node.*\.claude|testing_agent|review_agent|subagent)"; then
+    IS_AGENT=1
+    break
+  fi
+  # Get parent PID
+  PID=$(ps -p "$PID" -o ppid= 2>/dev/null | tr -d ' ')
+  [ -z "$PID" ] && break
+done
+
+# If NOT an agent, allow the push unconditionally (Human bypass)
+if [ "$IS_AGENT" -eq 0 ]; then
+  exit 0
+fi
+
+echo "🔒 Secure Pipeline: AI Agent detected in process tree. Verifying push credentials..."
+
+# Determine target directories
+HOME_DIR="${HOME:-$(getent passwd "$USER" | cut -d: -f6)}"
+if [ -z "$HOME_DIR" ]; then
+  echo "❌ Git Push Blocked: Unable to determine HOME directory."
+  exit 1
+fi
+REPO_NAME=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
+TARGET_DIR="${HOME_DIR}/.gemini/tmp/${REPO_NAME}"
+
+USER_APPROVAL="${TARGET_DIR}/user-approval.json"
+
+# Check if user/commit approval exists
+if [ ! -f "$USER_APPROVAL" ]; then
+  echo "❌ Git Push Blocked: Missing developer cryptographic commit/push approval (Gate 4)."
+  echo "AI agents must obtain developer commit-push approval via Touch ID to push code."
+  exit 1
+fi
+
+echo "✅ Secure Pipeline: AI agent push authorization verified successfully!"
+exit 0

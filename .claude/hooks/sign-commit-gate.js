@@ -6,7 +6,7 @@
 //              this hook delegates to the shared, tool-agnostic
 //              agent-scripts/after-ask.js#handleCommitApproval (unmodified) to
 //              trigger the real Touch ID / Secure Enclave signature and then
-//              automatically run the existing commit-push.sh / create-pr.sh skills.
+//              automatically run the existing commit-push and create-pr helper scripts.
 //
 
 import fs from 'fs';
@@ -80,7 +80,7 @@ function main() {
   process.env.AGENT_STATE_DIR = TARGET_DIR;
 
   // handleCommitApproval prints its own decision JSON, signs the commit, and then
-  // runs commit-push.sh / create-pr.sh directly — it always calls process.exit()
+  // runs the commit-push and create-pr helper scripts directly — it always calls process.exit()
   // itself on both the success and failure paths.
   handleCommitApproval(TARGET_DIR, PUB_KEY_FILE, PRIV_KEY_FILE, promptText);
 }

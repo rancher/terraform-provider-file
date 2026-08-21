@@ -15,7 +15,7 @@
             "type": "command",
             "command": "bash .gemini/hooks/startup-context.sh",
             "timeout": 10000,
-            "description": "Loads and injects AGENTS.md and development-process.md as startup context for the session"
+            "description": "Loads and injects startup context for the session"
           }
         ]
       }
@@ -120,5 +120,8 @@
         ]
       }
     ]
+  },
+  "hooksConfig": {
+    "disabled": []
   }
 }

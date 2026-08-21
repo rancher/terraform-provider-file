@@ -14,7 +14,7 @@ To eliminate this vulnerability, our framework enforces a **Strict Cryptographic
 
 1. **The Hash Anchor**: Every stage of the development process is anchored to a unique, live SHA-256 hash of the entire active workspace difference (`git diff HEAD`), termed the `diff_hash`.
 2. **Immutable Binding**: When a gating step succeeds, its signature (`plan-approval.json`, `test-approval.json`, or `review-approval.json`) is cryptographically bound to that exact `diff_hash` and the active `plan_hash`.
-3. **Chained Verification**: Subsequent gates—and ultimately the custom `.gemini/skills/commit-push.sh` utility—will unconditionally reject operations if any of the following occur:
+3. **Chained Verification**: Subsequent gates—and ultimately the custom `agent-scripts/commit-push-helper.sh` utility—will unconditionally reject operations if any of the following occur:
    - The files on disk change (which changes the current `diff_hash` and causes an immediate mismatch with the signatures).
    - Any signature is missing or altered.
    - The signatures are generated out of order (e.g., trying to write a Review approval before a Test approval is signed).
@@ -137,24 +137,18 @@ To prevent code duplication, facilitate clean multi-agent workspace sharing, and
 ### **Sequential Implementation Checklist**
 
 - [x] Create the root-level `agent-scripts/` directory.
-- [x] **Hooks Decoupling**:
-  - [x] Extract `checkActivePlan` planning gate logic from `enforce-planning.js` to `agent-scripts/planning.js`.
-  - [x] Extract cryptographic verification functions (`verifyPlanGate`, `verifyTestGate`, `verifyReviewGate`) from `before-ask-user.js` and `before-invoke-agent.js` to `agent-scripts/gating.js`.
-  - [x] Extract sub-agent report parsing and JSON signature creation logic (`saveReport`, `verifyTestReport`, `verifyReviewReport`) from `after-invoke-agent.js` to `agent-scripts/after-invoke.js`.
-  - [x] Extract Apple Secure Enclave / Touch ID Touch biometric challenges and signing operations (`handlePlanApproval`, `handleCommitApproval`) from `after-ask-user.js` to `agent-scripts/after-ask.js`.
-  - [x] Extract Rancher git remote protection logic (`verifyGitCommand`) from `block-rancher-git.js` to `agent-scripts/security.js`.
-  - [x] Convert `.gemini/hooks/` files into lightweight controllers that import the ESM modules in `agent-scripts/` and make structured function calls.
-- [x] **Skills Decoupling**:
-  - [x] Extract modular shell helpers (`command_exists`, `get_file_owner_uid`, `calculate_sha256`) to `agent-scripts/git-utils.sh`.
-  - [x] Extract defunct branch checks and remote ancestry checking to `agent-scripts/check-branch.sh`.
-  - [x] Extract staging limits and override verification to `agent-scripts/verify-limits.sh`.
-  - [x] Extract Gate 3 review verification on disk to `agent-scripts/verify-gates.sh`.
-  - [x] Extract conventional GPG/SSH commit signature helpers to `agent-scripts/commit-helper.sh`.
-  - [x] Extract push safety and lease pushing to `agent-scripts/push-helper.sh`.
-  - [x] Convert `.gemini/skills/commit-push.sh` and other bash skills in `.gemini/skills/` to orchestrator controllers that invoke these modular files sequentially.
-  - [x] Extract GitHub draft PR creation and graduation functions from `create-pr.sh` into `agent-scripts/pr-helper.sh`, and convert `create-pr.sh` into an orchestrator controller.
-- [x] **Tooling & Validation Compliance**:
-  - [x] Update `.github/workflows/scripts/lint.sh` to include validation, shellcheck, and format checks for `agent-scripts/`.
-  - [x] Update `eslint.config.mjs` to target files in `agent-scripts/` with correct ESM module language options.
-  - [x] Update Javascript unit tests in `.github/workflows/scripts/tests/hooks.test.js` to run on both controllers and the refactored modular files.
-  - [x] Execute all linters (`./.github/workflows/scripts/lint.sh`) and tests (`make test`, JS tests) to ensure 100% green status.
+- **Hooks Decoupling**:
+  - Planning gate logic (`checkActiveBlueprint`, `checkActivePlan`) is isolated under `agent-scripts/planning.js`.
+  - Cryptographic verification functions (`verifyPlanGate`, `verifyTestGate`, `verifyReviewGate`, `calculateDiffHash`) are extracted to `agent-scripts/gating.js`.
+  - Sub-agent report parsing and JSON signature logic (`saveReport`, `verifyTestReport`, `verifyReviewReport`) are extracted to `agent-scripts/after-invoke.js`.
+  - Apple Secure Enclave / Touch ID biometric challenges (`handlePlanApproval`, `handleCommitApproval`) are isolated inside `agent-scripts/after-ask.js`.
+  - Reusable execution path-safety logic (`verifyGitCommand`) is extracted to `agent-scripts/security.js`.
+  - `.gemini/hooks/` and `.claude/hooks/` files act purely as lightweight `PreToolUse` and `AfterToolUse` I/O controllers that import these ESM modules.
+- **Skills & Helpers Consolidation**:
+  - All legacy modular shell helpers (`git-utils.sh`, `check-branch.sh`, `verify-limits.sh`, `verify-gates.sh`, `commit-helper.sh`, `push-helper.sh`) have been entirely retired.
+  - The logic for executing conventional GPG/SSH signed commits, branch verification, push safety, drafting PRs, and checking active blueprints has been heavily fortified, secured, and natively consolidated into `agent-scripts/git-helpers.js`.
+  - The legacy AI skills `.gemini/skills/commit-push.sh` and `.gemini/skills/create-pr.sh` have been completely removed. Commits and PRs are now generated securely via the biometric execution of `after-ask.js`.
+- **Tooling & Validation Compliance**:
+  - The codebase linters (`.github/workflows/scripts/lint.sh`) and formatting engines are configured to scan and secure all `.js` files natively.
+  - `eslint.config.mjs` enforces ESM module standards across the `agent-scripts/` and hook directories.
+  - Granular, mock-scaffolded unit tests exist in `agent-scripts/tests/` to guarantee absolute runtime safety and cryptographic consistency for all helper functions.

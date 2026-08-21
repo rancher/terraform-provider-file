@@ -32,6 +32,4 @@ process_tests "pass"
 printf "\nFAILED TESTS:"
 process_tests "fail"
 
-printf "\n======================================================"
-
-rm -rf report.json
+printf "\n======================================================\n"

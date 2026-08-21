@@ -1,6 +1,9 @@
 SHELL := /bin/bash
 
-default: fmt lint build install generate test testacc
+default: setup fmt lint build install generate test testacc
+
+setup:
+	@[ -d .git ] && git config core.hooksPath .githooks || true
 
 fmt:
 	gofmt -s -w -e .
@@ -53,4 +56,4 @@ rt: buildrace
 	gotestsum --format standard-verbose --jsonfile report.json --post-run-command "./summarize.sh" -- ./... -v -p=100 -timeout=3000s -run=$(t); \
 	popd;
 
-.PHONY: fmt lint build install generate test testacc testaccrelay debug
+.PHONY: setup fmt lint build install generate test testacc testaccrelay debug

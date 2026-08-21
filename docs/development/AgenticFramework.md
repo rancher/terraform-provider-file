@@ -43,15 +43,38 @@ These utilities and formatting styles maintain clean, high-signal, and standardi
 
 ---
 
-### 🔄 The Combined End-to-End Lifecycle
+### 🔄 The Combined End-to-End Lifecycle (6-Phase Gated Pipeline)
 
-This integrated narrative traces how these components operate together to execute a standard codebase change:
+The framework coordinates developers and agents through a strict, zero-bypass 6-phase lifecycle that guarantees codebase integrity:
 
-1. **Phase 1: Research & Reproduce**: The developer or agent initializes a task according to the **Development Process**, reproducing any bug state with an empirical test.
-2. **Phase 2: Planning & Blueprinting**: The developer draft a specification checklist under `docs/development/`. Before any file edits are allowed, the **Planning Hook** intercepts execution to verify the plan's presence and hash, prompting Touch ID to GPG-sign and write the planning gate signature (`plan-approval.json`).
-3. **Phase 3: Implementation**: The agent executes the change in place, adhering strictly to the **Strict Output Style** or **Conversational Output Style** rules. If external boilerplates are edited, the **Boilerplate Sync Skill** ensures synchronizations are safe and clean.
-4. **Phase 4: Proactive Quality & Testing**: Once changes are ready, the developer runs the test and linter suites. The **Testing Hook** intercepts the subagent execution, validating the outcome and signing the testing gate (`test-approval.json`). The **Review Hook** then invokes our specialized, hardened **Review Subagent** (`review_agent`) to evaluate the active diff, signing the review gate (`review-approval.json`).
-5. **Phase 5: Chunking & Commit**: Once all three gates are securely verified and chained on disk, the developer initiates the **Commit Gate**, which triggers Touch ID biometrics via the **Cryptographic Gating Hook** to GPG-sign, commit, and push the active changes cleanly to GitHub.
+1. **Phase 1: Research Phase**
+   - Active exploration, script execution, and information gathering are allowed.
+   - Any modifications to codebase files are strictly ephemeral: entering the subsequent Plan phase automatically triggers `git reset --hard` and `git clean -fd` to wipe all uncommitted changes.
+   - Prevents un-planned or accidental "experimental" code from leaking into the workspace.
+
+2. **Phase 2: Plan Phase**
+   - Developer drafts plans inside `docs/development/` detailing implementation specifications.
+   - Plan approval is requested via `ask_user`. A positive human response cryptographically GPG-signs the plan and writes a valid `plan-approval.json` seal to disk.
+   - Exiting the Plan phase switches the repository to a dedicated `feature/<plan-name>` branch and resets any intermediate dirty state.
+
+3. **Phase 3: Implement Phase**
+   - Source code modifications are authorized _only_ in this phase.
+   - Interceptor hooks (`enforce-planning.js`) verify that a valid plan seal (`plan-approval.json`) is active. If missing or invalid, all source edits are denied!
+   - Continuous Invalidation: the moment a source file is touched, any downstream approvals (`test-approval.json`, `review-approval.json`, `user-approval.json`) are immediately deleted.
+
+4. **Phase 4: Test Phase**
+   - Code modifications are blocked. The Testing Subagent (`testing_agent`) is executed to run all test suites and linters.
+   - Signs `test-approval.json` _only_ after all tests succeed. If a test fails, the signature is revoked and the phase cannot be exited.
+
+5. **Phase 5: Review Phase**
+   - Conducts a high-rigor review by `review_agent` evaluating the active diff against security, standards, and spelling guidelines.
+   - An automation audit is conducted: if a caught issue could have been detected in testing, a test is implemented and the review is failed.
+   - Signs `review-approval.json` only after complete sign-off.
+
+6. **Phase 6: Commit Phase**
+   - Requires Plan, Test, and Review approvals.
+   - Direct manual `git commit` or `git push` is unconditionally blocked for AI agents.
+   - Exiting the Commit phase automatically triggers GPG-signed commits, pushing, and draft PR generation via authorized system hooks and biometric approval.
 
 ---
 

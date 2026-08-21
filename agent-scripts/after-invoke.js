@@ -21,12 +21,127 @@ export function saveReport(agentName, report, logsDir) {
 }
 
 /**
+ * Programmatically validates that a testing report contains all of our strict verification requirements.
+ * @param {string} report - The testing report markdown content
+ * @returns {object} - { valid: boolean, errors: string[] }
+ */
+export function validateTestContent(report) {
+  const errors = [];
+
+  // 1. Linters check
+  const lintMatch = /linter|lint|eslint|golangci-lint|tflint|static check/i.test(report);
+  if (!lintMatch) {
+    errors.push('Testing report must explicitly confirm successful static analysis and linter execution.');
+  }
+
+  // 2. Test execution check
+  const testMatch = /unit test|test suite|go test|run_tests/i.test(report);
+  if (!testMatch) {
+    errors.push(
+      'Testing report must explicitly confirm execution of the active unit tests or comprehensive test suites.',
+    );
+  }
+
+  // 3. Status Check
+  const statusMatch = /status:\s*🟢\s*SUCCESS|success|pass/i.test(report);
+  if (!statusMatch) {
+    errors.push('Testing report must contain an explicit success status declaration.');
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
  * Verifies a test sub-agent report and writes the Gate 2 signature if successful.
  */
 export function verifyTestReport(report, diffHash, planHash, testApprovalFile) {
   const isSuccess = report.includes('TEST RUN status: 🟢 SUCCESS');
 
   if (isSuccess) {
+    // Programmatic verification of Test Report content
+    const validation = validateTestContent(report);
+    if (!validation.valid) {
+      try {
+        fs.unlinkSync(testApprovalFile);
+      } catch {
+        // Ignored
+      }
+      console.error('❌ Gate 2 Verification Blocked: Testing report has invalid structure!');
+      for (const err of validation.errors) {
+        console.error(`  - ${err}`);
+      }
+      return {
+        status: 'rejected',
+        systemMessage: '❌ Gate 2 Rejected: Testing report failed programmatic structural validation checks.',
+      };
+    }
+
+    // Zero-Trust Empirical Out-of-Band Log Verification
+    try {
+      const reportJsonPath = path.join(process.cwd(), 'report.json');
+      if (fs.existsSync(reportJsonPath)) {
+        const lines = fs.readFileSync(reportJsonPath, 'utf-8').split('\n');
+        for (const line of lines) {
+          if (!line.trim()) {
+            continue;
+          }
+          try {
+            const obj = JSON.parse(line);
+            if (obj.Action === 'fail') {
+              throw new Error(
+                `Empirical Go Test Failure: Package '${obj.Package}' Test '${obj.Test || 'N/A'}' failed.`,
+              );
+            }
+          } catch (jsonErr) {
+            if (jsonErr.message.startsWith('Empirical Go')) {
+              throw jsonErr;
+            }
+          }
+        }
+      } else {
+        throw new Error('Empirical Verification Error: Go test report.json file not found! Tests might not have run.');
+      }
+
+      const nodeTestLogPath = path.join(process.cwd(), 'node-test.log');
+      if (fs.existsSync(nodeTestLogPath)) {
+        const logContent = fs.readFileSync(nodeTestLogPath, 'utf-8');
+        const lines = logContent.split('\n');
+        let hasFailures = false;
+        let failureMessage = '';
+        for (const line of lines) {
+          if (/^not ok\b/.test(line.trim())) {
+            hasFailures = true;
+            failureMessage = line.trim();
+            break;
+          }
+        }
+        if (hasFailures) {
+          throw new Error(`Empirical Node Test Failure: Node.js test failed! Details: ${failureMessage}`);
+        }
+        if (!logContent.includes('ok ') && !logContent.includes('not ok ')) {
+          throw new Error('Empirical Verification Error: Node.js node-test.log exists but contains no test runs.');
+        }
+      } else {
+        throw new Error(
+          'Empirical Verification Error: Node.js node-test.log file not found! Node tests might not have run.',
+        );
+      }
+    } catch (empiricalErr) {
+      try {
+        fs.unlinkSync(testApprovalFile);
+      } catch {
+        // Ignored
+      }
+      console.error(`❌ Gate 2 Verification Blocked: ${empiricalErr.message}`);
+      return {
+        status: 'rejected',
+        systemMessage: `❌ Gate 2 Rejected: Empirical verification failed! ${empiricalErr.message}`,
+      };
+    }
+
     const approvalData = {
       status: 'approved',
       diff_hash: diffHash,
@@ -41,6 +156,19 @@ export function verifyTestReport(report, diffHash, planHash, testApprovalFile) {
         // Ignored
       }
       fs.writeFileSync(testApprovalFile, JSON.stringify(approvalData, null, 2), { mode: 0o600 });
+      // Cleanup raw logs on success to keep workspace pristine
+      try {
+        const reportJsonPath = path.join(process.cwd(), 'report.json');
+        const nodeTestLogPath = path.join(process.cwd(), 'node-test.log');
+        if (fs.existsSync(reportJsonPath)) {
+          fs.unlinkSync(reportJsonPath);
+        }
+        if (fs.existsSync(nodeTestLogPath)) {
+          fs.unlinkSync(nodeTestLogPath);
+        }
+      } catch {
+        // Ignored
+      }
       return {
         status: 'approved',
         systemMessage:
@@ -65,12 +193,76 @@ export function verifyTestReport(report, diffHash, planHash, testApprovalFile) {
 }
 
 /**
+ * Programmatically validates that a review report contains all of our strict verification requirements.
+ * @param {string} report - The review report markdown content
+ * @returns {object} - { valid: boolean, errors: string[] }
+ */
+export function validateReviewContent(report) {
+  const errors = [];
+
+  // 1. Security Check
+  const securityMatch = /security|vulnerab|secret/i.test(report);
+  if (!securityMatch) {
+    errors.push('Review report must explicitly confirm verification of security and credential safeguards.');
+  }
+
+  // 2. Coding Standards Check
+  const standardsMatch = /standards|coding\s+standards|rules|conventions/i.test(report);
+  if (!standardsMatch) {
+    errors.push('Review report must explicitly confirm verification of repository coding standards.');
+  }
+
+  // 3. Spelling & Wording Check
+  const spellingMatch = /spelling|wording|typo|discrepancy/i.test(report);
+  if (!spellingMatch) {
+    errors.push(
+      'Review report must explicitly confirm verification of spelling and documentation/wording consistency.',
+    );
+  }
+
+  // 4. Automation Audit Check
+  const automationMatch = /automation\s+audit|automat(e|ed|ion)/i.test(report);
+  if (!automationMatch) {
+    errors.push('Review report must explicitly confirm conducting an automation audit of checked items.');
+  }
+
+  // 5. Approval Status Check
+  const approvalMatch = /approved|approval|perfect|pass/i.test(report);
+  if (!approvalMatch) {
+    errors.push('Review report must contain an explicit approval status declaration.');
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
  * Verifies a review sub-agent report and writes the Gate 3 signature if successful.
  */
 export function verifyReviewReport(report, diffHash, planHash, reviewApprovalFile, testApprovalFile) {
   const isSuccess = report.includes('PR Review status: 🟢 PERFECT - 0 findings.');
 
   if (isSuccess) {
+    // Programmatic verification of Review Report content
+    const validation = validateReviewContent(report);
+    if (!validation.valid) {
+      try {
+        fs.unlinkSync(reviewApprovalFile);
+      } catch {
+        // Ignored
+      }
+      console.error('❌ Gate 3 Verification Blocked: Review report has invalid structure!');
+      for (const err of validation.errors) {
+        console.error(`  - ${err}`);
+      }
+      return {
+        status: 'rejected',
+        systemMessage: '❌ Gate 3 Rejected: Review report failed programmatic structural validation checks.',
+      };
+    }
+
     // Hook enforces Gate 2 must also be valid! (Review requires Tests to be passed)
     if (!fs.existsSync(testApprovalFile)) {
       return {

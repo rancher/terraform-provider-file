@@ -9,7 +9,25 @@
 
 import fs from 'fs';
 import path from 'path';
+import { execSync } from 'child_process';
 import { checkActivePlan } from '../../agent-scripts/planning.js';
+import { verifyPlanGate } from '../../agent-scripts/gating.js';
+
+function resolveTargetDir(cwd, homeDir) {
+  let repoName = 'generic-repo';
+  try {
+    const topLevel = execSync('git rev-parse --show-toplevel', {
+      cwd: cwd || process.cwd(),
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .toString()
+      .trim();
+    repoName = path.basename(topLevel);
+  } catch {
+    repoName = path.basename(cwd || process.cwd()) || 'generic-repo';
+  }
+  return path.resolve(homeDir, '.gemini/tmp', repoName);
+}
 
 function main() {
   let inputData;
@@ -44,6 +62,7 @@ function main() {
   const resolvedPath = path.resolve(cwd || process.cwd(), filePath);
   const relativePath = path.relative(cwd || process.cwd(), resolvedPath).replace(/\\/g, '/');
   const homeDir = process.env.HOME || '/tmp';
+  const targetDir = resolveTargetDir(cwd, homeDir);
 
   const isAllowlisted =
     relativePath.startsWith('.claude/') ||
@@ -55,6 +74,24 @@ function main() {
     resolvedPath.startsWith(path.join(homeDir, '.gemini'));
 
   if (isAllowlisted) {
+    if (/\.(js|mjs|sh|py|bash|ts)$/i.test(filePath)) {
+      // Load phase state to check if we are authorized under implement phase
+      const stateFile = path.join(targetDir, 'phase-state.json');
+      let currentPhase = 'research';
+      if (fs.existsSync(stateFile)) {
+        try {
+          currentPhase = JSON.parse(fs.readFileSync(stateFile, 'utf-8')).currentPhase || 'research';
+        } catch {}
+      }
+      const planHash = verifyPlanGate(targetDir);
+      if (currentPhase !== 'implement' || !planHash) {
+        console.error(
+          '🔒 Security Policy Violation: Creating or modifying execution scripts (.js, .sh, etc.) inside configuration directories without planning approval is strictly prohibited.\n\n' +
+            'You are only authorized to write declarative configurations (.json) or blueprints (.md) via bypass.',
+        );
+        process.exit(2);
+      }
+    }
     process.exit(0);
   }
 

@@ -68,7 +68,7 @@ your-project/
 │   │   └── testing_agent.md    # Dedicated local test and validation subagent
 │   │
 │   ├── skills/                 # Team-shared automation capabilities (tools)
-│   │   └── commit-push.sh      # Custom command to safely sign and push commits
+│   │   └── git-sync.sh         # Custom command to safely sync tags and branches with upstream
 │   │
 │   └── commands/               # Workspace-specific custom slash commands
 │       └── changelog.toml      # Registered locally as `/changelog`

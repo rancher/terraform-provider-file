@@ -15,7 +15,7 @@ To ensure high-signal coordination and eliminate redundant or disjointed prompts
 ### **Gate 1: Planning Gate (Initial Strategy Approval)**
 
 - **Location**: Phase 2 (Blueprint & Planning) - Step 5.
-- **Protocol**: The agent MUST NOT modify any source files or run any mutating development commands before presenting the Topic Overview or Component Specification (inside the `docs/development/` directory) in the chat and receiving explicit developer approval.
+- **Protocol**: The agent MUST NOT modify any source files or run any mutating development commands before presenting the imperative **Plan** (with step-by-step checklists) and any associated declarative **Blueprint** changes under `docs/development/` in the chat and receiving explicit developer approval.
 - **Autonomous Phase**: Once Gate 1 is approved, the agent operates with **full autonomous authorization** through Phase 3 (Surgical Implementation) and Phase 4 (Proactive Quality Gate). The agent does _not_ need to stop and ask for "interim" permissions to compile, run tests, lint, or invoke the review agent.
 
 ### **Gate 2: IDE & Commit Gate (Implementation Approval)**
@@ -24,8 +24,8 @@ To ensure high-signal coordination and eliminate redundant or disjointed prompts
 - **Protocol**: The agent presents the active unstaged git diff in the chat for the developer's visual IDE review and requests approval via `ask_user` containing the proposed conventional commit message (format: `Commit Message: "feat: <message>"`).
 - **Execution**: Once approved, our secure `after-ask-user.js` hook automatically:
   1. Writes the cryptographic `user-approval.json` signature tied to the diff hash.
-  2. Executes `.gemini/skills/commit-push.sh -m "<parsed_message>"` to securely commit and push.
-  3. Programmatically generates a Draft Pull Request on GitHub using `.gemini/skills/create-pr.sh --draft`.
+  2. Executes `agent-scripts/commit-push-helper.sh -m "<parsed_message>"` to securely commit and push.
+  3. Programmatically generates a Draft Pull Request on GitHub using `agent-scripts/create-pr-helper.sh --draft`.
      This eliminates any chance for the agent to inject unvetted files between approval and commit.
 
 ### **Gate 3: Draft PR Review Gate (Ready-for-Review Approval)**
@@ -58,15 +58,15 @@ To ensure high-signal coordination and eliminate redundant or disjointed prompts
 
 ### Phase 2: Planning, Strategy & Blueprint Synchronization (Gate 1)
 
-1. **Acquire, Edit, or Create Architectural Specification:** Following `docs/development/rules/blueprints.instructions.md`, verify if an existing Topic Overview or Component Specification exists for the target domain.
-   - **If an existing specification covers the domain:** You MUST NOT create a new file. Instead, _edit_ and _adapt_ the existing specification under `docs/development/`, modifying its top-half blueprint and expanding/re-opening the bottom-half implementation checklist.
-   - **If no existing specification matches the domain:** Create a new Topic Overview (at `docs/development/<Topic>.md`) and a corresponding Component Specification (at `docs/development/<Topic>/<Component>.md`).
-   - **Checklist Construction:** Build and expand the sequential implementation checklist in the Component Specification to detail the specific sub-tasks. (Note: You do NOT need to include standard quality gates like running tests or reviews as physical checkboxes; these are natively enforced by the security hooks).
-2. **🔒 Solicit Plan Approval (Gate 1):** Present the updated blueprint and implementation checklist to the developer in the chat for explicit approval. **The agent is strictly prohibited from modifying any source files or running mutating development commands until Gate 1 approval is received.**
+1. **Draft Imperative Plan & Update Declarative Blueprints:**
+   - **Draft Imperative Plan:** Enter Plan Mode to draft an imperative execution **Plan** inside the session's temporary plans directory (`~/.gemini/tmp/terraform-provider-file/<session_id>/plans/`). The Plan MUST contain a step-by-step implementation checklist, quality gates, comprehensive tests, and framework maintenance steps.
+   - **Update Declarative Blueprints:** If your design changes the system architecture or specifications, you MUST update the corresponding declarative **Blueprints** under `docs/development/` (adapting existing Component Specifications or Topic Overviews). Blueprints describe the target design and declarative state of the system, not session checklists.
+2. **🔒 Solicit Plan Approval (Gate 1):** Present your imperative Plan and any proposed Blueprint changes in the chat to the developer for explicit approval. **The agent is strictly prohibited from modifying any source files or running mutating development commands until Gate 1 Touch ID cryptographic approval is received.**
+   - Exiting Plan Mode automatically generates the valid `plan-approval.json` seal, creates a dedicated `feature/<plan-name>` branch, and resets any dirty uncommitted changes in the git tree (ephemeral research is discarded).
 
 ### Phase 3: Surgical Implementation (Autonomous Action)
 
-1. **Execute Plan & Track State (No Stage/Commit):** Implement the plan sequentially, updating checkboxes in the plan file in place. Keep edits simple, precise, and idiomatic. Do NOT stage (`git add`) or commit (`git commit`).
+1. **Execute Plan & Update State (No Stage/Commit):** Implement the plan sequentially on the feature branch, updating checklists inside your active Plan file. Keep edits simple, precise, and idiomatic. Do NOT stage (`git add`) or commit (`git commit`). Update declarative blueprints on disk if any architecture deviations occur.
 2. **Build & Test Verification:** Compile, build, and run tests locally.
    - **Full Test Suite Context Warning:** The full test suite can take over an hour and generate massive logs. Redirect output (e.g., `./run_tests.sh [options] > /tmp/run_tests.log 2>&1`) and run `.gemini/skills/parse-test-logs.sh` to prevent context window flooding.
    - **Fast Verification Option:** Validate changes quickly on a single fixture:
@@ -88,11 +88,11 @@ To ensure high-signal coordination and eliminate redundant or disjointed prompts
 2. **Upstream Synchronization:** Before checkout, switch to `main` and execute `.gemini/skills/git-sync.sh` to ensure our branch off point is completely up-to-date with upstream.
 3. **Isolate First Layer (Keep Unstaged):** Create a dedicated branch directly off the updated `main`. To keep the workspace clean, backup all other non-layer files to the standard `~/.gemini/tmp/<repo-name>/backup_changes` directory. Clean other files from the working directory, leaving **exclusively** the target layer's changes unstaged.
 4. **🔒 Solicit IDE & Commit Approval (Gate 2):** Present the unstaged diff to the developer in the chat for visual IDE review. Formulate a conventional commit message and ask for approval via `ask_user` in the exact format: `Commit Message: "feat: <message>"`.
-5. **🔒 Automated Secure Commit & Push**: Upon the developer's approval in `ask_user`, our secure `after-ask-user.js` hook automatically intercepts, writes the `user-approval.json` signature, stages the changes, and runs the secure skill `.gemini/skills/commit-push.sh -m "<message>"`. **Direct manual git commit and push commands are strictly prohibited.**
+5. **🔒 Automated Secure Commit & Push**: Upon the developer's approval in `ask_user`, our secure `after-ask-user.js` hook automatically intercepts, writes the `user-approval.json` signature, stages the changes, and executes the secure consolidated JS helper `runCommitPushHelper` in the background. **Direct manual git commit and push commands are strictly prohibited.**
 
 ### Phase 6: Draft PR & Ready Conversion (Gate 3)
 
-1. **🔒 Automated Draft PR Generation (Gate 3):** Immediately after successful push, the hook automatically runs `.gemini/skills/create-pr.sh --draft` to generate a Draft PR on GitHub.
+1. **🔒 Automated Draft PR Generation (Gate 3):** Immediately after successful push, the hook automatically executes the secure consolidated JS helper `runCreatePrHelper(['--draft'])` to generate a Draft PR on GitHub.
 2. **Inspect Draft PR:** Wait for the developer to inspect the draft PR link programmatically returned in the hook logs on GitHub.
 3. **Convert PR to Ready & Conclude Session:** Once the developer explicitly instructs you to finalize the PR in chat, convert the PR from Draft to "Ready for Review" using the GitHub CLI: `gh pr ready <pr-number>`. Provide a completion summary, present the final PR link, and cleanly **close the current development session**.
 

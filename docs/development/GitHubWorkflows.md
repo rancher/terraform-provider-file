@@ -22,7 +22,7 @@ Workflows in this repository act as orchestrators rather than executors. Any non
 
 To prevent malicious script execution and secure our privilege boundary against unreviewed fork contributions (such as poisoned pipeline attacks), we enforce centralized GitHub Rulesets and execution allowlists.
 
-- More details on configuring these actor and event restrictions, setup parameters, and threat mitigations can be found in **[Workflow Execution Protections](./GitHubWorkflows/WorkflowExecutionProtections.md)**.
+- More details on configuring these actor and event restrictions, setup parameters, and threat mitigations can be found in **[PR Executor Workflows & Execution Protections](./GitHubWorkflows/PRExecutor.md)**.
 
 ---
 

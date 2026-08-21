@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+#
+# Native Git Hook: pre-commit
+# Description: Strictly validates planning, testing, and review signatures for AI agents.
+#              Bypasses validation for human developers (detected via process-tree walking).
+#
+
+# Walk up process tree to detect if run by an AI agent
+PID=$$
+IS_AGENT=0
+while [ "$PID" -gt 1 ]; do
+  CMD=$(ps -p "$PID" -o command= 2>/dev/null)
+  if echo "$CMD" | grep -qE "(gemini-cli|node.*\.gemini|node.*\.claude|testing_agent|review_agent|subagent)"; then
+    IS_AGENT=1
+    break
+  fi
+  # Get parent PID
+  PID=$(ps -p "$PID" -o ppid= 2>/dev/null | tr -d ' ')
+  [ -z "$PID" ] && break
+done
+
+# If NOT an agent, allow the commit unconditionally (Human bypass)
+if [ "$IS_AGENT" -eq 0 ]; then
+  exit 0
+fi
+
+echo "🔒 Secure Pipeline: AI Agent detected in process tree. Verifying gate approvals..."
+
+# Determine target directories
+HOME_DIR="${HOME:-$(getent passwd "$USER" | cut -d: -f6)}"
+if [ -z "$HOME_DIR" ]; then
+  echo "❌ Git Commit Blocked: Unable to determine HOME directory."
+  exit 1
+fi
+REPO_NAME=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
+TARGET_DIR="${HOME_DIR}/.gemini/tmp/${REPO_NAME}"
+
+PLAN_APPROVAL="${TARGET_DIR}/plan-approval.json"
+TEST_APPROVAL="${TARGET_DIR}/test-approval.json"
+REVIEW_APPROVAL="${TARGET_DIR}/review-approval.json"
+
+# Check if plan approval exists
+if [ ! -f "$PLAN_APPROVAL" ]; then
+  echo "❌ Git Commit Blocked: Missing plan cryptographic approval (Gate 1)."
+  echo "AI agents must obtain developer plan approval before committing code."
+  exit 1
+fi
+
+# Check if test approval exists
+if [ ! -f "$TEST_APPROVAL" ]; then
+  echo "❌ Git Commit Blocked: Missing test cryptographic approval (Gate 2)."
+  echo "AI agents must run and pass all tests to obtain testing approval before committing."
+  exit 1
+fi
+
+# Check if review approval exists
+if [ ! -f "$REVIEW_APPROVAL" ]; then
+  echo "❌ Git Commit Blocked: Missing review cryptographic approval (Gate 3)."
+  echo "AI agents must successfully pass code review and obtain review approval before committing."
+  exit 1
+fi
+
+# Verify signature integrity against the staged/unstaged diff
+# Calculate current diff hash (staged + unstaged changes relative to HEAD)
+ACTIVE_DIFF=$(git diff HEAD)
+
+if command -v sha256sum >/dev/null 2>&1; then
+  ACTIVE_DIFF_HASH=$(echo -n "$ACTIVE_DIFF" | sha256sum | cut -d' ' -f1)
+elif command -v shasum >/dev/null 2>&1; then
+  ACTIVE_DIFF_HASH=$(echo -n "$ACTIVE_DIFF" | shasum -a 256 | cut -d' ' -f1)
+else
+  # Fallback to Node.js (already required for earlier logic)
+  export ACTIVE_DIFF
+  ACTIVE_DIFF_HASH=$(node -e "console.log(require('crypto').createHash('sha256').update(process.env.ACTIVE_DIFF).digest('hex'))")
+fi
+
+# Read diff_hash from test-approval.json and review-approval.json
+TEST_DIFF_HASH=$(node -e "console.log(require('$TEST_APPROVAL').diff_hash)")
+REVIEW_DIFF_HASH=$(node -e "console.log(require('$REVIEW_APPROVAL').diff_hash)")
+
+if [ "$ACTIVE_DIFF_HASH" != "$TEST_DIFF_HASH" ]; then
+  echo "❌ Git Commit Blocked: Staged changes do not match the tested code signature."
+  echo "The workspace was modified after testing. Re-run tests to obtain a valid test signature."
+  exit 1
+fi
+
+if [ "$ACTIVE_DIFF_HASH" != "$REVIEW_DIFF_HASH" ]; then
+  echo "❌ Git Commit Blocked: Staged changes do not match the reviewed code signature."
+  echo "The workspace was modified after review. Re-run reviews to obtain a valid review signature."
+  exit 1
+fi
+
+echo "✅ Secure Pipeline: All AI agent cryptographic gate signatures verified successfully!"
+exit 0

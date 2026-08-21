@@ -31,13 +31,20 @@ test('after-ask.js: Touch ID gate signing unit tests', async (t) => {
     const sessionPlansDir = path.join(tempTmpDir, 'session1/plans');
     fs.mkdirSync(sessionPlansDir, { recursive: true });
     const planFile = path.join(sessionPlansDir, 'PR404-Resolution.md');
-    fs.writeFileSync(planFile, '# Bootstrap Test');
+    const compliantPlanText =
+      `# PR404-Resolution\n` +
+      `- [ ] Task 1: Create a script.\n` +
+      `- [ ] Run comprehensive tests.\n` +
+      `- [ ] Maintain the Agentic Framework.\n` +
+      `- [ ] Enforce standard quality gates.\n` +
+      `- [ ] Update documentation.`;
+    fs.writeFileSync(planFile, compliantPlanText);
 
     const result = handlePlanApproval(
       tempTmpDir,
       pubKeyFile,
       privKeyFile,
-      'Do you approve the plan?\n```markdown\n# Bootstrap Test\n```',
+      'Do you approve the plan?\n```markdown\n# PR404-Resolution\n- [ ] Task 1\n- [ ] Run comprehensive tests.\n- [ ] Maintain the Agentic Framework.\n- [ ] Enforce standard quality gates.\n- [ ] Update documentation.\n```',
     );
 
     assert.strictEqual(result.status, 'approved');

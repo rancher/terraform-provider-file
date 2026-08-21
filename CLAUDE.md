@@ -67,7 +67,7 @@ Outside of these gates you have full autonomous authorization to execute.
    message via `AskUserQuestion` (format: `Commit Message: "feat: <message>"`).
    Approval triggers Touch ID signing, then automated commit, push, and draft PR
    creation. **Never run `git commit` or `git push` directly** — a hook blocks it and
-   points you at the commit-push skill.
+   points you to the secure hook-managed commit pipeline.
 
 ---
 
@@ -76,7 +76,7 @@ Outside of these gates you have full autonomous authorization to execute.
 - **`.claude/settings.json`**: hook triggers for the gates above.
 - **`.claude/agents/`**: `testing-agent.md`, `review-agent.md` — the Gate 2/3 subagents.
 - **`.claude/skills/`**: wrappers around the shared, tool-agnostic scripts in
-  `.gemini/skills/*.sh` (commit-push, git-sync, create-pr, resolve-pr-reviews, etc.).
+  `.gemini/skills/*.sh` (git-sync, resolve-pr-reviews, etc.).
   Those scripts are not Gemini-specific despite the path — use them directly.
 - **`agent-scripts/`**: shared core logic (planning/gating checks, git-safety checks,
   commit/push helpers) used by both the Gemini and Claude integrations. Treat it as a
@@ -99,6 +99,6 @@ Consult and strictly adhere to these when generating, editing, or reviewing code
 ## 7. Git & Source Control Rules
 
 - **No Upstream Pushes:** Never push directly to the upstream "rancher" remote. All remote pushes must target the developer's fork (`origin`).
-- **Commit & Push Gating:** Direct `git commit`/`git push` are blocked. Always use `.gemini/skills/commit-push.sh -m "message"` (invoked automatically after Gate 4 approval — you shouldn't need to run it by hand).
+- **Commit & Push Gating:** Direct `git commit`/`git push` and the `commit-push` helper scripts are strictly blocked. The entire commit/push pipeline is managed automatically by the after-ask-user hook upon Gate 4 Touch ID approval. You do not run them by hand.
 - **Developer Review First:** All changes must sit unstaged in the working tree for IDE review. Never commit without presenting the exact diff and getting explicit approval via the Gate 4 `AskUserQuestion`.
 - **Zero Data Loss:** Never run destructive git commands (`git reset --hard`, `git checkout .`, `git clean -fd`) on modified files unless explicitly requested.

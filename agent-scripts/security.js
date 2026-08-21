@@ -25,15 +25,50 @@ export function verifyGitCommand(command, cwd) {
     trimmedCmd.includes('.gemini/hooks') ||
     trimmedCmd.includes('.claude/hooks/') ||
     trimmedCmd.includes('.claude/hooks') ||
-    trimmedCmd.includes('agent-scripts/');
+    (trimmedCmd.includes('agent-scripts/') && !trimmedCmd.includes('agent-scripts/tests/'));
   if (isExecutingHooksManually) {
     return {
       decision: 'deny',
       reason:
         '🔒 Security Policy Violation: Manual execution of enforcer hook or agent scripts is strictly prohibited.\n\n' +
-        'These scripts are part of the secure system pipeline and must only be executed automatically by the Gemini CLI lifecycle.',
+        'These scripts are part of the secure system pipeline and must only be executed automatically by the Gemini CLI lifecycle.\n\n' +
+        'To proceed:\n' +
+        '1. Do NOT execute enforcer hook or helper files directly.\n' +
+        '2. Proceed strictly through our gated development lifecycle (Plan -> Test -> Review -> Commit).\n' +
+        '3. All test execution and gating signatures are managed automatically by the Gemini CLI. Run tests using pre-existing tracked commands.',
       systemMessage: '🔒 Security Block: Manual execution of secure scripts is prohibited.',
     };
+  }
+
+  // Anti-Bypass Guardrail: Unconditionally deny execution of untracked script files (Zero-Trust Sandbox)
+  const scriptRegex =
+    /\b(node|sh|bash|python|python3|perl|ruby)\b\s+(?:-[^\s]+\s+)*([A-Za-z0-9_.\-\/]+\.(?:js|mjs|sh|py|pl|rb|ts|bash))\b|^\s*(\.\/[A-Za-z0-9_.\-\/]+\.(?:js|mjs|sh|py|pl|rb|ts|bash))\b/i;
+  const matchScript = commandClean.match(scriptRegex);
+  if (matchScript) {
+    const rawScriptPath = matchScript[2] || matchScript[3];
+    if (rawScriptPath) {
+      const scriptPath = path.resolve(cwd || process.cwd(), rawScriptPath);
+      if (fs.existsSync(scriptPath)) {
+        try {
+          execFileSync('git', ['ls-files', '--error-unmatch', scriptPath], {
+            cwd: cwd || process.cwd(),
+            stdio: 'ignore',
+          });
+        } catch {
+          return {
+            decision: 'deny',
+            reason:
+              `🔒 Security Policy Violation: Execution of untracked script file '${scriptPath}' is strictly blocked under our zero-trust sandbox!\n\n` +
+              'AI agents are prohibited from creating and running arbitrary temporary execution scripts to bypass repository guards.\n\n' +
+              'To proceed:\n' +
+              '1. Stage and track this script in version control first using git: `git add <script>`.\n' +
+              '2. Once the script is tracked by Git, the sandbox enforcers will authorize its execution.\n' +
+              '3. Never attempt to run untracked scripts or write temporary files in configuration directories.',
+            systemMessage: `🔒 Security Block: Execution of untracked script '${scriptPath}' is prohibited.`,
+          };
+        }
+      }
+    }
   }
 
   // Anti-Bypass Guardrail: Unconditionally deny any manual writing, editing, or spoofing of any gate approval/challenge JSON/age files
@@ -120,7 +155,7 @@ export function verifyGitCommand(command, cwd) {
                 `In accordance with Phase 6, Step 18 (Convert to Ready) and Phase 7, Step 20 (Proceed to Next Layer) of 'development-process.md', you MUST first graduate the current PR from Draft to Ready-for-Review before checking out 'main' or switching tasks.\n\n` +
                 `To proceed:\n` +
                 `1. Complete all iteration reviews and obtain local sign-off.\n` +
-                `2. Convert the draft PR to Ready-for-Review (Phase 6, Step 18) using: \`gh pr ready ${prInfo.number}\` (or the create-pr.sh skill).\n` +
+                `2. Convert the draft PR to Ready-for-Review (Phase 6, Step 18) using the GitHub CLI directly: \`gh pr ready ${prInfo.number}\`.\n` +
                 `3. Once the PR is marked as ready for review on GitHub, you will be authorized to switch branches (Phase 7, Step 20).`,
               systemMessage: `🔒 Security Block: Current PR #${prInfo.number} is in Draft mode. Please comply with Phase 6, Step 18 of development-process.md.`,
             };
@@ -139,20 +174,21 @@ export function verifyGitCommand(command, cwd) {
   }
 
   // Check for unauthorized git commit or push operations
-  const isCommitOrPush = /\bgit\s+(commit|push)\b/.test(commandClean);
+  const isCommitOrPush =
+    /\bgit\s+(commit|push)\b/.test(commandClean) || /commit-push-helper\.sh|commit-push-helper/i.test(commandClean);
   if (isCommitOrPush) {
     return {
       decision: 'deny',
       reason:
-        `Security Policy Violation: Direct manual git commit and push commands are strictly prohibited in this repository.\n\n` +
-        `In accordance with Phase 6, Step 15 (Authorized Commit & Push) of 'development-process.md', you MUST use our custom, secure, and synchronized commit-and-push skill to perform commits and pushes.\n\n` +
-        `This skill automatically validates file count limits, verifies proactive code reviews, synchronizes with upstream main, pulls/fetches from your fork remote, and executes GPG/SSH cryptographically signed and signed-off commits.\n\n` +
+        `Security Policy Violation: Direct manual git commit/push commands and direct execution of the commit-push helper scripts are strictly prohibited in this repository.\n\n` +
+        `In accordance with Phase 6, Step 15 (Authorized Commit & Push) of 'development-process.md', commits and pushes are solely and securely managed out-of-band by the system hooks.\n\n` +
         `To proceed:\n` +
-        `1. Stage your changes cleanly: \`git add <files>...\`\n` +
-        `2. Execute the commit-push skill in the chat: \`.gemini/skills/commit-push.sh -m "your commit message"\`\n` +
-        `3. Provide manual confirmation and allow the skill to execute fully.`,
+        `1. Complete all Plan, Test, and Review phases successfully.\n` +
+        `2. Transition to the COMMIT phase via the phase manager.\n` +
+        `3. Call ask_user to present your changes and request commit approval from the developer.\n` +
+        `4. The system hooks will automatically commit and push your changes upon biometric Touch ID validation.`,
       systemMessage:
-        '🔒 Security Block: Direct git commit/push is blocked. Please run \'.gemini/skills/commit-push.sh -m "..."\' to commit.',
+        '🔒 Security Block: Direct git commit/push and commit-push helper execution are blocked. Please request commit approval via ask_user.',
     };
   }
 

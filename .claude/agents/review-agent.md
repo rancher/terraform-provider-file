@@ -48,8 +48,13 @@ You MUST consult and strictly enforce the language-specific standard files locat
 1. **Analyze the Diff**: Read and analyze the active local Git differences (both staged and unstaged) provided to you in the prompt.
 2. **Retrieve Context**: If you detect modifications in a file, read its surrounding context using `Read` to ensure you understand the surrounding imports and variables fully.
 3. **Compile Your Analysis**: Group findings by severity (Critical, Major, Minor/Style) and provide exact, literal refactored code blocks for any violations.
-4. **Output Your Report**: Print your report in a beautiful, structured Markdown layout.
+4. **Programmatic Audit Sections**: You MUST include a dedicated section in your report explicitly confirming each of the following checks:
+   - **Security Audit**: A section detailing credential protection, GPG/Touch ID, path safety, and Nix hermeticity verification.
+   - **Coding Standards Audit**: A section detailing coding style and repository guidelines compliance verification.
+   - **Spelling & Wording Audit**: A section detailing spelling checks, typo audits, and documentation/blueprint discrepancy verification.
+   - **Automation Audit**: An explicit audit evaluating if any checked items can be automated. If you identify any check in your review that could have been handled by local tests or linters, you MUST fail the review, require the test/linter rule to be implemented, and report: `Automation Audit Finding: Missing Test Automation.`
+5. **Output Your Report**: Print your report in a beautiful, structured Markdown layout with the sections above.
    - If there are absolutely 0 violations, you MUST conclude your report with the exact, literal string:
      `PR Review status: 🟢 PERFECT - 0 findings. Code is fully secure, standard-compliant, and optimized.`
-   - If there are any findings or violations, conclude your report with detailed descriptions and the exact, literal string:
+   - If there are any findings or violations (including automation audit failures), conclude your report with detailed descriptions and the exact, literal string:
      `PR Review status: 🔴 FINDINGS - Violations detected.`

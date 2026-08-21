@@ -12,7 +12,7 @@ To establish a zero-trust, compliant development workspace, the Agentic Framewor
 
 Direct execution of native git commit or push commands is highly prone to bypasses of pre-commit quality gates. To eliminate this risk, the framework blocks all manual commit/push attempts and intercepts them at the shell/tool invocation layer.
 
-```text
+````text
 Developer Command [git commit] or [git push]
                     │
                     ▼
@@ -22,19 +22,18 @@ Developer Command [git commit] or [git push]
         [Unconditional Rejection]
                     │
                     ▼
-  [Redirect to .gemini/skills/commit-push.sh]
-```
+  [Redirect to Phase Gated after-ask-user Hook Pipeline]
 
-- **Direct Git Block Hook (`block-rancher-git.js`)**: Configured on the `run_shell_command` matcher in `.gemini/settings.json`. It intercepts all shell commands. If a developer or agent tries to execute `git commit` or `git push` directly, the hook unconditionally rejects the command and redirects them to use the secure `.gemini/skills/commit-push.sh` skill.
+- **Direct Git Block Hook (`block-rancher-git.js`)**: Configured on the `run_shell_command` matcher in `.gemini/settings.json`. It intercepts all shell commands. If a developer or agent tries to execute `git commit` or `git push` directly, the hook unconditionally rejects the command and instructs them to request commit/push approval via `ask_user` in the `commit` phase.
 - **Upstream Push Block**: It additionally parses remote destinations. Any attempt to push directly to the upstream "rancher" organization repositories is instantly blocked. Push operations can only target the developer's authorized personal fork.
 
 ### 2. Live Planning Enforcement Hook (`enforce-planning.js`)
 
-To guarantee compliance with the **Planning Protocol (Gate 1)**, the framework prevents files from being modified without an approved blueprint in `docs/development/`.
+To guarantee compliance with the **Planning Protocol (Gate 1)**, the framework prevents source files from being modified without an approved imperative Plan signature.
 
 - **Interception**: Configured on the `write_file` and `replace` matchers.
-- **Verification**: Before allowing any file-writing or text-replacement tool to execute on source files (Go, Terraform, workflows, scripts), the hook reads `git status --porcelain`.
-- **Rule**: It verifies that at least one added, modified, or untracked file exists under the `docs/development/` directory, confirming that a planning blueprint is actively in place. If no active blueprint is found, the tool execution is immediately denied.
+- **Verification**: Before allowing any file-writing or text-replacement tool to execute on source files (Go, Terraform, workflows, scripts), the hook reads the phase state file on disk.
+- **Rule**: If the active phase is not `implement`, edits are denied. If in the `implement` phase, the hook verifies that a cryptographically signed plan approval (`plan-approval.json`) exists in the session's temporary folder, matching the latest active plan's hash. If the signature is missing or invalid, tool execution is immediately denied.
 
 ### 3. High-Resilience Auto-Stashing Sync (`git-sync.sh`)
 
@@ -65,3 +64,4 @@ Active Working Tree (Dirty)
 1. **No-Bypass Hook Policy**: Bypass environment flags (such as `BYPASS_COMMIT_HOOK=1`) are strictly removed and prohibited inside block scripts. Hook execution is absolute.
 2. **Path Whitelisting**: To allow the agent to create and update planning blueprints, hook configurations, and session parameters, writes/edits targeting files inside the `.gemini/`, `.gemini/`, `.claude/` directories, or `GEMINI.md`/`AGENTS.md` are unconditionally allowed, bypassing the planning check.
 3. **Stash Safety**: Stash pushing must always use `--include-untracked` (`-u`) to ensure newly created files are safely isolated and not left behind to cause merge collisions during checkout.
+````

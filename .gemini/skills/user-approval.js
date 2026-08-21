@@ -13,6 +13,7 @@ import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
 import { execSync } from 'child_process';
+import { validatePlanContent } from '../../agent-scripts/planning.js';
 
 let repoName = '';
 try {
@@ -127,6 +128,17 @@ function verifyPlan() {
     const activePlan = findLatestActivePlan();
     if (!activePlan) {
       console.error('Error: No active plan found in session memory.');
+      process.exit(1);
+    }
+
+    // Programmatic verification of Plan structural content
+    const validation = validatePlanContent(activePlan);
+    if (!validation.valid) {
+      console.error('❌ Error: Active plan has invalid structure!');
+      for (const err of validation.errors) {
+        console.error(`  - ${err}`);
+      }
+      console.error('\nPlease update your imperative Plan to satisfy all requirements before proceeding.');
       process.exit(1);
     }
 

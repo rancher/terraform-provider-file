@@ -22,6 +22,24 @@ test('security.js: verifyGitCommand unit tests', async (t) => {
     assert.strictEqual(result.decision, 'allow');
   });
 
+  await t.test('denies execution of untracked scripts and allows tracked ones (sandbox)', () => {
+    // Create an untracked file inside tempHome
+    const untrackedFile = path.join(tempHome, 'untracked_script.js');
+    fs.writeFileSync(untrackedFile, 'console.log("untracked");');
+
+    const resultUntracked = verifyGitCommand(`node ${untrackedFile}`, tempHome);
+    assert.strictEqual(resultUntracked.decision, 'deny');
+    assert.ok(resultUntracked.reason.includes('Execution of untracked script file'));
+
+    // Create and track a file inside tempHome
+    const trackedFile = path.join(tempHome, 'tracked_script.js');
+    fs.writeFileSync(trackedFile, 'console.log("tracked");');
+    execSync(`git add ${trackedFile}`, { cwd: tempHome, stdio: 'ignore' });
+
+    const resultTracked = verifyGitCommand(`node ${trackedFile}`, tempHome);
+    assert.strictEqual(resultTracked.decision, 'allow');
+  });
+
   await t.test('denies manual execution of enforcer hooks and agent-scripts', () => {
     const resultGemini = verifyGitCommand('node .gemini/hooks/block-secrets.js', tempHome);
     assert.strictEqual(resultGemini.decision, 'deny');
@@ -34,6 +52,9 @@ test('security.js: verifyGitCommand unit tests', async (t) => {
 
     const resultAgentScripts = verifyGitCommand('sh agent-scripts/git-utils.sh', tempHome);
     assert.strictEqual(resultAgentScripts.decision, 'deny');
+
+    const resultTestScripts = verifyGitCommand('node --test agent-scripts/tests/security.test.js', tempHome);
+    assert.strictEqual(resultTestScripts.decision, 'allow');
   });
 
   await t.test('denies direct manipulation of gate approval and challenge files', () => {
@@ -58,7 +79,11 @@ test('security.js: verifyGitCommand unit tests', async (t) => {
   await t.test('denies direct git commit or git push', () => {
     const resultCommit = verifyGitCommand('git commit -m "feat: bypass"', tempHome);
     assert.strictEqual(resultCommit.decision, 'deny');
-    assert.ok(resultCommit.reason.includes('Direct manual git commit and push commands are strictly prohibited'));
+    assert.ok(
+      resultCommit.reason.includes(
+        'Direct manual git commit/push commands and direct execution of the commit-push helper scripts are strictly prohibited',
+      ),
+    );
 
     const resultPush = verifyGitCommand('git push origin main', tempHome);
     assert.strictEqual(resultPush.decision, 'deny');

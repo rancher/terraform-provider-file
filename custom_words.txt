@@ -72,3 +72,9 @@ updatecli
 variablize
 Webfetch
 yamux
+vulnerab
+differentdiff
+differentplan
+stalediff
+currentdiff
+rancherremote

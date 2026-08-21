@@ -42,16 +42,16 @@ We run heavy end-to-end integration tests that deploy actual AWS infrastructure 
 
 To isolate testing dependencies and prevent pollute-drift in our main provider binary, our testing framework is structured as an independent Go module:
 
-- The `./test` directory MUST stand as a standalone Go module named `test`.
-- The `./test` module should maintain a separate package for each test suite to ensure clear boundaries and modular execution.
-- Testing structures must be kept as DRY as possible. Where feasible, extract common resource and fixture creations into their own helper packages.
-- Each test must establish its own localized Terraform plugin cache to guarantee hermetic execution, seeded directly from the global cache in `run_tests.sh`.
+- The `./test` directory stands as a standalone Go module named `test`.
+- The `./test` module maintains a separate package for each test suite to ensure clear boundaries and modular execution.
+- Testing structures are kept as DRY as possible. Where feasible, common resource and fixture creations are extracted into helper packages.
+- Each test establishes its own localized Terraform plugin cache to guarantee hermetic execution, seeded directly from the global cache in `run_tests.sh`.
 
 ### 2. Makefile Actions & Nix Integration
 
 Our `Makefile` acts as the root entrypoint for developer interaction, providing clean actions that abstract environmental setup:
 
-- **Nix Dev Shell**: The Makefile must natively detect if Nix is installed, raise an error if absent, and handle entering the Nix dev environment (`nix develop`) before running downstream tools.
+- **Nix Dev Shell**: The Makefile natively detects if Nix is installed, raises an error if absent, and handles entering the Nix dev environment (`nix develop`) before running downstream tools.
 - **Targets Required**:
   - `make lint`: Automatically runs `.github/workflows/scripts/lint.sh` to check formatting, styling, and syntax.
   - `make test`: Runs unit tests via `run_tests.sh` with no options.
@@ -62,13 +62,13 @@ Our `Makefile` acts as the root entrypoint for developer interaction, providing 
 
 Our test runner is a highly flexible, robust wrapper script that governs the entire execution lifecycle:
 
-- **Execution Traps**: The script must implement a global `trap` to ensure that even if a run panics, is interrupted, or fails, the `cleanup.sh` script is unconditionally executed.
+- **Execution Traps**: The script implements a global `trap` to ensure that even if a run panics, is interrupted, or fails, the `cleanup.sh` script is unconditionally executed.
 - **CommandLine Options**:
   - `--lint-only`: Runs the static validation suite without booting Go tests.
   - `--build-only`: Compiles the provider and seeds the Terraform cache.
   - `--cleanup-id <id>`: Cleans up AWS resources associated with a specific run.
   - `--slow-mode`: Sets the test runner execution speed to 1 (running tests sequentially to prevent AWS throttling).
-- **Orphan Resource Cleanup**: If `cleanup.sh` is executed without an ID, it must look up and destroy any orphaned cloud resources tagged with `"Owner": "terraform-ci@suse.com"`.
+- **Orphan Resource Cleanup**: If `cleanup.sh` is executed without an ID, it looks up and destroys any orphaned cloud resources tagged with `"Owner": "terraform-ci@suse.com"`.
 
 ---
 
@@ -114,4 +114,4 @@ _(Placeholder for future standardizations around Terraform Acceptance Testing `m
 - [x] Present the unstaged diff for visual IDE review in the chat.
 - [x] Obtain declarative user approval via `user-approval.js`.
 - [x] Delegate a proactive review to `@review_agent` to secure the `review-approval.json` signature.
-- [x] Execute `commit-push.sh` to autonomously commit and push the finalized configuration.
+- [x] Request commit/push approval via ask_user; the hooks will automatically commit and push upon Touch ID sign-off.

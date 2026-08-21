@@ -162,25 +162,35 @@ run_diff() {
     remote_path=$(jq -r ".files[$i].remote" "${MANIFEST_FILE}")
     full_remote_path="${TMP_WORKSPACE}/${remote_path}"
 
-    if [[ ! -f "${full_remote_path}" ]]; then
+    if [[ ! -e "${full_remote_path}" ]]; then
       echo "⚠️  [NOT FOUND IN REMOTE] Remote source '${remote_path}' missing in template repo for '${local_path}'."
       exit_code=1
       continue
     fi
 
-    if [[ ! -f "${local_path}" ]]; then
-      echo "❌ [MISSING LOCALLY] Local file '${local_path}' does not exist."
+    if [[ ! -e "${local_path}" ]]; then
+      echo "❌ [MISSING LOCALLY] Local target '${local_path}' does not exist."
       echo "   ---> To retrieve: Run sync-boilerplate.sh --pull"
       exit_code=1
       continue
     fi
 
-    if diff -u "${local_path}" "${full_remote_path}" >/dev/null; then
-      echo "✅ [IN SYNC] '${local_path}' is identical to remote boilerplate."
+    if [[ -d "${full_remote_path}" ]]; then
+      if diff -ruN "${local_path}" "${full_remote_path}" >/dev/null; then
+        echo "✅ [IN SYNC] Directory '${local_path}' is identical to remote boilerplate."
+      else
+        echo "⚠️  [OUT OF SYNC] Directory '${local_path}' has drifted from template:"
+        diff -ruN "${local_path}" "${full_remote_path}" || true
+        exit_code=1
+      fi
     else
-      echo "⚠️  [OUT OF SYNC] '${local_path}' has drifted from template:"
-      diff -u "${local_path}" "${full_remote_path}" || true
-      exit_code=1
+      if diff -u "${local_path}" "${full_remote_path}" >/dev/null; then
+        echo "✅ [IN SYNC] '${local_path}' is identical to remote boilerplate."
+      else
+        echo "⚠️  [OUT OF SYNC] '${local_path}' has drifted from template:"
+        diff -u "${local_path}" "${full_remote_path}" || true
+        exit_code=1
+      fi
     fi
     echo "--------------------------------------------------------------"
   done
@@ -208,8 +218,15 @@ run_pull() {
     remote_path=$(jq -r ".files[$i].remote" "${MANIFEST_FILE}")
     full_remote_path="${TMP_WORKSPACE}/${remote_path}"
 
-    if [[ ! -f "${full_remote_path}" ]]; then
+    if [[ ! -e "${full_remote_path}" ]]; then
       echo "⚠️  [SKIPPED] Remote template file '${remote_path}' not found in cloned source."
+      continue
+    fi
+
+    if [[ -d "${full_remote_path}" ]]; then
+      echo "🔄 [SYNCHRONIZING DIR] '${local_path}' with remote template directory..."
+      mkdir -p "${local_path}"
+      cp -rf "${full_remote_path}/." "${local_path}/"
       continue
     fi
 
@@ -253,8 +270,16 @@ run_push() {
     remote_path=$(jq -r ".files[$i].remote" "${MANIFEST_FILE}")
     full_remote_path="${TMP_WORKSPACE}/${remote_path}"
 
-    if [[ ! -f "${local_path}" ]]; then
-      echo "⚠️  [SKIPPED] Local file '${local_path}' does not exist."
+    if [[ ! -e "${local_path}" ]]; then
+      echo "⚠️  [SKIPPED] Local path '${local_path}' does not exist."
+      continue
+    fi
+
+    if [[ -d "${local_path}" ]]; then
+      echo "🔄 [COPYING DIR] '${local_path}' into template remote at '${remote_path}'..."
+      mkdir -p "${full_remote_path}"
+      cp -rf "${local_path}/." "${full_remote_path}/"
+      copied_count=$((copied_count + 1))
       continue
     fi
 
@@ -319,10 +344,16 @@ run_status() {
     full_remote_path="${TMP_WORKSPACE}/${remote_path}"
 
     local status="UNKNOWN"
-    if [[ ! -f "${full_remote_path}" ]]; then
+    if [[ ! -e "${full_remote_path}" ]]; then
       status="MISSING IN REMOTE"
-    elif [[ ! -f "${local_path}" ]]; then
+    elif [[ ! -e "${local_path}" ]]; then
       status="MISSING LOCALLY"
+    elif [[ -d "${full_remote_path}" ]]; then
+      if diff -ruN "${local_path}" "${full_remote_path}" >/dev/null; then
+        status="IN SYNC (DIR)"
+      else
+        status="OUT OF SYNC (DIR)"
+      fi
     elif diff -u "${local_path}" "${full_remote_path}" >/dev/null; then
       status="IN SYNC"
     else
