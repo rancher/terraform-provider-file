@@ -36,14 +36,32 @@ REPO_NAME=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
 TARGET_DIR="${HOME_DIR}/.gemini/tmp/${REPO_NAME}"
 
 PLAN_APPROVAL="${TARGET_DIR}/plan-approval.json"
+PLAN_SIG="${PLAN_APPROVAL}.sig"
 TEST_APPROVAL="${TARGET_DIR}/test-approval.json"
 REVIEW_APPROVAL="${TARGET_DIR}/review-approval.json"
 
-# Check if plan approval exists
-if [ ! -f "$PLAN_APPROVAL" ]; then
-  echo "❌ Git Commit Blocked: Missing plan cryptographic approval (Gate 1)."
+# Check if plan approval exists and verify its signature
+if [ ! -f "$PLAN_APPROVAL" ] || [ ! -f "$PLAN_SIG" ]; then
+  echo "❌ Git Commit Blocked: Missing plan cryptographic approval or signature file (Gate 1)."
   echo "AI agents must obtain developer plan approval before committing code."
   exit 1
+fi
+
+SSH_KEY_PUB="${HOME_DIR}/.gemini/ssh-key.pub"
+if [ -f "$SSH_KEY_PUB" ]; then
+  ALLOWED_SIGNERS=$(mktemp)
+  KEY_CONTENT=$(cat "$SSH_KEY_PUB")
+  echo "gemini $KEY_CONTENT" > "$ALLOWED_SIGNERS"
+  
+  if ! ssh-keygen -Y verify -f "$ALLOWED_SIGNERS" -I gemini -n gemini -s "$PLAN_SIG" < "$PLAN_APPROVAL" >/dev/null 2>&1; then
+    echo "❌ Git Commit Blocked: Plan cryptographic signature verification failed (Gate 1)."
+    echo "The plan signature is invalid or did not pass Touch ID authentication."
+    rm -f "$ALLOWED_SIGNERS"
+    exit 1
+  fi
+  rm -f "$ALLOWED_SIGNERS"
+else
+  echo "⚠️ Warning: SSH public key not found at ~/.gemini/ssh-key.pub. Skipping cryptographic signature verification."
 fi
 
 # Check if test approval exists

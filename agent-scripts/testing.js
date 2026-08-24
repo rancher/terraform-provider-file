@@ -8,7 +8,7 @@ export function runPreReviewTests() {
     output += execSync('make lint', { stdio: 'pipe' }).toString();
 
     output += '\n--- Running Agent Script Tests ---\n';
-    output += execSync('node --test agent-scripts/tests/**/*.test.js', { stdio: 'pipe' }).toString();
+    output += execSync('node --test agent-scripts/tests/*.test.js', { stdio: 'pipe' }).toString();
 
     output += '\n--- Running Provider Tests ---\n';
     output += execSync('make test', { stdio: 'pipe' }).toString();

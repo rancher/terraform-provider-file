@@ -36,12 +36,30 @@ REPO_NAME=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
 TARGET_DIR="${HOME_DIR}/.gemini/tmp/${REPO_NAME}"
 
 USER_APPROVAL="${TARGET_DIR}/user-approval.json"
+USER_SIG="${USER_APPROVAL}.sig"
 
-# Check if user/commit approval exists
-if [ ! -f "$USER_APPROVAL" ]; then
-  echo "❌ Git Push Blocked: Missing developer cryptographic commit/push approval (Gate 4)."
+# Check if user/commit approval exists and verify its signature
+if [ ! -f "$USER_APPROVAL" ] || [ ! -f "$USER_SIG" ]; then
+  echo "❌ Git Push Blocked: Missing developer cryptographic commit/push approval or signature file (Gate 4)."
   echo "AI agents must obtain developer commit-push approval via Touch ID to push code."
   exit 1
+fi
+
+SSH_KEY_PUB="${HOME_DIR}/.gemini/ssh-key.pub"
+if [ -f "$SSH_KEY_PUB" ]; then
+  ALLOWED_SIGNERS=$(mktemp)
+  KEY_CONTENT=$(cat "$SSH_KEY_PUB")
+  echo "gemini $KEY_CONTENT" > "$ALLOWED_SIGNERS"
+  
+  if ! ssh-keygen -Y verify -f "$ALLOWED_SIGNERS" -I gemini -n gemini -s "$USER_SIG" < "$USER_APPROVAL" >/dev/null 2>&1; then
+    echo "❌ Git Push Blocked: Developer commit/push signature verification failed (Gate 4)."
+    echo "The signature is invalid or did not pass Touch ID authentication."
+    rm -f "$ALLOWED_SIGNERS"
+    exit 1
+  fi
+  rm -f "$ALLOWED_SIGNERS"
+else
+  echo "⚠️ Warning: SSH public key not found at ~/.gemini/ssh-key.pub. Skipping cryptographic signature verification."
 fi
 
 echo "✅ Secure Pipeline: AI agent push authorization verified successfully!"

@@ -180,13 +180,14 @@ function askUserPlanProof(inputData, targetDir) {
 
   const homeDir = os.homedir();
   const sshPubKeyFile = path.resolve(homeDir, '.gemini/ssh-key.pub');
+  const sshPrivKeyFile = sshPubKeyFile.replace(/\.pub$/, '');
 
-  if (!fs.existsSync(sshPubKeyFile)) {
+  if (!fs.existsSync(sshPubKeyFile) || !fs.existsSync(sshPrivKeyFile)) {
     console.log(
       JSON.stringify({
         decision: 'allow',
         systemMessage:
-          '🔒 Hook Notification: Cryptographic signing skipped because your SSH public key is not found at ~/.gemini/ssh-key.pub. Please copy or link your Touch ID SSH public key to this location.',
+          '🔒 Hook Notification: Cryptographic signing skipped because your SSH key material is not found at ~/.gemini/ssh-key.pub or ~/.gemini/ssh-key. Please copy or link your Touch ID SSH key pair to these locations.',
       }),
     );
     process.exit(0);

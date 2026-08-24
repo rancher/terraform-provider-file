@@ -51,6 +51,12 @@ You MUST consult and strictly enforce the language-specific standard files locat
 - **Zero Data Loss (ZDL)**: Strictly block and forbid helper scripts, workflow tools, or phase managers from executing destructive git commands (such as `git reset --hard` or `git clean -fd`) on local uncommitted code or untracked developer work without explicit user confirmation.
 - **Environment & Dependency Resilience**: Ensure setup, build, and execution scripts (e.g. `run_ai_sandbox.sh`) treat external cloud environments or configurations (e.g. AWS STS get-session-token credentials generation, required packages `aws`, `jq`) as entirely optional, falling back gracefully without failing.
 - **Permissions-Safe Writes**: Ensure that script files performing modifications or appends (like `echo >>`) check and temporarily restore write permissions on files that are set to read-only (such as `0400` files like `.aiexclude` or `.claudeignore`) before trying to write to them.
+- **POSIX Glob Compatibility**: Ensure all shell execution patterns (e.g. running tests with `node --test`) avoid non-POSIX recursive globs (`**/*.js`) that do not expand under standard POSIX `/bin/sh` or `/bin/bash` in minimal CI environments.
+- **SSH Private/Public Key Completeness**: Ensure hooks requiring signature generation (Gate 1 and Gate 4) validate that BOTH the public key (`ssh-key.pub`) and its corresponding private key (`ssh-key`) exist locally on disk before executing `ssh-keygen -Y sign`, avoiding silent or runtime signing failures.
+- **Report Parsing & Metadata Synchronization**: Verify that enforcer hooks requiring specific textual markers in subagent reports (like "pass 1", "pass 2", "pass 3") are perfectly in sync with the review agent's instruction guidelines to prevent blocking reviews.
+- **Commit Message Propagation**: Verify that the review hook programmatically extracts the suggested commit message from the subagent's report and writes it into `review-approval.json` under `suggested_commit_message` to satisfy downstream commit hooks.
+- **Command Injection Prevention**: Ensure all Git and CLI invocations in enforcer scripts avoid string interpolation of branch names or shell variables, using `execFileSync` with an argv array instead.
+- **Signature Gating Completeness in Native Hooks**: Ensure native Git hooks (like `.githooks/pre-commit` and `.githooks/pre-push`) verify the actual cryptographic signatures (`.json.sig` files) against the public key `~/.gemini/ssh-key.pub` using `ssh-keygen -Y verify` rather than just checking if the `.json` file exists.
 
 ---
 
@@ -60,7 +66,13 @@ You MUST consult and strictly enforce the language-specific standard files locat
 2. **Retrieve Context**: If you detect modifications in a file, read its surrounding context using `read_file` to ensure you understand the surrounding imports and variables fully.
 3. **Compile Your Analysis**: Group findings by severity (Critical, Major, Minor/Style) and provide exact, literal refactored code blocks for any violations.
 4. **Output Your Report**: Print your report in a beautiful, structured Markdown layout.
-   - If there are absolutely 0 violations, you MUST conclude your report with the exact, literal string:
+   - **Exhaustive Multi-Pass Sections**: You MUST explicitly structure your audit analysis under three distinct sections representing sequential review passes:
+     - `Pass 1`: Static Code Review (verifying formatting, syntax, and static analysis).
+     - `Pass 2`: Functional Logic Audit (verifying business logic and behavior).
+     - `Pass 3`: Concurrency & Runtime Safety (verifying edge cases, thread safety, and resource leaks).
+     *(Include the literal strings "pass 1", "pass 2", and "pass 3" in these section headers so the enforcer hook can scan and verify them!)*
+   - **Conventional Commit Message Formulation**: You MUST explicitly formulate a proposed Conventional Commit Message (format: `Commit Message: "<type>: <description>"`) based on your findings to suggest a precise git commit message for the changes.
+   - If there are absolutely 0 violations, you MUST conclude your report with your passes, suggested commit message, and the exact, literal string:
      `PR Review status: 🟢 PERFECT - 0 findings. Code is fully secure, standard-compliant, and optimized.`
    - If there are any findings or violations, conclude your report with detailed descriptions and the exact, literal string:
      `PR Review status: 🔴 FINDINGS - Violations detected.`

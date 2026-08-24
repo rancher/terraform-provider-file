@@ -24,10 +24,12 @@ export function checkDefunctBranch(branch, cwd) {
     return;
   }
   try {
-    const prStatus = execSync(
-      `GITHUB_TOKEN="" gh pr view "${branch}" --json state,number --template '{{.state}} {{.number}}'`,
+    const prStatus = execFileSync(
+      'gh',
+      ['pr', 'view', branch, '--json', 'state,number', '--template', '{{.state}} {{.number}}'],
       {
         cwd: cwd || process.cwd(),
+        env: { ...process.env, GITHUB_TOKEN: '' },
         stdio: ['ignore', 'pipe', 'ignore'],
       },
     )
@@ -50,7 +52,7 @@ export function checkDefunctBranch(branch, cwd) {
 export function verifyRemoteAncestry(branch, remoteName = 'origin', cwd) {
   console.log('Verifying local branch ancestry is fully up-to-date with remote fork...');
   try {
-    execSync(`git fetch -q "${remoteName}" "${branch}"`, {
+    execFileSync('git', ['fetch', '-q', remoteName, branch], {
       cwd: cwd || process.cwd(),
       stdio: 'ignore',
     });
@@ -62,10 +64,10 @@ export function verifyRemoteAncestry(branch, remoteName = 'origin', cwd) {
   }
 
   try {
-    const localSha = execSync('git rev-parse HEAD', { cwd: cwd || process.cwd() })
+    const localSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: cwd || process.cwd() })
       .toString()
       .trim();
-    const remoteSha = execSync(`git rev-parse "${remoteName}/${branch}"`, { cwd: cwd || process.cwd() })
+    const remoteSha = execFileSync('git', ['rev-parse', `${remoteName}/${branch}`], { cwd: cwd || process.cwd() })
       .toString()
       .trim();
 
@@ -80,7 +82,7 @@ export function verifyRemoteAncestry(branch, remoteName = 'origin', cwd) {
     }
 
     try {
-      execSync(`git merge-base --is-ancestor "${remoteSha}" "${localSha}"`, { cwd: cwd || process.cwd() });
+      execFileSync('git', ['merge-base', '--is-ancestor', remoteSha, localSha], { cwd: cwd || process.cwd() });
       console.log('✅ Local branch contains all remote tracking changes (Fast-Forward ancestry confirmed).');
       return;
     } catch {
