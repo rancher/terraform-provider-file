@@ -1,0 +1,11 @@
+# Hide security hooks and scripts
+.gemini/hooks/
+.claude/hooks/
+agent-scripts/
+
+# Hide cryptographic gating signatures and flags
+*-approval.json
+*-approval.challenge
+*.flag
+agent-scripts/*
+!agent-scripts/tests/

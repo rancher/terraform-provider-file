@@ -32,5 +32,5 @@ The agent evaluates our active `git diff HEAD` against our language-specific ins
 
 The Review Subagent is executed during Phase 4 of our **Development Process**:
 
-- It requires Gate 1 (Planning Gate) and Gate 2 (Testing Gate) to be successfully signed and valid before execution is authorized by `.gemini/hooks/before-invoke-agent.js`.
-- Upon successful execution with zero findings, the system's `after-invoke-agent.js` hook automatically intercepts, cryptographically signs, and writes `review-approval.json` to disk, chaining it to our active plan and diff hashes.
+- It requires Gate 1 (Planning Gate) and Gate 2 (Testing Gate) to be successfully signed and valid before execution is authorized by `.gemini/hooks/03-review-phase.js`.
+- Upon successful execution with zero findings, the system's `03-review-phase.js --after-invoke` hook automatically intercepts, cryptographically signs, and writes `review-approval.json` to disk, chaining it to our active plan and diff hashes.

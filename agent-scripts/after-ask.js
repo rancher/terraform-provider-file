@@ -1,13 +1,12 @@
+import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import crypto from 'crypto';
-import { execFileSync } from 'child_process';
-import { calculateFileHash, calculateDiffHash, findLatestActivePlan } from './gating.js';
+import { calculateDiffHash, calculateFileHash, findLatestActivePlan } from './gating.js';
 
 /**
  * Handles the Planning Gate 1 biometric GPG signing challenge and output.
  */
-export function handlePlanApproval(targetDir, pubKeyFile, privKeyFile, promptText) {
+export function handlePlanApproval(targetDir, pubKeyFile, promptText) {
   let planContent = '';
   const matchCodeBlock = promptText.match(/```markdown\n([\s\S]*?)\n```/);
   if (matchCodeBlock) {
@@ -57,12 +56,8 @@ export function handlePlanApproval(targetDir, pubKeyFile, privKeyFile, promptTex
     process.exit(1);
   }
 
-  const challengeToken = crypto.randomBytes(32).toString('hex');
-  const challengeHash = crypto.createHash('sha256').update(challengeToken).digest('hex');
-
   const envelope = {
     status: 'approved',
-    challenge_token: challengeToken,
     plan_file: activePlan,
     plan_hash: planHash,
     timestamp: new Date().toISOString(),
@@ -70,21 +65,14 @@ export function handlePlanApproval(targetDir, pubKeyFile, privKeyFile, promptTex
 
   try {
     const envelopeJson = JSON.stringify(envelope, null, 2);
-    const envelopeFile = path.join(targetDir, 'plan-approval.age');
-    const challengeFile = path.join(targetDir, 'plan-approval.challenge');
-    const signatureFile = path.join(targetDir, 'plan-approval.json');
+    const approvalFile = path.join(targetDir, 'plan-approval.json');
+    const signatureFile = path.join(targetDir, 'plan-approval.json.sig');
 
-    fs.rmSync(envelopeFile, { force: true });
-    fs.rmSync(challengeFile, { force: true });
+    fs.rmSync(approvalFile, { force: true });
     fs.rmSync(signatureFile, { force: true });
 
-    execFileSync('age', ['-R', pubKeyFile, '-o', envelopeFile], { input: envelopeJson });
-    fs.writeFileSync(challengeFile, JSON.stringify({ challenge_hash: challengeHash }, null, 2));
-
-    const decrypted = execFileSync('age', ['-d', '-i', privKeyFile, envelopeFile]);
-    fs.writeFileSync(signatureFile, decrypted);
-
-    fs.rmSync(envelopeFile, { force: true });
+    fs.writeFileSync(approvalFile, envelopeJson);
+    execFileSync('ssh-keygen', ['-Y', 'sign', '-f', pubKeyFile, '-n', 'gemini', approvalFile]);
 
     return {
       status: 'approved',
@@ -102,7 +90,7 @@ export function handlePlanApproval(targetDir, pubKeyFile, privKeyFile, promptTex
 /**
  * Handles the Commit Gate 4 biometric GPG signing challenge and automatic commit/push.
  */
-export function handleCommitApproval(targetDir, pubKeyFile, privKeyFile, promptText) {
+export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
   const activePlan = findLatestActivePlan(targetDir);
   const planHash = activePlan ? calculateFileHash(activePlan) : 'unknown';
   const diffHash = calculateDiffHash();
@@ -112,12 +100,8 @@ export function handleCommitApproval(targetDir, pubKeyFile, privKeyFile, promptT
     process.exit(1);
   }
 
-  const challengeToken = crypto.randomBytes(32).toString('hex');
-  const challengeHash = crypto.createHash('sha256').update(challengeToken).digest('hex');
-
   const envelope = {
     status: 'approved',
-    challenge_token: challengeToken,
     diff_hash: diffHash,
     plan_hash: planHash,
     timestamp: new Date().toISOString(),
@@ -125,21 +109,14 @@ export function handleCommitApproval(targetDir, pubKeyFile, privKeyFile, promptT
 
   try {
     const envelopeJson = JSON.stringify(envelope, null, 2);
-    const envelopeFile = path.join(targetDir, 'user-approval.age');
-    const challengeFile = path.join(targetDir, 'user-approval.challenge');
-    const signatureFile = path.join(targetDir, 'user-approval.json');
+    const approvalFile = path.join(targetDir, 'user-approval.json');
+    const signatureFile = path.join(targetDir, 'user-approval.json.sig');
 
-    fs.rmSync(envelopeFile, { force: true });
-    fs.rmSync(challengeFile, { force: true });
+    fs.rmSync(approvalFile, { force: true });
     fs.rmSync(signatureFile, { force: true });
 
-    execFileSync('age', ['-R', pubKeyFile, '-o', envelopeFile], { input: envelopeJson });
-    fs.writeFileSync(challengeFile, JSON.stringify({ challenge_hash: challengeHash }, null, 2));
-
-    const decrypted = execFileSync('age', ['-d', '-i', privKeyFile, envelopeFile]);
-    fs.writeFileSync(signatureFile, decrypted);
-
-    fs.rmSync(envelopeFile, { force: true });
+    fs.writeFileSync(approvalFile, envelopeJson);
+    execFileSync('ssh-keygen', ['-Y', 'sign', '-f', pubKeyFile, '-n', 'gemini', approvalFile]);
 
     console.log(
       JSON.stringify({
@@ -233,10 +210,11 @@ export function handleCommitApproval(targetDir, pubKeyFile, privKeyFile, promptT
 
       const sigFiles = [
         path.join(targetDir, 'user-approval.json'),
-        path.join(targetDir, 'user-approval.challenge'),
+        path.join(targetDir, 'user-approval.json.sig'),
         path.join(targetDir, 'test-approval.json'),
         path.join(targetDir, 'review-approval.json'),
         path.join(targetDir, 'plan-approval.json'),
+        path.join(targetDir, 'plan-approval.json.sig'),
       ];
       for (const file of sigFiles) {
         try {

@@ -1,7 +1,8 @@
-import fs from 'fs';
-import path from 'path';
+import { execFileSync, execSync } from 'child_process';
 import crypto from 'crypto';
-import { execSync } from 'child_process';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 
 // Calculate SHA-256 hash of a file's content
 export function calculateFileHash(filePath) {
@@ -62,27 +63,32 @@ export function findLatestActivePlan(targetDir) {
 // Verify Gate 1: Plan Gate and return plan_hash
 export function verifyPlanGate(targetDir) {
   const planApprovalFile = path.join(targetDir, 'plan-approval.json');
-  const planChallengeFile = path.join(targetDir, 'plan-approval.challenge');
+  const sigFile = path.join(targetDir, 'plan-approval.json.sig');
+  const pubKeyFile = path.resolve(os.homedir(), '.gemini/ssh-key.pub');
 
-  if (!fs.existsSync(planApprovalFile) || !fs.existsSync(planChallengeFile)) {
+  if (!fs.existsSync(planApprovalFile) || !fs.existsSync(sigFile) || !fs.existsSync(pubKeyFile)) {
     return null;
   }
 
   try {
+    const allowedSignersFile = path.join(targetDir, 'allowed_signers');
+    const pubKeyContent = fs.readFileSync(pubKeyFile, 'utf-8').trim();
+    fs.writeFileSync(allowedSignersFile, `gemini ${pubKeyContent}`);
+
+    execFileSync('ssh-keygen', [
+      '-Y', 'verify',
+      '-f', allowedSignersFile,
+      '-I', 'gemini',
+      '-n', 'gemini',
+      '-s', sigFile
+    ], {
+      input: fs.readFileSync(planApprovalFile),
+      stdio: ['pipe', 'ignore', 'ignore']
+    });
+
     const content = JSON.parse(fs.readFileSync(planApprovalFile, 'utf-8'));
-    const challenge = JSON.parse(fs.readFileSync(planChallengeFile, 'utf-8'));
 
     if (content.status !== 'approved') {
-      return null;
-    }
-
-    const token = content.challenge_token;
-    if (!token) {
-      return null;
-    }
-
-    const calculatedHash = crypto.createHash('sha256').update(token).digest('hex');
-    if (calculatedHash !== challenge.challenge_hash) {
       return null;
     }
 

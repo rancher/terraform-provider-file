@@ -131,3 +131,83 @@ export function verifyReviewReport(report, diffHash, planHash, reviewApprovalFil
     };
   }
 }
+
+/**
+ * Programmatically validates that a testing report contains all of our strict verification requirements.
+ * @param {string} report - The testing report markdown content
+ * @returns {object} - { valid: boolean, errors: string[] }
+ */
+export function validateTestContent(report) {
+  const errors = [];
+
+  // 1. Linters check
+  const lintMatch = /linter|lint|eslint|golangci-lint|tflint|static check/i.test(report);
+  if (!lintMatch) {
+    errors.push('Testing report must explicitly confirm successful static analysis and linter execution.');
+  }
+
+  // 2. Test execution check
+  const testMatch = /unit test|test suite|go test|run_tests/i.test(report);
+  if (!testMatch) {
+    errors.push(
+      'Testing report must explicitly confirm execution of the active unit tests or comprehensive test suites.',
+    );
+  }
+
+  // 3. Status Check
+  const statusMatch = /status:\s*🟢\s*SUCCESS|success|pass/i.test(report);
+  if (!statusMatch) {
+    errors.push('Testing report must contain an explicit success status declaration.');
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Programmatically validates that a review report contains all of our strict verification requirements.
+ * @param {string} report - The review report markdown content
+ * @returns {object} - { valid: boolean, errors: string[] }
+ */
+export function validateReviewContent(report) {
+  const errors = [];
+
+  // 1. Security Check
+  const securityMatch = /security|vulnerab|secret/i.test(report);
+  if (!securityMatch) {
+    errors.push('Review report must explicitly confirm verification of security and credential safeguards.');
+  }
+
+  // 2. Coding Standards Check
+  const standardsMatch = /standards|coding\s+standards|rules|conventions/i.test(report);
+  if (!standardsMatch) {
+    errors.push('Review report must explicitly confirm verification of repository coding standards.');
+  }
+
+  // 3. Spelling & Wording Check
+  const spellingMatch = /spelling|wording|typo|discrepancy/i.test(report);
+  if (!spellingMatch) {
+    errors.push(
+      'Review report must explicitly confirm verification of spelling and documentation/wording consistency.',
+    );
+  }
+
+  // 4. Automation Audit Check
+  const automationMatch = /automation\s+audit|automat(e|ed|ion)/i.test(report);
+  if (!automationMatch) {
+    errors.push('Review report must explicitly confirm conducting an automation audit of checked items.');
+  }
+
+  // 5. Approval Status Check
+  const approvalMatch = /approved|approval|perfect|pass/i.test(report);
+  if (!approvalMatch) {
+    errors.push('Review report must contain an explicit approval status declaration.');
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}

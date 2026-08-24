@@ -22,7 +22,7 @@ To ensure high-signal coordination and eliminate redundant or disjointed prompts
 
 - **Location**: Phase 5 (IDE Review & Secure Commit-Push) - Steps 13 & 14.
 - **Protocol**: The agent presents the active unstaged git diff in the chat for the developer's visual IDE review and requests approval via `ask_user` containing the proposed conventional commit message (format: `Commit Message: "feat: <message>"`).
-- **Execution**: Once approved, our secure `after-ask-user.js` hook automatically:
+- **Execution**: Once approved, our secure `04-commit-phase.js --after-ask` hook automatically:
   1. Writes the cryptographic `user-approval.json` signature tied to the diff hash.
   2. Executes `.gemini/skills/commit-push.sh -m "<parsed_message>"` to securely commit and push.
   3. Programmatically generates a Draft Pull Request on GitHub using `.gemini/skills/create-pr.sh --draft`.
@@ -88,7 +88,7 @@ To ensure high-signal coordination and eliminate redundant or disjointed prompts
 2. **Upstream Synchronization:** Before checkout, switch to `main` and execute `.gemini/skills/git-sync.sh` to ensure our branch off point is completely up-to-date with upstream.
 3. **Isolate First Layer (Keep Unstaged):** Create a dedicated branch directly off the updated `main`. To keep the workspace clean, backup all other non-layer files to the standard `~/.gemini/tmp/<repo-name>/backup_changes` directory. Clean other files from the working directory, leaving **exclusively** the target layer's changes unstaged.
 4. **🔒 Solicit IDE & Commit Approval (Gate 2):** Present the unstaged diff to the developer in the chat for visual IDE review. Formulate a conventional commit message and ask for approval via `ask_user` in the exact format: `Commit Message: "feat: <message>"`.
-5. **🔒 Automated Secure Commit & Push**: Upon the developer's approval in `ask_user`, our secure `after-ask-user.js` hook automatically intercepts, writes the `user-approval.json` signature, stages the changes, and runs the secure skill `.gemini/skills/commit-push.sh -m "<message>"`. **Direct manual git commit and push commands are strictly prohibited.**
+5. **🔒 Automated Secure Commit & Push**: Upon the developer's approval in `ask_user`, our secure `04-commit-phase.js --after-ask` hook automatically intercepts, writes the `user-approval.json` signature, stages the changes, and runs the secure skill `.gemini/skills/commit-push.sh -m "<message>"`. **Direct manual git commit and push commands are strictly prohibited.**
 
 ### Phase 6: Draft PR & Ready Conversion (Gate 3)
 

@@ -4,12 +4,17 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { execSync } from 'child_process';
+import os from 'os';
 import { calculateFileHash, findLatestActivePlan, verifyPlanGate } from '../gating.js';
 
 test('gating.js: verification unit tests', async (t) => {
   const uniqueId = crypto.randomBytes(8).toString('hex');
-  const tempHome = path.resolve(`/tmp/gemini-gating-test-${uniqueId}`);
+  // Resolve tempHome inside homedir so that ssh-keygen verification won't fail due to world-writable /tmp permissions
+  const tempHome = path.resolve(os.homedir(), `.gemini/tmp/gemini-gating-test-${uniqueId}`);
   const tempTmpDir = path.resolve(tempHome, '.gemini/tmp/terraform-provider-file');
+
+  // Set HOME environment variable so that os.homedir() returns tempHome in subsequent gating checks
+  process.env.HOME = tempHome;
 
   fs.mkdirSync(tempTmpDir, { recursive: true });
   execSync('git init', { cwd: tempHome, stdio: 'ignore' });
@@ -45,27 +50,31 @@ test('gating.js: verification unit tests', async (t) => {
   });
 
   await t.test('verifyPlanGate checks signatures correctly', () => {
-    const challengeToken = crypto.randomBytes(32).toString('hex');
-    const challengeHash = crypto.createHash('sha256').update(challengeToken).digest('hex');
+    // Create keys dir and real SSH key pair
+    const keysDir = path.join(tempHome, '.gemini');
+    fs.mkdirSync(keysDir, { recursive: true });
+    const privKeyFile = path.join(keysDir, 'ssh-key');
+    const pubKeyFile = path.join(keysDir, 'ssh-key.pub');
+    execSync(`ssh-keygen -t ed25519 -C "gemini" -N "" -f "${privKeyFile}"`, { stdio: 'ignore' });
+
+    // Create session and plan
     const session1 = path.join(tempTmpDir, 'session1/plans');
     fs.mkdirSync(session1, { recursive: true });
     const plan1 = path.join(session1, 'Plan1.md');
     fs.writeFileSync(plan1, '# Plan 1');
     const planHash = crypto.createHash('sha256').update('# Plan 1').digest('hex');
 
+    // Create plan approval and sign it natively
+    const approvalFile = path.join(tempTmpDir, 'plan-approval.json');
     fs.writeFileSync(
-      path.join(tempTmpDir, 'plan-approval.json'),
+      approvalFile,
       JSON.stringify({
         status: 'approved',
-        challenge_token: challengeToken,
         plan_file: plan1,
         plan_hash: planHash,
       }),
     );
-    fs.writeFileSync(
-      path.join(tempTmpDir, 'plan-approval.challenge'),
-      JSON.stringify({ challenge_hash: challengeHash }),
-    );
+    execSync(`ssh-keygen -Y sign -f "${pubKeyFile}" -n gemini "${approvalFile}"`, { stdio: 'ignore' });
 
     const verifiedHash = verifyPlanGate(tempTmpDir);
     assert.strictEqual(verifiedHash, planHash);

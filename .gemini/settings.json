@@ -3,7 +3,9 @@
     "compactToolOutputs": false
   },
   "tools": {
-    "allowed": ["run_shell_command"]
+    "allowed": [
+      "run_shell_command"
+    ]
   },
   "hooks": {
     "SessionStart": [
@@ -13,9 +15,9 @@
           {
             "name": "load-agents-and-workflow-context",
             "type": "command",
-            "command": "bash .gemini/hooks/startup-context.sh",
+            "command": "node .gemini/hooks/01-startup-context.js",
             "timeout": 10000,
-            "description": "Loads and injects AGENTS.md and development-process.md as startup context for the session"
+            "description": "Loads and injects mandates and development-process.md as startup context for the session"
           }
         ]
       }
@@ -25,11 +27,11 @@
         "matcher": "invoke_agent",
         "hooks": [
           {
-            "name": "sequential-gate-check-before-subagent",
+            "name": "review-phase-before-subagent",
             "type": "command",
-            "command": "node .gemini/hooks/before-invoke-agent.js",
-            "timeout": 5000,
-            "description": "Enforces sequential pipeline progression before executing sub-agents"
+            "command": "node .gemini/hooks/03-review-phase.js",
+            "timeout": 60000,
+            "description": "Verifies Gate 1, runs automated tests, and injects active plan checklist before review_agent execution"
           }
         ]
       },
@@ -37,9 +39,16 @@
         "matcher": "ask_user",
         "hooks": [
           {
-            "name": "sequential-gate-check-before-ask-user",
+            "name": "plan-phase-before-ask-user",
             "type": "command",
-            "command": "node .gemini/hooks/before-ask-user.js",
+            "command": "node .gemini/hooks/02-plan-phase.js --before-ask-proof",
+            "timeout": 5000,
+            "description": "Enforces plan format validation before asking for plan approval"
+          },
+          {
+            "name": "commit-phase-before-ask-user",
+            "type": "command",
+            "command": "node .gemini/hooks/04-commit-phase.js --before-ask",
             "timeout": 5000,
             "description": "Enforces sequential pipeline progression before asking for developer commit approval"
           }
@@ -49,9 +58,9 @@
         "matcher": "exit_plan_mode",
         "hooks": [
           {
-            "name": "enforce-planning-before-exit-plan-mode",
+            "name": "plan-phase-before-exit-plan-mode",
             "type": "command",
-            "command": "node .gemini/skills/user-approval.js --verify-plan",
+            "command": "node .gemini/hooks/02-plan-phase.js --verify-exit",
             "timeout": 5000,
             "description": "Enforces that a valid plan-approval.json signature exists before exiting plan mode"
           }
@@ -61,11 +70,11 @@
         "matcher": "run_shell_command",
         "hooks": [
           {
-            "name": "block-rancher-git",
+            "name": "block-restricted-commands",
             "type": "command",
-            "command": "node .gemini/hooks/block-rancher-git.js",
+            "command": "node .gemini/hooks/block-restricted-commands.js",
             "timeout": 5000,
-            "description": "Prevents running git remote operations against rancher-owned remotes"
+            "description": "Prevents running direct git commit, push, and rancher remote operations"
           }
         ]
       },
@@ -73,11 +82,18 @@
         "matcher": "write_file",
         "hooks": [
           {
-            "name": "enforce-planning-before-write",
+            "name": "plan-phase-before-write",
             "type": "command",
-            "command": "node .gemini/hooks/enforce-planning.js",
+            "command": "node .gemini/hooks/02-plan-phase.js",
             "timeout": 5000,
-            "description": "Enforces that a plan/checklist must be created or modified before writing files"
+            "description": "Blocks file writes if Plan Mode is required but not entered"
+          },
+          {
+            "name": "commit-phase-before-write",
+            "type": "command",
+            "command": "node .gemini/hooks/04-commit-phase.js",
+            "timeout": 5000,
+            "description": "Blocks file writes when changes are pending commit approval"
           }
         ]
       },
@@ -85,25 +101,63 @@
         "matcher": "replace",
         "hooks": [
           {
-            "name": "enforce-planning-before-replace",
+            "name": "plan-phase-before-replace",
             "type": "command",
-            "command": "node .gemini/hooks/enforce-planning.js",
+            "command": "node .gemini/hooks/02-plan-phase.js",
             "timeout": 5000,
-            "description": "Enforces that a plan/checklist must be created or modified before replacing text in files"
+            "description": "Blocks text replacements if Plan Mode is required but not entered"
+          },
+          {
+            "name": "commit-phase-before-replace",
+            "type": "command",
+            "command": "node .gemini/hooks/04-commit-phase.js",
+            "timeout": 5000,
+            "description": "Blocks text replacements when changes are pending commit approval"
           }
         ]
       }
     ],
     "AfterTool": [
       {
+        "matcher": "enter_plan_mode",
+        "hooks": [
+          {
+            "name": "plan-phase-after-enter-plan-mode",
+            "type": "command",
+            "command": "node .gemini/hooks/02-plan-phase.js --enter-proof",
+            "timeout": 5000,
+            "description": "Prepares the session workspace when Plan Mode is successfully entered"
+          }
+        ]
+      },
+      {
+        "matcher": "exit_plan_mode",
+        "hooks": [
+          {
+            "name": "plan-phase-after-exit-plan-mode",
+            "type": "command",
+            "command": "node .gemini/hooks/02-plan-phase.js --clear-plan-mode",
+            "timeout": 5000,
+            "description": "Cleans up workspace planning flags on successful Plan Mode exit"
+          }
+        ]
+      },
+      {
         "matcher": "ask_user",
         "hooks": [
           {
-            "name": "generate-approvals-after-ask",
+            "name": "plan-phase-after-ask-user",
             "type": "command",
-            "command": "node .gemini/hooks/after-ask-user.js",
+            "command": "node .gemini/hooks/02-plan-phase.js --ask-proof",
             "timeout": 60000,
-            "description": "Automatically and securely generates plan or commit approvals after developer clicks/types approval"
+            "description": "Generates cryptographic planning signatures upon user approval"
+          },
+          {
+            "name": "commit-phase-after-ask-user",
+            "type": "command",
+            "command": "node .gemini/hooks/04-commit-phase.js --after-ask",
+            "timeout": 60000,
+            "description": "Generates cryptographic commit signatures upon user approval"
           }
         ]
       },
@@ -111,14 +165,33 @@
         "matcher": "invoke_agent",
         "hooks": [
           {
-            "name": "generate-signatures-after-subagent",
+            "name": "review-phase-after-subagent",
             "type": "command",
-            "command": "node .gemini/hooks/after-invoke-agent.js",
+            "command": "node .gemini/hooks/03-review-phase.js --after-invoke",
             "timeout": 5000,
-            "description": "Automatically saves sub-agent reports and secures testing/review signatures upon verified success"
+            "description": "Saves review reports and secures review signatures upon verified success"
           }
         ]
       }
+    ]
+  },
+  "hooksConfig": {
+    "disabled": [
+      "load-agents-and-workflow-context",
+      "review-phase-before-subagent",
+      "plan-phase-before-ask-user",
+      "commit-phase-before-ask-user",
+      "plan-phase-before-exit-plan-mode",
+      "block-restricted-commands",
+      "plan-phase-before-write",
+      "commit-phase-before-write",
+      "plan-phase-before-replace",
+      "commit-phase-before-replace",
+      "plan-phase-after-enter-plan-mode",
+      "plan-phase-after-exit-plan-mode",
+      "plan-phase-after-ask-user",
+      "commit-phase-after-ask-user",
+      "review-phase-after-subagent"
     ]
   }
 }
