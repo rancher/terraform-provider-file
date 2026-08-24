@@ -52,7 +52,7 @@ run_shellcheck() {
   echo "==> Running shellcheck..."
   local files
   files=$(grep -Rl -e '^#!' . \
-    | grep -v -E "^\./(\.git|\.terraform|\.gemini|\.claude|bin)/" \
+    | grep -v -E "^\./(\.git|\.terraform|\.gemini|\.claude|bin|agent-scripts)/" \
     | grep -v -E "\.md$" || true)
 
   if [[ -z "${files}" ]]; then
@@ -78,7 +78,7 @@ run_shfmt() {
 
   local files
   files=$(grep -Rl -e '^#!' . \
-    | grep -v -E "^\./(\.git|\.terraform|\.gemini|\.claude|bin)/" \
+    | grep -v -E "^\./(\.git|\.terraform|\.gemini|\.claude|bin|agent-scripts)/" \
     | grep -v -E "\.md$" || true)
 
   if [[ -z "${files}" ]]; then
