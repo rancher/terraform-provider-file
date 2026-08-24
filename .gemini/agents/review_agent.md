@@ -43,6 +43,15 @@ You MUST consult and strictly enforce the language-specific standard files locat
 - **Accurate Option Prompts**: Verify that user-interactive TTY prompt scripts dynamically adjust option prompts (e.g. `[y/N]` vs `[Y/n]`) to match their fallback `defaultOption`.
 - **Unified Process Messaging**: Verify that hook block reason and denial messages are aligned with the proper development processes rather than advertising internal script or bypass paths.
 
+#### 3. Strict Quality Gates, Refactoring, & Safety Verification
+
+- **Biometric & Key Signature Verification**: Verify that all unit test suites calling cryptographic signers (such as `handlePlanApproval`, `handleCommitApproval`, or `verifyPlanGate`) conform strictly to the updated parameterized method signatures (e.g. correct argument count/type) to avoid passing dummy data down incorrect parameter paths.
+- **Phase Transition & File State Enforcement**: Verify that the success of automated validation steps (such as pre-review testing in Gate 2) reliably writes the required metadata/approval signature files (e.g., `test-approval.json`, `review-approval.json`) on disk, ensuring subsequent hooks and gating steps are not permanently blocked.
+- **Accurate Gate Labels**: Ensure all hook validations, logs, error/denial messages, and system alerts refer to the correct architectural gate numbers (e.g., Gate 4 for Commit Approval, Gate 3 for Review).
+- **Zero Data Loss (ZDL)**: Strictly block and forbid helper scripts, workflow tools, or phase managers from executing destructive git commands (such as `git reset --hard` or `git clean -fd`) on local uncommitted code or untracked developer work without explicit user confirmation.
+- **Environment & Dependency Resilience**: Ensure setup, build, and execution scripts (e.g. `run_ai_sandbox.sh`) treat external cloud environments or configurations (e.g. AWS STS get-session-token credentials generation, required packages `aws`, `jq`) as entirely optional, falling back gracefully without failing.
+- **Permissions-Safe Writes**: Ensure that script files performing modifications or appends (like `echo >>`) check and temporarily restore write permissions on files that are set to read-only (such as `0400` files like `.aiexclude` or `.claudeignore`) before trying to write to them.
+
 ---
 
 ### Step-by-Step Subagent Workflow

@@ -428,6 +428,10 @@ export function runPhaseManager(args, cwd) {
 
   // --- RESEARCH -> PLAN ---
   if (currentPhase === 'research' && targetPhase === 'plan') {
+    const isDirty = execSync('git status --porcelain', { cwd: cwd || process.cwd() }).toString().trim();
+    if (isDirty) {
+      throw new Error('Transition Blocked: You have uncommitted changes in your workspace. Please commit or stash them before transitioning phases to prevent data loss.');
+    }
     console.log('🧹 Exiting RESEARCH: Resetting all uncommitted changes...');
     try {
       execSync('git reset --hard', { cwd: cwd || process.cwd() });
@@ -445,6 +449,10 @@ export function runPhaseManager(args, cwd) {
       throw new Error('Transition Blocked: Missing or invalid plan cryptographic approval (Gate 1).');
     }
 
+    const isDirty = execSync('git status --porcelain', { cwd: cwd || process.cwd() }).toString().trim();
+    if (isDirty) {
+      throw new Error('Transition Blocked: You have uncommitted changes in your workspace. Please commit or stash them before transitioning phases to prevent data loss.');
+    }
     console.log('🧹 Exiting PLAN: Resetting working tree to ensure clean state...');
     try {
       execSync('git reset --hard', { cwd: cwd || process.cwd() });

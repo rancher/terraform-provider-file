@@ -48,7 +48,6 @@ test('after-ask.js: Touch ID gate signing unit tests', async (t) => {
     const result = handlePlanApproval(
       tempTmpDir,
       pubKeyFile,
-      'dummy-priv-key-file',
       'Do you approve the plan?\n```markdown\n# Bootstrap Test\n```',
     );
 

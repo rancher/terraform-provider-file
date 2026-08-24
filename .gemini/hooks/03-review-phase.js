@@ -31,9 +31,35 @@ function preReviewTesting(tool_input) {
   if (result.success) {
     const modifiedToolInput = tool_input;
     const activePlan = findLatestActivePlan(TARGET_DIR);
+    let planHash = '';
     if (activePlan && fs.existsSync(activePlan)) {
       const planContent = fs.readFileSync(activePlan, 'utf-8');
       modifiedToolInput.prompt = (modifiedToolInput.prompt || '') + '\n\n### ACTIVE PLAN CONTEXT ###\n' + planContent;
+      planHash = verifyPlanGate(TARGET_DIR) || '';
+    }
+
+    const diffHash = calculateDiffHash();
+    if (planHash && diffHash) {
+      const testApprovalFile = path.join(TARGET_DIR, 'test-approval.json');
+      try {
+        fs.unlinkSync(testApprovalFile);
+      } catch (err) {
+        // Ignored
+      }
+      fs.writeFileSync(
+        testApprovalFile,
+        JSON.stringify(
+          {
+            status: 'approved',
+            plan_hash: planHash,
+            diff_hash: diffHash,
+            timestamp: new Date().toISOString(),
+          },
+          null,
+          2,
+        ),
+        { mode: 0o400 },
+      );
     }
 
     console.log(
@@ -156,7 +182,7 @@ function afterInvoke(inputData) {
   console.log(
     JSON.stringify({
       decision: 'allow',
-      systemMessage: '🟢 Gate 2 (Review) Cryptographically Signed. Multi-pass review successful.',
+      systemMessage: '🟢 Gate 3 (Review) Cryptographically Signed. Multi-pass review successful.',
     }),
   );
   process.exit(0);

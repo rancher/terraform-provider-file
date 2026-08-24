@@ -83,7 +83,7 @@ function beforeAskUser(inputData, targetDir) {
     JSON.stringify(tool_input).includes('commit') ||
     JSON.stringify(tool_input).includes('GPG') ||
     JSON.stringify(tool_input).includes('Push') ||
-    JSON.stringify(tool_input).includes('Gate 2');
+    JSON.stringify(tool_input).includes('Gate 4');
 
   if (isCommitAsk) {
     const planHash = verifyPlanGate(targetDir);
@@ -92,7 +92,7 @@ function beforeAskUser(inputData, targetDir) {
         JSON.stringify({
           decision: 'deny',
           reason:
-            '🔒 Security Policy Violation: You cannot ask for Developer Commit Approval (Gate 2) because Gate 1 (Planning Gate) is missing or invalid!\n\n' +
+            '🔒 Security Policy Violation: You cannot ask for Developer Commit Approval (Gate 4) because Gate 1 (Planning Gate) is missing or invalid!\n\n' +
             'Please obtain planning approval from the developer first.',
           systemMessage: '🔒 Security Block: Gate 1 must be approved before commit.',
         }),
@@ -110,7 +110,7 @@ function beforeAskUser(inputData, targetDir) {
         JSON.stringify({
           decision: 'deny',
           reason:
-            '🔒 Security Policy Violation: You cannot ask for Developer Commit Approval (Gate 2) because the Review prerequisite is missing or invalid!\n\n' +
+            '🔒 Security Policy Violation: You cannot ask for Developer Commit Approval (Gate 4) because the Review prerequisite is missing or invalid!\n\n' +
             'In accordance with our zero-trust pipeline, you MUST successfully run the Review Subagent first:\n' +
             '   `invoke_agent(agent_name="review_agent", prompt="Please review my current changes.")`',
           systemMessage: '🔒 Security Block: Review must be approved before commit.',

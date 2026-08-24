@@ -26,10 +26,19 @@ generate_temp_aws_credentials() {
     echo "Generating 10-hour temporary AWS credentials..."
     local sts_output
     
+    if ! command -v aws >/dev/null 2>&1; then
+        echo "Warning: 'aws' CLI is not installed. Skipping AWS credential generation." >&2
+        return 0
+    fi
+
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "Warning: 'jq' utility is not installed. Skipping AWS credential generation." >&2
+        return 0
+    fi
+    
     if ! sts_output=$(aws sts get-session-token --duration-seconds 36000 --output json 2>/dev/null); then
-        echo "Error: Failed to generate temporary AWS credentials." >&2
-        echo "Make sure you have valid AWS credentials configured locally." >&2
-        exit 1
+        echo "Warning: Failed to generate temporary AWS credentials. Proceeding without them." >&2
+        return 0
     fi
 
     AWS_ACCESS_KEY_ID=$(echo "${sts_output}" | jq -r '.Credentials.AccessKeyId')
@@ -49,12 +58,16 @@ run_container() {
 
     # Enforce zero-trust by hiding security infrastructure from native AI tools
     for ignore_file in .aiexclude .claudeignore; do
+        if [[ -f "${ignore_file}" ]]; then
+            chmod +w "${ignore_file}" 2>/dev/null || true
+        fi
         touch "${ignore_file}"
         for rule in ".gemini/hooks/" ".claude/hooks/" "agent-scripts/*" "!agent-scripts/tests/"; do
             if ! grep -qxF "${rule}" "${ignore_file}"; then
                 echo "${rule}" >> "${ignore_file}"
             fi
         done
+        chmod 0400 "${ignore_file}" 2>/dev/null || true
     done
 
     local -a docker_args=(
