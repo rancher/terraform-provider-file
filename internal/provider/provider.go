@@ -22,6 +22,7 @@ var _ provider.Provider = &FileProvider{}
 // var _ provider.ProviderWithFunctions = &FileProvider{} // don't want to introduce custom functions
 // var _ provider.ProviderWithEphemeralResources = &FileProvider{} // don't want to use ephemeral resources
 
+// FileProvider is the main Terraform provider struct for managing file resources and data sources locally.
 type FileProvider struct {
 	version string
 }

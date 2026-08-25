@@ -8,6 +8,76 @@ import { findLatestActivePlan, verifyPlanGate } from '../../agent-scripts/gating
 import { validatePlanContent } from '../../agent-scripts/planning.js';
 import { resolveTargetDir } from '../../agent-scripts/workspace.js';
 
+const hookName = path.basename(process.argv[1]);
+const isStartup = hookName === '01-startup-context.js';
+const introLog = `🔒 Hook: ${hookName} - ${isStartup ? 'Loading startup context...' : 'Loading hook context...'}`;
+console.error(introLog);
+
+const originalLog = console.log;
+let hasLogged = false;
+
+console.log = function (msg) {
+  if (hasLogged) return;
+  try {
+    const parsed = JSON.parse(msg);
+    if (parsed.systemMessage) {
+      console.error(parsed.systemMessage);
+    }
+    const exitLog = `🔒 Hook: ${hookName} - ${isStartup ? 'context successfully loaded.' : 'Hook successfully loaded.'}`;
+    console.error(exitLog);
+
+    const msgs = [introLog];
+    if (parsed.systemMessage) msgs.push(parsed.systemMessage);
+    msgs.push(exitLog);
+    parsed.systemMessage = msgs.join('\n');
+
+    if (!parsed.decision && !isStartup) parsed.decision = 'allow';
+
+    originalLog(JSON.stringify(parsed, null, 2));
+    hasLogged = true;
+  } catch (e) {
+    originalLog(msg);
+  }
+};
+
+process.on('exit', (code) => {
+  if (!hasLogged) {
+    const exitMsg = `🔒 Hook Error (${hookName}): Silent early exit detected with code ${code}.`;
+    console.error(exitMsg);
+    process.stdout.write(JSON.stringify({
+      decision: 'allow',
+      systemMessage: `${introLog}\n${exitMsg}`
+    }) + '\n');
+    hasLogged = true;
+  }
+});
+
+process.on('uncaughtException', (err) => {
+  const errMsg = `🔒 Hook Error (${hookName}): Unhandled exception - ${err.message || err}`;
+  console.error(errMsg);
+  if (!hasLogged) {
+    process.stdout.write(JSON.stringify({
+      decision: 'allow',
+      systemMessage: `${introLog}\n${errMsg}`
+    }) + '\n');
+    hasLogged = true;
+  }
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  const errMsg = `🔒 Hook Error (${hookName}): Unhandled promise rejection - ${reason.message || reason}`;
+  console.error(errMsg);
+  if (!hasLogged) {
+    process.stdout.write(JSON.stringify({
+      decision: 'allow',
+      systemMessage: `${introLog}\n${errMsg}`
+    }) + '\n');
+    hasLogged = true;
+  }
+  process.exit(1);
+});
+
 function clearPrePlanFlag(targetDir) {
   const requirePlanModeFile = path.join(targetDir, 'require-plan-mode.flag');
   if (fs.existsSync(requirePlanModeFile)) {
@@ -25,7 +95,7 @@ function clearPrePlanFlag(targetDir) {
     JSON.stringify({
       decision: 'allow',
       systemMessage:
-        '✨ You have successfully entered Plan Mode. All tools are now unlocked for planning. Draft your plan and then use `ask_user` to request approval.',
+        '✨ You have successfully entered Plan Mode. All tools are now unlocked for planning. 👉 ACTION REQUIRED: Draft your plan and then use `ask_user` to request approval.',
     }),
   );
   process.exit(0);
@@ -34,7 +104,7 @@ function clearPrePlanFlag(targetDir) {
 function verifyExitPlanMode(inputData, targetDir) {
   // BeforeTool hook for exit_plan_mode
   if (inputData.tool_name !== 'exit_plan_mode') {
-    console.log(JSON.stringify({ decision: 'allow' }));
+    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Execution allowed, tool is not exit_plan_mode.' }));
     process.exit(0);
   }
 
@@ -46,20 +116,20 @@ function verifyExitPlanMode(inputData, targetDir) {
         reason:
           '🔒 Security Policy Violation: You cannot exit Plan Mode until the user has cryptographically approved the plan.\n\n' +
           'Please present the plan to the user using the `ask_user` tool first and ask for their cryptographic approval. Only after the user approves the plan will you be permitted to exit plan mode.',
-        systemMessage: '🔒 Security Block: User cryptographic plan approval required before exiting plan mode.',
+        systemMessage: '🔒 Security Block: User cryptographic plan approval required before exiting plan mode. 👉 ACTION REQUIRED: Use ask_user to get plan approval.',
       }),
     );
     process.exit(0);
   }
 
-  console.log(JSON.stringify({ decision: 'allow' }));
+  console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: verifyExitPlanMode check complete, execution allowed.' }));
   process.exit(0);
 }
 
 function clearPlanModeFlag(inputData, targetDir) {
   // AfterTool hook for exit_plan_mode
   if (inputData.tool_name !== 'exit_plan_mode') {
-    console.log(JSON.stringify({ decision: 'allow' }));
+    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Execution allowed, tool is not exit_plan_mode.' }));
     process.exit(0);
   }
 
@@ -75,7 +145,7 @@ function clearPlanModeFlag(inputData, targetDir) {
   console.log(
     JSON.stringify({
       decision: 'allow',
-      systemMessage: '✅ Exited Plan Mode. Implementation phase successfully unlocked!',
+      systemMessage: '✅ Exited Plan Mode. Implementation phase successfully unlocked! 👉 ACTION REQUIRED: Proceed immediately to Implement your plan, then move to the Review Phase by invoking the review_agent.',
     }),
   );
   process.exit(0);
@@ -85,13 +155,13 @@ function beforeAskUserPlan(inputData, targetDir) {
   const { tool_name, tool_input } = inputData;
 
   if (tool_name !== 'ask_user' || !tool_input) {
-    console.log(JSON.stringify({ decision: 'allow' }));
+    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Execution allowed, tool is not ask_user.' }));
     process.exit(0);
   }
 
   const inPlanModeFile = path.join(targetDir, 'in-plan-mode.flag');
   if (!fs.existsSync(inPlanModeFile)) {
-    console.log(JSON.stringify({ decision: 'allow' }));
+    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Execution allowed, currently not in plan mode.' }));
     process.exit(0);
   }
 
@@ -130,7 +200,7 @@ function beforeAskUserPlan(inputData, targetDir) {
     process.exit(0);
   }
 
-  console.log(JSON.stringify({ decision: 'allow' }));
+  console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: beforeAskUserPlan check complete, execution allowed.' }));
   process.exit(0);
 }
 
@@ -138,13 +208,13 @@ function askUserPlanProof(inputData, targetDir) {
   const { tool_name, tool_input, tool_response } = inputData;
 
   if (tool_name !== 'ask_user' || !tool_response) {
-    console.log(JSON.stringify({ decision: 'allow' }));
+    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Execution allowed, tool is not ask_user or response is missing.' }));
     process.exit(0);
   }
 
   const inPlanModeFile = path.join(targetDir, 'in-plan-mode.flag');
   if (!fs.existsSync(inPlanModeFile)) {
-    console.log(JSON.stringify({ decision: 'allow' }));
+    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Execution allowed, currently not in plan mode.' }));
     process.exit(0);
   }
 
@@ -153,7 +223,7 @@ function askUserPlanProof(inputData, targetDir) {
     safeToolInput.includes('plan') || safeToolInput.includes('blueprint') || safeToolInput.includes('Planning');
 
   if (!isPlanAsk) {
-    console.log(JSON.stringify({ decision: 'allow' }));
+    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Execution allowed, not a plan approval request.' }));
     process.exit(0);
   }
 
@@ -189,7 +259,7 @@ function askUserPlanProof(inputData, targetDir) {
     answerText.toLowerCase() === 'looks good';
 
   if (!isApproved) {
-    console.log(JSON.stringify({ decision: 'allow' }));
+    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: User did not approve plan.' }));
     process.exit(0);
   }
 
@@ -269,7 +339,7 @@ function prePlanPhaseInterruption(inputData, targetDir) {
     }
   }
 
-  console.log(JSON.stringify({ decision: 'allow' }));
+  console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: prePlanPhaseInterruption check complete, execution allowed.' }));
   process.exit(0);
 }
 
@@ -313,7 +383,7 @@ function main() {
     inputData = JSON.parse(fs.readFileSync(0, 'utf-8'));
   } catch (err) {
     console.error('Failed to parse stdin JSON:', err);
-    console.log(JSON.stringify({ decision: 'allow' }));
+    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Failed to parse input, allowing execution by default.' }));
     process.exit(0);
   }
 

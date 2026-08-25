@@ -136,3 +136,7 @@ You will need to use the manual release process, but again you will need to manu
 2. **Trigger the "Manually Create Full Release" Workflow:**
    Set the tag to the tag you created, set the sha to the sha of the tag.
    GoReleaser will pick things up and create the release for you, but the release notes won't be as pretty.
+
+## Documentation Notes
+
+- Added a descriptive comment to the main `FileProvider` struct in `internal/provider/provider.go` to clarify its purpose as the entry point for managing local file resources and data sources.

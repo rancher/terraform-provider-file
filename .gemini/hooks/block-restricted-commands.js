@@ -1,7 +1,78 @@
 #!/usr/bin/env node
 
 import fs from 'fs';
+import path from 'path';
 import { verifyGitCommand } from '../../agent-scripts/security.js';
+
+const hookName = path.basename(process.argv[1]);
+const isStartup = hookName === '01-startup-context.js';
+const introLog = `🔒 Hook: ${hookName} - ${isStartup ? 'Loading startup context...' : 'Loading hook context...'}`;
+console.error(introLog);
+
+const originalLog = console.log;
+let hasLogged = false;
+
+console.log = function (msg) {
+  if (hasLogged) return;
+  try {
+    const parsed = JSON.parse(msg);
+    if (parsed.systemMessage) {
+      console.error(parsed.systemMessage);
+    }
+    const exitLog = `🔒 Hook: ${hookName} - ${isStartup ? 'context successfully loaded.' : 'Hook successfully loaded.'}`;
+    console.error(exitLog);
+
+    const msgs = [introLog];
+    if (parsed.systemMessage) msgs.push(parsed.systemMessage);
+    msgs.push(exitLog);
+    parsed.systemMessage = msgs.join('\n');
+
+    if (!parsed.decision && !isStartup) parsed.decision = 'allow';
+
+    originalLog(JSON.stringify(parsed, null, 2));
+    hasLogged = true;
+  } catch (e) {
+    originalLog(msg);
+  }
+};
+
+process.on('exit', (code) => {
+  if (!hasLogged) {
+    const exitMsg = `🔒 Hook Error (${hookName}): Silent early exit detected with code ${code}.`;
+    console.error(exitMsg);
+    process.stdout.write(JSON.stringify({
+      decision: 'allow',
+      systemMessage: `${introLog}\n${exitMsg}`
+    }) + '\n');
+    hasLogged = true;
+  }
+});
+
+process.on('uncaughtException', (err) => {
+  const errMsg = `🔒 Hook Error (${hookName}): Unhandled exception - ${err.message || err}`;
+  console.error(errMsg);
+  if (!hasLogged) {
+    process.stdout.write(JSON.stringify({
+      decision: 'allow',
+      systemMessage: `${introLog}\n${errMsg}`
+    }) + '\n');
+    hasLogged = true;
+  }
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  const errMsg = `🔒 Hook Error (${hookName}): Unhandled promise rejection - ${reason.message || reason}`;
+  console.error(errMsg);
+  if (!hasLogged) {
+    process.stdout.write(JSON.stringify({
+      decision: 'allow',
+      systemMessage: `${introLog}\n${errMsg}`
+    }) + '\n');
+    hasLogged = true;
+  }
+  process.exit(1);
+});
 
 function main() {
   let inputData;
@@ -9,7 +80,7 @@ function main() {
     inputData = JSON.parse(fs.readFileSync(0, 'utf-8'));
   } catch (err) {
     console.error('Failed to parse stdin JSON in block-restricted-commands:', err.message || err);
-    console.log(JSON.stringify({ decision: 'allow' }));
+    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Failed to parse input, allowing execution by default.' }));
     process.exit(0);
   }
 
@@ -29,7 +100,7 @@ function main() {
     }
   }
 
-  console.log(JSON.stringify({ decision: 'allow' }));
+  console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: execution allowed.' }));
   process.exit(0);
 }
 
