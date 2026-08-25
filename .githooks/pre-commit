@@ -59,23 +59,25 @@ verify_gates() {
   fi
 
   local ssh_key_pub="${home_dir}/.gemini/ssh-key.pub"
-  if [[ -f "$ssh_key_pub" ]]; then
-    local allowed_signers
-    allowed_signers=$(mktemp)
-    local key_content
-    key_content=$(cat "$ssh_key_pub")
-    echo "gemini $key_content" >"$allowed_signers"
-
-    if ! ssh-keygen -Y verify -f "$allowed_signers" -I gemini -n gemini -s "$plan_sig" <"$plan_approval" >/dev/null 2>&1; then
-      echo "❌ Git Commit Blocked: Plan cryptographic signature verification failed (Gate 1)." >&2
-      echo "The plan signature is invalid or did not pass Touch ID authentication." >&2
-      rm -f "$allowed_signers"
-      exit 1
-    fi
-    rm -f "$allowed_signers"
-  else
-    echo "⚠️ Warning: SSH public key not found at ~/.gemini/ssh-key.pub. Skipping cryptographic signature verification." >&2
+  if [[ ! -f "$ssh_key_pub" ]]; then
+    echo "❌ Git Commit Blocked: SSH public key not found at ~/.gemini/ssh-key.pub." >&2
+    echo "AI agents must have a valid SSH public key configured for cryptographic signature verification." >&2
+    exit 1
   fi
+
+  local allowed_signers
+  allowed_signers=$(mktemp)
+  local key_content
+  key_content=$(cat "$ssh_key_pub")
+  echo "gemini $key_content" >"$allowed_signers"
+
+  if ! ssh-keygen -Y verify -f "$allowed_signers" -I gemini -n gemini -s "$plan_sig" <"$plan_approval" >/dev/null 2>&1; then
+    echo "❌ Git Commit Blocked: Plan cryptographic signature verification failed (Gate 1)." >&2
+    echo "The plan signature is invalid or did not pass Touch ID authentication." >&2
+    rm -f "$allowed_signers"
+    exit 1
+  fi
+  rm -f "$allowed_signers"
 
   # Check if test approval exists
   if [[ ! -f "$test_approval" ]]; then
@@ -105,11 +107,11 @@ verify_gates() {
     active_diff_hash=$(node -e "console.log(require('crypto').createHash('sha256').update(process.env.ACTIVE_DIFF).digest('hex'))")
   fi
 
-  # Read diff_hash from test-approval.json and review-approval.json
+  # Read diff_hash from test-approval.json and review-approval.json safely via argv
   local test_diff_hash
-  test_diff_hash=$(node -e "console.log(require('$test_approval').diff_hash)")
+  test_diff_hash=$(node -e "console.log(require(process.argv[1]).diff_hash)" "$test_approval")
   local review_diff_hash
-  review_diff_hash=$(node -e "console.log(require('$review_approval').diff_hash)")
+  review_diff_hash=$(node -e "console.log(require(process.argv[1]).diff_hash)" "$review_approval")
 
   if [[ "$active_diff_hash" != "$test_diff_hash" ]]; then
     echo "❌ Git Commit Blocked: Staged changes do not match the tested code signature." >&2

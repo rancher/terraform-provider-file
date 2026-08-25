@@ -57,23 +57,25 @@ verify_push_gate() {
   fi
 
   local ssh_key_pub="${home_dir}/.gemini/ssh-key.pub"
-  if [[ -f "$ssh_key_pub" ]]; then
-    local allowed_signers
-    allowed_signers=$(mktemp)
-    local key_content
-    key_content=$(cat "$ssh_key_pub")
-    echo "gemini $key_content" >"$allowed_signers"
-
-    if ! ssh-keygen -Y verify -f "$allowed_signers" -I gemini -n gemini -s "$user_sig" <"$user_approval" >/dev/null 2>&1; then
-      echo "❌ Git Push Blocked: Developer commit/push signature verification failed (Gate 4)." >&2
-      echo "The signature is invalid or did not pass Touch ID authentication." >&2
-      rm -f "$allowed_signers"
-      exit 1
-    fi
-    rm -f "$allowed_signers"
-  else
-    echo "⚠️ Warning: SSH public key not found at ~/.gemini/ssh-key.pub. Skipping cryptographic signature verification." >&2
+  if [[ ! -f "$ssh_key_pub" ]]; then
+    echo "❌ Git Push Blocked: SSH public key not found at ~/.gemini/ssh-key.pub." >&2
+    echo "AI agents must have a valid SSH public key configured for cryptographic signature verification." >&2
+    exit 1
   fi
+
+  local allowed_signers
+  allowed_signers=$(mktemp)
+  local key_content
+  key_content=$(cat "$ssh_key_pub")
+  echo "gemini $key_content" >"$allowed_signers"
+
+  if ! ssh-keygen -Y verify -f "$allowed_signers" -I gemini -n gemini -s "$user_sig" <"$user_approval" >/dev/null 2>&1; then
+    echo "❌ Git Push Blocked: Developer commit/push signature verification failed (Gate 4)." >&2
+    echo "The signature is invalid or did not pass Touch ID authentication." >&2
+    rm -f "$allowed_signers"
+    exit 1
+  fi
+  rm -f "$allowed_signers"
 
   echo "✅ Secure Pipeline: AI agent push authorization verified successfully!"
 }

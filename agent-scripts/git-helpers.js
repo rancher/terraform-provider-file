@@ -439,18 +439,11 @@ export function runPhaseManager(args, cwd) {
 
   // --- RESEARCH -> PLAN ---
   if (currentPhase === 'research' && targetPhase === 'plan') {
-    const isDirty = execSync('git status --porcelain', { cwd: cwd || process.cwd() }).toString().trim();
+    const isDirty = execFileSync('git', ['status', '--porcelain'], { cwd: cwd || process.cwd() }).toString().trim();
     if (isDirty) {
       throw new Error('Transition Blocked: You have uncommitted changes in your workspace. Please commit or stash them before transitioning phases to prevent data loss.');
     }
-    console.log('🧹 Exiting RESEARCH: Resetting all uncommitted changes...');
-    try {
-      execSync('git reset --hard', { cwd: cwd || process.cwd() });
-      execSync('git clean -fd', { cwd: cwd || process.cwd() });
-    } catch (err) {
-      console.error(err);
-      throw new Error('Failed to reset git repository during Research exit.');
-    }
+    console.log('🧹 Exiting RESEARCH: Workspace is clean. Proceeding to PLAN phase.');
   }
 
   // --- PLAN -> IMPLEMENT ---
@@ -460,18 +453,11 @@ export function runPhaseManager(args, cwd) {
       throw new Error('Transition Blocked: Missing or invalid plan cryptographic approval (Gate 1).');
     }
 
-    const isDirty = execSync('git status --porcelain', { cwd: cwd || process.cwd() }).toString().trim();
+    const isDirty = execFileSync('git', ['status', '--porcelain'], { cwd: cwd || process.cwd() }).toString().trim();
     if (isDirty) {
       throw new Error('Transition Blocked: You have uncommitted changes in your workspace. Please commit or stash them before transitioning phases to prevent data loss.');
     }
-    console.log('🧹 Exiting PLAN: Resetting working tree to ensure clean state...');
-    try {
-      execSync('git reset --hard', { cwd: cwd || process.cwd() });
-      execSync('git clean -fd', { cwd: cwd || process.cwd() });
-    } catch (err) {
-      console.error(err);
-      throw new Error('Failed to reset git repository during Plan exit.');
-    }
+    console.log('🧹 Exiting PLAN: Workspace is clean. Proceeding to IMPLEMENT phase.');
 
     const activePlan = findLatestActivePlan(targetDir);
     if (activePlan) {
@@ -487,13 +473,13 @@ export function runPhaseManager(args, cwd) {
         .replace(/[^a-z0-9_-]/g, '-');
       const branchName = `feature/${planName}`;
 
-      const currentBranch = execSync('git branch --show-current', { cwd: cwd || process.cwd() })
+      const currentBranch = execFileSync('git', ['branch', '--show-current'], { cwd: cwd || process.cwd() })
         .toString()
         .trim();
       if (currentBranch !== branchName) {
         console.log(`🌿 Switching to feature branch: ${branchName}`);
         try {
-          const branchesOutput = execSync('git branch --list --format="%(refname:short)"', {
+          const branchesOutput = execFileSync('git', ['branch', '--list', '--format=%(refname:short)'], {
             cwd: cwd || process.cwd(),
           }).toString();
           const branches = branchesOutput
@@ -501,9 +487,9 @@ export function runPhaseManager(args, cwd) {
             .map((b) => b.trim())
             .filter(Boolean);
           if (branches.includes(branchName)) {
-            execSync(`git switch ${branchName}`, { cwd: cwd || process.cwd() });
+            execFileSync('git', ['switch', branchName], { cwd: cwd || process.cwd() });
           } else {
-            execSync(`git checkout -b ${branchName}`, { cwd: cwd || process.cwd() });
+            execFileSync('git', ['checkout', '-b', branchName], { cwd: cwd || process.cwd() });
           }
         } catch (err) {
           throw new Error(`Failed to switch to branch ${branchName}: ${err.message}`);
