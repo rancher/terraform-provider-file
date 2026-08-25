@@ -16,7 +16,7 @@ Direct execution of native git commit or push commands is highly prone to bypass
 Developer Command [git commit] or [git push]
                     │
                     ▼
-   [BeforeTool Hook: block-rancher-git.js]
+   [BeforeTool Hook: block-restricted-commands.js]
                     │
                     ▼
         [Unconditional Rejection]
@@ -25,10 +25,10 @@ Developer Command [git commit] or [git push]
   [Redirect to .gemini/skills/commit-push.sh]
 ```
 
-- **Direct Git Block Hook (`block-rancher-git.js`)**: Configured on the `run_shell_command` matcher in `.gemini/settings.json`. It intercepts all shell commands. If a developer or agent tries to execute `git commit` or `git push` directly, the hook unconditionally rejects the command and redirects them to use the secure `.gemini/skills/commit-push.sh` skill.
+- **Direct Git Block Hook (`block-restricted-commands.js`)**: Configured on the `run_shell_command` matcher in `.gemini/settings.json`. It intercepts all shell commands. If a developer or agent tries to execute `git commit` or `git push` directly, the hook unconditionally rejects the command and redirects them to use the secure `.gemini/skills/commit-push.sh` skill.
 - **Upstream Push Block**: It additionally parses remote destinations. Any attempt to push directly to the upstream "rancher" organization repositories is instantly blocked. Push operations can only target the developer's authorized personal fork.
 
-### 2. Live Planning Enforcement Hook (`enforce-planning.js`)
+### 2. Live Planning Enforcement Hook (`02-plan-phase.js`)
 
 To guarantee compliance with the **Planning Protocol (Gate 1)**, the framework prevents files from being modified without an approved blueprint in `docs/development/`.
 

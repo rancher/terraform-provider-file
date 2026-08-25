@@ -45,14 +45,14 @@ run_actionlint() {
 
 run_eslint() {
   echo "==> Running eslint check on scripts..."
-  eslint .github/workflows/scripts/ .gemini/hooks/ .claude/hooks/ agent-scripts/
+  eslint .github/workflows/scripts/ .gemini/hooks/ .gemini/skills/ agent-scripts/
 }
 
 run_shellcheck() {
   echo "==> Running shellcheck..."
   local files
   files=$(grep -Rl -e '^#!' . \
-    | grep -v -E "^\./(\.git|\.terraform|\.gemini|\.claude|bin)/" \
+    | grep -v -E "^\./(\.git|\.terraform|\.gemini|bin|agent-scripts)/" \
     | grep -v -E "\.md$" || true)
 
   if [[ -z "${files}" ]]; then
@@ -78,7 +78,7 @@ run_shfmt() {
 
   local files
   files=$(grep -Rl -e '^#!' . \
-    | grep -v -E "^\./(\.git|\.terraform|\.gemini|\.claude|bin)/" \
+    | grep -v -E "^\./(\.git|\.terraform|\.gemini|bin|agent-scripts)/" \
     | grep -v -E "\.md$" || true)
 
   if [[ -z "${files}" ]]; then

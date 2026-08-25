@@ -18,14 +18,14 @@ events. The two integrations run side by side without interfering with each othe
 | Concern                                       | Gemini CLI                                               | Claude Code                                                                |
 | --------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------- |
 | Auto-loaded instructions                      | `GEMINI.md` pointer → `.gemini/system.md`                | `CLAUDE.md` (native, auto-loaded)                                          |
-| Session context injection                     | `SessionStart` hook (`.gemini/hooks/startup-context.sh`) | `SessionStart` hook (`.claude/hooks/session-start-context.sh`)             |
+| Session context injection                     | `SessionStart` hook (`.gemini/hooks/01-startup-context.js`) | `SessionStart` hook (`.claude/hooks/session-start-context.sh`)             |
 | Plan presentation & approval                  | `ask_user` + a separate `exit_plan_mode` check           | native `ExitPlanMode` (single step; Claude Code blocks on real approval)   |
 | Sub-agents                                    | `.gemini/agents/*.md`, invoked via `invoke_agent`        | `.claude/agents/*.md`, invoked via `Task`                                  |
 | Sub-agent gating                              | `BeforeTool` on `invoke_agent`                           | `PreToolUse` matcher `Task`                                                |
 | Sub-agent report → gate signature             | `AfterTool` on `invoke_agent`                            | `SubagentStop` matcher on the agent name                                   |
 | Block direct git commit/push, Rancher remotes | `BeforeTool` on `run_shell_command`                      | `PreToolUse` matcher `Bash`                                                |
 | Commit approval ask                           | `ask_user` (Gate 4)                                      | `AskUserQuestion` (Gate 4)                                                 |
-| Commit-ask gate pre-check (Gates 1-3)         | `BeforeTool` on `ask_user` (`before-ask-user.js`)        | `PreToolUse` matcher `AskUserQuestion` (`gate-before-commit-ask.js`)       |
+| Commit-ask gate pre-check (Gates 1-3)         | `BeforeTool` on `ask_user` (`02-plan-phase.js` / `04-commit-phase.js`) | `PreToolUse` matcher `AskUserQuestion` (`gate-before-commit-ask.js`)       |
 | Skills/scripts                                | `.gemini/skills/*.sh`                                    | `.claude/skills/<name>/SKILL.md` — thin wrappers around the _same_ scripts |
 | Reusable core logic                           | `agent-scripts/*.js`, `agent-scripts/*.sh`               | Same files, reused unmodified                                              |
 
@@ -71,7 +71,7 @@ under `~/.claude/plans/`), writes its content directly to
       existing `agent-scripts/security.js`, `gating.js`, `after-ask.js`, and
       `after-invoke.js` helpers (all unmodified, reused from the Gemini integration),
       including `gate-before-commit-ask.js` (fail-fast Gates 1-3 pre-check before the
-      Gate 4 commit ask, mirroring `.gemini/hooks/before-ask-user.js`).
+      Gate 4 commit ask, mirroring `.gemini/hooks/04-commit-phase.js --before-ask`).
 - [x] `.claude/agents/testing-agent.md`, `review-agent.md` — native subagent
       definitions mirroring `.gemini/agents/*.md`'s instructions and standardized
       pass/fail report strings that `subagent-report-gate.js` parses.

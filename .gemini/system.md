@@ -42,7 +42,7 @@ The `.gemini/` directory in the repository root houses all automation configurat
 
 - **`settings.json`**: Workspace-level settings, commands, and hook triggers.
 - **`system.md`**: This master system prompt file (loaded automatically by Gemini CLI at session start).
-- **`hooks/`**: Local event hooks (e.g. `before-invoke-agent.js`, `enforce-planning.js`, `after-ask-user.js`).
+- **`hooks/`**: Local event hooks (e.g. `01-startup-context.js`, `02-plan-phase.js`, `03-review-phase.js`, `04-commit-phase.js`, `block-restricted-commands.js`).
 - **`skills/`**: Project-level automation skills and scripts (such as `commit-push.sh`).
 - **`agents/`**: Custom specialized subagent definitions (such as `review_agent.md` and `testing_agent.md`).
 

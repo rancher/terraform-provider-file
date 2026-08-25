@@ -1,4 +1,4 @@
-import { execSync, execFileSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
@@ -38,7 +38,7 @@ export function verifyGitCommand(command, cwd) {
 
   // Anti-Bypass Guardrail: Unconditionally deny any manual writing, editing, or spoofing of any gate approval/challenge JSON/age files
   const isManipulatingApproval =
-    /\b(echo|cat|touch|rm|mv|cp|write|tee|vim|vi|nano|printf|sed|awk)\b.*\b(plan-approval|test-approval|review-approval|user-approval)\.(json|challenge|age)\b|>>?[^>]*\b(plan-approval|test-approval|review-approval|user-approval)\.(json|challenge|age)\b/.test(
+    /\b(echo|cat|touch|rm|mv|cp|write|tee|vim|vi|nano|printf|sed|awk)\b.*\b(plan-approval|test-approval|review-approval|user-approval)\.(json|challenge|age|sig)\b|>>?[^>]*\b(plan-approval|test-approval|review-approval|user-approval)\.(json|challenge|age|sig)\b/.test(
       commandClean,
     );
   if (isManipulatingApproval) {
@@ -161,7 +161,7 @@ export function verifyGitCommand(command, cwd) {
   const isRemoteOp = /\b(push|pull|fetch|clone|remote)\b/.test(commandClean);
 
   if (isGitCmd && isRemoteOp) {
-    const hasRancherRef = /rancher/i.test(trimmedCmd.replace(/block-rancher-git\.js/g, ''));
+    const hasRancherRef = /rancher/i.test(trimmedCmd.replace(/block-restricted-commands\.js/g, ''));
     if (hasRancherRef) {
       return {
         decision: 'deny',

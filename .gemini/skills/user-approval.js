@@ -13,6 +13,7 @@ import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
 import { execSync } from 'child_process';
+import { Buffer } from 'buffer';
 
 let repoName = '';
 try {
@@ -34,7 +35,7 @@ function calculateSHA256() {
   try {
     const diff = execSync('git diff HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
     return crypto.createHash('sha256').update(diff).digest('hex');
-  } catch (err) {
+  } catch {
     return null;
   }
 }
@@ -43,7 +44,7 @@ function calculateFileHash(filePath) {
   try {
     const content = fs.readFileSync(filePath);
     return crypto.createHash('sha256').update(content).digest('hex');
-  } catch (err) {
+  } catch {
     return null;
   }
 }
@@ -75,7 +76,7 @@ function findLatestActivePlan() {
 
     planFiles.sort((a, b) => b.mtime - a.mtime);
     return planFiles[0].path;
-  } catch (err) {
+  } catch {
     return null;
   }
 }
@@ -225,7 +226,9 @@ function writeApproval() {
     try {
       fs.unlinkSync(APPROVAL_FILE);
     } catch (e) {
-      if (e.code !== 'ENOENT') throw e;
+      if (e.code !== 'ENOENT') {
+        throw e;
+      }
     }
 
     // Write file securely with highly restrictive 0600 permissions
@@ -270,7 +273,7 @@ function promptApproval(message, defaultOption) {
     if (!response) {
       response = defaultOption;
     }
-  } catch (err) {
+  } catch {
     // Fallback gracefully in headless/piped environments
     console.warn(`Non-interactive terminal detected. Fallback to default: ${defaultOption}`);
     response = defaultOption;

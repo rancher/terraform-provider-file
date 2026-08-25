@@ -22,7 +22,7 @@ To ensure high-signal coordination and eliminate redundant or disjointed prompts
 
 - **Location**: Phase 5 (IDE Review & Secure Commit-Push) - Steps 13 & 14.
 - **Protocol**: The agent presents the active unstaged git diff in the chat for the developer's visual IDE review and requests approval via `ask_user` containing the proposed conventional commit message (format: `Commit Message: "feat: <message>"`).
-- **Execution**: Once approved, our secure `after-ask-user.js` hook automatically:
+- **Execution**: Once approved, our secure `04-commit-phase.js --after-ask` hook automatically:
   1. Writes the cryptographic `user-approval.json` signature tied to the diff hash.
   2. Executes `.gemini/skills/commit-push.sh -m "<parsed_message>"` to securely commit and push.
   3. Programmatically generates a Draft Pull Request on GitHub using `.gemini/skills/create-pr.sh --draft`.
@@ -88,7 +88,7 @@ To ensure high-signal coordination and eliminate redundant or disjointed prompts
 2. **Upstream Synchronization:** Before checkout, switch to `main` and execute `.gemini/skills/git-sync.sh` to ensure our branch off point is completely up-to-date with upstream.
 3. **Isolate First Layer (Keep Unstaged):** Create a dedicated branch directly off the updated `main`. To keep the workspace clean, backup all other non-layer files to the standard `~/.gemini/tmp/<repo-name>/backup_changes` directory. Clean other files from the working directory, leaving **exclusively** the target layer's changes unstaged.
 4. **🔒 Solicit IDE & Commit Approval (Gate 2):** Present the unstaged diff to the developer in the chat for visual IDE review. Formulate a conventional commit message and ask for approval via `ask_user` in the exact format: `Commit Message: "feat: <message>"`.
-5. **🔒 Automated Secure Commit & Push**: Upon the developer's approval in `ask_user`, our secure `after-ask-user.js` hook automatically intercepts, writes the `user-approval.json` signature, stages the changes, and runs the secure skill `.gemini/skills/commit-push.sh -m "<message>"`. **Direct manual git commit and push commands are strictly prohibited.**
+5. **🔒 Automated Secure Commit & Push**: Upon the developer's approval in `ask_user`, our secure `04-commit-phase.js --after-ask` hook automatically intercepts, writes the `user-approval.json` signature, stages the changes, and runs the secure skill `.gemini/skills/commit-push.sh -m "<message>"`. **Direct manual git commit and push commands are strictly prohibited.**
 
 ### Phase 6: Draft PR & Ready Conversion (Gate 3)
 
@@ -99,5 +99,12 @@ To ensure high-signal coordination and eliminate redundant or disjointed prompts
 ### Phase 7: Asynchronous PR Iteration & Next Layer Restoration
 
 1. **Asynchronous Review Wait-State:** The developer waits asynchronously for team and AI reviews. If comments or requested changes are submitted on GitHub, the developer starts a **brand new development session** running the dedicated `.gemini/workflows/resolve-pr-reviews.md` workflow to resolve comments.
-2. **Proceed to Next Layer:** Switch back to the synchronized `main`, restore the remaining files from the backup directory `~/.gemini/tmp/<repo-name>/backup_changes` back into the active workspace, and return to Step 11 for the next layer.
-3. **Completion Summary:** Once all layers are successfully complete and merged, provide a concise summary with links to all Pull Requests.
+2. **Pull Request Iteration & Review Comment Resolution Protocol:**
+   When resolving team, reviewer, or AI (Copilot) feedback and comments on an open Pull Request, agents and developers must strictly adhere to the following systematic quality iteration protocol:
+   - **🔒 Update the Review Agent's Prompts First**: Before modifying any codebase files, analyze the review comments and translate the identified classes of bugs, formatting issues, or standard violations into strict checking guidelines. Update `.gemini/agents/review_agent.md` (or `.claude/agents/review-agent.md`) by appending these strict checking items under Section 3 ("Strict Quality Gates, Refactoring, & Safety Verification").
+   - **🔒 Run the Review Agent on the Unmodified Codebase**: Execute the updated review subagent (`review_agent`) against the unmodified codebase files. The agent must successfully evaluate the files and flag the exact same issues/findings identified by the reviews, concluding with `PR Review status: 🔴 FINDINGS - Violations detected.`.
+   - **🔒 Code Fix Implementation**: Only after the local review agent successfully reproduces the findings in its report are you authorized to surgically modify the codebase files to address the review concerns.
+   - **🔒 Local Testing & Final Verification**: Once changes are applied, run all unit, integration, and lint checks natively to confirm no regressions. Then, execute the `review_agent` one final time to confirm it officially approves the workspace changes with a clean `PR Review status: 🟢 PERFECT - 0 findings`.
+   - **🔒 Staged Commit & PR Update**: Stage the changes, commit using Conventional Commit formatting, and push to the remote branch. Finally, execute `.gemini/skills/resolve-pr-reviews.sh` using your local credentials to programmatically resolve the review comment threads on GitHub.
+3. **Proceed to Next Layer:** Switch back to the synchronized `main`, restore the remaining files from the backup directory `~/.gemini/tmp/<repo-name>/backup_changes` back into the active workspace, and return to Step 11 for the next layer.
+4. **Completion Summary:** Once all layers are successfully complete and merged, provide a concise summary with links to all Pull Requests.

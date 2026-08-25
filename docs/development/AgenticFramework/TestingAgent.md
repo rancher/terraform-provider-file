@@ -31,5 +31,5 @@ The Testing Subagent executes the following verification steps in sequence:
 
 The Testing Subagent operates as our **Testing Gate (Gate 2)** during our development process:
 
-- It requires Gate 1 (Planning Gate) to be successfully signed and valid before execution is authorized by `.gemini/hooks/before-invoke-agent.js`.
-- Upon successful execution with zero errors, the system's `after-invoke-agent.js` hook automatically intercepts, cryptographically signs, and writes `test-approval.json` to disk, chaining it to our active plan and diff hashes.
+- It requires Gate 1 (Planning Gate) to be successfully signed and valid before execution is authorized by `.gemini/hooks/03-review-phase.js`.
+- Upon successful execution with zero errors, the system's `03-review-phase.js --after-invoke` hook automatically intercepts, cryptographically signs, and writes `test-approval.json` to disk, chaining it to our active plan and diff hashes.
