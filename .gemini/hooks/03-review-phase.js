@@ -136,6 +136,7 @@ function afterInvoke(inputData) {
 
   const planHash = verifyPlanGate(TARGET_DIR);
   if (!planHash) {
+    revokeReviewState();
     console.log(
       JSON.stringify({
         decision: 'allow',
@@ -165,6 +166,7 @@ function afterInvoke(inputData) {
   const missingTopics = requiredTopics.filter((topic) => !reportLower.includes(topic));
 
   if (missingTopics.length > 0) {
+    revokeReviewState();
     console.log(
       JSON.stringify({
         decision: 'allow',
