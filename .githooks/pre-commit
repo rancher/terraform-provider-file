@@ -134,10 +134,14 @@ main() {
         show_help
         exit 0
         ;;
-      *)
+      -*)
         echo "Unknown option: $1" >&2
         show_help
         exit 1
+        ;;
+      *)
+        # Positional arguments safely accepted
+        shift
         ;;
     esac
   done
