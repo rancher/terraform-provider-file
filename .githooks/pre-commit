@@ -51,9 +51,9 @@ SSH_KEY_PUB="${HOME_DIR}/.gemini/ssh-key.pub"
 if [ -f "$SSH_KEY_PUB" ]; then
   ALLOWED_SIGNERS=$(mktemp)
   KEY_CONTENT=$(cat "$SSH_KEY_PUB")
-  echo "gemini $KEY_CONTENT" > "$ALLOWED_SIGNERS"
-  
-  if ! ssh-keygen -Y verify -f "$ALLOWED_SIGNERS" -I gemini -n gemini -s "$PLAN_SIG" < "$PLAN_APPROVAL" >/dev/null 2>&1; then
+  echo "gemini $KEY_CONTENT" >"$ALLOWED_SIGNERS"
+
+  if ! ssh-keygen -Y verify -f "$ALLOWED_SIGNERS" -I gemini -n gemini -s "$PLAN_SIG" <"$PLAN_APPROVAL" >/dev/null 2>&1; then
     echo "❌ Git Commit Blocked: Plan cryptographic signature verification failed (Gate 1)."
     echo "The plan signature is invalid or did not pass Touch ID authentication."
     rm -f "$ALLOWED_SIGNERS"
