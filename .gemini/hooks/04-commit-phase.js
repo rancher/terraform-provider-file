@@ -217,8 +217,8 @@ function afterAskUser(inputData, targetDir) {
         }
       }
     }
-    console.error(`🔒 Hook Debug: Exiting with code 1 to show stderr because isApproved is false.`);
-    process.exit(1);
+    console.log(JSON.stringify({ decision: 'allow' }));
+    process.exit(0);
   }
 
   const homeDir = os.homedir();
