@@ -54,7 +54,6 @@ test('gating.js: verification unit tests', async (t) => {
     const keysDir = path.join(tempHome, '.gemini');
     fs.mkdirSync(keysDir, { recursive: true });
     const privKeyFile = path.join(keysDir, 'ssh-key');
-    const pubKeyFile = path.join(keysDir, 'ssh-key.pub');
     execSync(`ssh-keygen -t ed25519 -C "gemini" -N "" -f "${privKeyFile}"`, { stdio: 'ignore' });
 
     // Create session and plan
@@ -74,7 +73,7 @@ test('gating.js: verification unit tests', async (t) => {
         plan_hash: planHash,
       }),
     );
-    execSync(`ssh-keygen -Y sign -f "${pubKeyFile}" -n gemini "${approvalFile}"`, { stdio: 'ignore' });
+    execSync(`ssh-keygen -Y sign -f "${privKeyFile}" -n gemini "${approvalFile}"`, { stdio: 'ignore' });
 
     const verifiedHash = verifyPlanGate(tempTmpDir);
     assert.strictEqual(verifiedHash, planHash);
