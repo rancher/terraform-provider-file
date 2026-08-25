@@ -24,7 +24,7 @@ detect_agent() {
   while [[ "$pid" -gt 1 ]]; do
     local cmd
     cmd=$(ps -p "$pid" -o command= 2>/dev/null || true)
-    if echo "$cmd" | grep -qE "(gemini-cli|node.*\.gemini|node.*\.claude|testing_agent|review_agent|subagent)"; then
+    if echo "$cmd" | grep -qE "(gemini-cli|node.*\.gemini|node.*\.claude|review_agent|subagent)"; then
       return 0 # Is agent
     fi
     # Get parent PID
@@ -85,9 +85,16 @@ verify_gates() {
     exit 1
   fi
 
-  # Verify signature integrity against the staged/unstaged diff
+  # Verify signature integrity against the staged/unstaged diff (since main on feature branches)
+  local current_branch
+  current_branch=$(git branch --show-current 2>/dev/null || echo "")
+
   local active_diff
-  active_diff=$(git diff HEAD)
+  if [[ "$current_branch" != "main" && -n "$current_branch" ]]; then
+    active_diff=$(git diff main)
+  else
+    active_diff=$(git diff HEAD)
+  fi
 
   local active_diff_hash
   if command -v sha256sum >/dev/null 2>&1; then

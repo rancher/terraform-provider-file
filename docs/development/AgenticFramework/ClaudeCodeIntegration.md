@@ -24,7 +24,7 @@ This component documents how the repository's zero-trust, gated development proc
 
 ## Claude-Specific State
 
-Claude's hooks never read or write Gemini's `~/.gemini/tmp/<repo>/` state directory. They use their own, parallel `~/.claude/tmp/<repo>/` directory (`.claude/hooks/lib/state-dir.js`) for `plan-approval.json`, `test-approval.json`, and `review-approval.json`. Gate 2 approvals (testing/review) are plain JSON markers tied to a SHA-256 diff hash, written after parsing the subagent's final report for a standardized success string.
+Claude's hooks never read or write Gemini's `~/.gemini/tmp/<repo>/` state directory. They use their own, parallel `~/.claude/tmp/<repo>/` directory (`.claude/hooks/lib/state-dir.js`) for `plan-approval.json` and `review-approval.json`. Gate 2 approvals (testing/review) are plain JSON markers tied to a SHA-256 diff hash, written after parsing the subagent's final report for a standardized success string.
 
 Gate 1 (planning) and Gate 3 (commit) are still Secure Enclave / Touch ID signed via `age`, matching Gemini's guarantee. Claude's hooks look for the key pair at `~/.claude/age-key.pub` / `~/.claude/age-key.txt` (a separate copy of the same enrolled key material described in **[Cryptographic Gating & Approvals](./GatingAndApprovals.md)**).
 

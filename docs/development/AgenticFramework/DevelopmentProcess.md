@@ -22,9 +22,9 @@ To maintain absolute system integrity and prevent unvetted code modifications, t
 ### **Gate 2: Quality Gate (Programmatic)**
 
 - **Phase Transition**: Implement $\rightarrow$ Review.
-- **Verification Files**: `test-approval.json` and `review-approval.json`.
+- **Verification File**: `review-approval.json`.
 - **Protocol**: This gate is programmatically validated by the enforcer hooks. It requires that:
-  1. The automated unit and linter checks pass successfully, writing `test-approval.json`.
+  1. The automated unit and linter checks pass successfully, storing the tested diff_hash in `phase-state.json`.
   2. A proactive code review is executed by the isolated, sandboxed **Review Subagent** (`review_agent`), which writes `review-approval.json` upon reporting a clean review.
 - **Enforcement**: If any workspace files are modified after Gate 2 is signed, the enforcer hooks automatically delete the signatures, revoking approval and requiring re-testing and re-review.
 
@@ -66,9 +66,9 @@ To maintain absolute system integrity and prevent unvetted code modifications, t
 
 ### Phase 3: Review Phase (Gate 2)
 
-1. **Testing Sign-Off**: Run local test suites to verify full codebase integration, which writes `test-approval.json`.
+1. **Testing Sign-Off**: Run local test suites to verify full codebase integration, which stores the tested diff_hash in `phase-state.json`.
 2. **Delegate Proactive Review**: Delegate a proactive code review of the active local Git diff to the sandboxed `review_agent` using `invoke_agent`.
-3. **Resolve Findings**: The review agent's primary goal is to be a critical, adversarial peer reviewer. If the subagent flags any architectural gaps or documentation inconsistencies, surgically resolve them and re-run the review until the subagent reports a perfect clean status (`🟢 PERFECT - 0 findings`), which programmatically writes `review-approval.json`.
+3. **Resolve Findings**: The review agent's primary goal is to be a critical, adversarial peer reviewer. If the subagent flags any architectural gaps or documentation inconsistencies under the `Findings & Comments` section of the report, surgically resolve them and re-run the review until all 4 passes are checked (`- [x]`) and exactly `0 comments/findings` are reported, which allows the enforcer hook to programmatically sign and write `review-approval.json`.
 
 ### Phase 4: Commit Phase (Gate 3)
 

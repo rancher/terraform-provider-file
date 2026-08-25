@@ -40,7 +40,7 @@ To optimize collaboration and ensure zero unvetted changes, the framework coordi
    - **Authorization**: Unlocks autonomous file modification, compilation, and testing capabilities.
 2. **Quality Gate (Gate 2 - Programmatic)**:
    - **Phase Transition**: Implement $\rightarrow$ Review.
-   - **Security**: Natively verifies that local unit/integration tests pass (`test-approval.json`) and delegates an automated code review to our sandboxed `review_agent` to secure the review signature (`review-approval.json`).
+   - **Security**: Natively verifies that local unit/integration tests pass successfully and delegates an automated code review to our sandboxed `review_agent` to secure the review signature (`review-approval.json`).
 3. **Commit Gate (Gate 3 - User-Facing)**:
    - **Phase Transition**: Review $\rightarrow$ Commit.
    - **Security**: Displays the live unstaged Git diff in chat, requesting Conventional Commit message approval. It triggers macOS Touch ID to verify the developer's physical sign-off and write `user-approval.json`.

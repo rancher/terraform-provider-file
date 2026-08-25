@@ -148,19 +148,34 @@ function askUserPlanProof(inputData, targetDir) {
     process.exit(0);
   }
 
+  const safeToolInput = JSON.stringify(tool_input);
+  const isPlanAsk =
+    safeToolInput.includes('plan') || safeToolInput.includes('blueprint') || safeToolInput.includes('Planning');
+
+  if (!isPlanAsk) {
+    console.log(JSON.stringify({ decision: 'allow' }));
+    process.exit(0);
+  }
+
   let answerText = '';
   try {
-    if (tool_response.answers) {
-      answerText = Object.values(tool_response.answers)[0] || '';
-    } else if (tool_response.llmContent) {
-      const parsed = JSON.parse(tool_response.llmContent);
+    let res = typeof tool_response === 'string' ? JSON.parse(tool_response) : tool_response;
+    if (res.output && typeof res.output === 'string') {
+      try {
+        res = JSON.parse(res.output);
+      } catch {}
+    }
+    if (res.answers) {
+      answerText = Object.values(res.answers)[0] || '';
+    } else if (res.llmContent) {
+      const parsed = JSON.parse(res.llmContent);
       if (parsed && parsed.answers) {
         answerText = Object.values(parsed.answers)[0] || '';
       } else {
         answerText = Object.values(parsed)[0] || '';
       }
     } else {
-      answerText = Object.values(tool_response)[0] || '';
+      answerText = Object.values(res)[0] || '';
     }
   } catch {
     answerText = tool_response.llmContent || JSON.stringify(tool_response);

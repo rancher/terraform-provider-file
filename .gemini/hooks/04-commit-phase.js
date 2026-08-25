@@ -153,25 +153,48 @@ function afterAskUser(inputData, targetDir) {
     }
   }
 
+  const safeToolInput = JSON.stringify(tool_input);
+  const isCommitAsk =
+    safeToolInput.includes('approve these changes for commit') ||
+    safeToolInput.includes('Commit Message:') ||
+    safeToolInput.includes('Gate 3');
+
+  if (!isCommitAsk) {
+    console.log(JSON.stringify({ decision: 'allow' }));
+    process.exit(0);
+  }
+
   let answerText = '';
   try {
-    if (tool_response.answers) {
-      answerText = Object.values(tool_response.answers)[0] || '';
-    } else if (tool_response.llmContent) {
-      const parsed = JSON.parse(tool_response.llmContent);
+    console.error(`🔒 Hook Debug: Raw tool_response: ${JSON.stringify(tool_response)}`);
+    let res = typeof tool_response === 'string' ? JSON.parse(tool_response) : tool_response;
+    if (res && res.output && typeof res.output === 'string') {
+      try {
+        res = JSON.parse(res.output);
+      } catch (err) {
+        console.error(`🔒 Hook Debug: Failed to parse res.output: ${err.message}`);
+      }
+    }
+    console.error(`🔒 Hook Debug: Parsed res: ${JSON.stringify(res)}`);
+    if (res && res.answers) {
+      answerText = Object.values(res.answers)[0] || '';
+    } else if (res && res.llmContent) {
+      const parsed = JSON.parse(res.llmContent);
       if (parsed && parsed.answers) {
         answerText = Object.values(parsed.answers)[0] || '';
       } else {
         answerText = Object.values(parsed)[0] || '';
       }
-    } else {
-      answerText = Object.values(tool_response)[0] || '';
+    } else if (res) {
+      answerText = Object.values(res)[0] || '';
     }
-  } catch {
-    answerText = tool_response.llmContent || JSON.stringify(tool_response);
+  } catch (err) {
+    console.error(`🔒 Hook Debug: Catch block triggered: ${err.message}`);
+    answerText = (tool_response && tool_response.llmContent) || JSON.stringify(tool_response);
   }
 
   const safeAnswerText = String(answerText || '');
+  console.error(`🔒 Hook Debug: safeAnswerText: "${safeAnswerText}"`);
   const isApproved =
     safeAnswerText.toLowerCase() === 'yes' ||
     safeAnswerText.toLowerCase() === 'y' ||
@@ -180,11 +203,7 @@ function afterAskUser(inputData, targetDir) {
     safeAnswerText.toLowerCase() === 'approve commit' ||
     safeAnswerText.toLowerCase() === 'looks good';
 
-  const safeToolInput = JSON.stringify(tool_input);
-  const isCommitAsk =
-    safeToolInput.includes('approve these changes for commit') ||
-    safeToolInput.includes('Commit Message:') ||
-    safeToolInput.includes('Gate 3');
+  console.error(`🔒 Hook Debug: isApproved: ${isApproved}`);
 
   if (!isApproved) {
     if (isCommitAsk) {
@@ -198,8 +217,8 @@ function afterAskUser(inputData, targetDir) {
         }
       }
     }
-    console.log(JSON.stringify({ decision: 'allow' }));
-    process.exit(0);
+    console.error(`🔒 Hook Debug: Exiting with code 1 to show stderr because isApproved is false.`);
+    process.exit(1);
   }
 
   const homeDir = os.homedir();

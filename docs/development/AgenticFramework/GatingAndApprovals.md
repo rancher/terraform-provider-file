@@ -138,10 +138,11 @@ To guarantee absolute objectivity, the subagent is **fully isolated and sandboxe
 1. **Read-Only Enforcements**: The `review_agent` is stripped of write capabilities, restricting its toolset strictly to `[read_file]`. It cannot modify code or write approvals.
 2. **AfterTool Hook Verification**:
    - When the main agent calls `invoke_agent` targeting `review_agent`, the native `AfterTool` hook (`03-review-phase.js --after-invoke`) intercepts the subagent's execution report.
-   - It parses the report looking for the standardized success blocks:
-     - `review_agent` -> `PR Review status: 🟢 PERFECT - 0 findings. Code is fully secure, standard-compliant, and optimized.`
-   - If the success string is found, the hook **natively and securely** writes `review-approval.json` to disk, signing it with the active `diff_hash` and `plan_hash`.
-   - If any violation or failure is reported, the hook instantly unlinks (deletes) the signatures, revoking any previous approvals.
+   - It programmatically parses the report to verify that:
+     1. All 4 sequential passes (`Pass 1`, `Pass 2`, `Pass 3`, and `Pass 4`) are checked as complete checklist items (e.g. `- [x] Pass 1`).
+     2. Exactly 0 findings are reported, verified by the presence of the clean marker `0 comments/findings` or `0 findings`.
+   - If the report is successfully verified as complete and clean, the hook **natively and securely** writes `review-approval.json` to disk, signing it with the active `diff_hash` and `plan_hash`.
+   - If any pass is unchecked or if findings are recorded, the hook instantly unlinks (deletes) the signatures, revoking any previous approvals.
 
 This architecture prevents the main agent or subagent from manually writing approvals or manipulating results, enforcing a completely deterministic quality gateway.
 

@@ -15,10 +15,14 @@ export function calculateFileHash(filePath) {
   }
 }
 
-// Calculate active local diff hash securely (staged + unstaged combined)
+// Calculate active local diff hash securely (staged + unstaged combined, relative to main on feature branches)
 export function calculateDiffHash() {
   try {
-    const diff = execSync('git diff HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
+    const currentBranch = execSync('git branch --show-current', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+    const diffCmdArgs = currentBranch !== 'main' && currentBranch !== '' ? ['diff', 'main'] : ['diff', 'HEAD'];
+    const diff = execFileSync('git', diffCmdArgs, { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
     return crypto.createHash('sha256').update(diff).digest('hex');
   } catch (err) {
     console.error('🔒 Hook Debug: calculateDiffHash failed:', err.message || err);
@@ -181,11 +185,14 @@ export function checkAndRevokeStaleGates(targetDir, activeDiffHash, expectedPlan
         );
         hasRevoked = true;
       }
-    } catch {
+    } catch (err) {
+      console.warn(`🔒 Hook Warning: Failed to parse review approval JSON: ${err.message}`);
       // If unparsable, delete it
       try {
         fs.unlinkSync(reviewApprovalFile);
-      } catch {}
+      } catch (unlinkErr) {
+        console.error(`🔒 Hook Warning: Failed to delete unparsable review approval: ${unlinkErr.message}`);
+      }
       hasRevoked = true;
     }
   }
@@ -204,7 +211,9 @@ export function checkAndRevokeStaleGates(targetDir, activeDiffHash, expectedPlan
         content.tested_plan_hash = '';
         fs.writeFileSync(stateFile, JSON.stringify(content, null, 2));
       }
-    } catch {}
+    } catch (err) {
+      console.error(`🔒 Hook Warning: Failed to parse phase-state JSON in revoke: ${err.message}`);
+    }
   }
 
   return hasRevoked;

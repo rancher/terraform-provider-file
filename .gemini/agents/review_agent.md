@@ -86,11 +86,17 @@ You MUST consult and strictly enforce the language-specific standard files locat
    - **Exhaustive Multi-Pass Sections**: You MUST explicitly structure your audit analysis under four distinct sections representing sequential review passes:
      - `Pass 1`: Static Code Review (verifying formatting, syntax, and static analysis).
      - `Pass 2`: Functional Logic Audit (verifying business logic and behavior).
-     - `Pass 3`: Concurrency & Runtime Safety (verifying edge cases, thread safety, and resource leaks).
+     - `Pass 3`: Concurrency & Runtime Safety (verifying edge cases, thread safety, resource leaks, maintainability, and testability).
      - `Pass 4`: Architectural & Documentation Alignment (verifying that documentation matches the codebase, with exactly 3 gates (2 user-facing) and a gated 4-phase lifecycle consisting of Plan, Implement, Review, Commit).
        _(Include the literal strings "pass 1", "pass 2", "pass 3", and "pass 4" in these section headers so the enforcer hook can scan and verify them!)_
-   - **Conventional Commit Message Formulation**: You MUST explicitly formulate a proposed Conventional Commit Message (format: `Commit Message: "<type>: <description>"`) based on your findings to suggest a precise git commit message for the changes.
-   - If there are absolutely 0 violations, you MUST conclude your report with your passes, suggested commit message, and the exact, literal string:
-     `PR Review status: 🟢 PERFECT - 0 findings. Code is fully secure, standard-compliant, and optimized.`
-   - If there are any findings or violations, conclude your report with detailed descriptions and the exact, literal string:
-     `PR Review status: 🔴 FINDINGS - Violations detected.`
+   - **Review Agent Passes Checklist**: You MUST explicitly structure your report with the following checklist of audited passes at the beginning or end of your report, indicating completed passes using `- [x]` if they pass, or leaving them as `- [ ]` if there are any violations:
+     - `- [ ] Pass 1: Static Code Review (verifying formatting, syntax, and static analysis).`
+     - `- [ ] Pass 2: Functional Logic Audit (verifying business logic and behavior).`
+     - `- [ ] Pass 3: Concurrency & Runtime Safety (verifying edge cases, thread safety, resource leaks, maintainability, and testability).`
+     - `- [ ] Pass 4: Architectural & Documentation Alignment (verifying that documentation matches the codebase, with exactly 3 gates (2 user-facing) and a gated 4-phase lifecycle consisting of Plan, Implement, Review, Commit).`
+       _(These must be checked as `- [x]` if the pass succeeds, or left as `- [ ]` if it fails!)_
+   - **Report Audit Findings**: You MUST include a dedicated section `## Findings & Comments` in your report.
+     - If you find exactly 0 violations or findings, you MUST output under this section exactly:
+       `0 comments/findings`
+     - If you identify any violations, security gaps, or coding/style standard contradictions, you MUST list them as comments under this section.
+   - **Conventional Commit Message Formulation**: You MUST explicitly formulate a proposed Conventional Commit Message (format: `Commit Message: "<type>: <description>"`) to suggest a precise commit message for the changes. Do NOT output any binary status strings like "PR Review status: 🟢 PERFECT" or "🔴 FINDINGS" — the final pass/fail decision is handled programmatically by our enforcer hooks.

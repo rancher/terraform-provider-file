@@ -24,7 +24,7 @@ detect_agent() {
   while [[ "$pid" -gt 1 ]]; do
     local cmd
     cmd=$(ps -p "$pid" -o command= 2>/dev/null || true)
-    if echo "$cmd" | grep -qE "(gemini-cli|node.*\.gemini|node.*\.claude|testing_agent|review_agent|subagent)"; then
+    if echo "$cmd" | grep -qE "(gemini-cli|node.*\.gemini|node.*\.claude|review_agent|subagent)"; then
       return 0 # Is agent
     fi
     # Get parent PID

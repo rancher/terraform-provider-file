@@ -32,7 +32,9 @@ export function verifyTestReport(report, diffHash, planHash, stateFile) {
       if (fs.existsSync(stateFile)) {
         try {
           state = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
-        } catch {}
+        } catch (err) {
+          console.error(`🔒 Hook Warning: Failed to parse state JSON in verifyTestReport: ${err.message}`);
+        }
       }
       state.tested_diff_hash = diffHash;
       state.tested_plan_hash = planHash;
@@ -53,7 +55,9 @@ export function verifyTestReport(report, diffHash, planHash, stateFile) {
         state.tested_plan_hash = '';
         fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
       }
-    } catch {}
+    } catch (err) {
+      console.error(`🔒 Hook Warning: Failed to revoke tested state: ${err.message}`);
+    }
     return {
       status: 'rejected',
       systemMessage: '❌ Gate 2 Rejected: Testing failures reported.',
