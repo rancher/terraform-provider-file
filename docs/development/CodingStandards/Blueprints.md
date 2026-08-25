@@ -1,43 +1,44 @@
-# Architectural Blueprints & Planning
+# Architectural Blueprints & Documentation
 
 ---
 
 ## Abstract
 
-These guidelines prescribe the required layout, lifecycle rules, and planning procedures used to document repository features, workflows, and automated checks under the `docs/development/` directory.
-
----
+These guidelines describe the layout, structural patterns, and planning procedures used to document repository features, workflows, and automated checks under the `docs/development/` directory.
 
 ---
 
 ## Nomenclature & Structure
 
-### 1. Topic Overview (`docs/development/<Topic>.md`)
+The repository documentation utilizes two main types of declarative architectural specifications, collectively referred to as **Blueprints**:
 
-An overarching domain document that provides a high-level understanding of a major system area (e.g., `ReleaseProcess`, `TestingFramework`, `AgenticWorkflow`).
+### 1. Topic Overviews (`docs/development/<Topic>.md`)
 
-- **Abstract/Introduction**: Describes the general concepts of the topic and why it exists.
-- **Architectural Design**: Contains design documents, sequence diagrams, or ASCII diagrams explaining how the system's components fit together.
-- **Component Checklist**: A list of all sub-components that comprise this topic, linking to their respective Component Specifications.
+An overarching domain document that provides a high-level understanding of a major system area (such as `ReleaseProcess`, `Testing`, or `AgenticFramework`).
 
-### 2. Component Specification (`docs/development/<Topic>/<Component>.md`)
+- **Abstract/Introduction**: Describes the general concepts of the topic, its purpose, and architectural intent.
+- **Architectural Design**: Contains design descriptions, diagrams, or schemas explaining how the system's components fit together.
+- **Component Index**: A list of all sub-components that comprise this topic, linking to their respective Component Specifications.
 
-A technical design document and actionable specification for a single sub-component under a topic (e.g., `ReleaseProcess/Testing.md`, `AgenticWorkflow/SubAgentIsolation.md`).
+### 2. Component Specifications (`docs/development/<Topic>/<Component>.md`)
 
-- **Top Half: Technical Specification**:
-  - **Abstract**: A clear, technical abstract section named `## Abstract` explaining the component's goals and architectural intent.
-  - **Specification Details**: Detailed structural design rules, configuration requirements, sequence diagrams, and code snippets.
-- **Bottom Half: Implementation Checklist**:
-  - **Implementation Checklist**: A section named `## Implementation Checklist` containing a sequential, step-by-step checklist of specific tasks.
-  - **Dynamic Expansion**: The checklist is a living document. It must be dynamically expanded to add new sub-tasks, verification steps, or specific bug fixes discovered during development.
-  - **Sequential Work Protocol**: Work strictly in turn. You are not allowed to skip steps or run steps in parallel if they depend on one another. Update checkboxes in place (`- [ ]` -> `- [x]`) **once completed and before starting the next step**.
-  - _(Note: Standard quality gates like local tests, linting, and reviews are natively enforced by our git-push and user-approval hooks. You do NOT need to include them as manual checkbox items in the checklist)._
+A technical design document and actionable specification for a single sub-component under a topic (such as `AgenticFramework/GatingAndApprovals.md`).
+
+- **Abstract**: A clear, technical abstract section named `## Abstract` explaining the component's goals and architectural intent.
+- **Specification Details**: Detailed structural design rules, configuration requirements, sequence diagrams, and code patterns describing the system as it currently exists.
 
 ---
 
-## Planning Repository Changes
+## Blueprints vs. Plans
 
-- **Rule:** Before starting any code modification, a plan must be drafted and approved by the user.
-- **Avoid Blueprint Sprawl:** You MUST NOT create a brand new Topic Overview or Component Specification if the task fits under an existing architectural domain. Instead, _edit_ and _adapt_ the existing files, expanding their specifications and checklists.
-- **Order of Execution:** The very first task after plan approval is updating the Topic Overview and Component Specification. No source code changes can occur until these documents are updated on disk.
-- **Lifecycle:** Not every Pull Request requires a new specification file. Adapting and expanding existing specifications is the preferred, high-standard mode of development.
+To maintain a clean and reliable automated workflow, the repository distinguishes clearly between static architectural specifications and runtime agentic instructions:
+
+- **Architectural Blueprints**: Represent long-lived, declarative documentation files located under the `docs/development/` directory. They describe the system's current state, structure, and design constraints. Blueprints are not modified as part of normal agentic turn cycles unless the overall architecture of a component changes.
+- **Imperative Plans**: Represent the step-by-step execution checklists generated during the session's **Plan Mode** (such as files written to `plans/` inside the session workspace). A plan represents the dynamic, imperative contract between the user and the agent for a specific task. To exit Plan Mode and enable code modifications, a signed imperative plan must exist and be cryptographically approved by the user. A Blueprint is not required to exit Plan Mode.
+
+---
+
+## Documentation Life Cycle
+
+- **Avoiding Blueprint Sprawl**: New Topic Overviews or Component Specifications are only created when a new architectural domain is introduced. For changes to existing systems, the corresponding Blueprints are adapted and updated directly to reflect the new state.
+- **Declarative Realignment**: Documentation is kept strictly declarative, describing the systems and configurations as they are currently implemented. Historical change logs, implementation checklists, and past milestone histories are omitted to ensure the documentation remains focused on the present architecture.

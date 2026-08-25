@@ -75,16 +75,14 @@ export function verifyPlanGate(targetDir) {
     const pubKeyContent = fs.readFileSync(pubKeyFile, 'utf-8').trim();
     fs.writeFileSync(allowedSignersFile, `gemini ${pubKeyContent}`);
 
-    execFileSync('ssh-keygen', [
-      '-Y', 'verify',
-      '-f', allowedSignersFile,
-      '-I', 'gemini',
-      '-n', 'gemini',
-      '-s', sigFile
-    ], {
-      input: fs.readFileSync(planApprovalFile),
-      stdio: ['pipe', 'ignore', 'ignore']
-    });
+    execFileSync(
+      'ssh-keygen',
+      ['-Y', 'verify', '-f', allowedSignersFile, '-I', 'gemini', '-n', 'gemini', '-s', sigFile],
+      {
+        input: fs.readFileSync(planApprovalFile),
+        stdio: ['pipe', 'ignore', 'ignore'],
+      },
+    );
 
     const content = JSON.parse(fs.readFileSync(planApprovalFile, 'utf-8'));
 

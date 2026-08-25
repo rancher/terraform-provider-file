@@ -1,4 +1,5 @@
 agentic
+aiexclude
 authconfig
 autorelease
 awscli
@@ -6,8 +7,12 @@ booldefault
 boolplanmodifier
 boolvalidator
 buildrace
+claudeignore
 containerize
+currentdiff
 dgst
+differentdiff
+differentplan
 docker
 elif
 envrc
@@ -34,6 +39,7 @@ numtide
 nutanix
 oklog
 pathing
+passwordless
 peskyID
 pkgs
 Pkgs
@@ -42,12 +48,14 @@ popd
 providerserver
 pushd
 rancherlabs
+rancherremote
 sandbox
 sandboxed
 sandboxing
 shellcheck
 shfmt
 stdenv
+stalediff
 stringdefault
 stringplanmodifier
 subkey
@@ -70,5 +78,6 @@ toplevel
 TOTP
 updatecli
 variablize
+vulnerab
 Webfetch
 yamux

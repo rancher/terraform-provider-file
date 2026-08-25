@@ -27,6 +27,7 @@ These guidelines prescribe the standard structure, context-binding patterns, pag
 
 - **Untrusted Payload Data:** Treat all data from `context.payload` (PR titles, issue bodies, author names) as untrusted user input. Sanitize inputs before using them in regex evaluations or logging.
 - **Graceful Failures:** Use `try/catch` blocks around API calls. On failure, use `core.setFailed(error.message)` to fail the workflow step gracefully and provide an actionable error message.
+- **Never Swallow Errors:** Never use empty `catch` blocks or discard caught exceptions. Always at least log the error (e.g., to `console.error` or `core.error`) to maintain visibility into runtime failures.
 
 ## 4. Actions UI Logging & Outputs
 

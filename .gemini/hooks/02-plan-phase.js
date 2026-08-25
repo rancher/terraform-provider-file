@@ -182,12 +182,37 @@ function askUserPlanProof(inputData, targetDir) {
   const sshPubKeyFile = path.resolve(homeDir, '.gemini/ssh-key.pub');
   const sshPrivKeyFile = sshPubKeyFile.replace(/\.pub$/, '');
 
-  if (!fs.existsSync(sshPubKeyFile) || !fs.existsSync(sshPrivKeyFile)) {
+  let keyExists = false;
+  let keyErrorMsg = '';
+  try {
+    fs.accessSync(sshPubKeyFile, fs.constants.R_OK);
+
+    let hasPrivKey = false;
+    try {
+      fs.accessSync(sshPrivKeyFile, fs.constants.R_OK);
+      hasPrivKey = true;
+    } catch (err) {
+      console.error(`🔒 Hook Debug: Private key access check failed: ${err.message}`);
+    }
+
+    if (hasPrivKey || process.env.SSH_AUTH_SOCK) {
+      keyExists = true;
+    } else {
+      keyErrorMsg = ' (Private key not found on disk and SSH agent is not running).';
+    }
+  } catch (err) {
+    if (err.code === 'EACCES' || err.code === 'EPERM') {
+      keyErrorMsg = ' (Permission denied! Please check read permissions for the public key).';
+    } else if (err.code !== 'ENOENT') {
+      keyErrorMsg = ` (Error checking public key: ${err.message}).`;
+    }
+  }
+
+  if (!keyExists) {
     console.log(
       JSON.stringify({
         decision: 'allow',
-        systemMessage:
-          '🔒 Hook Notification: Cryptographic signing skipped because your SSH key material is not found at ~/.gemini/ssh-key.pub or ~/.gemini/ssh-key. Please copy or link your Touch ID SSH key pair to these locations.',
+        systemMessage: `🔒 Hook Notification: Cryptographic signing skipped because your SSH key material is not accessible at ~/.gemini/ssh-key.pub${keyErrorMsg} Please ensure your public key is linked here and your SSH agent is active.`,
       }),
     );
     process.exit(0);
@@ -236,14 +261,20 @@ function prePlanPhaseInterruption(inputData, targetDir) {
 function verifyGateArtifactProtection(inputData) {
   const { tool_name, tool_input } = inputData;
 
-  if (tool_name === 'write_file' || tool_name === 'replace' || tool_name === 'edit_file' || tool_name === 'create_file') {
+  if (
+    tool_name === 'write_file' ||
+    tool_name === 'replace' ||
+    tool_name === 'edit_file' ||
+    tool_name === 'create_file'
+  ) {
     if (tool_input) {
       const filePath = tool_input.file_path || tool_input.path || '';
       const fileName = path.basename(filePath);
-      
-      const isApprovalFile = /^(plan-approval|test-approval|review-approval|user-approval)\.(json|challenge|age|sig)$/.test(fileName) ||
-                             fileName.endsWith('-approval.json') ||
-                             fileName.endsWith('.sig');
+
+      const isApprovalFile =
+        /^(plan-approval|test-approval|review-approval|user-approval)\.(json|challenge|age|sig)$/.test(fileName) ||
+        fileName.endsWith('-approval.json') ||
+        fileName.endsWith('.sig');
 
       if (isApprovalFile) {
         console.log(

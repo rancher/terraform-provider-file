@@ -5,10 +5,10 @@ import os from 'os';
 import path from 'path';
 import { handleCommitApproval } from '../../agent-scripts/after-ask.js';
 import {
-    calculateDiffHash,
-    checkAndRevokeStaleGates,
-    verifyPlanGate,
-    verifyReviewGate,
+  calculateDiffHash,
+  checkAndRevokeStaleGates,
+  verifyPlanGate,
+  verifyReviewGate,
 } from '../../agent-scripts/gating.js';
 import { resolveTargetDir } from '../../agent-scripts/workspace.js';
 
@@ -79,11 +79,17 @@ function beforeAskUser(inputData, targetDir) {
     process.exit(0);
   }
 
+  const inPlanModeFile = path.join(targetDir, 'in-plan-mode.flag');
+  if (fs.existsSync(inPlanModeFile)) {
+    console.log(JSON.stringify({ decision: 'allow' }));
+    process.exit(0);
+  }
+
+  const safeToolInput = JSON.stringify(tool_input);
   const isCommitAsk =
-    JSON.stringify(tool_input).includes('commit') ||
-    JSON.stringify(tool_input).includes('GPG') ||
-    JSON.stringify(tool_input).includes('Push') ||
-    JSON.stringify(tool_input).includes('Gate 4');
+    safeToolInput.includes('approve these changes for commit') ||
+    safeToolInput.includes('Commit Message:') ||
+    safeToolInput.includes('Gate 3');
 
   if (isCommitAsk) {
     const planHash = verifyPlanGate(targetDir);
@@ -92,7 +98,7 @@ function beforeAskUser(inputData, targetDir) {
         JSON.stringify({
           decision: 'deny',
           reason:
-            '🔒 Security Policy Violation: You cannot ask for Developer Commit Approval (Gate 4) because Gate 1 (Planning Gate) is missing or invalid!\n\n' +
+            '🔒 Security Policy Violation: You cannot ask for Developer Commit Approval (Gate 3) because Gate 1 (Planning Gate) is missing or invalid!\n\n' +
             'Please obtain planning approval from the developer first.',
           systemMessage: '🔒 Security Block: Gate 1 must be approved before commit.',
         }),
@@ -110,7 +116,7 @@ function beforeAskUser(inputData, targetDir) {
         JSON.stringify({
           decision: 'deny',
           reason:
-            '🔒 Security Policy Violation: You cannot ask for Developer Commit Approval (Gate 4) because the Review prerequisite is missing or invalid!\n\n' +
+            '🔒 Security Policy Violation: You cannot ask for Developer Commit Approval (Gate 3) because the Review prerequisite is missing or invalid!\n\n' +
             'In accordance with our zero-trust pipeline, you MUST successfully run the Review Subagent first:\n' +
             '   `invoke_agent(agent_name="review_agent", prompt="Please review my current changes.")`',
           systemMessage: '🔒 Security Block: Review must be approved before commit.',
@@ -128,6 +134,12 @@ function afterAskUser(inputData, targetDir) {
   const { tool_name, tool_input, tool_response } = inputData;
 
   if (tool_name !== 'ask_user' || !tool_input || !tool_response) {
+    console.log(JSON.stringify({ decision: 'allow' }));
+    process.exit(0);
+  }
+
+  const inPlanModeFile = path.join(targetDir, 'in-plan-mode.flag');
+  if (fs.existsSync(inPlanModeFile)) {
     console.log(JSON.stringify({ decision: 'allow' }));
     process.exit(0);
   }
@@ -170,7 +182,9 @@ function afterAskUser(inputData, targetDir) {
 
   const safeToolInput = JSON.stringify(tool_input);
   const isCommitAsk =
-    /\bcommit\b/i.test(safeToolInput) || safeToolInput.includes('GPG') || safeToolInput.includes('Push');
+    safeToolInput.includes('approve these changes for commit') ||
+    safeToolInput.includes('Commit Message:') ||
+    safeToolInput.includes('Gate 3');
 
   if (!isApproved) {
     if (isCommitAsk) {
@@ -192,12 +206,37 @@ function afterAskUser(inputData, targetDir) {
   const sshPubKeyFile = path.resolve(homeDir, '.gemini/ssh-key.pub');
   const sshPrivKeyFile = sshPubKeyFile.replace(/\.pub$/, '');
 
-  if (!fs.existsSync(sshPubKeyFile) || !fs.existsSync(sshPrivKeyFile)) {
+  let keyExists = false;
+  let keyErrorMsg = '';
+  try {
+    fs.accessSync(sshPubKeyFile, fs.constants.R_OK);
+
+    let hasPrivKey = false;
+    try {
+      fs.accessSync(sshPrivKeyFile, fs.constants.R_OK);
+      hasPrivKey = true;
+    } catch (err) {
+      console.error(`🔒 Hook Debug: Private key access check failed: ${err.message}`);
+    }
+
+    if (hasPrivKey || process.env.SSH_AUTH_SOCK) {
+      keyExists = true;
+    } else {
+      keyErrorMsg = ' (Private key not found on disk and SSH agent is not running).';
+    }
+  } catch (err) {
+    if (err.code === 'EACCES' || err.code === 'EPERM') {
+      keyErrorMsg = ' (Permission denied! Please check read permissions for the public key).';
+    } else if (err.code !== 'ENOENT') {
+      keyErrorMsg = ` (Error checking public key: ${err.message}).`;
+    }
+  }
+
+  if (!keyExists) {
     console.log(
       JSON.stringify({
         decision: 'allow',
-        systemMessage:
-          '🔒 Hook Notification: Cryptographic signing skipped because your SSH key material is not found at ~/.gemini/ssh-key.pub or ~/.gemini/ssh-key. Please copy or link your Touch ID SSH key pair to these locations.',
+        systemMessage: `🔒 Hook Notification: Cryptographic signing skipped because your SSH key material is not accessible at ~/.gemini/ssh-key.pub${keyErrorMsg} Please ensure your public key is linked here and your SSH agent is active.`,
       }),
     );
     process.exit(0);
@@ -206,6 +245,22 @@ function afterAskUser(inputData, targetDir) {
   const promptText = tool_input.questions && tool_input.questions[0] ? tool_input.questions[0].question : '';
 
   if (isCommitAsk) {
+    const planHash = verifyPlanGate(targetDir);
+    const diffHash = calculateDiffHash();
+    checkAndRevokeStaleGates(targetDir, diffHash, planHash);
+
+    const reviewPassed = verifyReviewGate(targetDir, diffHash, planHash);
+    if (!reviewPassed) {
+      console.log(
+        JSON.stringify({
+          decision: 'allow',
+          systemMessage:
+            '🔒 Security Block: Commit aborted. Review approval is missing or was invalidated by recent file changes. Please run the review agent again.',
+        }),
+      );
+      process.exit(0);
+    }
+
     handleCommitApproval(targetDir, sshPubKeyFile, promptText);
   }
 

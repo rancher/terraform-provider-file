@@ -439,9 +439,13 @@ export function runPhaseManager(args, cwd) {
 
   // --- RESEARCH -> PLAN ---
   if (currentPhase === 'research' && targetPhase === 'plan') {
-    const isDirty = execFileSync('git', ['status', '--porcelain'], { cwd: cwd || process.cwd() }).toString().trim();
+    const isDirty = execFileSync('git', ['status', '--porcelain'], { cwd: cwd || process.cwd() })
+      .toString()
+      .trim();
     if (isDirty) {
-      throw new Error('Transition Blocked: You have uncommitted changes in your workspace. Please commit or stash them before transitioning phases to prevent data loss.');
+      throw new Error(
+        'Transition Blocked: You have uncommitted changes in your workspace. Please commit or stash them before transitioning phases to prevent data loss.',
+      );
     }
     console.log('🧹 Exiting RESEARCH: Workspace is clean. Proceeding to PLAN phase.');
   }
@@ -453,9 +457,13 @@ export function runPhaseManager(args, cwd) {
       throw new Error('Transition Blocked: Missing or invalid plan cryptographic approval (Gate 1).');
     }
 
-    const isDirty = execFileSync('git', ['status', '--porcelain'], { cwd: cwd || process.cwd() }).toString().trim();
+    const isDirty = execFileSync('git', ['status', '--porcelain'], { cwd: cwd || process.cwd() })
+      .toString()
+      .trim();
     if (isDirty) {
-      throw new Error('Transition Blocked: You have uncommitted changes in your workspace. Please commit or stash them before transitioning phases to prevent data loss.');
+      throw new Error(
+        'Transition Blocked: You have uncommitted changes in your workspace. Please commit or stash them before transitioning phases to prevent data loss.',
+      );
     }
     console.log('🧹 Exiting PLAN: Workspace is clean. Proceeding to IMPLEMENT phase.');
 

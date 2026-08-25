@@ -31,7 +31,7 @@ You MUST plan your work before executing any changes.
 - **Nomenclature & Specifications:** All repository modifications must be documented as Topic Overviews (`docs/development/<Topic>.md`) and Component Specifications (`docs/development/<Topic>/<Component>.md`).
 - **Format & Process:** Consult `docs/development/CodingStandards/Blueprints.md` for specific planning formatting, and strictly follow the procedural phases in `docs/development/AgenticFramework/DevelopmentProcess.md`.
 - **Mandatory Workflow Matching:** On your **very first turn** of any task, analyze the user's request and check for a matching workflow in `docs/development/AgenticFramework/`. You must explicitly state which workflow you are executing. Do not run mutating development commands until the correct workflow has been initialized.
-  - **Pipeline / Actions Failures** -> Execute `docs/development/AgenticFramework/TroubleshootWorkflows.md` and use the log-retrieval skill `.gemini/skills/pull-ci-logs.sh` to download logs.
+  - **Pipeline / Actions Failures** -> Execute `docs/development/AgenticFramework/WorkflowTroubleshooting.md` and use the log-retrieval skill `.gemini/skills/pull-ci-logs.sh` to download logs.
   - **Standard Bug Fixes / Features** -> Execute `docs/development/AgenticFramework/DevelopmentProcess.md`. You must write an empirical reproduction before modifying code.
 
 ---

@@ -34,7 +34,7 @@ test('after-ask.js: Touch ID gate signing unit tests', async (t) => {
     const sessionPlansDir = path.join(tempTmpDir, 'session1/plans');
     fs.mkdirSync(sessionPlansDir, { recursive: true });
     const planFile = path.join(sessionPlansDir, 'PR404-Resolution.md');
-    
+
     // Ensure the plan text satisfies validation: has checklist, tests, gates, framework, doc checks
     const compliantText =
       `# PR404 Resolution\n` +
