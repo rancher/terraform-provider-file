@@ -46,9 +46,16 @@ verify_proactive_review() {
     exit 1
   fi
 
-  # Check diff_hash inside the JSON using jq and grep
+  # Check diff_hash inside the JSON using jq and grep (since main on feature branches)
   local active_hash=""
-  active_hash=$(git diff HEAD | calculate_sha256)
+  local current_branch=""
+  current_branch=$(git branch --show-current 2>/dev/null || echo "")
+
+  if [[ "$current_branch" != "main" && -n "$current_branch" ]]; then
+    active_hash=$(git diff main | calculate_sha256)
+  else
+    active_hash=$(git diff HEAD | calculate_sha256)
+  fi
 
   # Check if status is approved and diff_hash matches
   local status=""

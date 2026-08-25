@@ -31,7 +31,7 @@ You MUST plan your work before executing any changes.
 - **Nomenclature & Specifications:** All repository modifications must be documented as Topic Overviews (`docs/development/<Topic>.md`) and Component Specifications (`docs/development/<Topic>/<Component>.md`).
 - **Format & Process:** Consult `docs/development/CodingStandards/Blueprints.md` for specific planning formatting, and strictly follow the procedural phases in `docs/development/AgenticFramework/DevelopmentProcess.md`.
 - **Mandatory Workflow Matching:** On your **very first turn** of any task, analyze the user's request and check for a matching workflow in `docs/development/AgenticFramework/`. You must explicitly state which workflow you are executing. Do not run mutating development commands until the correct workflow has been initialized.
-  - **Pipeline / Actions Failures** -> Execute `docs/development/AgenticFramework/TroubleshootWorkflows.md` and use the log-retrieval skill `.gemini/skills/pull-ci-logs.sh` to download logs.
+  - **Pipeline / Actions Failures** -> Execute `docs/development/AgenticFramework/WorkflowTroubleshooting.md` and use the log-retrieval skill `.gemini/skills/pull-ci-logs.sh` to download logs.
   - **Standard Bug Fixes / Features** -> Execute `docs/development/AgenticFramework/DevelopmentProcess.md`. You must write an empirical reproduction before modifying code.
 
 ---
@@ -44,7 +44,7 @@ The `.gemini/` directory in the repository root houses all automation configurat
 - **`system.md`**: This master system prompt file (loaded automatically by Gemini CLI at session start).
 - **`hooks/`**: Local event hooks (e.g. `01-startup-context.js`, `02-plan-phase.js`, `03-review-phase.js`, `04-commit-phase.js`, `block-restricted-commands.js`).
 - **`skills/`**: Project-level automation skills and scripts (such as `commit-push.sh`).
-- **`agents/`**: Custom specialized subagent definitions (such as `review_agent.md` and `testing_agent.md`).
+- **`agents/`**: Custom specialized subagent definitions (such as `review_agent.md`).
 
 ---
 

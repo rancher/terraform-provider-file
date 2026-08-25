@@ -18,7 +18,7 @@ Our release process is designed around two core architectural components that wo
 
 We release all product versions directly from our single source of truth—the `main` branch. This eliminates the complexity and drift of maintaining parallel release branches.
 
-- More details on this strategy, GPG-signing configuration, and release candidate lifecycle can be found in **[Release From Main](./ReleaseProcess/ReleaseFromMain.md)**.
+- More details on this strategy, GPG-signing configuration, and release candidate lifecycle can be found in **[Release From Main](./ReleaseProcess/MainBranchReleases.md)**.
 
 ### 2. Manifest-Driven Automation
 

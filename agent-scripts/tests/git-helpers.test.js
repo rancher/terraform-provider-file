@@ -156,13 +156,13 @@ test('git-helpers.js: master consolidated helper unit tests', async (t) => {
   });
 
   await t.test('verifyTestGate verifies testing approvals correctly', () => {
-    const testApprovalFile = path.join(tempTmpDir, 'test-approval.json');
+    const stateFile = path.join(tempTmpDir, 'phase-state.json');
     fs.writeFileSync(
-      testApprovalFile,
+      stateFile,
       JSON.stringify({
-        status: 'approved',
-        plan_hash: 'plan123',
-        diff_hash: 'diff123',
+        currentPhase: 'review',
+        tested_plan_hash: 'plan123',
+        tested_diff_hash: 'diff123',
       }),
     );
 
@@ -192,12 +192,12 @@ test('git-helpers.js: master consolidated helper unit tests', async (t) => {
   });
 
   await t.test('checkAndRevokeStaleGates unlinks stale approvals when hashes mismatch', () => {
-    const testApprovalFile = path.join(tempTmpDir, 'test-approval.json');
+    const stateFile = path.join(tempTmpDir, 'phase-state.json');
     const reviewApprovalFile = path.join(tempTmpDir, 'review-approval.json');
 
     fs.writeFileSync(
-      testApprovalFile,
-      JSON.stringify({ status: 'approved', plan_hash: 'plan123', diff_hash: 'stalediff' }),
+      stateFile,
+      JSON.stringify({ currentPhase: 'review', tested_plan_hash: 'plan123', tested_diff_hash: 'stalediff' }),
     );
     fs.writeFileSync(
       reviewApprovalFile,
@@ -206,8 +206,11 @@ test('git-helpers.js: master consolidated helper unit tests', async (t) => {
 
     const revoked = checkAndRevokeStaleGates(tempTmpDir, 'currentdiff', 'plan123');
     assert.strictEqual(revoked, true);
-    assert.strictEqual(fs.existsSync(testApprovalFile), false);
     assert.strictEqual(fs.existsSync(reviewApprovalFile), false);
+
+    const content = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+    assert.strictEqual(content.tested_diff_hash, '');
+    assert.strictEqual(content.tested_plan_hash, '');
   });
 
   await t.test('getForkOwner parses origin remote url correctly', () => {

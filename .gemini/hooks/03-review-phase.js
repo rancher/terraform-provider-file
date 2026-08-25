@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { saveReport } from '../../agent-scripts/after-invoke.js';
@@ -38,28 +39,30 @@ function preReviewTesting(tool_input) {
       planHash = verifyPlanGate(TARGET_DIR) || '';
     }
 
+    try {
+      const currentBranch = execFileSync('git', ['branch', '--show-current']).toString().trim();
+      const diffCmdArgs = currentBranch !== 'main' && currentBranch !== '' ? ['diff', 'main'] : ['diff', 'HEAD'];
+      const activeDiff = execFileSync('git', diffCmdArgs).toString();
+      modifiedToolInput.prompt =
+        (modifiedToolInput.prompt || '') + '\n\n### ACTIVE GIT DIFF CONTEXT ###\n' + activeDiff;
+    } catch (err) {
+      console.warn('🔒 Hook Warning: Failed to retrieve active Git diff for review agent:', err.message);
+    }
+
     const diffHash = calculateDiffHash();
     if (planHash && diffHash) {
-      const testApprovalFile = path.join(TARGET_DIR, 'test-approval.json');
-      try {
-        fs.unlinkSync(testApprovalFile);
-      } catch {
-        // Ignored
+      const stateFile = path.join(TARGET_DIR, 'phase-state.json');
+      let state = { currentPhase: 'review' };
+      if (fs.existsSync(stateFile)) {
+        try {
+          state = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+        } catch (err) {
+          console.error(`🔒 Hook Warning: Failed to parse phase state JSON: ${err.message}`);
+        }
       }
-      fs.writeFileSync(
-        testApprovalFile,
-        JSON.stringify(
-          {
-            status: 'approved',
-            plan_hash: planHash,
-            diff_hash: diffHash,
-            timestamp: new Date().toISOString(),
-          },
-          null,
-          2,
-        ),
-        { mode: 0o400 },
-      );
+      state.tested_diff_hash = diffHash;
+      state.tested_plan_hash = planHash;
+      fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
     }
 
     console.log(
@@ -104,14 +107,17 @@ function revokeReviewState() {
 }
 
 function afterInvoke(inputData) {
-  const { tool_name, tool_input, tool_response } = inputData;
+  const { tool_name, tool_input } = inputData;
+  const tool_response = inputData.tool_response;
 
   if (tool_name !== 'invoke_agent' || !tool_input || tool_input.agent_name !== 'review_agent') {
     console.log(JSON.stringify({ decision: 'allow' }));
     process.exit(0);
   }
 
-  if (!tool_response || !tool_response.llmContent) {
+  const res = typeof tool_response === 'string' ? JSON.parse(tool_response) : tool_response;
+
+  if (!res || (!res.llmContent && !res.output)) {
     console.error('🔒 Hook Error: Sub-agent response is missing, empty, or unparsable.');
     revokeReviewState();
     console.log(JSON.stringify({ decision: 'allow' }));
@@ -119,10 +125,14 @@ function afterInvoke(inputData) {
   }
 
   let report = '';
-  if (Array.isArray(tool_response.llmContent)) {
-    report = tool_response.llmContent.map((item) => item.text || '').join('\n');
-  } else if (typeof tool_response.llmContent === 'string') {
-    report = tool_response.llmContent;
+  if (res.llmContent) {
+    if (Array.isArray(res.llmContent)) {
+      report = res.llmContent.map((item) => item.text || '').join('\n');
+    } else if (typeof res.llmContent === 'string') {
+      report = res.llmContent;
+    }
+  } else if (res.output) {
+    report = res.output;
   }
 
   if (!report || report.trim() === '') {
@@ -146,31 +156,30 @@ function afterInvoke(inputData) {
     process.exit(0);
   }
 
-  const reportLower = report.toLowerCase();
-  const requiredTopics = [
-    'pass 1',
-    'pass 2',
-    'pass 3',
-    'security',
-    'standard',
-    'performance',
-    'logic',
-    'error handling',
-    'concurrency',
-    'edge cases',
-    'maintainability',
-    'testability',
-    'commit title',
-    'commit message',
-  ];
-  const missingTopics = requiredTopics.filter((topic) => !reportLower.includes(topic));
+  const hasCheckedPasses =
+    /- \[[xX]\] Pass 1/i.test(report) &&
+    /- \[[xX]\] Pass 2/i.test(report) &&
+    /- \[[xX]\] Pass 3/i.test(report) &&
+    /- \[[xX]\] Pass 4/i.test(report);
 
-  if (missingTopics.length > 0) {
+  if (!hasCheckedPasses) {
     revokeReviewState();
     console.log(
       JSON.stringify({
         decision: 'allow',
-        systemMessage: `⚠️ Review Verification Failed: The review agent's report is incomplete. It is missing explicit checks for: ${missingTopics.join(', ')}.\n\nPlease explicitly instruct the review agent to perform these checks to proceed.`,
+        systemMessage: `⚠️ Review Verification Failed: The review agent's passes are incomplete or unchecked.\n\nAll 4 sequential passes must be checked as complete (e.g. - [x] Pass 1, - [x] Pass 2, etc.) in the report checklist to proceed.`,
+      }),
+    );
+    process.exit(0);
+  }
+
+  const hasCleanMarker = /0 comments\/findings|0 findings/i.test(report);
+  if (!hasCleanMarker) {
+    revokeReviewState();
+    console.log(
+      JSON.stringify({
+        decision: 'allow',
+        systemMessage: `🔴 Quality Gate Rejected: The review agent has reported audit comments or findings.\n\nReview approval signature was withheld. Please address the subagent findings in your plan and implementation before re-running reviews.`,
       }),
     );
     process.exit(0);

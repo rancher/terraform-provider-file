@@ -148,19 +148,34 @@ function askUserPlanProof(inputData, targetDir) {
     process.exit(0);
   }
 
+  const safeToolInput = JSON.stringify(tool_input);
+  const isPlanAsk =
+    safeToolInput.includes('plan') || safeToolInput.includes('blueprint') || safeToolInput.includes('Planning');
+
+  if (!isPlanAsk) {
+    console.log(JSON.stringify({ decision: 'allow' }));
+    process.exit(0);
+  }
+
   let answerText = '';
   try {
-    if (tool_response.answers) {
-      answerText = Object.values(tool_response.answers)[0] || '';
-    } else if (tool_response.llmContent) {
-      const parsed = JSON.parse(tool_response.llmContent);
+    let res = typeof tool_response === 'string' ? JSON.parse(tool_response) : tool_response;
+    if (res.output && typeof res.output === 'string') {
+      try {
+        res = JSON.parse(res.output);
+      } catch {}
+    }
+    if (res.answers) {
+      answerText = Object.values(res.answers)[0] || '';
+    } else if (res.llmContent) {
+      const parsed = JSON.parse(res.llmContent);
       if (parsed && parsed.answers) {
         answerText = Object.values(parsed.answers)[0] || '';
       } else {
         answerText = Object.values(parsed)[0] || '';
       }
     } else {
-      answerText = Object.values(tool_response)[0] || '';
+      answerText = Object.values(res)[0] || '';
     }
   } catch {
     answerText = tool_response.llmContent || JSON.stringify(tool_response);
@@ -182,12 +197,37 @@ function askUserPlanProof(inputData, targetDir) {
   const sshPubKeyFile = path.resolve(homeDir, '.gemini/ssh-key.pub');
   const sshPrivKeyFile = sshPubKeyFile.replace(/\.pub$/, '');
 
-  if (!fs.existsSync(sshPubKeyFile) || !fs.existsSync(sshPrivKeyFile)) {
+  let keyExists = false;
+  let keyErrorMsg = '';
+  try {
+    fs.accessSync(sshPubKeyFile, fs.constants.R_OK);
+
+    let hasPrivKey = false;
+    try {
+      fs.accessSync(sshPrivKeyFile, fs.constants.R_OK);
+      hasPrivKey = true;
+    } catch (err) {
+      console.error(`🔒 Hook Debug: Private key access check failed: ${err.message}`);
+    }
+
+    if (hasPrivKey || process.env.SSH_AUTH_SOCK) {
+      keyExists = true;
+    } else {
+      keyErrorMsg = ' (Private key not found on disk and SSH agent is not running).';
+    }
+  } catch (err) {
+    if (err.code === 'EACCES' || err.code === 'EPERM') {
+      keyErrorMsg = ' (Permission denied! Please check read permissions for the public key).';
+    } else if (err.code !== 'ENOENT') {
+      keyErrorMsg = ` (Error checking public key: ${err.message}).`;
+    }
+  }
+
+  if (!keyExists) {
     console.log(
       JSON.stringify({
         decision: 'allow',
-        systemMessage:
-          '🔒 Hook Notification: Cryptographic signing skipped because your SSH key material is not found at ~/.gemini/ssh-key.pub or ~/.gemini/ssh-key. Please copy or link your Touch ID SSH key pair to these locations.',
+        systemMessage: `🔒 Hook Notification: Cryptographic signing skipped because your SSH key material is not accessible at ~/.gemini/ssh-key.pub${keyErrorMsg} Please ensure your public key is linked here and your SSH agent is active.`,
       }),
     );
     process.exit(0);
@@ -236,14 +276,20 @@ function prePlanPhaseInterruption(inputData, targetDir) {
 function verifyGateArtifactProtection(inputData) {
   const { tool_name, tool_input } = inputData;
 
-  if (tool_name === 'write_file' || tool_name === 'replace' || tool_name === 'edit_file' || tool_name === 'create_file') {
+  if (
+    tool_name === 'write_file' ||
+    tool_name === 'replace' ||
+    tool_name === 'edit_file' ||
+    tool_name === 'create_file'
+  ) {
     if (tool_input) {
       const filePath = tool_input.file_path || tool_input.path || '';
       const fileName = path.basename(filePath);
-      
-      const isApprovalFile = /^(plan-approval|test-approval|review-approval|user-approval)\.(json|challenge|age|sig)$/.test(fileName) ||
-                             fileName.endsWith('-approval.json') ||
-                             fileName.endsWith('.sig');
+
+      const isApprovalFile =
+        /^(plan-approval|test-approval|review-approval|user-approval)\.(json|challenge|age|sig)$/.test(fileName) ||
+        fileName.endsWith('-approval.json') ||
+        fileName.endsWith('.sig');
 
       if (isApprovalFile) {
         console.log(

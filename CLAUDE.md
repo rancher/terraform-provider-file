@@ -44,9 +44,9 @@ You MUST plan your work before executing any changes to source files.
 - **Mandatory Workflow Matching:** On your first turn on any task, check for a matching
   workflow in `docs/development/AgenticFramework/` and state which one you're
   executing before making changes.
-  - **Pipeline / Actions failures** → `docs/development/AgenticFramework/TroubleshootWorkflows.md`, using `.claude/skills/pull-ci-logs` (or `.gemini/skills/pull-ci-logs.sh` directly) to download logs.
+  - **Pipeline / Actions failures** → `docs/development/AgenticFramework/WorkflowTroubleshooting.md`, using `.claude/skills/pull-ci-logs` (or `.gemini/skills/pull-ci-logs.sh` directly) to download logs.
   - **Standard bug fixes / features** → `docs/development/AgenticFramework/DevelopmentProcess.md`. Write an empirical reproduction before modifying code.
-  - **Resolving PR review comments** → a brand-new session running `docs/development/AgenticFramework/ResolvePRReviews.md`.
+  - **Resolving PR review comments** → a brand-new session running `docs/development/AgenticFramework/PRReviewResolution.md`.
 
 A `PreToolUse` hook enforces this: source edits are blocked until a blueprint
 document under `docs/development/` is present in `git status`.

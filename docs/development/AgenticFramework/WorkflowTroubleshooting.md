@@ -71,8 +71,8 @@ This component defines our standard diagnostic procedures for investigating, ret
 
 ### 2. Document the Resolution Plan
 
-- Write a unified specification and implementation checklist under `docs/development/<Topic>/<Component>.md` detailing what needs to be changed following the guidelines in `docs/development/rules/blueprints.instructions.md`.
-- Get approval from the user before applying edits.
+- Document the steps to resolve the issue in the dynamic plan checklist inside the session workspace (e.g. under `plans/`).
+- Secure cryptographic plan approval from the user before applying edits.
 
 ---
 

@@ -15,10 +15,14 @@ export function calculateFileHash(filePath) {
   }
 }
 
-// Calculate active local diff hash securely (staged + unstaged combined)
+// Calculate active local diff hash securely (staged + unstaged combined, relative to main on feature branches)
 export function calculateDiffHash() {
   try {
-    const diff = execSync('git diff HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
+    const currentBranch = execSync('git branch --show-current', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+    const diffCmdArgs = currentBranch !== 'main' && currentBranch !== '' ? ['diff', 'main'] : ['diff', 'HEAD'];
+    const diff = execFileSync('git', diffCmdArgs, { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
     return crypto.createHash('sha256').update(diff).digest('hex');
   } catch (err) {
     console.error('🔒 Hook Debug: calculateDiffHash failed:', err.message || err);
@@ -75,16 +79,14 @@ export function verifyPlanGate(targetDir) {
     const pubKeyContent = fs.readFileSync(pubKeyFile, 'utf-8').trim();
     fs.writeFileSync(allowedSignersFile, `gemini ${pubKeyContent}`);
 
-    execFileSync('ssh-keygen', [
-      '-Y', 'verify',
-      '-f', allowedSignersFile,
-      '-I', 'gemini',
-      '-n', 'gemini',
-      '-s', sigFile
-    ], {
-      input: fs.readFileSync(planApprovalFile),
-      stdio: ['pipe', 'ignore', 'ignore']
-    });
+    execFileSync(
+      'ssh-keygen',
+      ['-Y', 'verify', '-f', allowedSignersFile, '-I', 'gemini', '-n', 'gemini', '-s', sigFile],
+      {
+        input: fs.readFileSync(planApprovalFile),
+        stdio: ['pipe', 'ignore', 'ignore'],
+      },
+    );
 
     const content = JSON.parse(fs.readFileSync(planApprovalFile, 'utf-8'));
 
@@ -111,23 +113,19 @@ export function verifyPlanGate(targetDir) {
 
 // Verify Gate 2: Test Gate
 export function verifyTestGate(targetDir, expectedPlanHash, activeDiffHash) {
-  const testApprovalFile = path.join(targetDir, 'test-approval.json');
+  const stateFile = path.join(targetDir, 'phase-state.json');
 
-  if (!fs.existsSync(testApprovalFile)) {
+  if (!fs.existsSync(stateFile)) {
     return false;
   }
 
   try {
-    const content = JSON.parse(fs.readFileSync(testApprovalFile, 'utf-8'));
-    if (content.status !== 'approved') {
+    const content = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+    if (content.tested_plan_hash !== expectedPlanHash) {
       return false;
     }
 
-    if (content.plan_hash !== expectedPlanHash) {
-      return false;
-    }
-
-    if (content.diff_hash !== activeDiffHash) {
+    if (content.tested_diff_hash !== activeDiffHash) {
       return false;
     }
 
@@ -166,36 +164,11 @@ export function verifyReviewGate(targetDir, expectedDiffHash, expectedPlanHash) 
   }
 }
 
-// Check and actively revoke stale signatures (Gate 2/3) if the diff hash has changed
+// Check and actively revoke stale signatures (Gate 2) if the diff hash has changed
 export function checkAndRevokeStaleGates(targetDir, activeDiffHash, expectedPlanHash) {
-  const testApprovalFile = path.join(targetDir, 'test-approval.json');
   const reviewApprovalFile = path.join(targetDir, 'review-approval.json');
 
   let hasRevoked = false;
-
-  // Check test approval
-  if (fs.existsSync(testApprovalFile)) {
-    try {
-      const content = JSON.parse(fs.readFileSync(testApprovalFile, 'utf-8'));
-      if (
-        activeDiffHash &&
-        expectedPlanHash &&
-        (content.diff_hash !== activeDiffHash || content.plan_hash !== expectedPlanHash)
-      ) {
-        fs.unlinkSync(testApprovalFile);
-        console.error(
-          '❌ Active Gate Revocation: Stale testing signature deleted because workspace changes were modified since your last test run!',
-        );
-        hasRevoked = true;
-      }
-    } catch {
-      // If unparsable, delete it
-      try {
-        fs.unlinkSync(testApprovalFile);
-      } catch {}
-      hasRevoked = true;
-    }
-  }
 
   // Check review approval
   if (fs.existsSync(reviewApprovalFile)) {
@@ -212,12 +185,34 @@ export function checkAndRevokeStaleGates(targetDir, activeDiffHash, expectedPlan
         );
         hasRevoked = true;
       }
-    } catch {
+    } catch (err) {
+      console.warn(`🔒 Hook Warning: Failed to parse review approval JSON: ${err.message}`);
       // If unparsable, delete it
       try {
         fs.unlinkSync(reviewApprovalFile);
-      } catch {}
+      } catch (unlinkErr) {
+        console.error(`🔒 Hook Warning: Failed to delete unparsable review approval: ${unlinkErr.message}`);
+      }
       hasRevoked = true;
+    }
+  }
+
+  // Also reset tested_diff_hash in phase-state.json on change to enforce re-testing
+  const stateFile = path.join(targetDir, 'phase-state.json');
+  if (fs.existsSync(stateFile)) {
+    try {
+      const content = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+      if (
+        activeDiffHash &&
+        expectedPlanHash &&
+        (content.tested_diff_hash !== activeDiffHash || content.tested_plan_hash !== expectedPlanHash)
+      ) {
+        content.tested_diff_hash = '';
+        content.tested_plan_hash = '';
+        fs.writeFileSync(stateFile, JSON.stringify(content, null, 2));
+      }
+    } catch (err) {
+      console.error(`🔒 Hook Warning: Failed to parse phase-state JSON in revoke: ${err.message}`);
     }
   }
 

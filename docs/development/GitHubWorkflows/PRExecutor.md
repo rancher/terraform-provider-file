@@ -18,14 +18,14 @@ In accordance with our workflow controller standards, the logic is extracted fro
 
 The `PR Executor and Auto-Merge` workflow is triggered upon the completion of a parent `pull_request` or `pull_request_review_trigger` workflow. To verify and merge the correct pull request, it must resolve the triggering pull request number.
 
-Currently, the workflow extracts this number directly from `github.event.workflow_run.pull_requests[0].number` or queries `getWorkflowRun`. However, due to GitHub Actions security and API constraints, the `pull_requests` array is **always empty** when the parent workflow is triggered by a pull request originating from a **fork repo**. Since all human contributions in this repository are required to originate from forks, this completely blocks the automated merge execution pipeline.
+The workflow extracts this number directly from `github.event.workflow_run.pull_requests[0].number` or queries `getWorkflowRun`. However, due to GitHub Actions security and API constraints, the `pull_requests` array is empty when the parent workflow is triggered by a pull request originating from a fork repository. Since all human contributions in this repository are required to originate from forks, this blocks the automated merge execution pipeline.
 
-### Proposed Robust Fallback Strategy
+### Robust Fallback Strategy
 
-When both the payload and the direct `getWorkflowRun` query fail to provide a `pull_requests` entry, the executor will execute a multi-layered fallback strategy:
+When both the payload and the direct `getWorkflowRun` query fail to provide a `pull_requests` entry, the executor executes a multi-layered fallback strategy:
 
-1. **Associated Commit Lookup**: Fetch any pull requests associated with the head commit SHA (`parentRun.head_sha`) using the GitHub REST API (`listPullRequestsAssociatedWithCommit`).
-2. **Open PR Search**: Fetch all active open pull requests for the repository and match the head commit SHA (`parentRun.head_sha`) or branch name (`parentRun.head_branch`) against the active head ref (`pr.head.sha` or `pr.head.ref`).
+1. **Associated Commit Lookup**: Fetches any pull requests associated with the head commit SHA (`parentRun.head_sha`) using the GitHub REST API (`listPullRequestsAssociatedWithCommit`).
+2. **Open PR Search**: Fetches all active open pull requests for the repository and matches the head commit SHA (`parentRun.head_sha`) or branch name (`parentRun.head_branch`) against the active head ref (`pr.head.sha` or `pr.head.ref`).
 
 To keep workflows clean and adhere to controller-only design standards, this logic is modularized into `.github/workflows/scripts/get-target-pr.js` and thoroughly unit-tested.
 
@@ -33,8 +33,8 @@ To keep workflows clean and adhere to controller-only design standards, this log
 
 The `pull_request_review_trigger` (`review-trigger.yml`) workflow is a parent/trigger workflow for the PR Executor. It executes the script `.github/workflows/scripts/log-trigger.sh` upon detecting valid comments.
 
-- **Missing Checkout Bug**: Like other controller workflows, it must check out the codebase prior to executing any script located under `.github/workflows/scripts/`. Without the checkout step, the runner environment lacks access to the script, resulting in exit code 127.
-- **Resolution**: Introduce `contents: read` permissions and run the standard `actions/checkout@v7.0.1` step (targeting the `main` branch) within the `trigger` job prior to running the script.
+- **Checkout Step**: Like other controller workflows, it checks out the codebase prior to executing any script located under `.github/workflows/scripts/`. Without the checkout step, the runner environment lacks access to the script.
+- **Implementation**: The workflow uses `contents: read` permissions and runs the standard `actions/checkout@v7.0.1` step (targeting the `main` branch) within the `trigger` job prior to running the script.
 
 ---
 
@@ -74,7 +74,7 @@ Even if a bad actor manages to resolve their PR number in the executor, they can
 
 ## 3. Technical Blueprint
 
-The inline `actions/github-script` step in `.github/workflows/pr-executor.yml` will be updated to import and execute the external module:
+The inline `actions/github-script` step in `.github/workflows/pr-executor.yml` imports and executes the external module:
 
 ```javascript
 const scriptPath = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/get-target-pr.js`;
@@ -94,28 +94,3 @@ export default async ({ github, context, core }) => {
   return prNumber;
 };
 ```
-
----
-
-## 4. Implementation Checklist
-
-- [x] Implement robust multi-layered PR resolution logic using head SHA and head branch fallbacks.
-- [x] Move the PR resolution logic from inline script to `.github/workflows/scripts/get-target-pr.js`.
-- [x] Move up the repository checkout step to the top of the `verify-pr` job in `pr-executor.yml`.
-- [x] Write comprehensive unit tests for `get-target-pr.js` in `.github/workflows/scripts/tests/get-target-pr.test.js`.
-- [x] Run codebase linters and static checks to verify workflow and script file formatting.
-- [x] Paginate open PR search fallback using `github.paginate` to handle >30 open PRs.
-- [x] Strengthen head commit SHA fallback to validate head owner when available to avoid ambiguous matches.
-- [x] Update unit tests to verify the new pagination and owner checking.
-- [x] Update the PR description with a highly detailed, clear summary.
-- [x] Filter `listPullRequestsAssociatedWithCommit` results to ensure the target PR is open and belongs to the base repository.
-- [x] Update unit tests to mock and verify the new associated PR filters.
-- [x] Collect open PR lookup candidates and fail if the match is ambiguous to prevent mis-targeted merges.
-- [x] Update issue reference in spec file from #389 to #391.
-- [x] Update unit tests to mock and verify ambiguous open PR resolution failures.
-- [x] Implement defensively guarded ambiguity checking for `listPullRequestsAssociatedWithCommit` fallback.
-- [x] Add unit tests verifying ambiguous associated PR resolution failures and deleted repo safety.
-- [x] Paginate associated PR lookups using `github.paginate` to handle >30 associated PRs.
-- [x] Align unit test `github.paginate` mock to realistically unwrap Octokit `{ data: [...] }` structures.
-- [x] Add `actions/checkout` (targeting the `main` branch) and `contents: read` permissions to `.github/workflows/review-trigger.yml` to fix CI failures when executing `log-trigger.sh`.
-- [ ] Seek final IDE and commit approval.

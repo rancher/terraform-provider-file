@@ -24,7 +24,7 @@ detect_agent() {
   while [[ "$pid" -gt 1 ]]; do
     local cmd
     cmd=$(ps -p "$pid" -o command= 2>/dev/null || true)
-    if echo "$cmd" | grep -qE "(gemini-cli|node.*\.gemini|node.*\.claude|testing_agent|review_agent|subagent)"; then
+    if echo "$cmd" | grep -qE "(gemini-cli|node.*\.gemini|node.*\.claude|review_agent|subagent)"; then
       return 0 # Is agent
     fi
     # Get parent PID
@@ -48,7 +48,6 @@ verify_gates() {
 
   local plan_approval="${target_dir}/plan-approval.json"
   local plan_sig="${plan_approval}.sig"
-  local test_approval="${target_dir}/test-approval.json"
   local review_approval="${target_dir}/review-approval.json"
 
   # Check if plan approval exists and verify its signature
@@ -79,23 +78,23 @@ verify_gates() {
   fi
   rm -f "$allowed_signers"
 
-  # Check if test approval exists
-  if [[ ! -f "$test_approval" ]]; then
-    echo "❌ Git Commit Blocked: Missing test cryptographic approval (Gate 2)." >&2
-    echo "AI agents must run and pass all tests to obtain testing approval before committing." >&2
-    exit 1
-  fi
-
-  # Check if review approval exists
+  # Check if review approval exists (Gate 2)
   if [[ ! -f "$review_approval" ]]; then
-    echo "❌ Git Commit Blocked: Missing review cryptographic approval (Gate 3)." >&2
-    echo "AI agents must successfully pass code review and obtain review approval before committing." >&2
+    echo "❌ Git Commit Blocked: Missing review cryptographic approval (Gate 2)." >&2
+    echo "AI agents must successfully pass local tests and code review to obtain review approval before committing." >&2
     exit 1
   fi
 
-  # Verify signature integrity against the staged/unstaged diff
+  # Verify signature integrity against the staged/unstaged diff (since main on feature branches)
+  local current_branch
+  current_branch=$(git branch --show-current 2>/dev/null || echo "")
+
   local active_diff
-  active_diff=$(git diff HEAD)
+  if [[ "$current_branch" != "main" && -n "$current_branch" ]]; then
+    active_diff=$(git diff main)
+  else
+    active_diff=$(git diff HEAD)
+  fi
 
   local active_diff_hash
   if command -v sha256sum >/dev/null 2>&1; then
@@ -107,17 +106,9 @@ verify_gates() {
     active_diff_hash=$(node -e "console.log(require('crypto').createHash('sha256').update(process.env.ACTIVE_DIFF).digest('hex'))")
   fi
 
-  # Read diff_hash from test-approval.json and review-approval.json safely via argv
-  local test_diff_hash
-  test_diff_hash=$(node -e "console.log(require(process.argv[1]).diff_hash)" "$test_approval")
+  # Read diff_hash from review-approval.json safely via argv
   local review_diff_hash
   review_diff_hash=$(node -e "console.log(require(process.argv[1]).diff_hash)" "$review_approval")
-
-  if [[ "$active_diff_hash" != "$test_diff_hash" ]]; then
-    echo "❌ Git Commit Blocked: Staged changes do not match the tested code signature." >&2
-    echo "The workspace was modified after testing. Re-run tests to obtain a valid test signature." >&2
-    exit 1
-  fi
 
   if [[ "$active_diff_hash" != "$review_diff_hash" ]]; then
     echo "❌ Git Commit Blocked: Staged changes do not match the reviewed code signature." >&2

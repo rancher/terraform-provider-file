@@ -64,8 +64,7 @@ your-project/
 │   │   └── security.sh         # Runs on BeforeTool (shell) to block unsafe Git remote pushes
 │   │
 │   ├── agents/                 # Team-shared specialized custom subagents
-│   │   ├── review_agent.md     # Dedicated local PR review subagent
-│   │   └── testing_agent.md    # Dedicated local test and validation subagent
+│   │   └── review_agent.md     # Dedicated local PR review subagent
 │   │
 │   ├── skills/                 # Team-shared automation capabilities (tools)
 │   │   └── commit-push.sh      # Custom command to safely sign and push commits

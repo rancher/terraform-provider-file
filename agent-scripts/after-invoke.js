@@ -23,43 +23,44 @@ export function saveReport(agentName, report, logsDir) {
 /**
  * Verifies a test sub-agent report and writes the Gate 2 signature if successful.
  */
-export function verifyTestReport(report, diffHash, planHash, testApprovalFile) {
+export function verifyTestReport(report, diffHash, planHash, stateFile) {
   const isSuccess = report.includes('TEST RUN status: 🟢 SUCCESS');
 
   if (isSuccess) {
-    const approvalData = {
-      status: 'approved',
-      diff_hash: diffHash,
-      plan_hash: planHash,
-      timestamp: new Date().toISOString(),
-    };
-
     try {
-      try {
-        fs.unlinkSync(testApprovalFile);
-      } catch {
-        // Ignored
+      let state = { currentPhase: 'review' };
+      if (fs.existsSync(stateFile)) {
+        try {
+          state = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+        } catch (err) {
+          console.error(`🔒 Hook Warning: Failed to parse state JSON in verifyTestReport: ${err.message}`);
+        }
       }
-      fs.writeFileSync(testApprovalFile, JSON.stringify(approvalData, null, 2), { mode: 0o600 });
+      state.tested_diff_hash = diffHash;
+      state.tested_plan_hash = planHash;
+      fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
       return {
         status: 'approved',
-        systemMessage:
-          '✅ Gate 2 Approved: Testing sub-agent report verified. Gate 2 signature successfully written and chained!',
+        systemMessage: '✅ Gate 2 Approved: Testing report verified.',
       };
     } catch (err) {
-      console.error('🔒 Hook Error: Failed to write Gate 2 signature:', err.message);
+      console.error('🔒 Hook Error: Failed to write tested diff_hash:', err.message);
       return { status: 'error', error: err.message };
     }
   } else {
-    // Self-Healing: Revoke existing signature if tests failed
     try {
-      fs.unlinkSync(testApprovalFile);
-    } catch {
-      // Ignored
+      if (fs.existsSync(stateFile)) {
+        const state = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+        state.tested_diff_hash = '';
+        state.tested_plan_hash = '';
+        fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
+      }
+    } catch (err) {
+      console.error(`🔒 Hook Warning: Failed to revoke tested state: ${err.message}`);
     }
     return {
       status: 'rejected',
-      systemMessage: '❌ Gate 2 Rejected: Testing sub-agent reported failures. Gate 2 signature revoked/missing.',
+      systemMessage: '❌ Gate 2 Rejected: Testing failures reported.',
     };
   }
 }

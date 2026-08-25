@@ -1,11 +1,10 @@
-import { execSync, execFileSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+import { execFileSync, execSync } from 'child_process';
 import crypto from 'crypto';
-import { verifyPlanGate, verifyTestGate, verifyReviewGate, findLatestActivePlan } from './gating.js';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { findLatestActivePlan, verifyPlanGate, verifyReviewGate, verifyTestGate } from './gating.js';
 import { validatePlanContent } from './planning.js';
-import { validateReviewContent, validateTestContent } from './after-invoke.js';
 
 export function calculateSha256(data) {
   return crypto.createHash('sha256').update(data).digest('hex');
@@ -439,9 +438,13 @@ export function runPhaseManager(args, cwd) {
 
   // --- RESEARCH -> PLAN ---
   if (currentPhase === 'research' && targetPhase === 'plan') {
-    const isDirty = execFileSync('git', ['status', '--porcelain'], { cwd: cwd || process.cwd() }).toString().trim();
+    const isDirty = execFileSync('git', ['status', '--porcelain'], { cwd: cwd || process.cwd() })
+      .toString()
+      .trim();
     if (isDirty) {
-      throw new Error('Transition Blocked: You have uncommitted changes in your workspace. Please commit or stash them before transitioning phases to prevent data loss.');
+      throw new Error(
+        'Transition Blocked: You have uncommitted changes in your workspace. Please commit or stash them before transitioning phases to prevent data loss.',
+      );
     }
     console.log('🧹 Exiting RESEARCH: Workspace is clean. Proceeding to PLAN phase.');
   }
@@ -453,9 +456,13 @@ export function runPhaseManager(args, cwd) {
       throw new Error('Transition Blocked: Missing or invalid plan cryptographic approval (Gate 1).');
     }
 
-    const isDirty = execFileSync('git', ['status', '--porcelain'], { cwd: cwd || process.cwd() }).toString().trim();
+    const isDirty = execFileSync('git', ['status', '--porcelain'], { cwd: cwd || process.cwd() })
+      .toString()
+      .trim();
     if (isDirty) {
-      throw new Error('Transition Blocked: You have uncommitted changes in your workspace. Please commit or stash them before transitioning phases to prevent data loss.');
+      throw new Error(
+        'Transition Blocked: You have uncommitted changes in your workspace. Please commit or stash them before transitioning phases to prevent data loss.',
+      );
     }
     console.log('🧹 Exiting PLAN: Workspace is clean. Proceeding to IMPLEMENT phase.');
 
@@ -518,20 +525,6 @@ export function runPhaseManager(args, cwd) {
     if (!testPassed) {
       throw new Error('Transition Blocked: Missing or invalid test approval (Gate 2). Run and pass all tests first.');
     }
-
-    // Programmatic verification of Test Report content on disk before review authorization
-    const reportPath = path.join(targetDir, 'reports', 'testing_agent_report.md');
-    if (fs.existsSync(reportPath)) {
-      const reportContent = fs.readFileSync(reportPath, 'utf-8');
-      const validation = validateTestContent(reportContent);
-      if (!validation.valid) {
-        throw new Error(
-          `Transition Blocked: Active testing report has invalid structure! ${validation.errors.join(', ')}`,
-        );
-      }
-    } else {
-      throw new Error('Transition Blocked: Active testing report not found inside session memory.');
-    }
   }
 
   if (targetPhase === 'commit') {
@@ -547,37 +540,11 @@ export function runPhaseManager(args, cwd) {
       throw new Error('Transition Blocked: Missing or invalid test approval (Gate 2).');
     }
 
-    // Programmatic verification of Test Report content
-    const testReportPath = path.join(targetDir, 'reports', 'testing_agent_report.md');
-    if (fs.existsSync(testReportPath)) {
-      const reportContent = fs.readFileSync(testReportPath, 'utf-8');
-      const validation = validateTestContent(reportContent);
-      if (!validation.valid) {
-        throw new Error(
-          `Transition Blocked: Active testing report has invalid structure! ${validation.errors.join(', ')}`,
-        );
-      }
-    }
-
     const reviewPassed = verifyReviewGate(targetDir, diffHashClean, planHash);
     if (!reviewPassed) {
       throw new Error(
         'Transition Blocked: Missing or invalid review approval (Gate 3). Get code review sign-off first.',
       );
-    }
-
-    // Programmatic verification of Review Report content
-    const reportPath = path.join(targetDir, 'reports', 'review_agent_report.md');
-    if (fs.existsSync(reportPath)) {
-      const reportContent = fs.readFileSync(reportPath, 'utf-8');
-      const validation = validateReviewContent(reportContent);
-      if (!validation.valid) {
-        throw new Error(
-          `Transition Blocked: Active review report has invalid structure! ${validation.errors.join(', ')}`,
-        );
-      }
-    } else {
-      throw new Error('Transition Blocked: Active review report not found inside session memory.');
     }
   }
 

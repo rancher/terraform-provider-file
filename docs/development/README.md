@@ -21,12 +21,11 @@ To scale our documentation as the project grows, we organize our files into a st
 
 ### 1. Topic Overview (`docs/development/<Topic>.md`)
 
-A **Topic Overview** serves as a high-level domain abstract, indexing the components, files, and architectural goals of a specific domain (e.g., `AgenticFramework.md` or `ReleaseProcess.md`).
+A **Topic Overview** serves as a high-level domain abstract, indexing the components, files, and architectural goals of a specific domain (such as `AgenticFramework.md` or `ReleaseProcess.md`).
 
 - **Required Sections**:
   - **Purpose**: High-level domain abstract.
   - **Modular Architectural Blueprints Map**: Interactive links to the individual Component Specifications in this domain.
-  - **Consolidated Historical Milestone Checklist**: A chronological record of historical milestones achieved.
 
 ### 2. Component Specification (`docs/development/<Topic>/<Component>.md`)
 

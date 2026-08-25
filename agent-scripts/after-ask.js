@@ -72,8 +72,7 @@ export function handlePlanApproval(targetDir, pubKeyFile, promptText) {
     fs.rmSync(signatureFile, { force: true });
 
     fs.writeFileSync(approvalFile, envelopeJson);
-    const privKeyFile = pubKeyFile.endsWith('.pub') ? pubKeyFile.slice(0, -4) : pubKeyFile;
-    execFileSync('ssh-keygen', ['-Y', 'sign', '-f', privKeyFile, '-n', 'gemini', approvalFile]);
+    execFileSync('ssh-keygen', ['-Y', 'sign', '-f', pubKeyFile, '-n', 'gemini', approvalFile]);
 
     return {
       status: 'approved',
@@ -89,7 +88,7 @@ export function handlePlanApproval(targetDir, pubKeyFile, promptText) {
 }
 
 /**
- * Handles the Commit Gate 4 biometric GPG signing challenge and automatic commit/push.
+ * Handles the Commit Gate 3 biometric GPG signing challenge and automatic commit/push.
  */
 export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
   const activePlan = findLatestActivePlan(targetDir);
@@ -117,14 +116,13 @@ export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
     fs.rmSync(signatureFile, { force: true });
 
     fs.writeFileSync(approvalFile, envelopeJson);
-    const privKeyFile = pubKeyFile.endsWith('.pub') ? pubKeyFile.slice(0, -4) : pubKeyFile;
-    execFileSync('ssh-keygen', ['-Y', 'sign', '-f', privKeyFile, '-n', 'gemini', approvalFile]);
+    execFileSync('ssh-keygen', ['-Y', 'sign', '-f', pubKeyFile, '-n', 'gemini', approvalFile]);
 
     console.log(
       JSON.stringify({
         decision: 'allow',
         systemMessage:
-          '✅ Gate 4 Approved: Secure Enclave Touch ID validated. Developer Commit cryptographically signed!',
+          '✅ Gate 3 Approved: Secure Enclave Touch ID validated. Developer Commit cryptographically signed!',
       }),
     );
 
@@ -213,7 +211,6 @@ export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
       const sigFiles = [
         path.join(targetDir, 'user-approval.json'),
         path.join(targetDir, 'user-approval.json.sig'),
-        path.join(targetDir, 'test-approval.json'),
         path.join(targetDir, 'review-approval.json'),
         path.join(targetDir, 'plan-approval.json'),
         path.join(targetDir, 'plan-approval.json.sig'),

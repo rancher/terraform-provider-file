@@ -89,7 +89,9 @@ function main() {
     let repoRoot = process.cwd();
     try {
       repoRoot = execSync('git rev-parse --show-toplevel', { stdio: 'pipe' }).toString().trim();
-    } catch {}
+    } catch (err) {
+      console.error(`Warning: Failed to determine git repo root: ${err.message}`);
+    }
 
     const excludeFiles = ['.aiexclude', '.claudeignore'];
     for (const file of excludeFiles) {

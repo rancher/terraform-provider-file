@@ -2,7 +2,7 @@
 
 ## Abstract
 
-To maintain absolute system integrity and prevent unauthorized code modifications in an autonomous programming workspace, the Agentic Framework implements a secure, **cryptographically chained gating pipeline**. This system mathematically guarantees that no code can be committed or pushed without satisfying sequential, hardware-authorized quality checkpoints: Planning (Gate 1) and Proactive Review (Gate 2).
+To maintain absolute system integrity and prevent unauthorized code modifications in an autonomous programming workspace, the Agentic Framework implements a secure, **cryptographically chained gating pipeline**. This system mathematically guarantees that no code can be committed or pushed without satisfying sequential, hardware-authorized checkpoints: Planning (Gate 1), Quality Gate (Gate 2), and Commit Gate (Gate 3).
 
 ---
 
@@ -26,7 +26,7 @@ To eliminate this vulnerability, our framework enforces a **Strict Cryptographic
 
 In a secure, semi-autonomous engineering environment, the ultimate threat is **Agent Autonomy Escalation**: an AI agent fabricating or signing off on its own changes without real developer oversight.
 
-To prevent this, the framework binds the **Planning Gate (Gate 1)** and the final **Commit Gate (Gate 4)** to a cryptographic key. We highly recommend that the user have some form of 2-factor access to their key—whether that is a TOTP, a hardware security key (like a YubiKey), or biometric authorization (like Mac Touch ID). This requires a physical confirmation from the developer to cryptographically sign approvals, ensuring the developer remains the absolute authority over the codebase.
+To prevent this, the framework binds the **Planning Gate (Gate 1)** and the final **Commit Gate (Gate 3)** to a cryptographic key. We highly recommend that the user have some form of 2-factor access to their key—whether that is a TOTP, a hardware security key (like a YubiKey), or biometric authorization (like Mac Touch ID). This requires a physical confirmation from the developer to cryptographically sign approvals, ensuring the developer remains the absolute authority over the codebase.
 
 ### Cryptographic Decryption Flow
 
@@ -91,29 +91,40 @@ _Note: This creates a secure private key reference in `age-key.txt` that only th
 Alternatively, you can create a native macOS Touch ID-backed SSH key using the Apple Secure Enclave (`ssh-keychain.dylib`), which can also be utilized for `age` cryptographic gating via SSH integration.
 
 1. **Create the biometric identity in the Secure Enclave:**
+
    ```bash
    sc_auth create-ctk-identity -l ssh -k p-256-ne -t bio
    ```
+
 2. **Generate the SSH key handle:**
+
    ```bash
    ssh-keygen -w /usr/lib/ssh-keychain.dylib -K -N ""
    ```
+
 3. **Export the Security Key Provider to your environment:**
+
    ```bash
    export SSH_SK_PROVIDER=/usr/lib/ssh-keychain.dylib
    echo 'export SSH_SK_PROVIDER=/usr/lib/ssh-keychain.dylib' >> ~/.zprofile
    ```
+
 4. **Add the key to your SSH agent:**
+
    ```bash
    ssh-add -K -S /usr/lib/ssh-keychain.dylib
    ```
+
 5. **Update your SSH Configuration:**
+
    Edit your `~/.ssh_config` (or `~/.ssh/config`) to ensure the correct provider is used:
+
    ```text
    Host *
      IdentityAgent none
      SecurityKeyProvider /usr/lib/ssh-keychain.dylib
    ```
+
 6. **Forward the agent:** Ensure your local VM (e.g., Colima) is configured to forward your SSH agent to your containers.
 
 ---
@@ -127,57 +138,48 @@ To guarantee absolute objectivity, the subagent is **fully isolated and sandboxe
 1. **Read-Only Enforcements**: The `review_agent` is stripped of write capabilities, restricting its toolset strictly to `[read_file]`. It cannot modify code or write approvals.
 2. **AfterTool Hook Verification**:
    - When the main agent calls `invoke_agent` targeting `review_agent`, the native `AfterTool` hook (`03-review-phase.js --after-invoke`) intercepts the subagent's execution report.
-   - It parses the report looking for the standardized success blocks:
-     - `review_agent` -> `PR Review status: 🟢 PERFECT - 0 findings. Code is fully secure, standard-compliant, and optimized.`
-   - If the success string is found, the hook **natively and securely** writes `review-approval.json` to disk, signing it with the active `diff_hash` and `plan_hash`.
-   - If any violation or failure is reported, the hook instantly unlinks (deletes) the signatures, revoking any previous approvals.
+   - It programmatically parses the report to verify that:
+     1. All 4 sequential passes (`Pass 1`, `Pass 2`, `Pass 3`, and `Pass 4`) are checked as complete checklist items (e.g. `- [x] Pass 1`).
+     2. Exactly 0 findings are reported, verified by the presence of the clean marker `0 comments/findings` or `0 findings`.
+   - If the report is successfully verified as complete and clean, the hook **natively and securely** writes `review-approval.json` to disk, signing it with the active `diff_hash` and `plan_hash`.
+   - If any pass is unchecked or if findings are recorded, the hook instantly unlinks (deletes) the signatures, revoking any previous approvals.
 
 This architecture prevents the main agent or subagent from manually writing approvals or manipulating results, enforcing a completely deterministic quality gateway.
 
 ---
 
-## 🛠️ Hook Robustness & Timeout Fix Plan
+## 🤖 Hook Timeout & Debugging Configuration
 
-We are fixing a reliability issue with the `commit-phase-after-ask-user` hook (`04-commit-phase.js --after-ask`), which is triggered on developer commit approval. The hook currently fails because:
+To ensure reliable execution during remote Git pushes and GitHub Pull Request creation, the `commit-phase-after-ask-user` hook (`04-commit-phase.js --after-ask`) is configured with a generous timeout of `60000` ms (60 seconds) inside `.gemini/settings.json`.
 
-1. **Timeout Exceeded**: The hook timeout in `.gemini/settings.json` is set to `5000` (5 seconds). Because the hook executes remote Git pushes and GitHub PR creation, it naturally exceeds this limit and gets terminated.
-2. **Misleading Error Reporting**: If any step in the automated commit, push, or PR generation fails, the entire hook fails inside the generic Secure Enclave cryptographic verification `try-catch` block, outputting a misleading "Secure Enclave commit decryption failed" error.
-
-### **Sequential Implementation Checklist**
-
-- [x] Increase the `commit-phase-after-ask-user` hook timeout in `.gemini/settings.json` from `5000` to `60000` ms (60 seconds) to allow sufficient time for Git remote push and PR creation operations.
-- [x] Refactor `.gemini/hooks/04-commit-phase.js` (under the `--after-ask` argument) to isolate the automated commit, push, and PR generation into its own dedicated, beautifully logged `try-catch` block to prevent masking of cryptographic Touch ID signature failures and provide high-signal debugging output.
-- [x] Verify that all Javascript unit tests pass cleanly after refactoring.
-- [x] Perform a dry-run linter execution to ensure formatting and coding standards compliance.
+The hook isolates the automated commit, push, and PR generation steps into distinct, targeted try-catch blocks. This prevents remote connection timeouts or Git authentication errors from being incorrectly reported as Touch ID signature failures, ensuring clear, high-signal debugging logs during execution.
 
 ---
 
-## 🛠️ Modular Controller & Function Decoupling Plan (Agent-Scripts)
+## 🤖 Modular Controller & Function Decoupling (Agent-Scripts)
 
-To prevent code duplication, facilitate clean multi-agent workspace sharing, and support modular extensibility, we are decoupling the core "Agentic" logic (skills and hooks) from the Gemini-specific CLI integration layer:
+The agentic framework decouples core agent logic (such as signing, verification, and Git helper scripts) from the Gemini-specific CLI integration layer. This ensures code reuse, simplifies testing, and supports multi-agent workspaces.
 
-1. **Root-Level `agent-scripts/` Directory**:
-   - All generic, reusable agent scripts (both ESM Node.js files and POSIX Shell helpers) will live directly in a **flat root-level `agent-scripts/` directory**. There are no `hooks` or `skills` subdirectories under `agent-scripts/` because hooks/skills are Gemini-specific CLI integration concepts; the extracted logic represents generic agent procedures.
-2. **Controller/Shim Architecture**:
-   - Each hook in `.gemini/hooks/` and skill in `.gemini/skills/` will act strictly as a **controller**.
-   - These controllers parse Gemini-specific tool execution payloads, make clean function or script calls to the modular scripts under `agent-scripts/`, handle the responses, and output expected Gemini standard protocols.
-   - Core implementation functions are broken down into tight, clean files adhering strictly to `shell-scripts.instructions.md` and `github-script.instructions.md` standards.
+### 1. Root-Level `agent-scripts/` Directory
 
-### **Sequential Implementation Checklist**
+Generic, reusable agent scripts—both ESM Node.js modules and POSIX Shell helpers—are organized inside the flat root-level `agent-scripts/` directory. These files do not use Gemini-specific CLI primitives, representing pure agent workflows and operations.
 
-- [x] Create the root-level `agent-scripts/` directory.
-- **Hooks Decoupling**:
-  - Planning gate logic (`checkActiveBlueprint`, `checkActivePlan`) is isolated under `agent-scripts/planning.js`.
-  - Cryptographic verification functions (`verifyPlanGate`, `verifyTestGate`, `verifyReviewGate`, `calculateDiffHash`) are extracted to `agent-scripts/gating.js`.
-  - Sub-agent report parsing and JSON signature logic (`saveReport`, `verifyTestReport`, `verifyReviewReport`) are extracted to `agent-scripts/after-invoke.js`.
-  - Apple Secure Enclave / Touch ID biometric challenges (`handlePlanApproval`, `handleCommitApproval`) are isolated inside `agent-scripts/after-ask.js`.
-  - Reusable execution path-safety logic (`verifyGitCommand`) is extracted to `agent-scripts/security.js`.
-  - `.gemini/hooks/` and `.claude/hooks/` files act purely as lightweight `PreToolUse` and `AfterToolUse` I/O controllers that import these ESM modules.
-- **Skills & Helpers Consolidation**:
-  - All legacy modular shell helpers (`git-utils.sh`, `check-branch.sh`, `verify-limits.sh`, `verify-gates.sh`, `commit-helper.sh`, `push-helper.sh`) have been entirely retired.
-  - The logic for executing conventional GPG/SSH signed commits, branch verification, push safety, drafting PRs, and checking active blueprints has been heavily fortified, secured, and natively consolidated into `agent-scripts/git-helpers.js`.
-  - The legacy AI skills `.gemini/skills/commit-push.sh` and `.gemini/skills/create-pr.sh` have been completely removed. Commits and PRs are now generated securely via the biometric execution of `after-ask.js`.
-- **Tooling & Validation Compliance**:
-  - The codebase linters (`.github/workflows/scripts/lint.sh`) and formatting engines are configured to scan and secure all `.js` files natively.
-  - `eslint.config.mjs` enforces ESM module standards across the `agent-scripts/` and hook directories.
-  - Granular, mock-scaffolded unit tests exist in `agent-scripts/tests/` to guarantee absolute runtime safety and cryptographic consistency for all helper functions.
+### 2. Controller/Shim Architecture
+
+Files in `.gemini/hooks/` and `.gemini/skills/` function as thin **controllers**. Their responsibilities are limited to:
+
+- Parsing Gemini-specific tool execution payloads and arguments.
+- Invoking the underlying modular scripts under `agent-scripts/` via clean function calls or command execution.
+- Formatting and returning standard output protocols to the Gemini CLI.
+
+### 3. Decoupled Subsystems
+
+The core enforcer and automation layers are decoupled into the following dedicated modules:
+
+- **Planning Logic (`agent-scripts/planning.js`)**: Manages blueprint checks and active plan validations.
+- **Cryptographic Gating (`agent-scripts/gating.js`)**: Computes workspace `diff_hash` values and verifies Plan, Test, and Review signatures.
+- **Sub-Agent Hook Pipeline (`agent-scripts/after-invoke.js`)**: Evaluates review and testing reports upon tool completion, programmatically signing or revoking gate approvals.
+- **Hardware/Biometric Signatures (`agent-scripts/after-ask.js`)**: Conducts Touch ID and cryptographic GPG/SSH signature challenges for the Plan and Commit gates.
+- **Execution Security (`agent-scripts/security.js`)**: Validates shell commands and paths to prevent command injection or directory bypass.
+- **Unified Git Operations (`agent-scripts/git-helpers.js`)**: Consolidates branch switching, remote branch ancestry checks, Conventional GPG-signed commits, and automated PR generation.
+- **Automated Quality Verification**: Granular mock-scaffolded unit tests in the `agent-scripts/tests/` directory validate the cryptographic consistency and execution safety of all decoupled helper scripts.
