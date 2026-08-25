@@ -72,7 +72,8 @@ export function handlePlanApproval(targetDir, pubKeyFile, promptText) {
     fs.rmSync(signatureFile, { force: true });
 
     fs.writeFileSync(approvalFile, envelopeJson);
-    execFileSync('ssh-keygen', ['-Y', 'sign', '-f', pubKeyFile, '-n', 'gemini', approvalFile]);
+    const privKeyFile = pubKeyFile.endsWith('.pub') ? pubKeyFile.slice(0, -4) : pubKeyFile;
+    execFileSync('ssh-keygen', ['-Y', 'sign', '-f', privKeyFile, '-n', 'gemini', approvalFile]);
 
     return {
       status: 'approved',
@@ -116,7 +117,8 @@ export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
     fs.rmSync(signatureFile, { force: true });
 
     fs.writeFileSync(approvalFile, envelopeJson);
-    execFileSync('ssh-keygen', ['-Y', 'sign', '-f', pubKeyFile, '-n', 'gemini', approvalFile]);
+    const privKeyFile = pubKeyFile.endsWith('.pub') ? pubKeyFile.slice(0, -4) : pubKeyFile;
+    execFileSync('ssh-keygen', ['-Y', 'sign', '-f', privKeyFile, '-n', 'gemini', approvalFile]);
 
     console.log(
       JSON.stringify({

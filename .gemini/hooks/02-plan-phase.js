@@ -233,6 +233,34 @@ function prePlanPhaseInterruption(inputData, targetDir) {
   process.exit(0);
 }
 
+function verifyGateArtifactProtection(inputData) {
+  const { tool_name, tool_input } = inputData;
+
+  if (tool_name === 'write_file' || tool_name === 'replace' || tool_name === 'edit_file' || tool_name === 'create_file') {
+    if (tool_input) {
+      const filePath = tool_input.file_path || tool_input.path || '';
+      const fileName = path.basename(filePath);
+      
+      const isApprovalFile = /^(plan-approval|test-approval|review-approval|user-approval)\.(json|challenge|age|sig)$/.test(fileName) ||
+                             fileName.endsWith('-approval.json') ||
+                             fileName.endsWith('.sig');
+
+      if (isApprovalFile) {
+        console.log(
+          JSON.stringify({
+            decision: 'deny',
+            reason:
+              '🔒 Security Policy Violation: Direct creation or modification of gate approvals or signature files is strictly prohibited.\n\n' +
+              'Gating approval files must ONLY be generated automatically and securely by our pipeline hooks and sub-agents.',
+            systemMessage: '🔒 Security Block: Direct manipulation of approval files is prohibited.',
+          }),
+        );
+        process.exit(0);
+      }
+    }
+  }
+}
+
 function main() {
   let inputData;
   try {
@@ -242,6 +270,9 @@ function main() {
     console.log(JSON.stringify({ decision: 'allow' }));
     process.exit(0);
   }
+
+  // Enforce Gate Artifact Tamper Protection
+  verifyGateArtifactProtection(inputData);
 
   const targetDir = resolveTargetDir();
   if (!fs.existsSync(targetDir)) {

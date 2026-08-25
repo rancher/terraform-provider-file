@@ -82,6 +82,27 @@ function preReviewTesting(tool_input) {
   }
 }
 
+function revokeReviewState() {
+  try {
+    if (fs.existsSync(REVIEW_APPROVAL_FILE)) {
+      fs.unlinkSync(REVIEW_APPROVAL_FILE);
+      console.error('🔒 Security Action: Revoked review approval due to invalid subagent output.');
+    }
+  } catch (err) {
+    console.warn(`Warning: Failed to unlink review approval file. Error: ${err.message || err}`);
+  }
+
+  const flagFile = path.join(TARGET_DIR, 'require-ask-user.flag');
+  try {
+    if (fs.existsSync(flagFile)) {
+      fs.unlinkSync(flagFile);
+      console.error('🔒 Security Action: Deleted require-ask-user.flag due to invalid subagent output.');
+    }
+  } catch (err) {
+    console.warn(`Warning: Failed to delete require-ask-user.flag. Error: ${err.message || err}`);
+  }
+}
+
 function afterInvoke(inputData) {
   const { tool_name, tool_input, tool_response } = inputData;
 
@@ -92,6 +113,7 @@ function afterInvoke(inputData) {
 
   if (!tool_response || !tool_response.llmContent) {
     console.error('🔒 Hook Error: Sub-agent response is missing, empty, or unparsable.');
+    revokeReviewState();
     console.log(JSON.stringify({ decision: 'allow' }));
     process.exit(0);
   }
@@ -105,6 +127,7 @@ function afterInvoke(inputData) {
 
   if (!report || report.trim() === '') {
     console.error('🔒 Hook Error: Sub-agent report is empty or unparsable.');
+    revokeReviewState();
     console.log(JSON.stringify({ decision: 'allow' }));
     process.exit(0);
   }

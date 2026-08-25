@@ -206,7 +206,7 @@ export function executeCommit(commitMsg, branch, cwd) {
 
 export function verifyPushSafety(remoteName, cwd) {
   try {
-    const url = execSync(`git remote get-url "${remoteName}"`, {
+    const url = execFileSync('git', ['remote', 'get-url', remoteName], {
       cwd: cwd || process.cwd(),
       stdio: ['ignore', 'pipe', 'ignore'],
     })
@@ -231,7 +231,7 @@ export function executePush(remoteName, branch, forcePush = false, cwd) {
   if (forcePush) {
     console.log(`Safely force-pushing branch '${branch}' to '${remoteName}' with lease...`);
     try {
-      execSync(`git push -u "${remoteName}" "${branch}" --force-with-lease`, {
+      execFileSync('git', ['push', '-u', remoteName, branch, '--force-with-lease'], {
         cwd: cwd || process.cwd(),
         stdio: 'inherit',
       });
@@ -241,7 +241,7 @@ export function executePush(remoteName, branch, forcePush = false, cwd) {
   } else {
     console.log(`Pushing branch '${branch}' to '${remoteName}'...`);
     try {
-      execSync(`git push -u "${remoteName}" "${branch}"`, {
+      execFileSync('git', ['push', '-u', remoteName, branch], {
         cwd: cwd || process.cwd(),
         stdio: 'inherit',
       });
@@ -259,7 +259,7 @@ export function executePush(remoteName, branch, forcePush = false, cwd) {
 
 export function getForkOwner(cwd) {
   try {
-    const originUrl = execSync('git remote get-url origin', {
+    const originUrl = execFileSync('git', ['remote', 'get-url', 'origin'], {
       cwd: cwd || process.cwd(),
       stdio: ['ignore', 'pipe', 'ignore'],
     })
@@ -277,14 +277,15 @@ export function getForkOwner(cwd) {
 }
 
 export function createPullRequest(title, body, base = 'main', draftFlag = '', cwd) {
-  const branch = execSync('git branch --show-current', { cwd: cwd || process.cwd() })
+  const branch = execFileSync('git', ['branch', '--show-current'], { cwd: cwd || process.cwd() })
     .toString()
     .trim();
   const forkOwner = getForkOwner(cwd);
 
   try {
-    const existingPr = execSync(`GITHUB_TOKEN="" gh pr list --head "${branch}" --json url --jq '.[0].url'`, {
+    const existingPr = execFileSync('gh', ['pr', 'list', '--head', branch, '--json', 'url', '--jq', '.[0].url'], {
       cwd: cwd || process.cwd(),
+      env: { ...process.env, GITHUB_TOKEN: '' },
       stdio: ['ignore', 'pipe', 'ignore'],
     })
       .toString()
@@ -300,7 +301,7 @@ export function createPullRequest(title, body, base = 'main', draftFlag = '', cw
 
   let upstreamRepo = '';
   try {
-    const originUrl = execSync('git remote get-url origin', {
+    const originUrl = execFileSync('git', ['remote', 'get-url', 'origin'], {
       cwd: cwd || process.cwd(),
       stdio: ['ignore', 'pipe', 'ignore'],
     })
@@ -312,7 +313,7 @@ export function createPullRequest(title, body, base = 'main', draftFlag = '', cw
       const repoNameClean = match[2].replace(/\.git$/, '');
       upstreamRepo = `rancher/${repoNameClean}`;
     } else {
-      const topLevel = execSync('git rev-parse --show-toplevel', { cwd: cwd || process.cwd() })
+      const topLevel = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: cwd || process.cwd() })
         .toString()
         .trim();
       const repoName = path.basename(topLevel);
@@ -328,8 +329,8 @@ export function createPullRequest(title, body, base = 'main', draftFlag = '', cw
   try {
     execFileSync('gh', ['repo', 'set-default', upstreamRepo], {
       cwd: cwd || process.cwd(),
-      stdio: 'ignore',
       env: { ...process.env, GITHUB_TOKEN: '' },
+      stdio: 'ignore',
     });
 
     const prArgs = [
@@ -361,17 +362,25 @@ export function createPullRequest(title, body, base = 'main', draftFlag = '', cw
 }
 
 export function graduatePullRequest(target, cwd) {
-  const branch = execSync('git branch --show-current', { cwd: cwd || process.cwd() })
+  const branch = execFileSync('git', ['branch', '--show-current'], { cwd: cwd || process.cwd() })
     .toString()
     .trim();
 
   try {
     if (!target) {
       console.log(`Graduating draft pull request for the current branch '${branch}'...`);
-      execSync('GITHUB_TOKEN="" gh pr ready', { cwd: cwd || process.cwd(), stdio: 'inherit' });
+      execFileSync('gh', ['pr', 'ready'], {
+        cwd: cwd || process.cwd(),
+        env: { ...process.env, GITHUB_TOKEN: '' },
+        stdio: 'inherit',
+      });
     } else {
       console.log(`Graduating draft pull request for target '${target}'...`);
-      execSync(`GITHUB_TOKEN="" gh pr ready "${target}"`, { cwd: cwd || process.cwd(), stdio: 'inherit' });
+      execFileSync('gh', ['pr', 'ready', target], {
+        cwd: cwd || process.cwd(),
+        env: { ...process.env, GITHUB_TOKEN: '' },
+        stdio: 'inherit',
+      });
     }
     console.log('✅ Pull Request successfully graduated to ready for review!');
   } catch (err) {
