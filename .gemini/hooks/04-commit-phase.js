@@ -21,7 +21,9 @@ const originalLog = console.log;
 let hasLogged = false;
 
 console.log = function (msg) {
-  if (hasLogged) return;
+  if (hasLogged) {
+    return;
+  }
   try {
     const parsed = JSON.parse(msg);
     if (parsed.systemMessage) {
@@ -31,15 +33,20 @@ console.log = function (msg) {
     console.error(exitLog);
 
     const msgs = [introLog];
-    if (parsed.systemMessage) msgs.push(parsed.systemMessage);
+    if (parsed.systemMessage) {
+      msgs.push(parsed.systemMessage);
+    }
     msgs.push(exitLog);
     parsed.systemMessage = msgs.join('\n');
 
-    if (!parsed.decision && !isStartup) parsed.decision = 'allow';
+    if (!parsed.decision && !isStartup) {
+      parsed.decision = 'allow';
+    }
 
     originalLog(JSON.stringify(parsed, null, 2));
     hasLogged = true;
-  } catch (e) {
+  } catch (err) {
+    console.error(err.message || err);
     originalLog(msg);
   }
 };
@@ -87,7 +94,7 @@ function revokeReviewState(targetDir) {
   try {
     if (fs.existsSync(reviewApprovalFile)) {
       fs.unlinkSync(reviewApprovalFile);
-      console.error('❌ Gate 3 Revoked: User rejected the commit. Review approval has been deleted.');
+      console.error('❌ Gate 2 (Review) Revoked: User rejected the commit. Review approval has been deleted.');
     }
   } catch (err) {
     console.warn(`Warning: Failed to revoke review state. Error: ${err.message || err}`);

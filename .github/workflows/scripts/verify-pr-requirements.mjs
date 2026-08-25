@@ -202,8 +202,8 @@ async function verifyPullRequest({ github, core, pr, owner, repo, checkCI }) {
       );
       const perm = permData.permission;
       isTrusted = perm === 'admin' || perm === 'write' || perm === 'maintain' || perm === 'triage';
-    } catch (error) {
-      core.info(`  -> Note: Could not check collaborator permission level for @${login} via API (${error.message}).`);
+    } catch (err) {
+      core.info(`  -> Note: Could not check collaborator permission level for @${login} via API (${err.message}).`);
     }
 
     if (review.state === 'APPROVED' && isTrusted) {

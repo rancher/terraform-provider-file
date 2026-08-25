@@ -46,6 +46,8 @@ run_actionlint() {
 run_eslint() {
   echo "==> Running eslint check on scripts..."
   eslint .github/workflows/scripts/ .gemini/hooks/ .gemini/skills/ agent-scripts/
+  echo "==> Auditing catch statements..."
+  node .github/workflows/scripts/check-catch.js
 }
 
 run_shellcheck() {

@@ -190,8 +190,9 @@ export function checkAndRevokeStaleGates(targetDir, activeDiffHash, expectedPlan
       // If unparsable, delete it
       try {
         fs.unlinkSync(reviewApprovalFile);
-      } catch (unlinkErr) {
-        console.error(`🔒 Hook Warning: Failed to delete unparsable review approval: ${unlinkErr.message}`);
+      /* eslint-disable-next-line no-shadow */
+      } catch (err) {
+        console.error(`🔒 Hook Warning: Failed to delete unparsable review approval: ${err.message}`);
       }
       hasRevoked = true;
     }

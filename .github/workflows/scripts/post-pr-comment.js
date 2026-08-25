@@ -20,7 +20,7 @@ export default async ({ github, context, core, process }) => {
       body,
     });
     core.info('Comment posted successfully.');
-  } catch (error) {
-    core.setFailed(`Failed to post comment: ${error.message}`);
+  } catch (err) {
+    core.setFailed(`Failed to post comment: ${err.message}`);
   }
 };

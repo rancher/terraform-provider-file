@@ -9,8 +9,8 @@ export default async ({ context, core, process }) => {
     const isMaintainer = maintainers.includes(actor);
     core.info(`Actor: ${actor}, Is Maintainer: ${isMaintainer}`);
     return isMaintainer;
-  } catch (error) {
-    core.setFailed(`Error checking maintainer status: ${error.message}`);
+  } catch (err) {
+    core.setFailed(`Error checking maintainer status: ${err.message}`);
     return false;
   }
 };

@@ -110,10 +110,10 @@ export default async ({ github, context, core, process }) => {
       } else {
         core.info(`No merged pull request associated with commit ${context.sha} was found.`);
       }
-    } catch (labelError) {
-      core.warning(`Failed to reconcile PR labels: ${labelError.message}`);
+    } catch (err) {
+      core.warning(`Failed to reconcile PR labels: ${err.message}`);
     }
-  } catch (error) {
-    core.setFailed(`Failed to publish release: ${error.message}`);
+  } catch (err) {
+    core.setFailed(`Failed to publish release: ${err.message}`);
   }
 };

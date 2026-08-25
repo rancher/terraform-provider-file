@@ -70,9 +70,9 @@ export default async ({ github, context, core, process }) => {
         });
         existingSha = annotatedTag.data.object.sha;
       }
-    } catch (error) {
-      if (error.status !== 404) {
-        throw error;
+    } catch (err) {
+      if (err.status !== 404) {
+        throw err;
       }
     }
 
@@ -110,7 +110,7 @@ export default async ({ github, context, core, process }) => {
     if (calculateNextRc) {
       core.setOutput('rc_tag', targetTag);
     }
-  } catch (error) {
-    core.setFailed(`Failed to create tag: ${error.message}`);
+  } catch (err) {
+    core.setFailed(`Failed to create tag: ${err.message}`);
   }
 };

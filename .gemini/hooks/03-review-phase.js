@@ -15,7 +15,9 @@ const originalLog = console.log;
 let hasLogged = false;
 
 console.log = function (msg) {
-  if (hasLogged) return;
+  if (hasLogged) {
+    return;
+  }
   try {
     const parsed = JSON.parse(msg);
     if (parsed.systemMessage) {
@@ -25,15 +27,20 @@ console.log = function (msg) {
     console.error(exitLog);
 
     const msgs = [introLog];
-    if (parsed.systemMessage) msgs.push(parsed.systemMessage);
+    if (parsed.systemMessage) {
+      msgs.push(parsed.systemMessage);
+    }
     msgs.push(exitLog);
     parsed.systemMessage = msgs.join('\n');
 
-    if (!parsed.decision && !isStartup) parsed.decision = 'allow';
+    if (!parsed.decision && !isStartup) {
+      parsed.decision = 'allow';
+    }
 
     originalLog(JSON.stringify(parsed, null, 2));
     hasLogged = true;
-  } catch (e) {
+  } catch (err) {
+    console.error(err.message || err);
     originalLog(msg);
   }
 };
@@ -87,6 +94,14 @@ function revokeReviewState() {
     }
   } catch (err) {
     console.warn(`Warning: Failed to revoke review state. Error: ${err.message || err}`);
+  }
+  const flagFile = path.join(TARGET_DIR, 'require-ask-user.flag');
+  try {
+    if (fs.existsSync(flagFile)) {
+      fs.unlinkSync(flagFile);
+    }
+  } catch (err) {
+    console.warn(`Warning: Failed to delete require-ask-user.flag. Error: ${err.message || err}`);
   }
 }
 
@@ -216,14 +231,32 @@ function afterInvoke(inputData) {
     process.exit(0);
   }
 
-  const isPerfect = reportLower.includes('0 findings') || reportLower.includes('perfect') || reportLower.includes('approved');
+  const hasCheckedPasses =
+    /- \[[xX]\] Pass 1/i.test(report) &&
+    /- \[[xX]\] Pass 2/i.test(report) &&
+    /- \[[xX]\] Pass 3/i.test(report) &&
+    /- \[[xX]\] Pass 4/i.test(report);
+
+  if (!hasCheckedPasses) {
+    revokeReviewState();
+    console.log(
+      JSON.stringify({
+        decision: 'allow',
+        systemMessage: '⚠️ Review Verification Failed: The review agent\'s passes are incomplete or unchecked.\n\nAll 4 sequential passes must be checked as complete (e.g. - [x] Pass 1, - [x] Pass 2, etc.) in the report checklist to proceed.',
+      }),
+    );
+    process.exit(0);
+  }
+
+  const hasCleanMarker = /0 comments\/findings|0 findings/i.test(report);
+  const isPerfect = hasCleanMarker || reportLower.includes('perfect') || reportLower.includes('approved');
   const hasComments = reportLower.includes('finding') || reportLower.includes('issue') || reportLower.includes('suggestion') || reportLower.includes('comment');
 
   if (!isPerfect) {
     revokeReviewState();
-    let sysMsg = `⚠️ Review Verification Failed: The review agent did not approve the changes but provided no explicit comments. 👉 ACTION REQUIRED: Please re-run the review_agent.`;
+    let sysMsg = '⚠️ Review Verification Failed: The review agent did not approve the changes but provided no explicit comments. 👉 ACTION REQUIRED: Please re-run the review_agent.';
     if (hasComments) {
-      sysMsg = `⚠️ Review Verification Failed: The review agent found issues. 👉 ACTION REQUIRED: Please review the comments and findings from the review_agent, implement the necessary fixes, and then re-run the review_agent.`;
+      sysMsg = '⚠️ Review Verification Failed: The review agent found issues. 👉 ACTION REQUIRED: Please review the comments and findings from the review_agent, implement the necessary fixes, and then re-run the review_agent.';
     }
     
     console.log(

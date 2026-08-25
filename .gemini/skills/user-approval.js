@@ -21,7 +21,8 @@ try {
     .toString()
     .trim();
   repoName = path.basename(topLevel);
-} catch {
+} catch (err) {
+  console.error(err.message || err);
   repoName = path.basename(process.cwd()) || 'generic-repo';
 }
 
@@ -35,7 +36,8 @@ function calculateSHA256() {
   try {
     const diff = execSync('git diff HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
     return crypto.createHash('sha256').update(diff).digest('hex');
-  } catch {
+  } catch (err) {
+    console.error(err.message || err);
     return null;
   }
 }
@@ -44,7 +46,8 @@ function calculateFileHash(filePath) {
   try {
     const content = fs.readFileSync(filePath);
     return crypto.createHash('sha256').update(content).digest('hex');
-  } catch {
+  } catch (err) {
+    console.error(err.message || err);
     return null;
   }
 }
@@ -76,7 +79,8 @@ function findLatestActivePlan() {
 
     planFiles.sort((a, b) => b.mtime - a.mtime);
     return planFiles[0].path;
-  } catch {
+  } catch (err) {
+    console.error(err.message || err);
     return null;
   }
 }
@@ -225,9 +229,9 @@ function writeApproval() {
     // Delete any existing file or symlink to prevent symlink overwrites
     try {
       fs.unlinkSync(APPROVAL_FILE);
-    } catch (e) {
-      if (e.code !== 'ENOENT') {
-        throw e;
+    } catch (err) {
+      if (err.code !== 'ENOENT') {
+        throw err;
       }
     }
 
@@ -273,7 +277,8 @@ function promptApproval(message, defaultOption) {
     if (!response) {
       response = defaultOption;
     }
-  } catch {
+  } catch (err) {
+    console.error(err.message || err);
     // Fallback gracefully in headless/piped environments
     console.warn(`Non-interactive terminal detected. Fallback to default: ${defaultOption}`);
     response = defaultOption;

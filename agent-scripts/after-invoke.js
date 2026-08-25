@@ -11,8 +11,8 @@ export function saveReport(agentName, report, logsDir) {
     const reportFile = path.join(logsDir, `${agentName}_report.md`);
     try {
       fs.unlinkSync(reportFile);
-    } catch {
-      // Ignored
+    } catch (err) {
+      console.error(err.message || err);
     }
     fs.writeFileSync(reportFile, report, { mode: 0o600 });
   } catch (err) {
@@ -106,8 +106,8 @@ export function verifyReviewReport(report, diffHash, planHash, reviewApprovalFil
 
       try {
         fs.unlinkSync(reviewApprovalFile);
-      } catch {
-        // Ignored
+      } catch (err) {
+        console.error(err.message || err);
       }
       fs.writeFileSync(reviewApprovalFile, JSON.stringify(approvalData, null, 2), { mode: 0o600 });
       return {
@@ -123,8 +123,8 @@ export function verifyReviewReport(report, diffHash, planHash, reviewApprovalFil
     // Self-Healing: Revoke existing signature if review failed
     try {
       fs.unlinkSync(reviewApprovalFile);
-    } catch {
-      // Ignored
+    } catch (err) {
+      console.error(err.message || err);
     }
     return {
       status: 'rejected',

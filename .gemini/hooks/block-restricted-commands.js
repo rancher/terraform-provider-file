@@ -13,7 +13,9 @@ const originalLog = console.log;
 let hasLogged = false;
 
 console.log = function (msg) {
-  if (hasLogged) return;
+  if (hasLogged) {
+    return;
+  }
   try {
     const parsed = JSON.parse(msg);
     if (parsed.systemMessage) {
@@ -23,15 +25,20 @@ console.log = function (msg) {
     console.error(exitLog);
 
     const msgs = [introLog];
-    if (parsed.systemMessage) msgs.push(parsed.systemMessage);
+    if (parsed.systemMessage) {
+      msgs.push(parsed.systemMessage);
+    }
     msgs.push(exitLog);
     parsed.systemMessage = msgs.join('\n');
 
-    if (!parsed.decision && !isStartup) parsed.decision = 'allow';
+    if (!parsed.decision && !isStartup) {
+      parsed.decision = 'allow';
+    }
 
     originalLog(JSON.stringify(parsed, null, 2));
     hasLogged = true;
-  } catch (e) {
+  } catch (err) {
+    console.error(err.message || err);
     originalLog(msg);
   }
 };
@@ -41,7 +48,7 @@ process.on('exit', (code) => {
     const exitMsg = `🔒 Hook Error (${hookName}): Silent early exit detected with code ${code}.`;
     console.error(exitMsg);
     process.stdout.write(JSON.stringify({
-      decision: 'allow',
+      decision: 'deny',
       systemMessage: `${introLog}\n${exitMsg}`
     }) + '\n');
     hasLogged = true;
@@ -53,7 +60,7 @@ process.on('uncaughtException', (err) => {
   console.error(errMsg);
   if (!hasLogged) {
     process.stdout.write(JSON.stringify({
-      decision: 'allow',
+      decision: 'deny',
       systemMessage: `${introLog}\n${errMsg}`
     }) + '\n');
     hasLogged = true;
@@ -66,7 +73,7 @@ process.on('unhandledRejection', (reason) => {
   console.error(errMsg);
   if (!hasLogged) {
     process.stdout.write(JSON.stringify({
-      decision: 'allow',
+      decision: 'deny',
       systemMessage: `${introLog}\n${errMsg}`
     }) + '\n');
     hasLogged = true;
@@ -100,7 +107,30 @@ function main() {
     }
   }
 
-  console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: execution allowed.' }));
+  const fileModificationTools = ['write_file', 'replace', 'edit_file', 'create_file'];
+  if (fileModificationTools.includes(tool_name) && tool_input) {
+    const targetPath = tool_input.file_path || tool_input.path || '';
+    if (targetPath.endsWith('eslint.config.mjs')) {
+      console.log(
+        JSON.stringify({
+          decision: 'deny',
+          reason: 'Direct modification of eslint.config.mjs is restricted. If you need to change linting rules, you must use the ask_user tool to present the proposed changes and request that the developer apply them manually.',
+          systemMessage: '🔒 Security Block: Modifying ESLint configuration is denied.',
+        }),
+      );
+      process.exit(0);
+    }
+  }
+
+  let allowedMessage = 'execution allowed.';
+  if (tool_name === 'run_shell_command' && tool_input && tool_input.command) {
+    const cmdStr = tool_input.command.length > 100 ? tool_input.command.substring(0, 97) + '...' : tool_input.command;
+    allowedMessage = `\`${cmdStr}\` command execution allowed.`;
+  } else if (tool_name) {
+    allowedMessage = `\`${tool_name}\` execution allowed.`;
+  }
+
+  console.log(JSON.stringify({ decision: 'allow', systemMessage: `🔒 Hook Notification: ${allowedMessage}` }));
   process.exit(0);
 }
 

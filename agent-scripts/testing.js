@@ -14,13 +14,13 @@ export function runPreReviewTests() {
     output += execSync('make test', { stdio: 'pipe' }).toString();
 
     return { success: true, output };
-  } catch (error) {
+  } catch (err) {
     let failureOutput = '🔴 TEST FAILURE DETECTED.\n\n';
-    if (error.stdout) {
-      failureOutput += error.stdout.toString();
+    if (err.stdout) {
+      failureOutput += err.stdout.toString();
     }
-    if (error.stderr) {
-      failureOutput += '\n' + error.stderr.toString();
+    if (err.stderr) {
+      failureOutput += '\n' + err.stderr.toString();
     }
 
     return { success: false, failureOutput };

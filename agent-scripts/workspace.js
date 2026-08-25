@@ -18,7 +18,8 @@ export function resolveTargetDir(cwd = process.cwd()) {
       .toString()
       .trim();
     repoName = path.basename(topLevel);
-  } catch {
+  } catch (err) {
+    console.error(`🔒 Hook Info: Failed to resolve git toplevel directory: ${err.message || err}`);
     repoName = path.basename(cwd) || 'generic-repo';
   }
   return path.resolve(homeDir, '.gemini/tmp', repoName);

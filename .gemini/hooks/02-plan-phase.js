@@ -17,7 +17,9 @@ const originalLog = console.log;
 let hasLogged = false;
 
 console.log = function (msg) {
-  if (hasLogged) return;
+  if (hasLogged) {
+    return;
+  }
   try {
     const parsed = JSON.parse(msg);
     if (parsed.systemMessage) {
@@ -27,15 +29,20 @@ console.log = function (msg) {
     console.error(exitLog);
 
     const msgs = [introLog];
-    if (parsed.systemMessage) msgs.push(parsed.systemMessage);
+    if (parsed.systemMessage) {
+      msgs.push(parsed.systemMessage);
+    }
     msgs.push(exitLog);
     parsed.systemMessage = msgs.join('\n');
 
-    if (!parsed.decision && !isStartup) parsed.decision = 'allow';
+    if (!parsed.decision && !isStartup) {
+      parsed.decision = 'allow';
+    }
 
     originalLog(JSON.stringify(parsed, null, 2));
     hasLogged = true;
-  } catch (e) {
+  } catch (err) {
+    console.error(err.message || err);
     originalLog(msg);
   }
 };
@@ -233,7 +240,9 @@ function askUserPlanProof(inputData, targetDir) {
     if (res.output && typeof res.output === 'string') {
       try {
         res = JSON.parse(res.output);
-      } catch {}
+      } catch (err) {
+        console.error(err.message || err);
+      }
     }
     if (res.answers) {
       answerText = Object.values(res.answers)[0] || '';
@@ -247,7 +256,8 @@ function askUserPlanProof(inputData, targetDir) {
     } else {
       answerText = Object.values(res)[0] || '';
     }
-  } catch {
+  } catch (err) {
+    console.error(err.message || err);
     answerText = tool_response.llmContent || JSON.stringify(tool_response);
   }
 
@@ -307,7 +317,8 @@ function askUserPlanProof(inputData, targetDir) {
   try {
     const question = tool_input.questions && tool_input.questions[0];
     promptText = (question && question.question) || JSON.stringify(tool_input);
-  } catch {
+  } catch (err) {
+    console.error(err.message || err);
     promptText = JSON.stringify(tool_input);
   }
 

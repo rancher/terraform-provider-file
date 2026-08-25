@@ -163,22 +163,26 @@ export default async ({ github, context, core, process }) => {
     const mergeCmd = `gh pr merge ${prNumber} --auto --squash --subject ${JSON.stringify(mergeParams.commit_title)} --body ${JSON.stringify(mergeParams.commit_message)}`;
     execSync(mergeCmd, { env: { ...process.env, GH_TOKEN: process.env.MERGE_TOKEN } });
     core.info(`PR #${prNumber} auto-merge enabled/merged successfully via GitHub CLI!`);
-  } catch (autoError) {
-    core.warning(`Failed to enable auto-merge via gh CLI: ${autoError.message}. Retrying direct merge via gh CLI...`);
+  } catch (err) {
+    core.warning(`Failed to enable auto-merge via gh CLI: ${err.message}. Retrying direct merge via gh CLI...`);
     try {
       const directMergeCmd = `gh pr merge ${prNumber} --squash --subject ${JSON.stringify(mergeParams.commit_title)} --body ${JSON.stringify(mergeParams.commit_message)}`;
       execSync(directMergeCmd, { env: { ...process.env, GH_TOKEN: process.env.MERGE_TOKEN } });
       core.info(`PR #${prNumber} merged directly via gh CLI successfully!`);
-    } catch (directError) {
+    }
+    /* eslint-disable-next-line no-shadow */
+    catch (err) {
       core.warning(
-        `Failed direct merge via gh CLI: ${directError.message}. Retrying REST API merge with merge token...`,
+        `Failed direct merge via gh CLI: ${err.message}. Retrying REST API merge with merge token...`,
       );
       try {
         await withRetry(core, () => github.rest.pulls.merge(mergeParams));
         core.info(`PR #${prNumber} merged via REST API successfully!`);
-      } catch (restError) {
-        core.error(`All merge attempts failed for PR #${prNumber}: ${restError.message}`);
-        throw restError;
+      }
+      /* eslint-disable-next-line no-shadow */
+      catch (err) {
+        core.error(`All merge attempts failed for PR #${prNumber}: ${err.message}`);
+        throw err;
       }
     }
   }
@@ -231,8 +235,8 @@ ${commitsList}
 
     try {
       fs.unlinkSync(promptFile);
-    } catch (cleanupError) {
-      core.warning(`Temporary prompt file cleanup failed: ${cleanupError.message}`);
+    } catch (err) {
+      core.warning(`Temporary prompt file cleanup failed: ${err.message}`);
     }
 
     if (!output) {
@@ -244,8 +248,8 @@ ${commitsList}
     const commitMessage = lines.slice(1).join('\n').trim();
 
     return { commitTitle, commitMessage };
-  } catch (error) {
-    core.warning(`Copilot message generation failed: ${error.message}. Falling back to default.`);
+  } catch (err) {
+    core.warning(`Copilot message generation failed: ${err.message}. Falling back to default.`);
     return null;
   }
 }
@@ -304,8 +308,8 @@ async function deleteBotCommentIfExists({ github, core, owner, repo, prNumber })
           comment_id: botComment.id,
         }),
       );
-    } catch (error) {
-      core.warning(`Could not delete comment ${botComment.id}: ${error.message}`);
+    } catch (err) {
+      core.warning(`Could not delete comment ${botComment.id}: ${err.message}`);
     }
   }
 }
