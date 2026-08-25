@@ -43,12 +43,11 @@ These utilities and formatting styles maintain clean, high-signal, and standardi
 
 ---
 
-### 🔄 The Combined End-to-End Lifecycle
+### 🔄 The Combined Gated 4-Phase Lifecycle
 
-This integrated narrative traces how these components operate together to execute a standard codebase change:
+This integrated narrative traces how our system coordinates work across 4 development phases and 3 authoritative gates to execute a standard codebase change:
 
-1. **Phase 1: Research & Reproduce**: The developer or agent initializes a task according to the **Development Process**, reproducing any bug state with an empirical test.
-2. **Phase 2: Planning & Blueprinting**: The developer drafts a specification checklist (the plan) under `plans/` inside the session workspace. Before any file edits are allowed, the **Planning Hook** intercepts execution to verify the plan's presence and hash, prompting Touch ID to GPG-sign and write the planning gate signature (`plan-approval.json`).
-3. **Phase 3: Implementation**: The agent executes the change in place, adhering strictly to the **Strict Output Style** or **Conversational Output Style** rules. If external boilerplates are edited, the **Boilerplate Sync Skill** ensures synchronizations are safe and clean.
-4. **Phase 4: Proactive Quality & Testing**: Once changes are ready, the developer runs the test and linter suites. The **Testing Hook** intercepts the subagent execution, validating the outcome and signing the testing gate (`test-approval.json`). The **Review Hook** then invokes our specialized, hardened **Review Subagent** (`review_agent`) to evaluate the active diff, signing the review gate (`review-approval.json`).
-5. **Phase 5: Chunking & Commit**: Once all three gates are securely verified and chained on disk, the developer initiates the **Commit Gate**, which triggers Touch ID biometrics via the **Cryptographic Gating Hook** GPG-sign, commit, and push the active changes cleanly to GitHub.
+1. **Plan Phase (Gate 1)**: The developer and agent research the requirements, write a failing reproduction test if fixing a bug, and draft an imperative plan checklist under `plans/` in the session workspace. Before any code files can be modified, the **Planning Gate (Gate 1)** intercepts execution to verify the plan's validity, prompting GPG/Touch ID biometrics to write the planning signature (`plan-approval.json`).
+2. **Implement Phase**: The agent surgically implements the changes on disk off the approved plan checklist, adhering strictly to the formatting and standard conventions of the repository.
+3. **Review Phase (Gate 2)**: The developer or agent runs the local tests and linter suites. The **Quality Gate (Gate 2)** programmatically validates the workspace by checking the test results (`test-approval.json`) and delegating a proactive code review to our sandboxed **Review Subagent** (`review_agent`), which writes the review signature (`review-approval.json`) upon success.
+4. **Commit Phase (Gate 3)**: Once all quality and testing requirements are satisfied, the developer or agent initiates the **Commit Gate (Gate 3)**. This triggers GPG/Touch ID biometrics via the enforcer hook to sign the commit (`user-approval.json`), stage files, commit cleanly, and push the active changes to GitHub to open a Pull Request.

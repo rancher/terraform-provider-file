@@ -2,7 +2,7 @@
 
 ## Abstract
 
-To maintain absolute system integrity and prevent unauthorized code modifications in an autonomous programming workspace, the Agentic Framework implements a secure, **cryptographically chained gating pipeline**. This system mathematically guarantees that no code can be committed or pushed without satisfying sequential, hardware-authorized quality checkpoints: Planning (Gate 1) and Proactive Review (Gate 2).
+To maintain absolute system integrity and prevent unauthorized code modifications in an autonomous programming workspace, the Agentic Framework implements a secure, **cryptographically chained gating pipeline**. This system mathematically guarantees that no code can be committed or pushed without satisfying sequential, hardware-authorized checkpoints: Planning (Gate 1), Quality Gate (Gate 2), and Commit Gate (Gate 3).
 
 ---
 

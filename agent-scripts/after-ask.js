@@ -211,7 +211,6 @@ export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
       const sigFiles = [
         path.join(targetDir, 'user-approval.json'),
         path.join(targetDir, 'user-approval.json.sig'),
-        path.join(targetDir, 'test-approval.json'),
         path.join(targetDir, 'review-approval.json'),
         path.join(targetDir, 'plan-approval.json'),
         path.join(targetDir, 'plan-approval.json.sig'),

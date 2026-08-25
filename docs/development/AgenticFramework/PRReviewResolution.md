@@ -33,7 +33,7 @@ This workflow is initiated in a **brand new development session** specifically s
 For each comment retrieved, perform a critical architectural assessment:
 
 - **Evaluate Validity**: Is there an actual logic flaw, security vulnerability, syntax error, or style deviation?
-  - **If Valid**: Acknowledge the concern and design a custom, idiomatic fix conforming to `docs/development/rules/`.
+  - **If Valid**: Acknowledge the concern and design a custom, idiomatic fix conforming to `docs/development/CodingStandards/`.
   - **If Invalid**: Prepare a clear, professional, and technical explanation why the current implementation is correct.
 - **Reject Bot Hacks**: Never blindly copy sub-optimal recommendations, hacks that disable warnings, or "soft-failure" defaults that mask configuration errors.
 

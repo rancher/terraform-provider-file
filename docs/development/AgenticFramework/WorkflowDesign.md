@@ -8,37 +8,43 @@ To maximize efficiency and eliminate friction in a human-agent collaborative env
 
 ## Technical Specification
 
-### 1. The Three Authoritative Approval Gates
+### 1. The Gated 4-Phase Lifecycle & Three Gates
 
-Rather than requiring constant, step-by-step developer permissions during development, the framework consolidates coordination around three highly structured, secure milestones:
+To optimize collaboration and ensure zero unvetted changes, the framework coordinates work across 4 distinct phases (`Plan`, `Implement`, `Review`, `Commit`) and enforces three strict, sequential gates:
 
 ```text
-       [ Research & Implementation ]
-                     │
-                     ▼
- 🔒 Gate 1: Planning Gate (Touch ID Signed)
-                     │
-                     ▼
-       [ Autonomous Coding & Testing ]
-                     │
-                     ▼
- 🔒 Gate 2: IDE & Commit Gate (Touch ID Signed)
-                     │
-                     ▼
- 🔒 Gate 3: Draft PR Gating & Graduation
+       [ Plan Phase ]
+             │
+             ▼
+ 🔒 Gate 1: Planning Gate (User-Facing / GPG Touch ID)
+             │
+             ▼
+       [ Implement Phase (Autonomous) ]
+             │
+             ▼
+       [ Review Phase ]
+             │
+             ▼
+ 🔒 Gate 2: Quality Gate (Programmatic / Test & Subagent)
+             │
+             ▼
+       [ Commit Phase ]
+             │
+             ▼
+ 🔒 Gate 3: Commit Gate (User-Facing / GPG Touch ID)
 ```
 
-1. **Planning Gate (Gate 1)**:
-   - **Trigger**: Opening/modifying a Component Specification file (e.g. `docs/development/MyTopic/MyComponent.md`) and requesting approval.
-   - **Security**: Prompts macOS Touch ID to cryptographically verify developer agreement with the active strategy, writing a secure `plan-approval.json`.
-   - **Authorization**: Once Gate 1 is signed, the agent is granted full autonomous authorization to modify files, run unit tests, and compile.
-2. **IDE & Commit Gate (Gate 2)**:
-   - **Trigger**: Resolving the task, verifying 100% green tests, and requesting GPG-signed commit.
-   - **Security**: Displays the live unstaged git diff and requires conventional commit message approval, triggering Touch ID to verify the developer's physical sign-off and write `user-approval.json`.
-   - **Automation**: Upon signing, the enforcer hook automatically stages files, signs/commits, pushes, and opens a Draft PR on GitHub.
-3. **PR Sign-Off Gate (Gate 3)**:
-   - **Trigger**: The developer reviews the Draft PR on GitHub and provides final ready-for-review approval in chat.
-   - **Automation**: The agent graduates the PR to ready-for-review on GitHub and gracefully closes the development session.
+1. **Planning Gate (Gate 1 - User-Facing)**:
+   - **Phase Transition**: Plan $\rightarrow$ Implement.
+   - **Security**: Prompts macOS Touch ID to GPG-sign the active strategy checklist on disk, writing `plan-approval.json`.
+   - **Authorization**: Unlocks autonomous file modification, compilation, and testing capabilities.
+2. **Quality Gate (Gate 2 - Programmatic)**:
+   - **Phase Transition**: Implement $\rightarrow$ Review.
+   - **Security**: Natively verifies that local unit/integration tests pass (`test-approval.json`) and delegates an automated code review to our sandboxed `review_agent` to secure the review signature (`review-approval.json`).
+3. **Commit Gate (Gate 3 - User-Facing)**:
+   - **Phase Transition**: Review $\rightarrow$ Commit.
+   - **Security**: Displays the live unstaged Git diff in chat, requesting Conventional Commit message approval. It triggers macOS Touch ID to verify the developer's physical sign-off and write `user-approval.json`.
+   - **Automation**: Upon biometric verification, the hook automatically stages files, commits with the signature, pushes, and programmatically opens a Draft PR on GitHub.
 
 ---
 
@@ -48,6 +54,7 @@ To prevent clogging active workspace contexts with long-lived PR review wait sta
 
 - Once a PR is opened, the active session is cleanly **closed**.
 - If external maintainers or automated reviewers leave requested changes on GitHub, the developer starts a **brand new development session** running a dedicated `.gemini/workflows/resolve-pr-reviews.md` workflow.
+- In accordance with our PR iteration standards, comments are resolved by updating the review agent's rules first, reproducing findings, implementing fixes, re-verifying Gate 2, and committing via Gate 3.
 - This keeps individual sessions extremely short-lived, fast, and completely free of state contamination.
 
 ---

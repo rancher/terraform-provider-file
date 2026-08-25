@@ -17,14 +17,14 @@ This component documents how the repository's zero-trust, gated development proc
 | Sub-agent gating                              | `BeforeTool` on `invoke_agent`                                         | `PreToolUse` matcher `Task`                                                |
 | Sub-agent report → gate signature             | `AfterTool` on `invoke_agent`                                          | `SubagentStop` matcher on the agent name                                   |
 | Block direct git commit/push, Rancher remotes | `BeforeTool` on `run_shell_command`                                    | `PreToolUse` matcher `Bash`                                                |
-| Commit approval ask                           | `ask_user` (Gate 4)                                                    | `AskUserQuestion` (Gate 4)                                                 |
-| Commit-ask gate pre-check (Gates 1-3)         | `BeforeTool` on `ask_user` (`02-plan-phase.js` / `04-commit-phase.js`) | `PreToolUse` matcher `AskUserQuestion` (`gate-before-commit-ask.js`)       |
+| Commit approval ask                           | `ask_user` (Gate 3)                                                    | `AskUserQuestion` (Gate 3)                                                 |
+| Commit-ask gate pre-check (Gates 1-2)         | `BeforeTool` on `ask_user` (`02-plan-phase.js` / `04-commit-phase.js`) | `PreToolUse` matcher `AskUserQuestion` (`gate-before-commit-ask.js`)       |
 | Skills/scripts                                | `.gemini/skills/*.sh`                                                  | `.claude/skills/<name>/SKILL.md` — thin wrappers around the _same_ scripts |
 | Reusable core logic                           | `agent-scripts/*.js`, `agent-scripts/*.sh`                             | Same files, reused unmodified                                              |
 
 ## Claude-Specific State
 
-Claude's hooks never read or write Gemini's `~/.gemini/tmp/<repo>/` state directory. They use their own, parallel `~/.claude/tmp/<repo>/` directory (`.claude/hooks/lib/state-dir.js`) for `plan-approval.json`, `test-approval.json`, and `review-approval.json`. Gate 2 and 3 approvals (testing/review) are plain JSON markers tied to a SHA-256 diff hash, written after parsing the subagent's final report for a standardized success string.
+Claude's hooks never read or write Gemini's `~/.gemini/tmp/<repo>/` state directory. They use their own, parallel `~/.claude/tmp/<repo>/` directory (`.claude/hooks/lib/state-dir.js`) for `plan-approval.json`, `test-approval.json`, and `review-approval.json`. Gate 2 approvals (testing/review) are plain JSON markers tied to a SHA-256 diff hash, written after parsing the subagent's final report for a standardized success string.
 
 Gate 1 (planning) and Gate 3 (commit) are still Secure Enclave / Touch ID signed via `age`, matching Gemini's guarantee. Claude's hooks look for the key pair at `~/.claude/age-key.pub` / `~/.claude/age-key.txt` (a separate copy of the same enrolled key material described in **[Cryptographic Gating & Approvals](./GatingAndApprovals.md)**).
 

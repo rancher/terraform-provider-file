@@ -40,26 +40,16 @@ function preReviewTesting(tool_input) {
 
     const diffHash = calculateDiffHash();
     if (planHash && diffHash) {
-      const testApprovalFile = path.join(TARGET_DIR, 'test-approval.json');
-      try {
-        fs.unlinkSync(testApprovalFile);
-      } catch {
-        // Ignored
+      const stateFile = path.join(TARGET_DIR, 'phase-state.json');
+      let state = { currentPhase: 'review' };
+      if (fs.existsSync(stateFile)) {
+        try {
+          state = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+        } catch {}
       }
-      fs.writeFileSync(
-        testApprovalFile,
-        JSON.stringify(
-          {
-            status: 'approved',
-            plan_hash: planHash,
-            diff_hash: diffHash,
-            timestamp: new Date().toISOString(),
-          },
-          null,
-          2,
-        ),
-        { mode: 0o400 },
-      );
+      state.tested_diff_hash = diffHash;
+      state.tested_plan_hash = planHash;
+      fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
     }
 
     console.log(
@@ -151,6 +141,7 @@ function afterInvoke(inputData) {
     'pass 1',
     'pass 2',
     'pass 3',
+    'pass 4',
     'security',
     'standard',
     'performance',

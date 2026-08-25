@@ -1,110 +1,90 @@
-# Standard Development Process
+# Standard Gated Development Process
 
 ---
 
 ## Abstract
 
-This component outlines the repository's standard, step-by-step developer and agent development process. It is structured around Three Authoritative Approval Gates that enforce strict plan validation, testing compliance, and biometric Touch ID commits.
+This component outlines the repository's standard, step-by-step developer and agent development process. It is structured around a **Gated 4-Phase Lifecycle** (Plan, Implement, Review, Commit) and **Three Authoritative Approval Gates** (two of which are user-facing) to enforce strict planning, automated quality, and cryptographic biometric commits.
 
 ---
 
 ## 🔒 The Three Authoritative Approval Gates
 
-To ensure high-signal coordination and eliminate redundant or disjointed prompts, this workflow is strictly consolidated around three mandatory **Approval Gates**. Outside of these gates, the agent is granted full autonomous authorization to execute.
+To maintain absolute system integrity and prevent unvetted code modifications, the development lifecycle is anchored around three sequential approval gates. The agent operates with full autonomous authorization between gates, but is strictly blocked from advancing phases or committing code until the respective gate is satisfied.
 
-### **Gate 1: Planning Gate (Initial Strategy Approval)**
+### **Gate 1: Planning Gate (User-Facing)**
 
-- **Location**: Phase 2 (Blueprint & Planning) - Step 5.
-- **Protocol**: The agent MUST NOT modify any source files or run any mutating development commands before presenting the Topic Overview or Component Specification (inside the `docs/development/` directory) in the chat and receiving explicit developer approval.
-- **Autonomous Phase**: Once Gate 1 is approved, the agent operates with **full autonomous authorization** through Phase 3 (Surgical Implementation) and Phase 4 (Proactive Quality Gate). The agent does _not_ need to stop and ask for "interim" permissions to compile, run tests, lint, or invoke the review agent.
+- **Phase Transition**: Plan $\rightarrow$ Implement.
+- **Verification File**: `plan-approval.json` and `plan-approval.json.sig`.
+- **Protocol**: Before any source or configuration files can be modified, the developer must review and cryptographically sign the dynamic implementation plan checklist using GPG/Touch ID.
+- **Authorization**: Once Gate 1 is signed, the agent is granted full autonomous authorization to modify files, compile, and run tests.
 
-### **Gate 2: IDE & Commit Gate (Implementation Approval)**
+### **Gate 2: Quality Gate (Programmatic)**
 
-- **Location**: Phase 5 (IDE Review & Secure Commit-Push) - Steps 13 & 14.
-- **Protocol**: The agent presents the active unstaged git diff in the chat for the developer's visual IDE review and requests approval via `ask_user` containing the proposed conventional commit message (format: `Commit Message: "feat: <message>"`).
-- **Execution**: Once approved, our secure `04-commit-phase.js --after-ask` hook automatically:
-  1. Writes the cryptographic `user-approval.json` signature tied to the diff hash.
-  2. Executes `.gemini/skills/commit-push.sh -m "<parsed_message>"` to securely commit and push.
-  3. Programmatically generates a Draft Pull Request on GitHub using `.gemini/skills/create-pr.sh --draft`.
-     This eliminates any chance for the agent to inject unvetted files between approval and commit.
+- **Phase Transition**: Implement $\rightarrow$ Review.
+- **Verification Files**: `test-approval.json` and `review-approval.json`.
+- **Protocol**: This gate is programmatically validated by the enforcer hooks. It requires that:
+  1. The automated unit and linter checks pass successfully, writing `test-approval.json`.
+  2. A proactive code review is executed by the isolated, sandboxed **Review Subagent** (`review_agent`), which writes `review-approval.json` upon reporting a clean review.
+- **Enforcement**: If any workspace files are modified after Gate 2 is signed, the enforcer hooks automatically delete the signatures, revoking approval and requiring re-testing and re-review.
 
-### **Gate 3: Draft PR Review Gate (Ready-for-Review Approval)**
+### **Gate 3: Commit Gate (User-Facing)**
 
-- **Location**: Phase 6 (Draft PR & Ready Conversion) - Steps 16 & 17.
-- **Protocol**: The developer inspects the draft PR on GitHub. Upon receiving the developer's explicit approval in the chat, the agent converts the PR to "ready for review" (`gh pr ready <pr-number>`), presents the standard PR link, and cleanly **closes the development session**.
-- **Asynchronous Review Cycle**: The developer waits asynchronously for team and AI reviews. If changes or comments are received on GitHub, the developer starts a **brand new, separate development session** executing the specialized `resolve-pr-reviews.md` workflow to resolve comments and merge.
+- **Phase Transition**: Review $\rightarrow$ Commit.
+- **Verification File**: `user-approval.json`.
+- **Protocol**: The agent presents the active unstaged Git diff for visual IDE review. The developer explicitly approves the proposed Conventional Commit message via `ask_user` (format: `Commit Message: "docs: <description>"`).
+- **Execution**: The hook (`04-commit-phase.js --after-ask`) intercepts the approval and triggers Touch ID biometrics to write `user-approval.json`. It then securely stages the files, commits using the signed key, pushes the branch, and programmatically generates a Draft Pull Request on GitHub.
 
 ---
 
 ## Core Mandates
 
-1. **Zero Data Loss Guarantee:** Never run destructive git commands (such as `git reset --hard`, `git checkout .`, or `git clean -fd`) on modified workspace files unless explicitly requested by the developer, or after backing up work to a temporary branch/stash or the standard backup folder.
-2. **IDE Review Priority:** The developer prefers to review code changes directly in their IDE while they are **unstaged** in the Git working directory to maintain color-coded diff visibility. Never execute a `git commit` without presenting the exact unstaged diff and receiving explicit approval in the chat.
-3. **No Upstream Pushes:** Never push directly to upstream "rancher" remotes. All remote operations must target the user's fork.
-4. **Strict Release-Please & SemVer Rules (Product-Centric):** All draft commit messages must strictly adhere to Release-Please rules from the end-user product's perspective:
-   - **`feat`** (bumping SemVer Minor) and **`refactor`/`!`** (bumping SemVer Major) MUST ONLY be used if the change directly modifies the Terraform files defining the published module itself (`main.tf`, `variables.tf`, `versions.tf`, or `outputs.tf`).
-   - **Internal Dev Changes:** Changes to helper scripts, CI/CD configuration, linters, internal hooks, or test suites DO NOT affect the published product. They MUST NOT use `feat`, `refactor`, or `!` types. Instead, use non-bumping conventional prefixes such as `build`, `ci`, `test`, `docs`, `fix`, or `chore`.
-5. **Secure Local Backup & Isolation (~/.gemini/tmp):** To isolate staged commits for pristine IDE review with zero clutter, the agent MUST temporarily backup all non-layer modified and untracked files to the standard `~/.gemini/tmp/<repo-name>/backup_changes` directory.
+1. **Zero Data Loss Guarantee:** Destructive Git commands (`git reset --hard`, `git checkout .`, `git clean -fd`) must never be run on uncommitted workspace files unless explicitly requested by the developer, or after backing up work to a temporary branch or the standard backup directory (`~/.gemini/tmp/<repo-name>/backup_changes`).
+2. **IDE Review Priority:** Developers review code changes directly in their IDE while they are **unstaged** to maintain color-coded diff visibility. No commits can occur without presenting the unstaged diff and receiving explicit GPG-signed commit approval via the `ask_user` tool.
+3. **No Upstream Pushes:** All remote pushes must target the developer's fork, never the upstream "rancher" remote.
+4. **Strict Release-Please & SemVer Rules:** All draft commit messages must strictly adhere to Conventional Commits from the end-user product's perspective:
+   - **`feat`** (bumping SemVer Minor) and **`refactor`/`!`** (bumping SemVer Major) are strictly reserved for changes directly modifying the Terraform definition files (`main.tf`, `variables.tf`, `versions.tf`, or `outputs.tf`).
+   - **Internal Dev Changes:** Changes to helper scripts, CI/CD configuration, linters, internal hooks, or test suites must use non-bumping conventional prefixes such as `build`, `ci`, `test`, `docs`, `fix`, or `chore`.
 
 ---
 
 ## Step-by-Step Procedure
 
-### Phase 1: Research & Reproduce
+### Phase 1: Plan Phase (Gate 1)
 
-1. **Understand Goal & Hurdle:** Map the user's high-level goal and hurdle. If an existing workflow matches (e.g. CI failure matches `troubleshoot-workflows.md`), declare it explicitly.
-2. **Codebase Exploration:** Search the codebase for existing patterns, conventions, and affected source/test files.
-3. **Empirical Bug Reproduction:** For bug fixes, write a reproduction script or local test that demonstrates the failure, and run it to confirm the bug state.
+1. **Research & Explore**: Map the goal and hurdle. Search the codebase for existing patterns and affected source or test files.
+2. **Empirical Bug Reproduction**: For bug fixes, write a reproduction script or local test that demonstrates the failure, and run it to confirm the bug state.
+3. **Draft Plan**: Draft a step-by-step imperative plan checklist under `plans/` in the session workspace. Explain the implementation details and testing strategy.
+4. **Solicit Plan Approval (Gate 1)**: Present the plan in the chat and request cryptographic approval via `ask_user` (using a choice option labeled "Approve Plan"). GPG/Touch ID biometrics sign the plan and write `plan-approval.json`.
+5. **Phase Transition**: Call `exit_plan_mode` to transition the session from Plan to Implement.
 
-### Phase 2: Planning, Strategy & Blueprint Synchronization (Gate 1)
+### Phase 2: Implement Phase (Autonomous)
 
-1. **Acquire, Edit, or Create Architectural Specification:** Following `docs/development/rules/blueprints.instructions.md`, verify if an existing Topic Overview or Component Specification exists for the target domain.
-   - **If an existing specification covers the domain:** You MUST NOT create a new file. Instead, _edit_ and _adapt_ the existing specification under `docs/development/`, modifying its top-half blueprint and expanding/re-opening the bottom-half implementation checklist.
-   - **If no existing specification matches the domain:** Create a new Topic Overview (at `docs/development/<Topic>.md`) and a corresponding Component Specification (at `docs/development/<Topic>/<Component>.md`).
-   - **Checklist Construction:** Build and expand the sequential implementation checklist in the Component Specification to detail the specific sub-tasks. (Note: You do NOT need to include standard quality gates like running tests or reviews as physical checkboxes; these are natively enforced by the security hooks).
-2. **🔒 Solicit Plan Approval (Gate 1):** Present the updated blueprint and implementation checklist to the developer in the chat for explicit approval. **The agent is strictly prohibited from modifying any source files or running mutating development commands until Gate 1 approval is received.**
+1. **Surgical Refactoring**: Sequentially implement the tasks from the approved plan, updating the checkboxes in the plan file. Keep edits focused and surgical.
+2. **Verification Tests**: Compile and execute tests locally to verify correctness.
+3. **Linter & Static Analysis Compliance**: Run ecosystem linters (such as `eslint`, `shellcheck`, and `golangci-lint`) and resolve all warnings.
 
-### Phase 3: Surgical Implementation (Autonomous Action)
+### Phase 3: Review Phase (Gate 2)
 
-1. **Execute Plan & Track State (No Stage/Commit):** Implement the plan sequentially, updating checkboxes in the plan file in place. Keep edits simple, precise, and idiomatic. Do NOT stage (`git add`) or commit (`git commit`).
-2. **Build & Test Verification:** Compile, build, and run tests locally.
-   - **Full Test Suite Context Warning:** The full test suite can take over an hour and generate massive logs. Redirect output (e.g., `./run_tests.sh [options] > /tmp/run_tests.log 2>&1`) and run `.gemini/skills/parse-test-logs.sh` to prevent context window flooding.
-   - **Fast Verification Option:** Validate changes quickly on a single fixture:
+1. **Testing Sign-Off**: Run local test suites to verify full codebase integration, which writes `test-approval.json`.
+2. **Delegate Proactive Review**: Delegate a proactive code review of the active local Git diff to the sandboxed `review_agent` using `invoke_agent`.
+3. **Resolve Findings**: The review agent's primary goal is to be a critical, adversarial peer reviewer. If the subagent flags any architectural gaps or documentation inconsistencies, surgically resolve them and re-run the review until the subagent reports a perfect clean status (`🟢 PERFECT - 0 findings`), which programmatically writes `review-approval.json`.
 
-     ```bash
-     ./run_tests.sh -f sle-micro-61-canal-stable-one-rpm-ipv4
-     ```
+### Phase 4: Commit Phase (Gate 3)
 
-3. **Static Analysis & Linters:** Run ecosystem linters (e.g., `golangci-lint`, `shellcheck`, `tflint --recursive`, `actionlint`) and resolve all warnings.
+1. **Isolate Changes**: Create a dedicated feature branch off the updated `main`. Keep the changes unstaged in the working directory.
+2. **Solicit Commit Approval (Gate 3)**: Present the unstaged diff and request final commit approval via `ask_user` using the proposed conventional commit message format (`Commit Message: "docs: <description>"`).
+3. **Automated Commit & Push**: Touch ID biometrics sign `user-approval.json`. The enforcer hook intercepts the approval, stages the changes, commits with the signature, pushes the branch, and programmatically opens a Draft Pull Request on GitHub.
+4. **Graduation & Conclude**: Convert the Draft PR to "Ready for Review" via `gh pr ready <pr-number>` once finalized, and cleanly close the session.
 
-### Phase 4: Proactive Quality Gate (Autonomous Action)
+---
 
-1. **Proactive Code Review:** Delegate a proactive code review of your active local git diff directly to the custom review subagent by running `@review_agent` in the chat. The agent will rigorously verify your modifications against `docs/development/rules/github-copilot-review.instructions.md` and all repository standards, generating a pre-commit review report and the secure cryptographic SHA-256 approval signature.
-2. **Resolve Findings:** Refactor and fix any concerns discovered by the review agent, ensuring exactly 0 automated Copilot or linter findings.
+## Pull Request Iteration & Comment Resolution Protocol
 
-### Phase 5: Chunking & IDE Review (Gate 2)
+When resolving comments or feedback on an open Pull Request, developers and agents must adhere to the following systematic quality iteration loop:
 
-1. **Logical Partitioning:** If there is a large volume of changes, group files into focused, independent **subsystem boundaries** (layers).
-2. **Upstream Synchronization:** Before checkout, switch to `main` and execute `.gemini/skills/git-sync.sh` to ensure our branch off point is completely up-to-date with upstream.
-3. **Isolate First Layer (Keep Unstaged):** Create a dedicated branch directly off the updated `main`. To keep the workspace clean, backup all other non-layer files to the standard `~/.gemini/tmp/<repo-name>/backup_changes` directory. Clean other files from the working directory, leaving **exclusively** the target layer's changes unstaged.
-4. **🔒 Solicit IDE & Commit Approval (Gate 2):** Present the unstaged diff to the developer in the chat for visual IDE review. Formulate a conventional commit message and ask for approval via `ask_user` in the exact format: `Commit Message: "feat: <message>"`.
-5. **🔒 Automated Secure Commit & Push**: Upon the developer's approval in `ask_user`, our secure `04-commit-phase.js --after-ask` hook automatically intercepts, writes the `user-approval.json` signature, stages the changes, and runs the secure skill `.gemini/skills/commit-push.sh -m "<message>"`. **Direct manual git commit and push commands are strictly prohibited.**
-
-### Phase 6: Draft PR & Ready Conversion (Gate 3)
-
-1. **🔒 Automated Draft PR Generation (Gate 3):** Immediately after successful push, the hook automatically runs `.gemini/skills/create-pr.sh --draft` to generate a Draft PR on GitHub.
-2. **Inspect Draft PR:** Wait for the developer to inspect the draft PR link programmatically returned in the hook logs on GitHub.
-3. **Convert PR to Ready & Conclude Session:** Once the developer explicitly instructs you to finalize the PR in chat, convert the PR from Draft to "Ready for Review" using the GitHub CLI: `gh pr ready <pr-number>`. Provide a completion summary, present the final PR link, and cleanly **close the current development session**.
-
-### Phase 7: Asynchronous PR Iteration & Next Layer Restoration
-
-1. **Asynchronous Review Wait-State:** The developer waits asynchronously for team and AI reviews. If comments or requested changes are submitted on GitHub, the developer starts a **brand new development session** running the dedicated `.gemini/workflows/resolve-pr-reviews.md` workflow to resolve comments.
-2. **Pull Request Iteration & Review Comment Resolution Protocol:**
-   When resolving team, reviewer, or AI (Copilot) feedback and comments on an open Pull Request, agents and developers must strictly adhere to the following systematic quality iteration protocol:
-   - **🔒 Update the Review Agent's Prompts First**: Before modifying any codebase files, analyze the review comments and translate the identified classes of bugs, formatting issues, or standard violations into strict checking guidelines. Update `.gemini/agents/review_agent.md` (or `.claude/agents/review-agent.md`) by appending these strict checking items under Section 3 ("Strict Quality Gates, Refactoring, & Safety Verification").
-   - **🔒 Run the Review Agent on the Unmodified Codebase**: Execute the updated review subagent (`review_agent`) against the unmodified codebase files. The agent must successfully evaluate the files and flag the exact same issues/findings identified by the reviews, concluding with `PR Review status: 🔴 FINDINGS - Violations detected.`.
-   - **🔒 Code Fix Implementation**: Only after the local review agent successfully reproduces the findings in its report are you authorized to surgically modify the codebase files to address the review concerns.
-   - **🔒 Local Testing & Final Verification**: Once changes are applied, run all unit, integration, and lint checks natively to confirm no regressions. Then, execute the `review_agent` one final time to confirm it officially approves the workspace changes with a clean `PR Review status: 🟢 PERFECT - 0 findings`.
-   - **🔒 Staged Commit & PR Update**: Stage the changes, commit using Conventional Commit formatting, and push to the remote branch. Finally, execute `.gemini/skills/resolve-pr-reviews.sh` using your local credentials to programmatically resolve the review comment threads on GitHub.
-3. **Proceed to Next Layer:** Switch back to the synchronized `main`, restore the remaining files from the backup directory `~/.gemini/tmp/<repo-name>/backup_changes` back into the active workspace, and return to Step 11 for the next layer.
-4. **Completion Summary:** Once all layers are successfully complete and merged, provide a concise summary with links to all Pull Requests.
+1. **Update Review Agent Guidelines First**: Translate the review comments into strict checking rules and append them to `.gemini/agents/review_agent.md` under Section 3 ("Strict Quality Gates, Refactoring, & Safety Verification").
+2. **Run Review Agent on Unmodified Codebase**: Run the `review_agent` on the unmodified codebase files. The subagent must successfully reproduce the findings in its report and conclude with `PR Review status: 🔴 FINDINGS - Violations detected.`.
+3. **Implement Surgical Code Fixes**: Only after the subagent successfully reproduces the findings in its local report are you authorized to modify files to address the comments.
+4. **Local Verification & Final Review**: Run local linters and tests. Then, execute the `review_agent` one final time to confirm it approves the workspace changes with a clean `PR Review status: 🟢 PERFECT - 0 findings`.
+5. **Push Updates & Resolve**: Stage the changes, commit using the Commit Gate, and push to the remote branch. Execute `.gemini/skills/resolve-pr-reviews.sh` to programmatically resolve the comment threads on GitHub.

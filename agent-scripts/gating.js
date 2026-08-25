@@ -109,23 +109,19 @@ export function verifyPlanGate(targetDir) {
 
 // Verify Gate 2: Test Gate
 export function verifyTestGate(targetDir, expectedPlanHash, activeDiffHash) {
-  const testApprovalFile = path.join(targetDir, 'test-approval.json');
+  const stateFile = path.join(targetDir, 'phase-state.json');
 
-  if (!fs.existsSync(testApprovalFile)) {
+  if (!fs.existsSync(stateFile)) {
     return false;
   }
 
   try {
-    const content = JSON.parse(fs.readFileSync(testApprovalFile, 'utf-8'));
-    if (content.status !== 'approved') {
+    const content = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+    if (content.tested_plan_hash !== expectedPlanHash) {
       return false;
     }
 
-    if (content.plan_hash !== expectedPlanHash) {
-      return false;
-    }
-
-    if (content.diff_hash !== activeDiffHash) {
+    if (content.tested_diff_hash !== activeDiffHash) {
       return false;
     }
 
@@ -164,36 +160,11 @@ export function verifyReviewGate(targetDir, expectedDiffHash, expectedPlanHash) 
   }
 }
 
-// Check and actively revoke stale signatures (Gate 2/3) if the diff hash has changed
+// Check and actively revoke stale signatures (Gate 2) if the diff hash has changed
 export function checkAndRevokeStaleGates(targetDir, activeDiffHash, expectedPlanHash) {
-  const testApprovalFile = path.join(targetDir, 'test-approval.json');
   const reviewApprovalFile = path.join(targetDir, 'review-approval.json');
 
   let hasRevoked = false;
-
-  // Check test approval
-  if (fs.existsSync(testApprovalFile)) {
-    try {
-      const content = JSON.parse(fs.readFileSync(testApprovalFile, 'utf-8'));
-      if (
-        activeDiffHash &&
-        expectedPlanHash &&
-        (content.diff_hash !== activeDiffHash || content.plan_hash !== expectedPlanHash)
-      ) {
-        fs.unlinkSync(testApprovalFile);
-        console.error(
-          '❌ Active Gate Revocation: Stale testing signature deleted because workspace changes were modified since your last test run!',
-        );
-        hasRevoked = true;
-      }
-    } catch {
-      // If unparsable, delete it
-      try {
-        fs.unlinkSync(testApprovalFile);
-      } catch {}
-      hasRevoked = true;
-    }
-  }
 
   // Check review approval
   if (fs.existsSync(reviewApprovalFile)) {
@@ -217,6 +188,23 @@ export function checkAndRevokeStaleGates(targetDir, activeDiffHash, expectedPlan
       } catch {}
       hasRevoked = true;
     }
+  }
+
+  // Also reset tested_diff_hash in phase-state.json on change to enforce re-testing
+  const stateFile = path.join(targetDir, 'phase-state.json');
+  if (fs.existsSync(stateFile)) {
+    try {
+      const content = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+      if (
+        activeDiffHash &&
+        expectedPlanHash &&
+        (content.tested_diff_hash !== activeDiffHash || content.tested_plan_hash !== expectedPlanHash)
+      ) {
+        content.tested_diff_hash = '';
+        content.tested_plan_hash = '';
+        fs.writeFileSync(stateFile, JSON.stringify(content, null, 2));
+      }
+    } catch {}
   }
 
   return hasRevoked;
