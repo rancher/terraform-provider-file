@@ -4,7 +4,6 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { execSync } from 'child_process';
-import * as child_process from 'child_process';
 import os from 'os';
 import {
   calculateSha256,

@@ -43,7 +43,7 @@ function preReviewTesting(tool_input) {
       const testApprovalFile = path.join(TARGET_DIR, 'test-approval.json');
       try {
         fs.unlinkSync(testApprovalFile);
-      } catch (err) {
+      } catch {
         // Ignored
       }
       fs.writeFileSync(
