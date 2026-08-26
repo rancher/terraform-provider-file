@@ -130,9 +130,27 @@ export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
 
     // Run the automated execution in a decoupled block
     try {
-      const matchCommit =
-        promptText.match(/Commit Message:\s*"([^"]+)"/i) || promptText.match(/Commit Message:\s*`([^`]+)`/i);
-      const commitMessage = matchCommit ? matchCommit[1] : 'chore: automated development commit';
+      let commitMessage = '';
+      const reviewApprovalFile = path.join(targetDir, 'review-approval.json');
+      if (fs.existsSync(reviewApprovalFile)) {
+        try {
+          const approvalData = JSON.parse(fs.readFileSync(reviewApprovalFile, 'utf-8'));
+          if (approvalData.suggested_commit_message) {
+            commitMessage = approvalData.suggested_commit_message;
+          }
+        } catch (err) {
+          console.error('🔒 Hook Debug: Failed to read suggested commit message from review approval:', err.message);
+        }
+      }
+
+      if (!commitMessage) {
+        const matchCommit =
+          promptText.match(/Commit Message:\s*"([^"]+)"/i) || 
+          promptText.match(/Commit Message:\s*`([^`]+)`/i) ||
+          promptText.match(/Proposed Message:\s*"([^"]+)"/i) ||
+          promptText.match(/Proposed Message:\s*`([^`]+)`/i);
+        commitMessage = matchCommit ? matchCommit[1] : 'chore: automated development commit';
+      }
 
       console.error(`\n🚀 AUTOMATION TRIGGERED: Initiating commit and push...`);
 

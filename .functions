@@ -51,7 +51,7 @@ ps1_color_open() {
   local red="$1"
   local green="$2"
   local blue="$3"
-  printf '\[\e[0;38;2;%s;%s;%sm\]' "$red" "$green" "$blue"
+  printf '\\[\033[0;38;2;%s;%s;%sm\\]' "$red" "$green" "$blue"
 }
 
 green() {
@@ -75,7 +75,7 @@ yellow() {
 
 # color end
 ce() {
-  printf '\[\e[m\]'
+  printf '\\[\033[m\\]'
 }
 
 ts() {

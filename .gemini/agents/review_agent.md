@@ -74,6 +74,9 @@ You MUST consult and strictly enforce the language-specific standard files locat
   - Enforce that there are exactly **3 Gates** (Planning Gate, Programmatic Review/Testing Gate, and Commit Gate), where **2 of them are user-facing** (Planning Gate and Commit Gate).
   - Enforce that there is a **Gated 4-Phase Lifecycle** consisting of the following phases: `Plan`, `Implement`, `Review`, `Commit`.
   - Flag any reference to a "4-gate", "5-gate", "7-phase", or "5-hook" architecture, or any other incorrect numbers of gates/phases/hooks, as a documentation inconsistency.
+- **`printf` ANSI Escape Sequences**: Ensure `printf` is used correctly when printing `\[` and `\]` for Bash non-printing boundaries. In `printf` format strings, backslashes must be properly escaped (e.g. `\\[` and `\\]`) to prevent `printf` from stripping them and outputting raw `[` and `]`, which breaks Bash line-wrapping calculations.
+- **Fail-Safe JSON State File Parsers**: Ensure `phase-state.json` updates are wrapped inside resilient try-catch blocks. If parsing the file fails due to corrupt or invalid JSON, scripts must fallback to a fresh default state rather than crashing or skipping the write, preventing phase progression failures.
+- **Sourced Shell Configuration Shebangs**: Verify that sourced environment/configuration shell files containing Bash-specific escapes (e.g., `\W`) and dynamic prompt substitutions are shebanged with `#!/usr/bin/env bash` rather than POSIX `sh`, preventing incorrect editor linting or incompatibilities.
 
 ---
 
