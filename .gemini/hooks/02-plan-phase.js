@@ -234,7 +234,7 @@ function askUserPlanProof(inputData, targetDir) {
     process.exit(0);
   }
 
-  let answerText = '';
+  let answerText;
   try {
     let res = typeof tool_response === 'string' ? JSON.parse(tool_response) : tool_response;
     if (res.output && typeof res.output === 'string') {
@@ -313,7 +313,7 @@ function askUserPlanProof(inputData, targetDir) {
     process.exit(0);
   }
 
-  let promptText = '';
+  let promptText;
   try {
     const question = tool_input.questions && tool_input.questions[0];
     promptText = (question && question.question) || JSON.stringify(tool_input);

@@ -9,7 +9,7 @@ import path from 'path';
  */
 export function resolveTargetDir(cwd = process.cwd()) {
   const homeDir = os.homedir();
-  let repoName = 'generic-repo';
+  let repoName;
   try {
     const topLevel = execSync('git rev-parse --show-toplevel', {
       cwd: cwd,

@@ -15,7 +15,7 @@ import crypto from 'crypto';
 import { execSync } from 'child_process';
 import { Buffer } from 'buffer';
 
-let repoName = '';
+let repoName;
 try {
   const topLevel = execSync('git rev-parse --show-toplevel', { stdio: ['ignore', 'pipe', 'ignore'] })
     .toString()
@@ -258,7 +258,7 @@ function promptApproval(message, defaultOption) {
   const isDefaultYes = defaultOption.toLowerCase() === 'y' || defaultOption.toLowerCase() === 'yes';
   const optionPrompt = isDefaultYes ? '[Y/n]' : '[y/N]';
 
-  let response = defaultOption;
+  let response;
 
   try {
     // Open direct TTY read/write streams

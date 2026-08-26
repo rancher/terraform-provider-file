@@ -91,6 +91,7 @@ export function verifyRemoteAncestry(branch, remoteName = 'origin', cwd) {
       console.error(err.message || err);
       throw new Error(
         `CRITICAL FAILURE: LOCAL BRANCH IS OUT-OF-SYNC WITH REMOTE FORK! Remote tracking reference '${remoteName}/${branch}' (${remoteSha}) has changes that are not present locally.`,
+        { cause: err },
       );
     }
   } catch (err) {
@@ -185,7 +186,7 @@ export function verifyProactiveReview(agentStateDir, cwd) {
       );
     }
   } catch (err) {
-    throw new Error(`Failed to parse proactive review approval file: ${err.message}`);
+    throw new Error(`Failed to parse proactive review approval file: ${err.message}`, { cause: err });
   }
 
   console.log(`✅ Proactive review approval verified! (SHA-256 Hash: ${activeHash})`);
@@ -204,7 +205,7 @@ export function executeCommit(commitMsg, branch, cwd) {
     console.log('✅ Conventional GPG/SSH-signed commit successfully created!');
   } catch (err) {
     console.error(err);
-    throw new Error('GPG/SSH COMMIT SIGNATURE FAILURE! Commit signature operation failed or was cancelled.');
+    throw new Error('GPG/SSH COMMIT SIGNATURE FAILURE! Commit signature operation failed or was cancelled.', { cause: err });
   }
 }
 
@@ -225,7 +226,7 @@ export function verifyPushSafety(remoteName, cwd) {
     if (err.message.includes('Unsafe push prevented')) {
       throw err;
     }
-    throw new Error(`Remote '${remoteName}' has no configured URL.`);
+    throw new Error(`Remote '${remoteName}' has no configured URL.`, { cause: err });
   }
 }
 
@@ -241,7 +242,7 @@ export function executePush(remoteName, branch, forcePush = false, cwd) {
       });
     } catch (err) {
       console.error(err.message || err);
-      throw new Error('Remote force-push with lease failed.');
+      throw new Error('Remote force-push with lease failed.', { cause: err });
     }
   } else {
     console.log(`Pushing branch '${branch}' to '${remoteName}'...`);
@@ -252,7 +253,7 @@ export function executePush(remoteName, branch, forcePush = false, cwd) {
       });
     } catch (err) {
       console.error(err.message || err);
-      throw new Error('Remote push failed.');
+      throw new Error('Remote push failed.', { cause: err });
     }
   }
 
@@ -278,7 +279,7 @@ export function getForkOwner(cwd) {
     }
     throw new Error(`Could not parse fork owner from origin URL: ${originUrl}`);
   } catch (err) {
-    throw new Error(`Failed to retrieve configured origin remote URL: ${err.message}`);
+    throw new Error(`Failed to retrieve configured origin remote URL: ${err.message}`, { cause: err });
   }
 }
 
@@ -306,7 +307,7 @@ export function createPullRequest(title, body, base = 'main', draftFlag = '', cw
     // Safely ignore if gh command fails
   }
 
-  let upstreamRepo = '';
+  let upstreamRepo;
   try {
     const originUrl = execFileSync('git', ['remote', 'get-url', 'origin'], {
       cwd: cwd || process.cwd(),
@@ -365,7 +366,7 @@ export function createPullRequest(title, body, base = 'main', draftFlag = '', cw
       env: { ...process.env, GITHUB_TOKEN: '' },
     });
   } catch (err) {
-    throw new Error(`Failed to create Pull Request: ${err.message}`);
+    throw new Error(`Failed to create Pull Request: ${err.message}`, { cause: err });
   }
 }
 
@@ -392,7 +393,7 @@ export function graduatePullRequest(target, cwd) {
     }
     console.log('✅ Pull Request successfully graduated to ready for review!');
   } catch (err) {
-    throw new Error(`Failed to graduate Pull Request: ${err.message}`);
+    throw new Error(`Failed to graduate Pull Request: ${err.message}`, { cause: err });
   }
 }
 
@@ -509,7 +510,7 @@ export function runPhaseManager(args, cwd) {
             execFileSync('git', ['checkout', '-b', branchName], { cwd: cwd || process.cwd() });
           }
         } catch (err) {
-          throw new Error(`Failed to switch to branch ${branchName}: ${err.message}`);
+          throw new Error(`Failed to switch to branch ${branchName}: ${err.message}`, { cause: err });
         }
       }
     }

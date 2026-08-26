@@ -194,7 +194,7 @@ export default async ({ github, context, core, process }) => {
 async function craftSquashCommitMessage({ core, commitsList, affectsProduct, process, feedback }) {
   core.info('Invoking Copilot Agent CLI to craft Conventional Squash Commit Message...');
 
-  let safetyDirective = '';
+  let safetyDirective;
   if (!affectsProduct) {
     safetyDirective = `CRITICAL REGULATORY CONSTRAINT: None of the files modified in this PR are inside the 'internal/' folder. This is a non-product change (e.g. docs, tests, CI workflows).
 Therefore, you MUST NOT use the 'feat' or 'refactor' commit types, and you MUST NOT use the '!' breaking-change indicator (which incorrectly trigger minor/major semver bumps on release-please).

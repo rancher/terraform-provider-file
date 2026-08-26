@@ -55,7 +55,7 @@ run_shellcheck() {
   local files
   files=$(grep -Rl -e '^#!' . \
     | grep -v -E "^\./(\.git|\.terraform|\.gemini|bin|agent-scripts)/" \
-    | grep -v -E "\.md$" || true)
+    | grep -v -E "\.(md|js|mjs)$" || true)
 
   if [[ -z "${files}" ]]; then
     echo "No shell scripts found to check."
@@ -81,7 +81,7 @@ run_shfmt() {
   local files
   files=$(grep -Rl -e '^#!' . \
     | grep -v -E "^\./(\.git|\.terraform|\.gemini|bin|agent-scripts)/" \
-    | grep -v -E "\.md$" || true)
+    | grep -v -E "\.(md|js|mjs)$" || true)
 
   if [[ -z "${files}" ]]; then
     echo "No shell scripts found to process."
