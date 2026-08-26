@@ -73,8 +73,8 @@ ${errorMessage}
       await updateOrPostComment({ github, core, owner, repo, prNumber: parseInt(prNumber, 10), message: fallbackMsg });
 
       core.info(`Graceful fork fallback comment and label handled successfully.`);
-    } catch (fallbackError) {
-      core.error(`Graceful fork fallback failed: ${fallbackError.message}`);
+    } catch (err) {
+      core.error(`Graceful fork fallback failed: ${err.message}`);
     }
   } else {
     core.error(`Merge failed for local branch PR #${prNumber}: ${errorMessage}`);

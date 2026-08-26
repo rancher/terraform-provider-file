@@ -45,7 +45,16 @@ run_actionlint() {
 
 run_eslint() {
   echo "==> Running eslint check on scripts..."
+  if [ ! -d "node_modules" ] && [ -f "package.json" ]; then
+    echo "==> Installing local eslint dependencies..."
+    if ! npm ci --no-audit --no-fund --silent && ! npm install --no-audit --no-fund --silent; then
+      echo "Error: Failed to install ESLint node dependencies (npm ci and npm install both failed)." >&2
+      exit 1
+    fi
+  fi
   eslint .github/workflows/scripts/ .gemini/hooks/ .gemini/skills/ agent-scripts/
+  echo "==> Auditing catch statements..."
+  node .github/workflows/scripts/check-catch.js
 }
 
 run_shellcheck() {
@@ -53,7 +62,7 @@ run_shellcheck() {
   local files
   files=$(grep -Rl -e '^#!' . \
     | grep -v -E "^\./(\.git|\.terraform|\.gemini|bin|agent-scripts)/" \
-    | grep -v -E "\.md$" || true)
+    | grep -v -E "\.(md|js|mjs)$" || true)
 
   if [[ -z "${files}" ]]; then
     echo "No shell scripts found to check."
@@ -79,7 +88,7 @@ run_shfmt() {
   local files
   files=$(grep -Rl -e '^#!' . \
     | grep -v -E "^\./(\.git|\.terraform|\.gemini|bin|agent-scripts)/" \
-    | grep -v -E "\.md$" || true)
+    | grep -v -E "\.(md|js|mjs)$" || true)
 
   if [[ -z "${files}" ]]; then
     echo "No shell scripts found to process."

@@ -12,6 +12,95 @@ import {
 } from '../../agent-scripts/gating.js';
 import { resolveTargetDir } from '../../agent-scripts/workspace.js';
 
+const hookName = path.basename(process.argv[1]);
+const isStartup = hookName === '01-startup-context.js';
+const introLog = `🔒 Hook: ${hookName} - ${isStartup ? 'Loading startup context...' : 'Loading hook context...'}`;
+console.error(introLog);
+
+const originalLog = console.log;
+let hasLogged = false;
+
+console.log = function (msg) {
+  if (hasLogged) {
+    return;
+  }
+  try {
+    const parsed = JSON.parse(msg);
+    if (parsed.systemMessage) {
+      console.error(parsed.systemMessage);
+    }
+    const exitLog = `🔒 Hook: ${hookName} - ${isStartup ? 'context successfully loaded.' : 'Hook successfully loaded.'}`;
+    console.error(exitLog);
+
+    const msgs = [introLog];
+    if (parsed.systemMessage) {
+      msgs.push(parsed.systemMessage);
+    }
+    msgs.push(exitLog);
+    parsed.systemMessage = msgs.join('\n');
+
+    if (!parsed.decision && !isStartup) {
+      parsed.decision = 'allow';
+    }
+
+    originalLog(JSON.stringify(parsed, null, 2));
+    hasLogged = true;
+  } catch (err) {
+    console.error(err.message || err);
+    originalLog(msg);
+  }
+};
+
+process.on('exit', (code) => {
+  if (!hasLogged) {
+    const exitMsg = `🔒 Hook Error (${hookName}): Silent early exit detected with code ${code}.`;
+    console.error(exitMsg);
+    process.stdout.write(JSON.stringify({
+      decision: 'deny',
+      systemMessage: `${introLog}\n${exitMsg}`
+    }) + '\n');
+    hasLogged = true;
+  }
+});
+
+process.on('uncaughtException', (err) => {
+  const errMsg = `🔒 Hook Error (${hookName}): Unhandled exception - ${err.message || err}`;
+  console.error(errMsg);
+  if (!hasLogged) {
+    process.stdout.write(JSON.stringify({
+      decision: 'deny',
+      systemMessage: `${introLog}\n${errMsg}`
+    }) + '\n');
+    hasLogged = true;
+  }
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  const errMsg = `🔒 Hook Error (${hookName}): Unhandled promise rejection - ${reason.message || reason}`;
+  console.error(errMsg);
+  if (!hasLogged) {
+    process.stdout.write(JSON.stringify({
+      decision: 'deny',
+      systemMessage: `${introLog}\n${errMsg}`
+    }) + '\n');
+    hasLogged = true;
+  }
+  process.exit(1);
+});
+
+function revokeReviewState(targetDir) {
+  const reviewApprovalFile = path.join(targetDir, 'review-approval.json');
+  try {
+    if (fs.existsSync(reviewApprovalFile)) {
+      fs.unlinkSync(reviewApprovalFile);
+      console.error('❌ Gate 2 (Review) Revoked: User rejected the commit. Review approval has been deleted.');
+    }
+  } catch (err) {
+    console.warn(`Warning: Failed to revoke review state. Error: ${err.message || err}`);
+  }
+}
+
 function preCommitPhaseInterruption(inputData, targetDir) {
   const flagFile = path.join(targetDir, 'require-ask-user.flag');
 
@@ -23,7 +112,7 @@ function preCommitPhaseInterruption(inputData, targetDir) {
           reason:
             '🔒 Security Policy Violation: The review phase has completed successfully. All tools are blocked until you present the changes to the user for commit approval.\n\n' +
             'Please call the `ask_user` tool to request commit approval.',
-          systemMessage: '🔒 Security Block: Call the `ask_user` tool to proceed to the Commit Phase.',
+          systemMessage: '🔒 Security Block: Call the `ask_user` tool to proceed to the Commit Phase. 👉 ACTION REQUIRED: Present the changes to the user for commit approval.',
         }),
       );
       process.exit(0);
@@ -75,13 +164,13 @@ function beforeAskUser(inputData, targetDir) {
   const { tool_name, tool_input } = inputData;
 
   if (tool_name !== 'ask_user' || !tool_input) {
-    console.log(JSON.stringify({ decision: 'allow' }));
+    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Execution allowed, tool is not ask_user.' }));
     process.exit(0);
   }
 
   const inPlanModeFile = path.join(targetDir, 'in-plan-mode.flag');
   if (fs.existsSync(inPlanModeFile)) {
-    console.log(JSON.stringify({ decision: 'allow' }));
+    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Execution allowed, currently in plan mode (deferring to plan phase hook).' }));
     process.exit(0);
   }
 
@@ -91,42 +180,45 @@ function beforeAskUser(inputData, targetDir) {
     safeToolInput.includes('Commit Message:') ||
     safeToolInput.includes('Gate 3');
 
-  if (isCommitAsk) {
-    const planHash = verifyPlanGate(targetDir);
-    if (!planHash) {
-      console.log(
-        JSON.stringify({
-          decision: 'deny',
-          reason:
-            '🔒 Security Policy Violation: You cannot ask for Developer Commit Approval (Gate 3) because Gate 1 (Planning Gate) is missing or invalid!\n\n' +
-            'Please obtain planning approval from the developer first.',
-          systemMessage: '🔒 Security Block: Gate 1 must be approved before commit.',
-        }),
-      );
-      process.exit(0);
-    }
-
-    const diffHash = calculateDiffHash();
-
-    checkAndRevokeStaleGates(targetDir, diffHash, planHash);
-
-    const reviewPassed = verifyReviewGate(targetDir, diffHash, planHash);
-    if (!reviewPassed) {
-      console.log(
-        JSON.stringify({
-          decision: 'deny',
-          reason:
-            '🔒 Security Policy Violation: You cannot ask for Developer Commit Approval (Gate 3) because the Review prerequisite is missing or invalid!\n\n' +
-            'In accordance with our zero-trust pipeline, you MUST successfully run the Review Subagent first:\n' +
-            '   `invoke_agent(agent_name="review_agent", prompt="Please review my current changes.")`',
-          systemMessage: '🔒 Security Block: Review must be approved before commit.',
-        }),
-      );
-      process.exit(0);
-    }
+  if (!isCommitAsk) {
+    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Execution allowed, not a commit approval request.' }));
+    process.exit(0);
   }
 
-  console.log(JSON.stringify({ decision: 'allow' }));
+  const planHash = verifyPlanGate(targetDir);
+  if (!planHash) {
+    console.log(
+      JSON.stringify({
+        decision: 'deny',
+        reason:
+          '🔒 Security Policy Violation: You cannot ask for Developer Commit Approval (Gate 3) because Gate 1 (Planning Gate) is missing or invalid!\n\n' +
+          'Please obtain planning approval from the developer first.',
+        systemMessage: '🔒 Security Block: Gate 1 must be approved before commit.',
+      }),
+    );
+    process.exit(0);
+  }
+
+  const diffHash = calculateDiffHash();
+
+  checkAndRevokeStaleGates(targetDir, diffHash, planHash);
+
+  const reviewPassed = verifyReviewGate(targetDir, diffHash, planHash);
+  if (!reviewPassed) {
+    console.log(
+      JSON.stringify({
+        decision: 'deny',
+        reason:
+          '🔒 Security Policy Violation: You cannot ask for Developer Commit Approval (Gate 3) because the Review prerequisite is missing or invalid!\n\n' +
+          'In accordance with our zero-trust pipeline, you MUST successfully run the Review Subagent first:\n' +
+          '   `invoke_agent(agent_name="review_agent", prompt="Please review my current changes.")`',
+        systemMessage: '🔒 Security Block: Review must be approved before commit.',
+      }),
+    );
+    process.exit(0);
+  }
+
+  console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: beforeAskUser check complete, execution allowed.' }));
   process.exit(0);
 }
 
@@ -134,13 +226,13 @@ function afterAskUser(inputData, targetDir) {
   const { tool_name, tool_input, tool_response } = inputData;
 
   if (tool_name !== 'ask_user' || !tool_input || !tool_response) {
-    console.log(JSON.stringify({ decision: 'allow' }));
+    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Execution allowed, tool is not ask_user or response is missing.' }));
     process.exit(0);
   }
 
   const inPlanModeFile = path.join(targetDir, 'in-plan-mode.flag');
   if (fs.existsSync(inPlanModeFile)) {
-    console.log(JSON.stringify({ decision: 'allow' }));
+    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Execution allowed, currently in plan mode.' }));
     process.exit(0);
   }
 
@@ -160,7 +252,7 @@ function afterAskUser(inputData, targetDir) {
     safeToolInput.includes('Gate 3');
 
   if (!isCommitAsk) {
-    console.log(JSON.stringify({ decision: 'allow' }));
+    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Execution allowed, not a commit approval request.' }));
     process.exit(0);
   }
 
@@ -207,17 +299,9 @@ function afterAskUser(inputData, targetDir) {
 
   if (!isApproved) {
     if (isCommitAsk) {
-      const reviewApprovalFile = path.join(targetDir, 'review-approval.json');
-      if (fs.existsSync(reviewApprovalFile)) {
-        try {
-          fs.unlinkSync(reviewApprovalFile);
-          console.error('❌ Gate 3 Revoked: User rejected the commit. Review approval has been deleted.');
-        } catch (err) {
-          console.warn(`Warning: Failed to unlink review approval file. Error: ${err.message || err}`);
-        }
-      }
+      revokeReviewState(targetDir);
     }
-    console.log(JSON.stringify({ decision: 'allow' }));
+    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: User rejected commit approval.' }));
     process.exit(0);
   }
 
@@ -283,7 +367,7 @@ function afterAskUser(inputData, targetDir) {
     handleCommitApproval(targetDir, sshPubKeyFile, promptText);
   }
 
-  console.log(JSON.stringify({ decision: 'allow' }));
+  console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: afterAskUser check complete, execution allowed.' }));
   process.exit(0);
 }
 
@@ -293,7 +377,7 @@ function main() {
     inputData = JSON.parse(fs.readFileSync(0, 'utf-8'));
   } catch (err) {
     console.error('Failed to parse stdin JSON:', err);
-    console.log(JSON.stringify({ decision: 'allow' }));
+    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Failed to parse input, allowing execution by default.' }));
     process.exit(0);
   }
 
@@ -306,7 +390,7 @@ function main() {
     afterAskUser(inputData, targetDir);
   } else {
     preCommitPhaseInterruption(inputData, targetDir);
-    console.log(JSON.stringify({ decision: 'allow' }));
+    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Pre-commit phase check complete, execution allowed.' }));
     process.exit(0);
   }
 }

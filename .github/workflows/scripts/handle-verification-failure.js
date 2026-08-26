@@ -52,8 +52,8 @@ export default async ({ github, context, core, process }) => {
         issue_number: parseInt(prNumber, 10),
         name: 'ready-to-merge',
       });
-    } catch (error) {
-      core.warning(`Could not remove "ready-to-merge" label: ${error.message}`);
+    } catch (err) {
+      core.warning(`Could not remove "ready-to-merge" label: ${err.message}`);
     }
   }
 

@@ -89,6 +89,18 @@
           exec /usr/bin/sw_vers "$@"
         '';
 
+        initNodeEnv = pkgs.writeShellScriptBin "init-node-env" ''
+          echo "Setting up Node environment..."
+          if [ ! -f package.json ]; then
+            npm init -y
+          fi
+          if ls eslint.config.* 1> /dev/null 2>&1; then
+            echo "ESLint config already exists, skipping."
+          else
+            npm init @eslint/config@latest
+          fi
+        '';
+
         unfreePkgs = import nixpkgs {
           inherit system;
           config = {
@@ -103,6 +115,7 @@
           # downloaded packages here
           leftovers
           terraform
+          initNodeEnv
         ] ++ ([
           # unfree packages from the nix repository
           claude-code
@@ -179,9 +192,6 @@
           devShells.default = pkgs.mkShell {
             buildInputs = [ devShellPackage ];
             shellHook = ''
-              export PS1="nix:# ";
-              install -d ~/.docker/cli-plugins/ || true;
-              ln -sfn $(which docker-compose) ~/.docker/cli-plugins/docker-compose || true;
             '';
           };
         }

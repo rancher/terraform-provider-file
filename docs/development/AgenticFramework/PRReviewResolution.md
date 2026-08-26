@@ -16,9 +16,7 @@ Review comments from human maintainers and automated bots provide valuable insig
 
 ## Detailed Step-by-Step Procedure
 
-### 1. Initiate Session & Retrieve Comments
-
-This workflow is initiated in a **brand new development session** specifically started to resolve PR comments.
+### 1. Retrieve Comments
 
 - First, retrieve a chronological timeline of all general and inline review comments:
 

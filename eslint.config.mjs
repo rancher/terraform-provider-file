@@ -1,4 +1,7 @@
+import js from '@eslint/js';
+
 export default [
+  js.configs.recommended,
   {
     languageOptions: {
       ecmaVersion: 'latest',
@@ -15,7 +18,7 @@ export default [
     },
     rules: {
       // General Code Quality & Syntax Correctness Rules
-      'no-console': 'error',
+      'no-console': 'off',
       'no-unused-vars': 'error',
       eqeqeq: 'error',
       curly: 'error',
@@ -43,8 +46,6 @@ export default [
       },
     },
     rules: {
-      // Local agent hooks and skills run outside Actions environment and must use console streams to report decisions
-      'no-console': 'off',
       'no-unused-vars': 'error',
       eqeqeq: 'error',
       curly: 'error',

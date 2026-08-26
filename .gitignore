@@ -25,3 +25,5 @@ report.json
 
 .nix-script.sh
 .claude/settings.local.json
+
+node_modules

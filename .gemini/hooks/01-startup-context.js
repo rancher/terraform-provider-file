@@ -5,12 +5,89 @@ import fs from 'fs';
 import path from 'path';
 import { resolveTargetDir } from '../../agent-scripts/workspace.js';
 
+const hookName = path.basename(process.argv[1]);
+const isStartup = hookName === '01-startup-context.js';
+const introLog = `🔒 Hook: ${hookName} - ${isStartup ? 'Loading startup context...' : 'Loading hook context...'}`;
+console.error(introLog);
+
+const originalLog = console.log;
+let hasLogged = false;
+
+console.log = function (msg) {
+  if (hasLogged) {
+    return;
+  }
+  try {
+    const parsed = JSON.parse(msg);
+    if (parsed.systemMessage) {
+      console.error(parsed.systemMessage);
+    }
+    const exitLog = `🔒 Hook: ${hookName} - ${isStartup ? 'context successfully loaded.' : 'Hook successfully loaded.'}`;
+    console.error(exitLog);
+
+    const msgs = [introLog];
+    if (parsed.systemMessage) {
+      msgs.push(parsed.systemMessage);
+    }
+    msgs.push(exitLog);
+    parsed.systemMessage = msgs.join('\n');
+
+    if (!parsed.decision && !isStartup) {
+      parsed.decision = 'allow';
+    }
+
+    originalLog(JSON.stringify(parsed, null, 2));
+    hasLogged = true;
+  } catch (err) {
+    console.error(err.message || err);
+    originalLog(msg);
+  }
+};
+
+process.on('exit', (code) => {
+  if (!hasLogged) {
+    const exitMsg = `🔒 Hook Error (${hookName}): Silent early exit detected with code ${code}.`;
+    console.error(exitMsg);
+    process.stdout.write(JSON.stringify({
+      decision: 'allow',
+      systemMessage: `${introLog}\n${exitMsg}`
+    }) + '\n');
+    hasLogged = true;
+  }
+});
+
+process.on('uncaughtException', (err) => {
+  const errMsg = `🔒 Hook Error (${hookName}): Unhandled exception - ${err.message || err}`;
+  console.error(errMsg);
+  if (!hasLogged) {
+    process.stdout.write(JSON.stringify({
+      decision: 'allow',
+      systemMessage: `${introLog}\n${errMsg}`
+    }) + '\n');
+    hasLogged = true;
+  }
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  const errMsg = `🔒 Hook Error (${hookName}): Unhandled promise rejection - ${reason.message || reason}`;
+  console.error(errMsg);
+  if (!hasLogged) {
+    process.stdout.write(JSON.stringify({
+      decision: 'allow',
+      systemMessage: `${introLog}\n${errMsg}`
+    }) + '\n');
+    hasLogged = true;
+  }
+  process.exit(1);
+});
+
 function main() {
   // Consume and discard hook input from stdin to prevent broken pipes
   try {
     fs.readFileSync(0, 'utf-8');
   } catch (err) {
-    console.warn(`Warning: Failed to read from stdin. This can be safely ignored. Error: ${err.message || err}`);
+    console.error(`🔒 Hook Warning: Failed to read from stdin: ${err.message || err}`);
   }
 
   // Log diagnostics to stderr to comply with the silence rule on stdout
@@ -25,6 +102,8 @@ function main() {
 # 3. SOURCE EDITS ARE BLOCKED UNTIL PLAN APPROVAL IS GRANTED.                       #
 #    ALL ACTIVE TASK CHECKLISTS RESIDE STRICTLY INSIDE THE PLAN.                    #
 # 4. WE ENFORCE A GATED 4-PHASE LIFECYCLE (Plan, Implement, Review, Commit).        #
+#    YOU MUST TRANSITION THROUGH THESE PHASES SEQUENTIALLY WITHOUT SKIPPING.        #
+#    UPON COMPLETING A PHASE, IMMEDIATELY PROCEED TO THE NEXT.                      #
 #                                                                                   #
 # FAILURE TO COMPLY WILL TRIGGER SECURITY BLOCKS AND PROCESS TERMINATION.           #
 ###############################################################################\n\n`;
@@ -78,6 +157,16 @@ function main() {
     const targetDir = resolveTargetDir();
     fs.mkdirSync(targetDir, { recursive: true });
     fs.writeFileSync(path.join(targetDir, 'require-plan-mode.flag'), 'true', 'utf-8');
+
+    // Clean up stale flags from previous sessions to ensure a clean slate
+    const inPlanModeFile = path.join(targetDir, 'in-plan-mode.flag');
+    if (fs.existsSync(inPlanModeFile)) {
+      fs.unlinkSync(inPlanModeFile);
+    }
+    const requireAskUserFile = path.join(targetDir, 'require-ask-user.flag');
+    if (fs.existsSync(requireAskUserFile)) {
+      fs.unlinkSync(requireAskUserFile);
+    }
   } catch (err) {
     console.error(
       `Warning: Failed to create require-plan-mode.flag. This can be safely ignored. Error: ${err.message || err}`,
