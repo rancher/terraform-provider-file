@@ -278,6 +278,11 @@ run_pull() {
       cp -r "${full_remote_path}/." "${local_path}/"
     else
       # File pull logic
+      if [[ -d "${local_path}" ]]; then
+        echo "🔄 [OVERWRITING] Replacing local directory '${local_path}' with file..."
+        rm -rf "${local_path}"
+      fi
+
       if [[ -e "${local_path}" ]]; then
         if diff -u "${local_path}" "${full_remote_path}" >/dev/null; then
           echo "✅ [UP TO DATE] '${local_path}' already matches template."
@@ -345,6 +350,11 @@ run_push() {
       copied_count=$((copied_count + 1))
     else
       # File push logic
+      if [[ -d "${full_remote_path}" ]]; then
+        echo "🔄 [COPYING] Replacing remote directory '${full_remote_path}' with file..."
+        rm -rf "${full_remote_path}"
+      fi
+
       if [[ -f "${full_remote_path}" ]] && diff -u "${local_path}" "${full_remote_path}" >/dev/null; then
         echo "✅ [UP TO DATE] '${local_path}' is identical to remote boilerplate."
         continue
