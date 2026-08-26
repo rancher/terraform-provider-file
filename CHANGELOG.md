@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+- **env**: fix PS1 prompt line-wrapping and remove terminal columns resizing to prevent glitches
+
 ## [2.4.17](https://github.com/rancher/terraform-provider-file/compare/v2.4.16...v2.4.17) (2026-08-05)
 
 ### Bug Fixes

@@ -293,6 +293,18 @@ function afterInvoke(inputData) {
       { mode: 0o400 },
     );
 
+    const stateFile = path.join(TARGET_DIR, 'phase-state.json');
+    try {
+      let state = { currentPhase: 'commit' };
+      if (fs.existsSync(stateFile)) {
+        state = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+      }
+      state.currentPhase = 'commit';
+      fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
+    } catch (err) {
+      console.warn(`Warning: Failed to update phase state to commit. Error: ${err.message || err}`);
+    }
+
     fs.writeFileSync(path.join(TARGET_DIR, 'require-ask-user.flag'), 'true', 'utf-8');
   }
 
