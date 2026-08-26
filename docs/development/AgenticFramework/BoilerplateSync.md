@@ -2,7 +2,7 @@
 
 ## Abstract
 
-To maintain cross-project consistency across multiple repositories without the heavy administrative overhead of Git submodules, the Agentic Framework implements a lightweight, **manifest-driven file synchronization skill** (`sync-boilerplate.sh`). This tool allows developers and agents to dynamically track, compare, pull, and push common configuration files (such as linters, CI/CD scripts, and enforcer hooks) to and from a centralized master template repository, keeping all systems fully aligned.
+To maintain cross-project consistency across multiple repositories without the heavy administrative overhead of Git submodules, the Agentic Framework implements a lightweight, **manifest-driven asset synchronization skill** (`sync-boilerplate.sh`). This tool allows developers and agents to dynamically track, compare, pull, and push common configuration files and directories (such as linters, CI/CD scripts, enforcer tools, and agent setups) to and from a centralized master template repository, keeping all systems fully aligned.
 
 ---
 
@@ -10,23 +10,22 @@ To maintain cross-project consistency across multiple repositories without the h
 
 ### 1. The Sync Manifest (`.boilerplate-sync.json`)
 
-Each child repository declares its tracking files, local destinations, and master template repository source inside a `.boilerplate-sync.json` configuration file located in the repository's root directory:
+Each child repository declares its tracking files, directories, and local destinations inside a `.boilerplate-sync.json` configuration file located in the repository's root directory:
 
 ```json
 {
-  "template_repo": "git@github.com:your-organization/your-boilerplate-template.git",
   "files": [
     { "local": ".prettierrc", "remote": "shared-configs/.prettierrc" },
-    { "local": ".golangci.yml", "remote": "shared-configs/.golangci.yml" },
-    { "local": "cspell.json", "remote": "shared-configs/cspell.json" },
-    { "local": ".github/workflows/scripts/lint.sh", "remote": "scripts/lint.sh" }
+    { "local": ".gemini", "remote": ".gemini" },
+    { "local": "docs/development", "remote": "docs/development" },
+    { "local": "agent-scripts", "remote": "agent-scripts" }
   ]
 }
 ```
 
 ### 2. Operational Logic & Sequence
 
-The sync utility `.gemini/skills/sync-boilerplate.sh` executes the following sequence to compare or copy files:
+The sync utility `.gemini/skills/sync-boilerplate.sh` executes the following sequence to compare or copy assets:
 
 ```text
 [Local Repo]                     [System OS / TMP]                     [Remote Repo]
@@ -40,19 +39,20 @@ The sync utility `.gemini/skills/sync-boilerplate.sh` executes the following seq
      │                                   │ ── 5. Trap: rm -rf /tmp/clone ──► │
 ```
 
-1. **Manifest Parsing**: Reads and validates the JSON fields `.template_repo` and `.files` array using `jq`.
+1. **Manifest Parsing**: Reads and validates the JSON `.files` array using `jq`.
 2. **Hermetic Sandbox Prep**: Establishes a temporary workspace directory under `/tmp/boilerplate-sync-XXXXXX` using `mktemp -d`.
-3. **Repository Fetching**: Clones the remote master repository off the parent branch using `git clone --depth 1 --no-checkout <repo_url> <tmp_dir>`, then checks out strictly the tracked files to minimize network and disk footprints.
+3. **Repository Fetching**: Clones the remote master repository sparsely off the default branch using `git clone --depth 1 --no-checkout <repo_url> <tmp_dir>`, then checks out strictly the tracked files and directories to minimize network and disk footprints. The template repository URL must be provided dynamically at runtime (see below).
 4. **Operations Modes**:
-   - **Diff Mode (`--diff`)**: Runs `git diff --no-index` or standard `diff -u` between the local file and its remote template file counterpart.
-   - **Sync/Pull Mode (`--pull`)**: Overwrites the local file by copying the template file into place, creating any missing parent directories natively.
-   - **Sync/Push Mode (`--push`)**: Copies local files that differ back to the remote template clone, commits them conventionally, and pushes the updates to the template repository using native developer credentials.
+   - **Diff Mode (`--diff`)**: Runs recursive `diff -ru` for directories or standard `diff -u` between the local assets and their remote template counterparts.
+   - **Sync/Pull Mode (`--pull`)**: Overwrites the local assets by copying the template files or directories into place, creating any missing parent directories natively and cleaning up old copies with `rm -rf`.
+   - **Sync/Push Mode (`--push`)**: Copies local files and directories that differ back to the remote template clone, switches to a new unique feature branch, commits them conventionally, pushes the branch to origin, and generates a Pull Request against the target repository's default branch using the `gh` CLI.
 5. **Secure Workspace Cleanup**: Registers an exit trap (`trap 'cleanup' EXIT`) that mathematically guarantees the temporary directories are fully destroyed on exit, preventing `/tmp` clutter or memory leak vectors.
 
 ---
 
 ## Standing Implementation Decisions
 
-1. **Environment Variable Override**: If the `CENTRAL_FILE_REPO` environment variable is defined, the utility automatically overrides the manifest's `.template_repo` with it, allowing safe targeting of private central repositories without hardcoding sensitive URLs in version-controlled JSON manifests.
-2. **Standard Commits on Push**: When pushing updates back to the centralized template repository, changes are always committed using standard, non-bumping conventional commits (e.g. `build(sync): sync configurations`) to maintain pristine release-please semantics in the master repository.
-3. **No-Checkout Optimization**: `git clone` always uses `--no-checkout` to avoid pulling unnecessary files, checking out only the exact files mapped in `.boilerplate-sync.json`.
+1. **Pull Request-Based Workflow on Push**: Rather than pushing updates directly to the default branch of the master repository, the utility securely pushes to a unique feature branch and uses the GitHub CLI (`gh`) to open a Pull Request. This prevents accidental direct-push modifications and enforces a clean review/approval process.
+2. **Standard Commits on Push**: When pushing updates back to the centralized template repository, changes are always committed using standard, non-bumping conventional commits (e.g. `sync: update boilerplate from <repo>`) to maintain pristine release-please semantics in the master repository.
+3. **No-Checkout Optimization**: `git clone` always uses `--no-checkout` to avoid pulling unnecessary files, checking out only the exact files and directories mapped in `.boilerplate-sync.json` for read operations.
+4. **Dynamic Repository URL Parsing**: To prevent hardcoding a specific repository URL inside version-controlled configuration, the utility strictly requires the target central repository URL to be explicitly provided at runtime using the `-r/--repo` option or via the `CENTRAL_FILE_REPO` environment variable. It throws a fatal error if neither is supplied.
