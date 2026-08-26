@@ -95,12 +95,39 @@ validate_environment() {
     fi
   fi
 
-  local files_type
+  local files_type files_count
   files_type=$(jq -r '.files | type' "${MANIFEST_FILE}" 2>/dev/null || true)
   if [[ "$files_type" != "array" ]]; then
     echo "Error: Manifest must define a '.files' array of mappings." >&2
     exit 1
   fi
+
+  # Security Validation: Enforce strict relative paths and prevent path traversal
+  files_count=$(jq '.files | length' "${MANIFEST_FILE}")
+  for ((i = 0; i < files_count; i++)); do
+    local local_path remote_path
+    local_path=$(jq -r ".files[$i].local" "${MANIFEST_FILE}")
+    remote_path=$(jq -r ".files[$i].remote" "${MANIFEST_FILE}")
+
+    for p in "${local_path}" "${remote_path}"; do
+      if [[ -z "$p" || "$p" == "null" ]]; then
+        echo "Error: Manifest path entries cannot be empty or null." >&2
+        exit 1
+      fi
+      if [[ "$p" == /* ]]; then
+        echo "Error: Security Violation. Absolute paths are strictly forbidden in manifest: '$p'" >&2
+        exit 1
+      fi
+      if [[ "$p" == *".."* ]]; then
+        echo "Error: Security Violation. Path traversal sequences ('..') are strictly forbidden: '$p'" >&2
+        exit 1
+      fi
+      if [[ "$p" == "." || "$p" == "./"* ]]; then
+        echo "Error: Security Violation. Current directory segments ('.') are not permitted: '$p'" >&2
+        exit 1
+      fi
+    done
+  done
 }
 
 # Create sandbox workspace and cleanly clone template repo
@@ -117,7 +144,7 @@ clone_template_repo() {
       exit 1
     fi
   else
-    echo "Cloning remote template repository sparsely (depth 1)..." >&2
+    echo "Cloning remote template repository with no checkout (depth 1)..." >&2
     # Fetch without checking out files immediately to keep local checkout sparse/lightweight
     if ! git clone --depth 1 --no-checkout "${TEMPLATE_REPO}" "${TMP_WORKSPACE}" >/dev/null 2>&1; then
       echo "Error: Failed to clone template repository at '${TEMPLATE_REPO}'." >&2
@@ -232,6 +259,11 @@ run_pull() {
 
     if [[ -d "${full_remote_path}" ]]; then
       # Directory pull logic
+      if [[ -e "${local_path}" && ! -d "${local_path}" ]]; then
+        echo "🔄 [OVERWRITING] Replacing file '${local_path}' with remote template directory..."
+        rm -rf "${local_path}"
+      fi
+
       if [[ -d "${local_path}" ]]; then
         if diff -ru "${local_path}" "${full_remote_path}" >/dev/null; then
           echo "✅ [UP TO DATE] '${local_path}' directory already matches template."
@@ -294,13 +326,18 @@ run_push() {
 
     if [[ -d "${local_path}" ]]; then
       # Directory push logic
+      if [[ -e "${full_remote_path}" && ! -d "${full_remote_path}" ]]; then
+        echo "🔄 [COPYING] Replacing remote file '${full_remote_path}' with directory..."
+        rm -rf "${full_remote_path}"
+      fi
+
       if [[ -d "${full_remote_path}" ]] && diff -ru "${local_path}" "${full_remote_path}" >/dev/null; then
         echo "✅ [UP TO DATE] '${local_path}' directory is identical to remote boilerplate."
         continue
       fi
 
       echo "🔄 [COPYING] '${local_path}' directory into template remote at '${remote_path}'..."
-      if [[ -d "${full_remote_path}" ]]; then
+      if [[ -e "${full_remote_path}" ]]; then
         rm -rf "${full_remote_path}"
       fi
       mkdir -p "${full_remote_path}"

@@ -15,7 +15,6 @@ Each child repository declares its tracking files, directories, and local destin
 ```json
 {
   "files": [
-    { "local": ".prettierrc", "remote": "shared-configs/.prettierrc" },
     { "local": ".gemini", "remote": ".gemini" },
     { "local": "docs/development", "remote": "docs/development" },
     { "local": "agent-scripts", "remote": "agent-scripts" }
@@ -41,7 +40,7 @@ The sync utility `.gemini/skills/sync-boilerplate.sh` executes the following seq
 
 1. **Manifest Parsing**: Reads and validates the JSON `.files` array using `jq`.
 2. **Hermetic Sandbox Prep**: Establishes a temporary workspace directory under `/tmp/boilerplate-sync-XXXXXX` using `mktemp -d`.
-3. **Repository Fetching**: Clones the remote master repository sparsely off the default branch using `git clone --depth 1 --no-checkout <repo_url> <tmp_dir>`, then checks out strictly the tracked files and directories to minimize network and disk footprints. The template repository URL must be provided dynamically at runtime (see below).
+3. **Repository Fetching**: Clones the remote master repository off the default branch using a no-checkout clone (`git clone --depth 1 --no-checkout <repo_url> <tmp_dir>`). This prevents checking out files in the working tree initially, checking out strictly the tracked files and directories to keep the local working tree footprint lightweight. The template repository URL must be provided dynamically at runtime (see below).
 4. **Operations Modes**:
    - **Diff Mode (`--diff`)**: Runs recursive `diff -ru` for directories or standard `diff -u` between the local assets and their remote template counterparts.
    - **Sync/Pull Mode (`--pull`)**: Overwrites the local assets by copying the template files or directories into place, creating any missing parent directories natively and cleaning up old copies with `rm -rf`.
