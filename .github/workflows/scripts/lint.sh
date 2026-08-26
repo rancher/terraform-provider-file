@@ -47,7 +47,10 @@ run_eslint() {
   echo "==> Running eslint check on scripts..."
   if [ ! -d "node_modules" ] && [ -f "package.json" ]; then
     echo "==> Installing local eslint dependencies..."
-    npm ci --no-audit --no-fund --silent || npm install --no-audit --no-fund --silent || true
+    if ! npm ci --no-audit --no-fund --silent && ! npm install --no-audit --no-fund --silent; then
+      echo "Error: Failed to install ESLint node dependencies (npm ci and npm install both failed)." >&2
+      exit 1
+    fi
   fi
   eslint .github/workflows/scripts/ .gemini/hooks/ .gemini/skills/ agent-scripts/
   echo "==> Auditing catch statements..."
