@@ -192,10 +192,6 @@
           devShells.default = pkgs.mkShell {
             buildInputs = [ devShellPackage ];
             shellHook = ''
-              export PS1="nix:# ";
-              install -d ~/.docker/cli-plugins/ || true;
-              ln -sfn $(which docker-compose) ~/.docker/cli-plugins/docker-compose || true;
-              init-node-env || true;
             '';
           };
         }

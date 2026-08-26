@@ -13,16 +13,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/matttrach/terraform-provider-file.git"
+    "url": "git+https://github.com/rancher/terraform-provider-file.git"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MPL-2.0",
   "type": "module",
   "bugs": {
-    "url": "https://github.com/matttrach/terraform-provider-file/issues"
+    "url": "https://github.com/rancher/terraform-provider-file/issues"
   },
-  "homepage": "https://github.com/matttrach/terraform-provider-file#readme",
+  "homepage": "https://github.com/rancher/terraform-provider-file#readme",
   "devDependencies": {
     "@eslint/js": "^10.0.1"
   }

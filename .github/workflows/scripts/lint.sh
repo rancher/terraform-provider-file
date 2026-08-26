@@ -45,6 +45,10 @@ run_actionlint() {
 
 run_eslint() {
   echo "==> Running eslint check on scripts..."
+  if [ ! -d "node_modules" ] && [ -f "package.json" ]; then
+    echo "==> Installing local eslint dependencies..."
+    npm ci --no-audit --no-fund --silent || npm install --no-audit --no-fund --silent || true
+  fi
   eslint .github/workflows/scripts/ .gemini/hooks/ .gemini/skills/ agent-scripts/
   echo "==> Auditing catch statements..."
   node .github/workflows/scripts/check-catch.js

@@ -50,7 +50,7 @@ process.on('exit', (code) => {
     const exitMsg = `🔒 Hook Error (${hookName}): Silent early exit detected with code ${code}.`;
     console.error(exitMsg);
     process.stdout.write(JSON.stringify({
-      decision: 'allow',
+      decision: 'deny',
       systemMessage: `${introLog}\n${exitMsg}`
     }) + '\n');
     hasLogged = true;
@@ -62,7 +62,7 @@ process.on('uncaughtException', (err) => {
   console.error(errMsg);
   if (!hasLogged) {
     process.stdout.write(JSON.stringify({
-      decision: 'allow',
+      decision: 'deny',
       systemMessage: `${introLog}\n${errMsg}`
     }) + '\n');
     hasLogged = true;
@@ -75,7 +75,7 @@ process.on('unhandledRejection', (reason) => {
   console.error(errMsg);
   if (!hasLogged) {
     process.stdout.write(JSON.stringify({
-      decision: 'allow',
+      decision: 'deny',
       systemMessage: `${introLog}\n${errMsg}`
     }) + '\n');
     hasLogged = true;

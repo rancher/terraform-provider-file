@@ -25,7 +25,7 @@ function checkCatchInFiles() {
   const files = getFiles(rootDir);
   let failed = false;
 
-  console.log(`🔍 Scanning ${files.length} JavaScript files for 'catch' statements without '(err)'...`);
+  console.log(`🔍 Scanning ${files.length} JavaScript files for 'catch' statements without an explicit error binding...`);
 
   for (const file of files) {
     // Relative path for cleaner output
@@ -48,9 +48,17 @@ function checkCatchInFiles() {
       let match;
 
       while ((match = catchRegex.exec(line)) !== null) {
+        // Ignore property/method calls (e.g. promise.catch(...))
+        const beforeCatch = line.slice(0, match.index).trim();
+        if (beforeCatch.endsWith('.')) {
+          continue;
+        }
+
         const remaining = line.slice(match.index + 5).trim();
-        if (!remaining.startsWith('(err)')) {
-          console.log(`❌ Violation: 'catch' statement without '(err)' found at ${relativePath}:${i + 1}`);
+        // Match a valid parenthesis-enclosed variable parameter, e.g. (err), (error), (e)
+        const hasParam = /^\(\s*[a-zA-Z_$][a-zA-Z0-9_$]*\s*\)/.test(remaining);
+        if (!hasParam) {
+          console.log(`❌ Violation: 'catch' statement without an explicit error binding found at ${relativePath}:${i + 1}`);
           console.log(`   Line: ${line.trim()}`);
           failed = true;
         }
@@ -62,7 +70,7 @@ function checkCatchInFiles() {
     console.log('\n🔴 Audit Failed: One or more catch statements violate the policy.');
     process.exit(1);
   } else {
-    console.log("\n🟢 Audit Passed: All catch statements comply with '(err)' policy!");
+    console.log("\n🟢 Audit Passed: All catch statements comply with explicit error binding policy!");
     process.exit(0);
   }
 }

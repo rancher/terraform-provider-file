@@ -83,6 +83,13 @@ process.on('unhandledRejection', (reason) => {
 });
 
 function main() {
+  // Consume and discard hook input from stdin to prevent broken pipes
+  try {
+    fs.readFileSync(0, 'utf-8');
+  } catch (err) {
+    console.error(`🔒 Hook Warning: Failed to read from stdin: ${err.message || err}`);
+  }
+
   // Log diagnostics to stderr to comply with the silence rule on stdout
   console.error('Loading session-start workspace context...');
 
