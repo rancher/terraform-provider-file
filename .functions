@@ -1,10 +1,13 @@
-#!/bin/env bash
+#!/usr/bin/env bash
+
 # get current branch in git repo
 git_status() {
+  local BRANCH
   BRANCH="$(git branch 2>/dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/')"
-  if [ ! "${BRANCH}" = "" ]; then
+  if [[ -n "${BRANCH}" ]]; then
+    local STAT
     STAT="$(parse_git_dirty)"
-    if printf "%s" "$STAT" | grep -q -e '!' -e '?' -e '+' -e '>' -e 'x' -e '*'; then
+    if [[ -n "$STAT" ]]; then
       printf "%s[%s %s]%s" "$(red)" "$BRANCH" "$STAT" "$(ce)"
     else
       printf "%s[%s%s]%s" "$(green)" "$BRANCH" "$STAT" "$(ce)"
@@ -13,55 +16,42 @@ git_status() {
 }
 
 get_repo_basename() {
-  basename "$(git rev-parse --show-toplevel)"
+  local toplevel
+  toplevel="$(git rev-parse --show-toplevel 2>/dev/null)"
+  if [[ -n "$toplevel" ]]; then
+    basename "$toplevel"
+  fi
 }
 
 get_repo_owner() {
-  REPO="$(basename "$(git rev-parse --show-toplevel)")"
-  OWNER="$(basename "$(git rev-parse --show-toplevel | sed s/"$REPO"//g)")"
-  printf "%s" "$OWNER"
+  local toplevel
+  toplevel="$(git rev-parse --show-toplevel 2>/dev/null)"
+  if [[ -n "$toplevel" ]]; then
+    local owner
+    owner="$(basename "$(dirname "$toplevel")")"
+    printf "%s" "$owner"
+  fi
 }
 
-# get current status of git repo
+# get current status of git repo using fast, built-in Bash pattern matching (no grep process spawns!)
 parse_git_dirty() {
-  status="$(git status 2>&1 | tee)"
-  if [ "0" = "$(
-    printf "%s" "${status}" 2>/dev/null | grep "Your branch is up to date with 'origin/main'" >/dev/null 2>&1
-    printf "%s" $?
-  )" ]; then printf "%s" ""; fi # clean
-  if [ "0" = "$(
-    printf "%s" "${status}" 2>/dev/null | grep "modified:" >/dev/null 2>&1
-    printf "%s" $?
-  )" ]; then printf "%s" "!"; fi # dirty
-  if [ "0" = "$(
-    printf "%s" "${status}" 2>/dev/null | grep "Untracked files" >/dev/null 2>&1
-    printf "%s" $?
-  )" ]; then printf "%s" "?"; fi # untracked
-  if [ "0" = "$(
-    printf "%s" "${status}" 2>/dev/null | grep "new file:" >/dev/null 2>&1
-    printf "%s" $?
-  )" ]; then printf "%s" "+"; fi # new files
-  if [ "0" = "$(
-    printf "%s" "${status}" 2>/dev/null | grep "renamed:" >/dev/null 2>&1
-    printf "%s" $?
-  )" ]; then printf "%s" ">"; fi # renamed files
-  if [ "0" = "$(
-    printf "%s" "${status}" 2>/dev/null | grep "deleted:" >/dev/null 2>&1
-    printf "%s" $?
-  )" ]; then printf "%s" "x"; fi # deleted files
-  if [ "0" = "$(
-    printf "%s" "${status}" 2>/dev/null | grep "Your branch is ahead of" >/dev/null 2>&1
-    printf "%s" $?
-  )" ]; then printf "%s" "*"; fi # ahead of
+  local status
+  status="$(git status 2>&1)"
+  if [[ "$status" == *"modified:"* ]]; then printf "!"; fi # dirty
+  if [[ "$status" == *"Untracked files"* ]]; then printf "?"; fi # untracked
+  if [[ "$status" == *"new file:"* ]]; then printf "+"; fi # new files
+  if [[ "$status" == *"renamed:"* ]]; then printf ">"; fi # renamed files
+  if [[ "$status" == *"deleted:"* ]]; then printf "x"; fi # deleted files
+  if [[ "$status" == *"Your branch is ahead of"* ]]; then printf "*"; fi # ahead of
 }
 
 # ps1 color functions
 # add colors like this `red`\$`ce` generates red '$' prompt
 ps1_color_open() {
-  red=$1
-  green=$2
-  blue=$3
-  printf '\e[0;38;2;%s;%s;%sm' "$red" "$green" "$blue"
+  local red="$1"
+  local green="$2"
+  local blue="$3"
+  printf '\\[\033[0;38;2;%s;%s;%sm\\]' "$red" "$green" "$blue"
 }
 
 green() {
@@ -85,18 +75,18 @@ yellow() {
 
 # color end
 ce() {
-  printf '\e[m'
+  printf '\\[\033[m\\]'
 }
 
 ts() {
-  stty cols 450
+  stty cols 450 2>/dev/null
 }
 
 set_terminal_size() {
-  row="$1"
-  col="$2"
-  if [ "$row" == "" ]; then row=70; fi
-  if [ "$col" == "" ]; then col=300; fi
-  stty rows "$row"
-  stty cols "$col"
+  local row="$1"
+  local col="$2"
+  if [[ -z "$row" ]]; then row=70; fi
+  if [[ -z "$col" ]]; then col=300; fi
+  stty rows "$row" 2>/dev/null
+  stty cols "$col" 2>/dev/null
 }

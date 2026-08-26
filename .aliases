@@ -1,4 +1,4 @@
-#!/bin/env sh
+#!/usr/bin/env bash
 alias gs='git status'
 alias gd='git diff'
 alias gc='git checkout'

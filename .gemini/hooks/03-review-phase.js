@@ -278,6 +278,10 @@ function afterInvoke(inputData) {
       }
     }
 
+    // Extract suggested commit message from the report using a backreference to match quotes resiliently
+    const commitMsgMatch = report.match(/Commit Message:\s*(["'`])(.*?)\1/i) || report.match(/Commit Message:\s*(.*)/i);
+    const suggestedCommitMessage = commitMsgMatch ? (commitMsgMatch[2] !== undefined ? commitMsgMatch[2] : commitMsgMatch[1]).trim() : '';
+
     fs.writeFileSync(
       REVIEW_APPROVAL_FILE,
       JSON.stringify(
@@ -285,6 +289,7 @@ function afterInvoke(inputData) {
           status: 'approved',
           plan_hash: planHash,
           diff_hash: diffHash,
+          suggested_commit_message: suggestedCommitMessage,
           timestamp: new Date().toISOString(),
         },
         null,
@@ -292,6 +297,28 @@ function afterInvoke(inputData) {
       ),
       { mode: 0o400 },
     );
+
+    const stateFile = path.join(TARGET_DIR, 'phase-state.json');
+    let state = { currentPhase: 'commit' };
+    try {
+      if (fs.existsSync(stateFile)) {
+        const fileContent = fs.readFileSync(stateFile, 'utf-8').trim();
+        if (fileContent) {
+          try {
+            const parsed = JSON.parse(fileContent);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+              state = parsed;
+            }
+          } catch (parseErr) {
+            console.warn(`Warning: phase-state.json was corrupted or invalid JSON. Resetting to default. Error: ${parseErr.message}`);
+          }
+        }
+      }
+      state.currentPhase = 'commit';
+      fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
+    } catch (err) {
+      console.warn(`Warning: Failed to update phase state to commit. Error: ${err.message || err}`);
+    }
 
     fs.writeFileSync(path.join(TARGET_DIR, 'require-ask-user.flag'), 'true', 'utf-8');
   }
