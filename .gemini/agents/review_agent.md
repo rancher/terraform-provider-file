@@ -77,6 +77,8 @@ You MUST consult and strictly enforce the language-specific standard files locat
 - **`printf` ANSI Escape Sequences**: Ensure `printf` is used correctly when printing `\[` and `\]` for Bash non-printing boundaries. In `printf` format strings, backslashes must be properly escaped (e.g. `\\[` and `\\]`) to prevent `printf` from stripping them and outputting raw `[` and `]`, which breaks Bash line-wrapping calculations.
 - **Fail-Safe JSON State File Parsers**: Ensure `phase-state.json` updates are wrapped inside resilient try-catch blocks. If parsing the file fails due to corrupt or invalid JSON, scripts must fallback to a fresh default state rather than crashing or skipping the write, preventing phase progression failures.
 - **Sourced Shell Configuration Shebangs**: Verify that sourced environment/configuration shell files containing Bash-specific escapes (e.g., `\W`) and dynamic prompt substitutions are shebanged with `#!/usr/bin/env bash` rather than POSIX `sh`, preventing incorrect editor linting or incompatibilities.
+- **Resilient File Reads in Shell**: Ensure that `cat` operations inside shell scripts executing with `set -euo pipefail` are safely guarded with readability checks (`[[ -r "$file" ]]`) to prevent unreadable, missing, or partial state files from abruptly crashing the execution environment.
+- **Backreferenced Quote Regex Matchers**: Ensure regular expressions designed to extract quoted parameters (like `Commit Message: "..."`) from text use proper backreferences (e.g. `(["'`])(.*?)\1`) to avoid truncating strings containing apostrophes (like `don't`).
 
 ---
 

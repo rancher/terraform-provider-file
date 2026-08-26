@@ -278,9 +278,9 @@ function afterInvoke(inputData) {
       }
     }
 
-    // Extract suggested commit message from the report
-    const commitMsgMatch = report.match(/Commit Message:\s*["'](.*?)["']/i) || report.match(/Commit Message:\s*(.*)/i);
-    const suggestedCommitMessage = commitMsgMatch ? commitMsgMatch[1].trim() : '';
+    // Extract suggested commit message from the report using a backreference to match quotes resiliently
+    const commitMsgMatch = report.match(/Commit Message:\s*(["'`])(.*?)\1/i) || report.match(/Commit Message:\s*(.*)/i);
+    const suggestedCommitMessage = commitMsgMatch ? (commitMsgMatch[2] !== undefined ? commitMsgMatch[2] : commitMsgMatch[1]).trim() : '';
 
     fs.writeFileSync(
       REVIEW_APPROVAL_FILE,
