@@ -73,6 +73,16 @@ export function handlePlanApproval(targetDir, pubKeyFile, promptText) {
 
     fs.writeFileSync(approvalFile, envelopeJson);
     const privKeyFile = pubKeyFile.endsWith('.pub') ? pubKeyFile.slice(0, -4) : pubKeyFile;
+    const pubKeyPath = privKeyFile + '.pub';
+
+    // Validate that public key exists, and either private key exists or SSH agent is running
+    const hasPrivKey = fs.existsSync(privKeyFile);
+    const hasPubKey = fs.existsSync(pubKeyPath);
+    if (!hasPubKey || (!hasPrivKey && !process.env.SSH_AUTH_SOCK)) {
+      console.error(`🔒 Cryptographic Pipeline Error: Missing key pair or active SSH agent. Public key (${pubKeyPath}) must exist, and either private key (${privKeyFile}) must exist or SSH_AUTH_SOCK must be active.`);
+      process.exit(1);
+    }
+
     execFileSync('ssh-keygen', ['-Y', 'sign', '-f', privKeyFile, '-n', 'gemini', approvalFile]);
 
     return {
@@ -118,6 +128,16 @@ export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
 
     fs.writeFileSync(approvalFile, envelopeJson);
     const privKeyFile = pubKeyFile.endsWith('.pub') ? pubKeyFile.slice(0, -4) : pubKeyFile;
+    const pubKeyPath = privKeyFile + '.pub';
+
+    // Validate that public key exists, and either private key exists or SSH agent is running
+    const hasPrivKey = fs.existsSync(privKeyFile);
+    const hasPubKey = fs.existsSync(pubKeyPath);
+    if (!hasPubKey || (!hasPrivKey && !process.env.SSH_AUTH_SOCK)) {
+      console.error(`🔒 Cryptographic Pipeline Error: Missing key pair or active SSH agent. Public key (${pubKeyPath}) must exist, and either private key (${privKeyFile}) must exist or SSH_AUTH_SOCK must be active.`);
+      process.exit(1);
+    }
+
     execFileSync('ssh-keygen', ['-Y', 'sign', '-f', privKeyFile, '-n', 'gemini', approvalFile]);
 
     console.log(
@@ -144,12 +164,11 @@ export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
       }
 
       if (!commitMessage) {
+        // Extract suggested commit message from the report using a backreference to match quotes resiliently
         const matchCommit =
-          promptText.match(/Commit Message:\s*"([^"]+)"/i) || 
-          promptText.match(/Commit Message:\s*`([^`]+)`/i) ||
-          promptText.match(/Proposed Message:\s*"([^"]+)"/i) ||
-          promptText.match(/Proposed Message:\s*`([^`]+)`/i);
-        commitMessage = matchCommit ? matchCommit[1] : 'chore: automated development commit';
+          promptText.match(/(?:Commit|Proposed) Message:\s*(["'`])(.*?)\1/i) ||
+          promptText.match(/(?:Commit|Proposed) Message:\s*(.*)/i);
+        commitMessage = matchCommit ? (matchCommit[2] !== undefined ? matchCommit[2] : matchCommit[1]).trim() : 'chore: automated development commit';
       }
 
       console.error(`\n🚀 AUTOMATION TRIGGERED: Initiating commit and push...`);
@@ -166,8 +185,9 @@ export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
           })
             .toString()
             .trim();
-        } catch {
+        } catch (err) {
           // Tracking reference does not exist yet
+          console.error(`🔒 Hook Debug: Tracking reference does not exist yet for branch ${activeBranch}:`, err.message);
         }
         if (hasTracking) {
           try {
@@ -177,8 +197,9 @@ export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
                 stdio: 'ignore',
               });
               isOriginAncestorOfHead = true;
-            } catch {
+            } catch (err) {
               isOriginAncestorOfHead = false;
+              console.error('🔒 Hook Debug: Origin tracking is not ancestor of HEAD:', err.message);
             }
 
             let isHeadAncestorOfOrigin = false;
@@ -187,8 +208,9 @@ export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
                 stdio: 'ignore',
               });
               isHeadAncestorOfOrigin = true;
-            } catch {
+            } catch (err) {
               isHeadAncestorOfOrigin = false;
+              console.error('🔒 Hook Debug: HEAD is not ancestor of origin tracking:', err.message);
             }
 
             if (!isOriginAncestorOfHead && !isHeadAncestorOfOrigin) {
@@ -197,12 +219,14 @@ export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
               );
               pushArgs.unshift('-f');
             }
-          } catch {
+          } catch (err) {
             // Ignore rebase detection errors, fallback to standard push args
+            console.error('🔒 Hook Debug: Rebase detection failed, falling back to standard push args:', err.message);
           }
         }
-      } catch {
+      } catch (err) {
         // Fallback safely
+        console.error('🔒 Hook Debug: Git tracking check failed, falling back safely:', err.message);
       }
 
       execFileSync('bash', ['.gemini/skills/commit-push.sh', ...pushArgs], {
