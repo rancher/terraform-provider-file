@@ -12,7 +12,7 @@ The **Squash Merge & SemVer Safety Executor** component is the execution and reg
 
 The squash merge execution is triggered directly after requirements verification passes and the dynamic `GITHUB_MERGE_TOKEN` is successfully retrieved from Vault. It executes `merge-pr.js` inside the secure Nix container environment.
 
-If the merge execution encounters any errors, the orchestrator triggers `handle-merge-failure.js`, which details the error in a PR comment and applies a `ready-to-merge` label to facilitate manual interventions.
+If the merge execution encounters any errors, the orchestrator triggers `handle-merge-failure.js`. For fork-based PRs (where GitHub Actions token permissions often restrict direct automated merges), this failure handler gracefully posts a detailed explanatory comment and applies a `ready-to-merge` label to alert maintainers. For same-repository branch PRs, it logs the merge failure directly in the Actions runner logs for debugging.
 
 ---
 
