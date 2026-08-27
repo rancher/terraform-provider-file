@@ -2,7 +2,7 @@
 
 ## Abstract
 
-The **Squash Merge & SemVer Safety Executor** component is the execution and regulatory enforcement engine of the automated merging pipeline. Implemented inside `merge-pr.js` and executed within the `merge-pr` job of `pr-executor.yml`, this subsystem uses GitHub Copilot CLI to consolidate the PR's commit history into a high-quality Conventional Commit message. Crucially, it applies strict SemVer boundaries based on file scope to prevent automated release pipelines (`release-please`) from triggering incorrect semantic version increments.
+The **Squash Merge & SemVer Safety Executor** component is the execution and regulatory enforcement engine of the automated merging pipeline. Implemented inside `merge-pr.js` and executed within the `merge-pr` job of `pr-executor.yml`, this subsystem uses the standalone Copilot CLI (`copilot`) to consolidate the PR's commit history into a high-quality Conventional Commit message. Crucially, it applies strict SemVer boundaries based on file scope to prevent automated release pipelines (`release-please`) from triggering incorrect semantic version increments.
 
 ---
 
@@ -16,13 +16,13 @@ If the merge execution encounters any errors, the orchestrator triggers `handle-
 
 ---
 
-## 2. Core Functional Mechanics
+### 2. Core Functional Mechanics
 
 The executor carries out three major operational steps:
 
 ### A. Dynamic Conventional Commit Squash Generation
 
-- **Mechanism**: The script compiles the entire list of commits in the PR (`listCommits`) and sends it to the GitHub Copilot CLI (`gh copilot`) inside the Nix container environment.
+- **Mechanism**: The script compiles the entire list of commits in the PR (`listCommits`) and sends it to the standalone Copilot CLI (`copilot`) inside the Nix container environment.
 - **Instruction Prompting**: Copilot is instructed to evaluate the commit list and craft a consolidated, high-quality, and syntactically correct Conventional Commit title and body description.
 - **Retry & Validation Loop**: The script validates the generated title. If the generated message is invalid (e.g., syntactically incorrect or violates SemVer boundaries), the script feeds the error back to Copilot and attempts regeneration (up to 3 attempts).
 - **Fallback**: If all AI attempts fail, the script falls back to a deterministic parsing of the initial commit message, appending a standard `fix: ` prefix if the message does not possess a conventional type.

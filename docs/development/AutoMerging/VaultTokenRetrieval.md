@@ -33,7 +33,7 @@ The workflow uses GitHub's secure OIDC provider to authenticate with the HashiCo
 
 ---
 
-## 2. Secrets Scopes & Security Best Practices
+### 2. Secrets Scopes & Security Best Practices
 
 ### Dynamic Expiration
 

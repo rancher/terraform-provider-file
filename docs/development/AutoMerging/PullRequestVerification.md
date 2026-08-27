@@ -16,7 +16,7 @@ If any check fails, the orchestrator triggers `handle-verification-failure.js`, 
 
 ---
 
-## 2. Core Gate Verification Rules
+### 2. Core Gate Verification Rules
 
 The subsystem evaluates the target PR against its core quality rules:
 
