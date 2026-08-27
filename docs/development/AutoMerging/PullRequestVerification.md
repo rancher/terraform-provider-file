@@ -41,15 +41,15 @@ The subsystem evaluates the target PR against its core quality rules:
 
 ### D. AI Reviewer Approval
 
-- **Rule**: The PR must have at least one approved review from an authorized AI agent bot (e.g., Gemini CLI review agent).
-- **Evaluation Details**: Scans reviews for bots whose usernames contain `copilot` or `agent`, and whose type is `Bot` or ends with `[bot]`.
-- **Conversation Thread Fallback**: If no official AI review exists in the GitHub Reviews tab, it searches the PR issue comments timeline for a valid review pass comment containing the standard signature:
+- **Rule**: The PR must have at least one review with state `APPROVED` or `COMMENTED` from an authorized AI agent bot (whose username contains `copilot` or `agent`, and whose type is `Bot` or ends with `[bot]`).
+- **Conversation Thread Fallback (Non-Dependabot Only)**: For non-Dependabot PRs, if no official AI review exists in the GitHub Reviews tab, the script searches the PR conversation comments history for a valid review pass comment containing the standard signature:
   `"and generated no new comments."`
+  This issue-comment fallback path is strictly bypassed for Dependabot PRs.
 
 ### E. Dependabot Exemption
 
 - **Rule**: Pull Requests submitted by the Dependabot service (`dependabot[bot]`) bypass the Human Approval requirement.
-- **Logic**: Dependabot PRs are allowed to auto-merge with only a successful AI approval and valid commit signatures, facilitating fast, frictionless dependency updates.
+- **Logic**: While Dependabot PRs bypass the human approval rule, they are still strictly subjected to all other quality gates, including CI status completion, cryptographic commit signatures, unresolved review thread checks, and require an official AI bot review in state `APPROVED` or `COMMENTED` (bypassing the issue-comment fallback path). This ensures dependency updates are fully verified without weakening the overall quality gates.
 
 ---
 
