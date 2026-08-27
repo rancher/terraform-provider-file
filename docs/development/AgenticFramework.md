@@ -12,7 +12,7 @@ The Agentic Framework represents a secure, zero-trust developer environment desi
 
 ## 🧭 How Our Framework Components Work Together
 
-Our framework is comprised of 9 closely integrated components that work together dynamically to guide developers and agents through the software development lifecycle:
+Our framework is comprised of 12 closely integrated components that work together dynamically to guide developers and agents through the software development lifecycle:
 
 ### 1. Architectural & Process Specifications
 
@@ -31,6 +31,7 @@ These components form our zero-bypass security sandbox, preventing unauthorized 
 - **Workflow Optimization & Subagent Design**: Configures our custom specialized subagent (`review_agent`) with hardened, read-only permissions and prunes mechanical style checks from core LLM prompts. More details can be found in **[Workflow Optimization & Design](./AgenticFramework/WorkflowDesign.md)**.
 - **Review Subagent**: Detailed specifications and sandboxing parameters for our pre-commit Review Agent. More details can be found in **[Review Subagent](./AgenticFramework/ReviewAgent.md)**.
 - **Claude Code Integration**: Documents how this same gated process is implemented for Claude Code via its own native primitives, in parallel with the Gemini CLI implementation described above. More details can be found in **[Claude Code Integration](./AgenticFramework/ClaudeCodeIntegration.md)**.
+- **Ask User Component**: Governs the structured TOML format requirements, schema, and templates for all collaborative and gating questions directed to the human developer. More details can be found in **[Ask User Component](./AgenticFramework/AskUserComponent.md)**.
 
 ### 3. Shared Skills & Persona Formatting Guidelines
 

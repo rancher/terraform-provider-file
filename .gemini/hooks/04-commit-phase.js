@@ -3,6 +3,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import TOML from '@iarna/toml';
 import { handleCommitApproval } from '../../agent-scripts/after-ask.js';
 import {
   calculateDiffHash,
@@ -174,11 +175,23 @@ function beforeAskUser(inputData, targetDir) {
     process.exit(0);
   }
 
-  const safeToolInput = JSON.stringify(tool_input);
-  const isCommitAsk =
-    safeToolInput.includes('approve these changes for commit') ||
-    safeToolInput.includes('Commit Message:') ||
-    safeToolInput.includes('Gate 3');
+  let promptText = '';
+  if (tool_input.questions && Array.isArray(tool_input.questions) && tool_input.questions.length > 0) {
+    promptText = tool_input.questions[0].question || '';
+  } else if (tool_input.question) {
+    promptText = tool_input.question;
+  } else if (tool_input.prompt) {
+    promptText = tool_input.prompt;
+  }
+
+  let tomlData;
+  try {
+    tomlData = TOML.parse(promptText);
+  } catch {
+    // If TOML parsing fails, handle as fallback
+  }
+
+  const isCommitAsk = tomlData && tomlData.intent === 'commit approval';
 
   if (!isCommitAsk) {
     console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Execution allowed, not a commit approval request.' }));
@@ -245,11 +258,23 @@ function afterAskUser(inputData, targetDir) {
     }
   }
 
-  const safeToolInput = JSON.stringify(tool_input);
-  const isCommitAsk =
-    safeToolInput.includes('approve these changes for commit') ||
-    safeToolInput.includes('Commit Message:') ||
-    safeToolInput.includes('Gate 3');
+  let promptText = '';
+  if (tool_input.questions && Array.isArray(tool_input.questions) && tool_input.questions.length > 0) {
+    promptText = tool_input.questions[0].question || '';
+  } else if (tool_input.question) {
+    promptText = tool_input.question;
+  } else if (tool_input.prompt) {
+    promptText = tool_input.prompt;
+  }
+
+  let tomlData;
+  try {
+    tomlData = TOML.parse(promptText);
+  } catch {
+    // If TOML parsing fails, handle as fallback
+  }
+
+  const isCommitAsk = tomlData && tomlData.intent === 'commit approval';
 
   if (!isCommitAsk) {
     console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Execution allowed, not a commit approval request.' }));
@@ -345,7 +370,35 @@ function afterAskUser(inputData, targetDir) {
     process.exit(0);
   }
 
-  const promptText = tool_input.questions && tool_input.questions[0] ? tool_input.questions[0].question : '';
+  if (tomlData && tomlData.intent === 'commit approval') {
+    const commitMsg = tomlData['commit-message'];
+    const prDesc = tomlData['pr-description'];
+
+    if (commitMsg) {
+      const reviewApprovalFile = path.join(targetDir, 'review-approval.json');
+      if (fs.existsSync(reviewApprovalFile)) {
+        try {
+          const approvalData = JSON.parse(fs.readFileSync(reviewApprovalFile, 'utf-8'));
+          approvalData.suggested_commit_message = commitMsg;
+          fs.writeFileSync(reviewApprovalFile, JSON.stringify(approvalData, null, 2));
+          console.error(`🔒 Hook Info: Updated suggested_commit_message in review-approval.json to: "${commitMsg}"`);
+        } catch (err) {
+          console.error('🔒 Hook Error: Failed to update review-approval.json with commit-message:', err.message);
+        }
+      }
+    }
+
+    if (prDesc) {
+      const prBodyFile = path.join(targetDir, 'pr-body.md');
+      try {
+        fs.mkdirSync(path.dirname(prBodyFile), { recursive: true });
+        fs.writeFileSync(prBodyFile, prDesc);
+        console.error(`🔒 Hook Info: Wrote PR description to ${prBodyFile}`);
+      } catch (err) {
+        console.error('🔒 Hook Error: Failed to write pr-body.md:', err.message);
+      }
+    }
+  }
 
   if (isCommitAsk) {
     const planHash = verifyPlanGate(targetDir);

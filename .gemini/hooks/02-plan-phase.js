@@ -3,6 +3,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import TOML from '@iarna/toml';
 import { handlePlanApproval } from '../../agent-scripts/after-ask.js';
 import { findLatestActivePlan, verifyPlanGate } from '../../agent-scripts/gating.js';
 import { validatePlanContent } from '../../agent-scripts/planning.js';
@@ -172,6 +173,27 @@ function beforeAskUserPlan(inputData, targetDir) {
     process.exit(0);
   }
 
+  let promptText = '';
+  if (tool_input.questions && Array.isArray(tool_input.questions) && tool_input.questions.length > 0) {
+    promptText = tool_input.questions[0].question || '';
+  } else if (tool_input.question) {
+    promptText = tool_input.question;
+  } else if (tool_input.prompt) {
+    promptText = tool_input.prompt;
+  }
+
+  let tomlData;
+  try {
+    tomlData = TOML.parse(promptText);
+  } catch {
+    // If it fails to parse, it might not be a valid plan approval, let the validator hook handle it.
+  }
+
+  if (!tomlData || tomlData.intent !== 'plan approval') {
+    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Execution allowed, not a plan approval request.' }));
+    process.exit(0);
+  }
+
   // Verify the plan is valid before allowing ask_user to prompt the user
   const activePlan = findLatestActivePlan(targetDir);
   if (!activePlan) {
@@ -225,9 +247,23 @@ function askUserPlanProof(inputData, targetDir) {
     process.exit(0);
   }
 
-  const safeToolInput = JSON.stringify(tool_input);
-  const isPlanAsk =
-    safeToolInput.includes('plan') || safeToolInput.includes('blueprint') || safeToolInput.includes('Planning');
+  let promptText = '';
+  if (tool_input.questions && Array.isArray(tool_input.questions) && tool_input.questions.length > 0) {
+    promptText = tool_input.questions[0].question || '';
+  } else if (tool_input.question) {
+    promptText = tool_input.question;
+  } else if (tool_input.prompt) {
+    promptText = tool_input.prompt;
+  }
+
+  let tomlData;
+  try {
+    tomlData = TOML.parse(promptText);
+  } catch {
+    // If TOML parsing fails, we handle as fallback
+  }
+
+  const isPlanAsk = tomlData && tomlData.intent === 'plan approval';
 
   if (!isPlanAsk) {
     console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Execution allowed, not a plan approval request.' }));
@@ -313,16 +349,8 @@ function askUserPlanProof(inputData, targetDir) {
     process.exit(0);
   }
 
-  let promptText;
-  try {
-    const question = tool_input.questions && tool_input.questions[0];
-    promptText = (question && question.question) || JSON.stringify(tool_input);
-  } catch (err) {
-    console.error(err.message || err);
-    promptText = JSON.stringify(tool_input);
-  }
-
-  const result = handlePlanApproval(targetDir, sshPubKeyFile, promptText);
+  const planContent = (tomlData && tomlData.plan) || promptText;
+  const result = handlePlanApproval(targetDir, sshPubKeyFile, planContent);
 
   console.log(
     JSON.stringify({

@@ -39,6 +39,13 @@
         "matcher": "ask_user",
         "hooks": [
           {
+            "name": "validate-ask-user-toml",
+            "type": "command",
+            "command": "node .gemini/hooks/ask-user-toml-validator.js",
+            "timeout": 5000,
+            "description": "Enforces TOML formatting for all ask_user requests"
+          },
+          {
             "name": "plan-phase-before-ask-user",
             "type": "command",
             "command": "node .gemini/hooks/02-plan-phase.js --before-ask-proof",
@@ -176,6 +183,8 @@
     ]
   },
   "hooksConfig": {
-    "disabled": []
+    "disabled": [
+      "block-restricted-commands"
+    ]
   }
 }

@@ -344,7 +344,7 @@ function main() {
 
   const args = process.argv.slice(2);
 
-  if (args.includes('--after-invoke')) {
+  if (args.includes('--after-invoke') || args.includes('--after-subagent')) {
     afterInvoke(inputData);
   } else {
     const { tool_name, tool_input } = inputData;
