@@ -41,6 +41,7 @@ A **Component Specification** is a detailed, focused technical design document t
 ## 🛠️ Domain Index Maps
 
 - **[Agentic Framework](./AgenticFramework.md)**: Secure zero-trust sandboxing, Touch ID gating, PR pipeline automation, and agent developer workflows.
+- **[Auto-Merging](./AutoMerging.md)**: Event-driven zero-trust validation, CI status verification, commit signature checks, and AI squash merging.
 - **[Coding Standards](./CodingStandards.md)**: Repository-wide standards for Go, Terraform, Shell/GitHub scripts, Workflows, and pre-commit reviews.
 - **[Release Process](./ReleaseProcess.md)**: Canonical tag, GPG-signing, and release workflows.
 - **[Testing](./Testing.md)**: Acceptance and unit-testing standards.
