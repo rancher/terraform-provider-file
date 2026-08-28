@@ -37,7 +37,8 @@ The sync utility `.gemini/skills/sync-boilerplate.sh` executes the following seq
      │                                   │                                   │
      │                                   │ ── 5. Trap: rm -rf /tmp/clone ──► │
 ```
-*(Note: The sequence diagram is simplified and omits the --no-checkout flag for readability.)*
+
+Note: The sequence diagram is simplified and omits the --no-checkout flag for readability.
 
 1. **Manifest Parsing**: Reads and validates the JSON `.files` array using `jq`.
 2. **Hermetic Sandbox Prep**: Establishes a temporary workspace directory under `/tmp/boilerplate-sync-XXXXXX` using `mktemp -d`.

@@ -15,15 +15,51 @@ export function calculateFileHash(filePath) {
   }
 }
 
-// Calculate active local diff hash securely (staged + unstaged combined, relative to main on feature branches)
+// Calculate active local diff hash securely (staged + unstaged combined, relative to main on feature branches, and including untracked files)
 export function calculateDiffHash() {
   try {
     const currentBranch = execSync('git branch --show-current', { stdio: ['ignore', 'pipe', 'ignore'] })
       .toString()
       .trim();
-    const diffCmdArgs = currentBranch !== 'main' && currentBranch !== '' ? ['diff', 'main'] : ['diff', 'HEAD'];
-    const diff = execFileSync('git', diffCmdArgs, { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
-    return crypto.createHash('sha256').update(diff).digest('hex');
+
+    const hash = crypto.createHash('sha256');
+
+    // 1. Accumulate tracked diffs
+    if (currentBranch !== 'main' && currentBranch !== '') {
+      // Feature branch: diff working tree (staged + unstaged) against main
+      const diffMain = execFileSync('git', ['diff', 'main'], { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
+      hash.update(diffMain);
+    } else {
+      // Main or detached HEAD: diff unstaged changes
+      const diffUnstaged = execFileSync('git', ['diff'], { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
+      hash.update(diffUnstaged);
+      // Diff staged changes
+      const diffStaged = execFileSync('git', ['diff', '--staged'], { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
+      hash.update(diffStaged);
+    }
+
+    // 2. Accumulate untracked files to prevent silent additions
+    const untrackedFiles = execFileSync('git', ['ls-files', '--others', '--exclude-standard'], {
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .toString()
+      .trim()
+      .split('\n')
+      .filter(Boolean);
+
+    for (const file of untrackedFiles) {
+      if (fs.existsSync(file)) {
+        try {
+          const fileContent = fs.readFileSync(file);
+          hash.update(`untracked:${file}\n`);
+          hash.update(fileContent);
+        } catch (fileErr) {
+          console.error(`🔒 Hook Debug: Failed to read untracked file ${file}:`, fileErr.message || fileErr);
+        }
+      }
+    }
+
+    return hash.digest('hex');
   } catch (err) {
     console.error('🔒 Hook Debug: calculateDiffHash failed:', err.message || err);
     return null;
@@ -190,7 +226,7 @@ export function checkAndRevokeStaleGates(targetDir, activeDiffHash, expectedPlan
       // If unparsable, delete it
       try {
         fs.unlinkSync(reviewApprovalFile);
-      /* eslint-disable-next-line no-shadow */
+        /* eslint-disable-next-line no-shadow */
       } catch (err) {
         console.error(`🔒 Hook Warning: Failed to delete unparsable review approval: ${err.message}`);
       }

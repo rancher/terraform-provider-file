@@ -205,7 +205,9 @@ export function executeCommit(commitMsg, branch, cwd) {
     console.log('✅ Conventional GPG/SSH-signed commit successfully created!');
   } catch (err) {
     console.error(err);
-    throw new Error('GPG/SSH COMMIT SIGNATURE FAILURE! Commit signature operation failed or was cancelled.', { cause: err });
+    throw new Error('GPG/SSH COMMIT SIGNATURE FAILURE! Commit signature operation failed or was cancelled.', {
+      cause: err,
+    });
   }
 }
 

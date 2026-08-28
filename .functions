@@ -37,11 +37,11 @@ get_repo_owner() {
 parse_git_dirty() {
   local status
   status="$(git status 2>&1)"
-  if [[ "$status" == *"modified:"* ]]; then printf "!"; fi # dirty
-  if [[ "$status" == *"Untracked files"* ]]; then printf "?"; fi # untracked
-  if [[ "$status" == *"new file:"* ]]; then printf "+"; fi # new files
-  if [[ "$status" == *"renamed:"* ]]; then printf ">"; fi # renamed files
-  if [[ "$status" == *"deleted:"* ]]; then printf "x"; fi # deleted files
+  if [[ "$status" == *"modified:"* ]]; then printf "!"; fi               # dirty
+  if [[ "$status" == *"Untracked files"* ]]; then printf "?"; fi         # untracked
+  if [[ "$status" == *"new file:"* ]]; then printf "+"; fi               # new files
+  if [[ "$status" == *"renamed:"* ]]; then printf ">"; fi                # renamed files
+  if [[ "$status" == *"deleted:"* ]]; then printf "x"; fi                # deleted files
   if [[ "$status" == *"Your branch is ahead of"* ]]; then printf "*"; fi # ahead of
 }
 

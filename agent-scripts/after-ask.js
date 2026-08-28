@@ -1,4 +1,4 @@
-import { execFileSync } from 'child_process';
+import { execFileSync, spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { calculateDiffHash, calculateFileHash, findLatestActivePlan } from './gating.js';
@@ -75,11 +75,11 @@ export function handlePlanApproval(targetDir, pubKeyFile, promptText) {
     const privKeyFile = pubKeyFile.endsWith('.pub') ? pubKeyFile.slice(0, -4) : pubKeyFile;
     const pubKeyPath = privKeyFile + '.pub';
 
-    // Validate that public key exists, and either private key exists or SSH agent is running
-    const hasPrivKey = fs.existsSync(privKeyFile);
     const hasPubKey = fs.existsSync(pubKeyPath);
-    if (!hasPubKey || (!hasPrivKey && !process.env.SSH_AUTH_SOCK)) {
-      console.error(`🔒 Cryptographic Pipeline Error: Missing key pair or active SSH agent. Public key (${pubKeyPath}) must exist, and either private key (${privKeyFile}) must exist or SSH_AUTH_SOCK must be active.`);
+    if (!hasPubKey || !process.env.SSH_AUTH_SOCK) {
+      console.error(
+        `🔒 Cryptographic Pipeline Error: Missing key pair or active SSH agent. Public key (${pubKeyPath}) must exist, and SSH_AUTH_SOCK must be active.`,
+      );
       process.exit(1);
     }
 
@@ -98,9 +98,7 @@ export function handlePlanApproval(targetDir, pubKeyFile, promptText) {
   }
 }
 
-/**
- * Handles the Commit Gate 3 biometric GPG signing challenge and automatic commit/push.
- */
+// Handles the Commit Gate 3 GPG/SSH signing challenge and automatic commit/push.
 export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
   const activePlan = findLatestActivePlan(targetDir);
   const planHash = activePlan ? calculateFileHash(activePlan) : 'unknown';
@@ -130,11 +128,11 @@ export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
     const privKeyFile = pubKeyFile.endsWith('.pub') ? pubKeyFile.slice(0, -4) : pubKeyFile;
     const pubKeyPath = privKeyFile + '.pub';
 
-    // Validate that public key exists, and either private key exists or SSH agent is running
-    const hasPrivKey = fs.existsSync(privKeyFile);
     const hasPubKey = fs.existsSync(pubKeyPath);
-    if (!hasPubKey || (!hasPrivKey && !process.env.SSH_AUTH_SOCK)) {
-      console.error(`🔒 Cryptographic Pipeline Error: Missing key pair or active SSH agent. Public key (${pubKeyPath}) must exist, and either private key (${privKeyFile}) must exist or SSH_AUTH_SOCK must be active.`);
+    if (!hasPubKey || !process.env.SSH_AUTH_SOCK) {
+      console.error(
+        `🔒 Cryptographic Pipeline Error: Missing key pair or active SSH agent. Public key (${pubKeyPath}) must exist, and SSH_AUTH_SOCK must be active.`,
+      );
       process.exit(1);
     }
 
@@ -168,7 +166,14 @@ export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
         const matchCommit =
           promptText.match(/(?:Commit|Proposed) Message:\s*(["'`])(.*?)\1/i) ||
           promptText.match(/(?:Commit|Proposed) Message:\s*(.*)/i);
-        commitMessage = matchCommit ? (matchCommit[2] !== undefined ? matchCommit[2] : matchCommit[1]).trim() : 'chore: automated development commit';
+
+        if (matchCommit) {
+          commitMessage = (matchCommit[2] !== undefined ? matchCommit[2] : matchCommit[1]).trim();
+        } else if (promptText && promptText.trim() !== '') {
+          commitMessage = promptText.trim();
+        } else {
+          commitMessage = 'chore: automated development commit';
+        }
       }
 
       console.error(`\n🚀 AUTOMATION TRIGGERED: Initiating commit and push...`);
@@ -187,7 +192,10 @@ export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
             .trim();
         } catch (err) {
           // Tracking reference does not exist yet
-          console.error(`🔒 Hook Debug: Tracking reference does not exist yet for branch ${activeBranch}:`, err.message);
+          console.error(
+            `🔒 Hook Debug: Tracking reference does not exist yet for branch ${activeBranch}:`,
+            err.message,
+          );
         }
         if (hasTracking) {
           try {
@@ -202,20 +210,9 @@ export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
               console.error('🔒 Hook Debug: Origin tracking is not ancestor of HEAD:', err.message);
             }
 
-            let isHeadAncestorOfOrigin = false;
-            try {
-              execFileSync('git', ['merge-base', '--is-ancestor', 'HEAD', `origin/${activeBranch}`], {
-                stdio: 'ignore',
-              });
-              isHeadAncestorOfOrigin = true;
-            } catch (err) {
-              isHeadAncestorOfOrigin = false;
-              console.error('🔒 Hook Debug: HEAD is not ancestor of origin tracking:', err.message);
-            }
-
-            if (!isOriginAncestorOfHead && !isHeadAncestorOfOrigin) {
+            if (!isOriginAncestorOfHead) {
               console.error(
-                '⚠️ [DIVERGED] Local branch has diverged from origin tracking ref (interactive rebase detected). Enabling safe force-push (--force-with-lease).',
+                '⚠️ [OUT-OF-SYNC] Local branch is out-of-sync with origin tracking ref. Enabling safe force-push (--force-with-lease) automatically.',
               );
               pushArgs.unshift('-f');
             }
@@ -229,23 +226,85 @@ export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
         console.error('🔒 Hook Debug: Git tracking check failed, falling back safely:', err.message);
       }
 
-      execFileSync('bash', ['.gemini/skills/commit-push.sh', ...pushArgs], {
+      console.error('🔒 Hook Info: Triggering automated commit and push pipeline...');
+      const rootDir = process.cwd();
+
+      const skillScript = path.join(rootDir, '.gemini/skills/commit-push.sh');
+      console.error('🔒 Hook Debug: Spawning commit-push.sh with args:', pushArgs);
+      const commitRes = spawnSync('bash', [skillScript, ...pushArgs], {
         env: { ...process.env, COMMIT_LIMIT_OVERRIDE: '100' },
-        stdio: 'inherit',
+        cwd: rootDir,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        maxBuffer: 10 * 1024 * 1024,
       });
 
-      console.error(`\n🚀 AUTOMATION TRIGGERED: Generating Draft Pull Request...`);
-      execFileSync('bash', ['.gemini/skills/create-pr.sh', '--draft'], {
-        env: { ...process.env },
-        stdio: 'inherit',
-      });
+      if (commitRes.stdout && commitRes.stdout.toString().trim()) {
+        console.error(commitRes.stdout.toString().trim());
+      }
+      if (commitRes.stderr && commitRes.stderr.toString().trim()) {
+        console.error(commitRes.stderr.toString().trim());
+      }
+
+      if (commitRes.status !== 0 || commitRes.error) {
+        const errMsg = commitRes.error ? commitRes.error.message : `Command failed with status ${commitRes.status}`;
+        const err = new Error(errMsg);
+        err.stdout = commitRes.stdout;
+        err.stderr = commitRes.stderr;
+        throw err;
+      }
+
+      // Run PR automation as well
+      const prScript = path.join(rootDir, '.gemini/skills/create-pr.sh');
+      if (fs.existsSync(prScript)) {
+        console.error('🔒 Hook Info: Triggering automated pull request creation pipeline...');
+        const prRes = spawnSync('bash', [prScript, '--draft'], {
+          env: { ...process.env },
+          cwd: rootDir,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          maxBuffer: 10 * 1024 * 1024,
+        });
+
+        if (prRes.stdout && prRes.stdout.toString().trim()) {
+          console.error(prRes.stdout.toString().trim());
+        }
+        if (prRes.stderr && prRes.stderr.toString().trim()) {
+          console.error(prRes.stderr.toString().trim());
+        }
+
+        if (prRes.status !== 0 || prRes.error) {
+          const errMsg = prRes.error ? prRes.error.message : `Command failed with status ${prRes.status}`;
+          const err = new Error(errMsg);
+          err.stdout = prRes.stdout;
+          err.stderr = prRes.stderr;
+          throw err;
+        }
+      }
 
       process.exit(0);
     } catch (err) {
+      const errorLog = path.join(targetDir, 'logs/commit-push-error.log');
+      const stdErrText = err.stderr ? err.stderr.toString() : '';
+      const stdOutText = err.stdout ? err.stdout.toString() : '';
+
+      try {
+        fs.mkdirSync(path.dirname(errorLog), { recursive: true });
+        fs.writeFileSync(
+          errorLog,
+          `Error: ${err.message}\n\n` +
+            `--- SCRIPT STDERR ---\n${stdErrText}\n\n` +
+            `--- SCRIPT STDOUT ---\n${stdOutText}\n`,
+        );
+      } catch (logErr) {
+        console.error('🔒 Hook Debug: Failed to write error log:', logErr.message || logErr);
+      }
+
       console.error('\n======================================================================');
       console.error('❌ AUTOMATED COMMIT/PUSH PIPELINE FAILURE DETECTED!');
       console.error('======================================================================');
       console.error(`Error Message: ${err.message || err}`);
+      console.error(`Script Stderr: ${stdErrText.trim() || 'None'}`);
+      console.error(`Script Stdout: ${stdOutText.trim() || 'None'}`);
+      console.error(`Full details written to: ${errorLog}`);
       console.error('\n🛠️ Troubleshooting Guide:');
       console.error('1. Check if your local branch has un-synchronized remote commits.');
       console.error('2. Ensure your GPG keys are unlocked and Touch ID biometrics are functioning.');

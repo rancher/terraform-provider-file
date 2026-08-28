@@ -25,7 +25,7 @@ The executor carries out three major operational steps:
 - **Mechanism**: The script compiles the entire list of commits in the PR (`listCommits`) and sends it to the standalone Copilot CLI (`copilot`) inside the Nix container environment.
 - **Instruction Prompting**: Copilot is instructed to evaluate the commit list and craft a consolidated, high-quality, and syntactically correct Conventional Commit title and body description.
 - **Retry & Validation Loop**: The script validates the generated title. If the generated message is invalid (e.g., syntactically incorrect or violates SemVer boundaries), the script feeds the error back to Copilot and attempts regeneration (up to 3 attempts).
-- **Fallback**: If all AI attempts fail, the script falls back to a deterministic parsing of the initial commit message, appending a standard `fix: ` prefix if the message does not possess a conventional type.
+- **Fallback**: If all AI attempts fail, the script falls back to a deterministic parsing of the initial commit message, appending a standard `fix:` prefix if the message does not possess a conventional type.
 
 ### B. Strict SemVer Enforcer Boundaries
 

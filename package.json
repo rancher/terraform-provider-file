@@ -24,6 +24,7 @@
   },
   "homepage": "https://github.com/rancher/terraform-provider-file#readme",
   "devDependencies": {
-    "@eslint/js": "^10.0.1"
+    "@eslint/js": "^10.0.1",
+    "@iarna/toml": "^2.2.5"
   }
 }

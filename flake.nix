@@ -170,6 +170,7 @@
           # mac only packages
           macVscode
           swVers
+          pkgs.pinentry_mac
           pkgs.colima
           pkgs.age-plugin-se
         ] else []);

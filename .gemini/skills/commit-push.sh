@@ -123,6 +123,7 @@ sync_default_branch() {
       fi
     fi
   fi
+  return 0
 }
 
 main() {

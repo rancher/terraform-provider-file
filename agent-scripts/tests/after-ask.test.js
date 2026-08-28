@@ -13,12 +13,27 @@ test('after-ask.js: Touch ID gate signing unit tests', async (t) => {
   const tempHome = path.resolve(os.homedir(), `.gemini/tmp/gemini-after-ask-test-${uniqueId}`);
   const tempTmpDir = path.resolve(tempHome, '.gemini/tmp/terraform-provider-file');
 
+  const originalSock = process.env.SSH_AUTH_SOCK;
+  const originalNodeEnv = process.env.NODE_ENV;
+
   // Set HOME environment variable so that os.homedir() returns tempHome in subsequent gating checks
   process.env.HOME = tempHome;
+  process.env.SSH_AUTH_SOCK = '/tmp/gemini-mock-ssh-agent.sock';
+  process.env.NODE_ENV = 'test';
 
   fs.mkdirSync(tempTmpDir, { recursive: true });
 
   t.after(() => {
+    if (originalSock) {
+      process.env.SSH_AUTH_SOCK = originalSock;
+    } else {
+      delete process.env.SSH_AUTH_SOCK;
+    }
+    if (originalNodeEnv !== undefined) {
+      process.env.NODE_ENV = originalNodeEnv;
+    } else {
+      delete process.env.NODE_ENV;
+    }
     fs.rmSync(tempHome, { recursive: true, force: true });
   });
 

@@ -27,15 +27,32 @@ run_relay_acc_tests() {
   make testaccrelay
 }
 
+ensure_node_dependencies() {
+  if [[ ! -d node_modules ]]; then
+    echo "==> Installing Node dependencies..."
+    npm ci --silent || npm install --silent
+  fi
+}
+
 run_workflow_script_tests() {
+  ensure_node_dependencies
   echo "==> Running workflow script unit tests..."
   node --test .github/workflows/scripts/tests/**/*.test.js
 }
 
 run_agent_script_tests() {
-  echo "==> Running workflow script unit tests..."
+  ensure_node_dependencies
+  echo "==> Running agent script unit tests..."
   node --test agent-scripts/tests/**/*.test.js
 }
+
+run_all_tests() {
+  run_compile_check
+  run_unit_tests
+  run_workflow_script_tests
+  run_agent_script_tests
+}
+
 case "${MODE}" in
   compile)
     run_compile_check
@@ -55,9 +72,12 @@ case "${MODE}" in
   agent-scripts)
     run_agent_script_tests
     ;;
+  all)
+    run_all_tests
+    ;;
   *)
     echo "Error: Unknown test mode: ${MODE}" >&2
-    echo "Usage: $0 [compile|unit|acc|acc-relay|scripts]" >&2
+    echo "Usage: $0 [compile|unit|acc|acc-relay|workflow-scripts|agent-scripts|all]" >&2
     exit 1
     ;;
 esac

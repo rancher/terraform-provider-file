@@ -24,7 +24,8 @@ import {
   verifyReviewGate,
   checkAndRevokeStaleGates,
 } from '../gating.js';
-import { checkActiveBlueprint, validatePlanContent } from '../planning.js';
+import { checkActivePlan, validatePlanContent } from '../planning.js';
+import { resolveTargetDir } from '../workspace.js';
 
 test('git-helpers.js: master consolidated helper unit tests', async (t) => {
   const uniqueId = crypto.randomBytes(8).toString('hex');
@@ -72,15 +73,17 @@ test('git-helpers.js: master consolidated helper unit tests', async (t) => {
   });
 
   // --- BLUEPRINTS & PLANNING TESTS ---
-  await t.test('checkActiveBlueprint returns false when working tree is clean', () => {
-    const hasPlan = checkActiveBlueprint(tempHome);
+  await t.test('checkActivePlan returns false when no plan is present in the session/plans directory', () => {
+    const hasPlan = checkActivePlan(tempHome);
     assert.strictEqual(hasPlan, false);
   });
 
-  await t.test('checkActiveBlueprint returns true when a blueprint is added or modified', () => {
-    fs.mkdirSync(path.join(tempHome, 'docs/development'), { recursive: true });
-    fs.writeFileSync(path.join(tempHome, 'docs/development/TestBlueprint.md'), '# Test Blueprint');
-    const hasPlan = checkActiveBlueprint(tempHome);
+  await t.test('checkActivePlan returns true when a plan is present in the session/plans directory', () => {
+    const targetDir = resolveTargetDir(tempHome);
+    const sessionPlansDir = path.join(targetDir, 'session-xyz/plans');
+    fs.mkdirSync(sessionPlansDir, { recursive: true });
+    fs.writeFileSync(path.join(sessionPlansDir, 'TestPlan.md'), '# Test Plan');
+    const hasPlan = checkActivePlan(tempHome);
     assert.strictEqual(hasPlan, true);
   });
 

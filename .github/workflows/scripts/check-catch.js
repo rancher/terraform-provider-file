@@ -25,7 +25,9 @@ function checkCatchInFiles() {
   const files = getFiles(rootDir);
   let failed = false;
 
-  console.log(`🔍 Scanning ${files.length} JavaScript files for 'catch' statements without an explicit error binding...`);
+  console.log(
+    `🔍 Scanning ${files.length} JavaScript files for 'catch' statements without an explicit error binding...`,
+  );
 
   for (const file of files) {
     // Relative path for cleaner output
@@ -39,7 +41,7 @@ function checkCatchInFiles() {
     // Strip double-quoted, single-quoted, and template string literals
     content = content.replace(/"[^"\\]*(?:\\.[^"\\]*)*"/g, '""');
     content = content.replace(/'[^'\\]*(?:\\.[^'\\]*)*'/g, "''");
-    content = content.replace(/`[^`\\]*(?:\\.[^`\\]*)*`/g, "``");
+    content = content.replace(/`[^`\\]*(?:\\.[^`\\]*)*`/g, '``');
 
     const lines = content.split('\n');
     for (let i = 0; i < lines.length; i++) {
@@ -58,7 +60,9 @@ function checkCatchInFiles() {
         // Match a valid parenthesis-enclosed variable parameter, e.g. (err), (error), (e)
         const hasParam = /^\(\s*[a-zA-Z_$][a-zA-Z0-9_$]*\s*\)/.test(remaining);
         if (!hasParam) {
-          console.log(`❌ Violation: 'catch' statement without an explicit error binding found at ${relativePath}:${i + 1}`);
+          console.log(
+            `❌ Violation: 'catch' statement without an explicit error binding found at ${relativePath}:${i + 1}`,
+          );
           console.log(`   Line: ${line.trim()}`);
           failed = true;
         }
@@ -70,7 +74,7 @@ function checkCatchInFiles() {
     console.log('\n🔴 Audit Failed: One or more catch statements violate the policy.');
     process.exit(1);
   } else {
-    console.log("\n🟢 Audit Passed: All catch statements comply with explicit error binding policy!");
+    console.log('\n🟢 Audit Passed: All catch statements comply with explicit error binding policy!');
     process.exit(0);
   }
 }
