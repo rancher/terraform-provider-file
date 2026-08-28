@@ -75,12 +75,10 @@ export function handlePlanApproval(targetDir, pubKeyFile, promptText) {
     const privKeyFile = pubKeyFile.endsWith('.pub') ? pubKeyFile.slice(0, -4) : pubKeyFile;
     const pubKeyPath = privKeyFile + '.pub';
 
-    // Validate that public key exists, and either private key exists or SSH agent is running
-    const hasPrivKey = fs.existsSync(privKeyFile);
     const hasPubKey = fs.existsSync(pubKeyPath);
-    if (!hasPubKey || (!hasPrivKey && !process.env.SSH_AUTH_SOCK)) {
+    if (!hasPubKey || !process.env.SSH_AUTH_SOCK) {
       console.error(
-        `🔒 Cryptographic Pipeline Error: Missing key pair or active SSH agent. Public key (${pubKeyPath}) must exist, and either private key (${privKeyFile}) must exist or SSH_AUTH_SOCK must be active.`,
+        `🔒 Cryptographic Pipeline Error: Missing key pair or active SSH agent. Public key (${pubKeyPath}) must exist, and SSH_AUTH_SOCK must be active.`,
       );
       process.exit(1);
     }
@@ -130,12 +128,10 @@ export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
     const privKeyFile = pubKeyFile.endsWith('.pub') ? pubKeyFile.slice(0, -4) : pubKeyFile;
     const pubKeyPath = privKeyFile + '.pub';
 
-    // Validate that public key exists, and either private key exists or SSH agent is running
-    const hasPrivKey = fs.existsSync(privKeyFile);
     const hasPubKey = fs.existsSync(pubKeyPath);
-    if (!hasPubKey || (!hasPrivKey && !process.env.SSH_AUTH_SOCK)) {
+    if (!hasPubKey || !process.env.SSH_AUTH_SOCK) {
       console.error(
-        `🔒 Cryptographic Pipeline Error: Missing key pair or active SSH agent. Public key (${pubKeyPath}) must exist, and either private key (${privKeyFile}) must exist or SSH_AUTH_SOCK must be active.`,
+        `🔒 Cryptographic Pipeline Error: Missing key pair or active SSH agent. Public key (${pubKeyPath}) must exist, and SSH_AUTH_SOCK must be active.`,
       );
       process.exit(1);
     }
@@ -234,6 +230,7 @@ export function handleCommitApproval(targetDir, pubKeyFile, promptText) {
       const rootDir = process.cwd();
 
       const skillScript = path.join(rootDir, '.gemini/skills/commit-push.sh');
+      console.error('🔒 Hook Debug: Spawning commit-push.sh with args:', pushArgs);
       const commitRes = spawnSync('bash', [skillScript, ...pushArgs], {
         env: { ...process.env, COMMIT_LIMIT_OVERRIDE: '100' },
         cwd: rootDir,

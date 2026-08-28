@@ -31,7 +31,7 @@ export function calculateDiffHash() {
       hash.update(diffMain);
     } else {
       // Main or detached HEAD: diff unstaged changes
-      const diffUnstaged = execFileSync('git', ['diff', 'HEAD'], { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
+      const diffUnstaged = execFileSync('git', ['diff'], { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
       hash.update(diffUnstaged);
       // Diff staged changes
       const diffStaged = execFileSync('git', ['diff', '--staged'], { stdio: ['ignore', 'pipe', 'ignore'] }).toString();

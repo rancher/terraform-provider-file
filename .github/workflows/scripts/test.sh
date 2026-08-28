@@ -28,9 +28,9 @@ run_relay_acc_tests() {
 }
 
 ensure_node_dependencies() {
-  if [ ! -d node_modules ]; then
+  if [[ ! -d node_modules ]]; then
     echo "==> Installing Node dependencies..."
-    npm install --silent
+    npm ci --silent || npm install --silent
   fi
 }
 
@@ -42,7 +42,7 @@ run_workflow_script_tests() {
 
 run_agent_script_tests() {
   ensure_node_dependencies
-  echo "==> Running workflow script unit tests..."
+  echo "==> Running agent script unit tests..."
   node --test agent-scripts/tests/**/*.test.js
 }
 
