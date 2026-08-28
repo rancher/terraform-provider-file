@@ -169,20 +169,14 @@ export default async ({ github, context, core, process }) => {
       const directMergeCmd = `gh pr merge ${prNumber} --squash --subject ${JSON.stringify(mergeParams.commit_title)} --body ${JSON.stringify(mergeParams.commit_message)}`;
       execSync(directMergeCmd, { env: { ...process.env, GH_TOKEN: process.env.MERGE_TOKEN } });
       core.info(`PR #${prNumber} merged directly via gh CLI successfully!`);
-    }
-    /* eslint-disable-next-line no-shadow */
-    catch (err) {
-      core.warning(
-        `Failed direct merge via gh CLI: ${err.message}. Retrying REST API merge with merge token...`,
-      );
+    } catch (directErr) {
+      core.warning(`Failed direct merge via gh CLI: ${directErr.message}. Retrying REST API merge with merge token...`);
       try {
         await withRetry(core, () => github.rest.pulls.merge(mergeParams));
         core.info(`PR #${prNumber} merged via REST API successfully!`);
-      }
-      /* eslint-disable-next-line no-shadow */
-      catch (err) {
-        core.error(`All merge attempts failed for PR #${prNumber}: ${err.message}`);
-        throw err;
+      } catch (apiErr) {
+        core.error(`All merge attempts failed for PR #${prNumber}: ${apiErr.message}`);
+        throw apiErr;
       }
     }
   }

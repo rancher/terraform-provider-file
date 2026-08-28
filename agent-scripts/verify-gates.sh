@@ -11,6 +11,15 @@ verify_proactive_review() {
   target_dir="${AGENT_STATE_DIR:-${HOME}/.gemini/tmp/${repo_name}}"
   local review_file="${target_dir}/review-approval.json"
 
+  # Fallback to parent directory if not found in target_dir
+  if [[ ! -f "$review_file" ]]; then
+    local parent_dir="${HOME}/.gemini/tmp/${repo_name}"
+    if [[ -f "${parent_dir}/review-approval.json" ]]; then
+      review_file="${parent_dir}/review-approval.json"
+      target_dir="$parent_dir"
+    fi
+  fi
+
   echo "Verifying proactive review approval status..." >&2
 
   if [[ ! -f "$review_file" ]]; then

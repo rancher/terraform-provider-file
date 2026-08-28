@@ -1,29 +1,21 @@
-import { execSync } from 'child_process';
 import fs from 'fs';
+import { findLatestActivePlan } from './gating.js';
+import { resolveTargetDir } from './workspace.js';
 
 /**
- * Checks git status to determine if there is an active (modified, added, untracked) blueprint in docs/development/
+ * Checks if there is an active plan in the ~/.gemini/tmp/<repo>/session[star]/plans/ directory.
  * @param {string} cwd - The current working directory
- * @returns {boolean} - True if an active blueprint exists, false otherwise
+ * @returns {boolean} - True if an active plan exists, false otherwise
  */
-export function checkActiveBlueprint(cwd) {
+export function checkActivePlan(cwd) {
   try {
-    const statusOutput = execSync('git status --porcelain', {
-      cwd: cwd || process.cwd(),
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).toString();
-
-    return statusOutput.split('\n').some((line) => {
-      const trimmed = line.trim();
-      if (!trimmed.includes('docs/development/')) {
-        return false;
-      }
-      const status = line.substring(0, 2);
-      // Ensure the file is not deleted ('D') or ignored ('!')
-      return !status.includes('D') && !status.includes('!');
-    });
+    const targetDir = resolveTargetDir(cwd);
+    if (!fs.existsSync(targetDir)) {
+      return false;
+    }
+    return findLatestActivePlan(targetDir) !== null;
   } catch (err) {
-    console.error('Failed to run git status inside blueprint check:', err.message || err);
+    console.error('Failed to check for active plans:', err.message || err);
     return false;
   }
 }
@@ -76,5 +68,3 @@ export function validatePlanContent(planPath) {
     errors,
   };
 }
-
-export { checkActiveBlueprint as checkActivePlan };

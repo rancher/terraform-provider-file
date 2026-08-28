@@ -32,15 +32,16 @@ isatty
 jsonfile
 keyid
 kubeconfig
-nixpkgs
 mtimes
+nixpkgs
 nosec
 numtide
 nutanix
 oklog
-pathing
 passwordless
+pathing
 peskyID
+pinentry
 pkgs
 Pkgs
 planmodifier
@@ -54,8 +55,8 @@ sandboxed
 sandboxing
 shellcheck
 shfmt
-stdenv
 stalediff
+stdenv
 stringdefault
 stringplanmodifier
 subkey
@@ -81,3 +82,8 @@ variablize
 vulnerab
 Webfetch
 yamux
+gpgconf
+unparseable
+signingkey
+iarna
+pasteable

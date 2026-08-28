@@ -31,7 +31,12 @@ export function verifyGitCommand(command, cwd) {
       decision: 'deny',
       reason:
         '🔒 Security Policy Violation: Manual execution of enforcer hook or agent scripts is strictly prohibited.\n\n' +
-        'These scripts are part of the secure system pipeline and must only be executed automatically by the Gemini CLI lifecycle.',
+        'These scripts are part of the secure system pipeline and must only be executed automatically by the Gemini CLI lifecycle.\n\n' +
+        '👉 TO PROCEED:\n' +
+        'Do not try to run or trigger hook scripts manually. Instead, use the correct lifecycle tools:\n' +
+        '1. For Plan Approval, call the `ask_user` tool with intent = "plan approval" containing your TOML payload.\n' +
+        '2. For Commit Approval, call the `ask_user` tool with intent = "commit approval" containing your TOML payload.\n' +
+        '3. To run reviews, run: invoke_agent(agent_name="review_agent", prompt="Please review my changes.")',
       systemMessage: '🔒 Security Block: Manual execution of secure scripts is prohibited.',
     };
   }
@@ -47,10 +52,10 @@ export function verifyGitCommand(command, cwd) {
       reason:
         'Security Policy Violation: Manually writing, editing, or spoofing any planning, testing, review, or commit gate approval files is strictly prohibited.\n\n' +
         'Gating approval files must ONLY be generated automatically and securely by our pipeline hooks and sub-agents.\n\n' +
-        'To proceed:\n' +
+        '👉 TO PROCEED:\n' +
         '1. Comply strictly with our gated sequence (Plan -> Test -> Review -> Commit).\n' +
-        '2. Use the proper tools (biometric Touches or sub-agent runs) to obtain valid signatures.\n' +
-        '3. Never attempt to manually create, edit, or spoof any gate approval or challenge files.',
+        '2. For Plan Approval, use the `ask_user` tool with intent = "plan approval" and include the `plan` field in your TOML.\n' +
+        '3. For Commit Approval, use the `ask_user` tool with intent = "commit approval" and include the `hash`, `commit-message`, and `pr-description` fields in your TOML.',
       systemMessage: '🔒 Security Block: Direct manipulation of approval files is prohibited.',
     };
   }

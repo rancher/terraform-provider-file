@@ -183,3 +183,69 @@ The core enforcer and automation layers are decoupled into the following dedicat
 - **Execution Security (`agent-scripts/security.js`)**: Validates shell commands and paths to prevent command injection or directory bypass.
 - **Unified Git Operations (`agent-scripts/git-helpers.js`)**: Consolidates branch switching, remote branch ancestry checks, Conventional GPG-signed commits, and automated PR generation.
 - **Automated Quality Verification**: Granular mock-scaffolded unit tests in the `agent-scripts/tests/` directory validate the cryptographic consistency and execution safety of all decoupled helper scripts.
+
+---
+
+## 🛠️ Troubleshooting: Headless TTY GPG/SSH Signing Lockout
+
+### The Problem
+
+When approving Gate 3 (Commit Gate) in the chat via `ask_user`, the enforcer hook executes `commit-push.sh` inside an automated, non-interactive node child subprocess. Because this subprocess has no terminal TTY, attempts to prompt the developer for biometric/hardware GPG or SSH authorization (e.g. Touch ID or GPG passphrases) will fail silently, causing `git commit -S -s` to fail.
+
+Upon failure, the enforcer hook's safety trap triggers an immediate rollback—deleting all signatures (`plan-approval.json`, `review-approval.json`) to guarantee zero-trust workspace security.
+
+### The Solution
+
+#### 1. Configure a Graphical Pinentry Program (Recommended)
+
+By default, GPG and SSH agents try to prompt for credentials in the terminal TTY. Configuring a **native GUI pinentry program** completely bypasses the headless TTY requirement by popping up a native macOS/Linux desktop prompt.
+
+- **For macOS/Darwin (using GPG with Touch ID or YubiKey):**
+  1. Install `pinentry-mac` using Homebrew:
+
+     ```bash
+     brew install pinentry-mac
+     ```
+
+  2. Direct `gpg-agent` to use it by editing `~/.gnupg/gpg-agent.conf`:
+
+     ```text
+     pinentry-program /opt/homebrew/bin/pinentry-mac
+     ```
+
+  3. Restart the GPG agent to load the new settings:
+
+     ```bash
+     gpgconf --kill gpg-agent
+     ```
+
+- **For Linux (GNOME/KDE/X11):**
+  1. Install `pinentry-gnome3` or `pinentry-qt`.
+  2. Configure your `~/.gnupg/gpg-agent.conf`:
+
+     ```text
+     pinentry-program /usr/bin/pinentry-gnome3
+     ```
+
+  3. Restart the GPG agent:
+
+     ```bash
+     gpgconf --kill gpg-agent
+     ```
+
+#### 2. Unlock and Cache the Identity in your Active Agent
+
+Alternatively, ensure your GPG or SSH credentials are fully unlocked and cached in your active session agent so that subsequent headless commits do not require re-verification prompts.
+
+- **For GPG:** Configure a generous cache timeout in `gpg-agent.conf`:
+
+  ```text
+  default-cache-ttl 14400
+  max-cache-ttl 86400
+  ```
+
+- **For SSH-based Commit Signing:** Ensure your private identity is pre-loaded and cached in `ssh-agent`:
+
+  ```bash
+  ssh-add -K
+  ```

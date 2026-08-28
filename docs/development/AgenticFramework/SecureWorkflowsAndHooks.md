@@ -58,6 +58,18 @@ Active Working Tree (Dirty)
 - **Fast-Forward Sync**: It checks out `main`, fetches upstream updates, and fast-forwards cleanly.
 - **Guaranteed Restoration**: On script completion (or if an unexpected error occurs midway), the exit trap automatically executes `git stash pop`, restoring the developer's working tree to its exact original state.
 
+### 4. Modular Controller-Router Hook Pattern
+
+To facilitate clean code, maintainability, and clear encapsulation of phase actions, all primary hook scripts under `.gemini/hooks/` are structured using a modular **Controller-Router** design pattern:
+
+- **Router Controllers** (e.g., `01-startup-context.js`, `02-plan-phase.js`, `03-review-phase.js`, `04-commit-phase.js`): Housed in the `.gemini/hooks/` root. They act strictly as controllers, handling CLI argument parsing, standardized STDIN parsing, and routing requests to the appropriate submodules. They additionally manage the unified `console.log` interceptor schema formatting.
+- **Phase-Specific Submodules** (Housed in `.gemini/hooks/0X-phase/` directories):
+  - **`01-startup/`**: Houses startup-specific logic like `startupLogic.js` (mandates, environment diagnostics, and workspace flag/permissions initialization).
+  - **`02-plan/`**: Houses planning-specific submodules like `facilitatePlanning.js` (gating and state setup), `askUserLogic.js` (plan validation), and `interruption.js` (tamper protection).
+  - **`03-review/`**: Houses review-specific logic like `reviewLogic.js` (after-subagent parsing and validation).
+  - **`04-commit/`**: Houses commit-specific logic like `commitLogic.js` (commit approval, PR body and commit-message metadata generation).
+  - **`ask-user/`**: Houses the universal `validator.js` which parses and enforces the structured TOML schemas for all `ask_user` tool calls.
+
 ---
 
 ## Standing Implementation Decisions

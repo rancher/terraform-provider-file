@@ -47,10 +47,12 @@ process.on('exit', (code) => {
   if (!hasLogged) {
     const exitMsg = `🔒 Hook Error (${hookName}): Silent early exit detected with code ${code}.`;
     console.error(exitMsg);
-    process.stdout.write(JSON.stringify({
-      decision: 'deny',
-      systemMessage: `${introLog}\n${exitMsg}`
-    }) + '\n');
+    process.stdout.write(
+      JSON.stringify({
+        decision: 'deny',
+        systemMessage: `${introLog}\n${exitMsg}`,
+      }) + '\n',
+    );
     hasLogged = true;
   }
 });
@@ -59,10 +61,12 @@ process.on('uncaughtException', (err) => {
   const errMsg = `🔒 Hook Error (${hookName}): Unhandled exception - ${err.message || err}`;
   console.error(errMsg);
   if (!hasLogged) {
-    process.stdout.write(JSON.stringify({
-      decision: 'deny',
-      systemMessage: `${introLog}\n${errMsg}`
-    }) + '\n');
+    process.stdout.write(
+      JSON.stringify({
+        decision: 'deny',
+        systemMessage: `${introLog}\n${errMsg}`,
+      }) + '\n',
+    );
     hasLogged = true;
   }
   process.exit(1);
@@ -72,10 +76,12 @@ process.on('unhandledRejection', (reason) => {
   const errMsg = `🔒 Hook Error (${hookName}): Unhandled promise rejection - ${reason.message || reason}`;
   console.error(errMsg);
   if (!hasLogged) {
-    process.stdout.write(JSON.stringify({
-      decision: 'deny',
-      systemMessage: `${introLog}\n${errMsg}`
-    }) + '\n');
+    process.stdout.write(
+      JSON.stringify({
+        decision: 'deny',
+        systemMessage: `${introLog}\n${errMsg}`,
+      }) + '\n',
+    );
     hasLogged = true;
   }
   process.exit(1);
@@ -87,7 +93,12 @@ function main() {
     inputData = JSON.parse(fs.readFileSync(0, 'utf-8'));
   } catch (err) {
     console.error('Failed to parse stdin JSON in block-restricted-commands:', err.message || err);
-    console.log(JSON.stringify({ decision: 'allow', systemMessage: '🔒 Hook Notification: Failed to parse input, allowing execution by default.' }));
+    console.log(
+      JSON.stringify({
+        decision: 'allow',
+        systemMessage: '🔒 Hook Notification: Failed to parse input, allowing execution by default.',
+      }),
+    );
     process.exit(0);
   }
 
@@ -114,7 +125,8 @@ function main() {
       console.log(
         JSON.stringify({
           decision: 'deny',
-          reason: 'Direct modification of eslint.config.mjs is restricted. If you need to change linting rules, you must use the ask_user tool to present the proposed changes and request that the developer apply them manually.',
+          reason:
+            'Direct modification of eslint.config.mjs is restricted. If you need to change linting rules, you must use the ask_user tool to present the proposed changes and request that the developer apply them manually.',
           systemMessage: '🔒 Security Block: Modifying ESLint configuration is denied.',
         }),
       );
