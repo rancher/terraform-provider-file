@@ -29,7 +29,7 @@
             "type": "command",
             "command": "node .gemini/hooks/03-review-phase.js",
             "timeout": 60000,
-            "description": "Verifies Gate 1, runs automated tests, and injects active plan checklist before review_agent execution"
+            "description": "Verifies Gate 1, runs automated tests, and injects active plan checklist before project_manager execution"
           }
         ]
       },
@@ -175,5 +175,8 @@
   },
   "hooksConfig": {
     "disabled": []
+  },
+  "skills": {
+    "disabled": ["code-review-commons"]
   }
 }

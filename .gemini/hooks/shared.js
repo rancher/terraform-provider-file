@@ -5,15 +5,17 @@ import os from 'os';
 import path from 'path';
 
 export function deny(phaseName, reason, nextSteps) {
+  const fullDetails =
+    `❌ ${phaseName} Failure!\n\n` +
+    `👉 REASON: ${reason}\n\n` +
+    `👉 WHAT TO DO NEXT:\n${nextSteps}\n\n` +
+    `For the exact schema, templates, and proper formatting, please refer to the documentation: docs/development/AgenticFramework/AskUserComponent.md`;
+
   console.log(
     JSON.stringify({
       decision: 'deny',
-      reason:
-        `❌ ${phaseName} Failure!\n\n` +
-        `👉 REASON: ${reason}\n\n` +
-        `👉 WHAT TO DO NEXT:\n${nextSteps}\n\n` +
-        `For the exact schema, templates, and proper formatting, please refer to the documentation: docs/development/AgenticFramework/AskUserComponent.md`,
-      systemMessage: `🔒 Security Block: ${phaseName} validation failed.`,
+      reason: fullDetails,
+      systemMessage: `🔒 Security Block: ${phaseName} validation failed.\n\n${fullDetails}`,
     }),
   );
   process.exit(0);
@@ -242,10 +244,16 @@ function normalizeToolResponse(response) {
   let res = safeParseJSON(response);
 
   // If the response is wrapped in an 'output' property, try to unpack it
-  if (res && typeof res.output === 'string') {
-    const parsedOutput = safeParseJSON(res.output);
-    if (parsedOutput && typeof parsedOutput === 'object') {
-      res = parsedOutput;
+  if (res && res.output !== undefined) {
+    if (typeof res.output === 'string') {
+      const parsedOutput = safeParseJSON(res.output);
+      if (parsedOutput && typeof parsedOutput === 'object') {
+        res = parsedOutput;
+      } else {
+        res = res.output;
+      }
+    } else if (typeof res.output === 'object') {
+      res = res.output;
     }
   }
 

@@ -75,6 +75,6 @@ export function afterExitPlanMode(inputData, targetDir) {
 
   allow(
     'afterExitPlanMode',
-    '✅ Exited Plan Mode. Implementation phase successfully unlocked! 👉 ACTION REQUIRED: Proceed immediately to Implement your plan, then move to the Review Phase by invoking the review_agent.',
+    '✅ Exited Plan Mode. Implementation phase successfully unlocked! 👉 ACTION REQUIRED: Proceed immediately to Implement your plan, then move to the Review Phase by invoking the project_manager.',
   );
 }

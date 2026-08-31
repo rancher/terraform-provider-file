@@ -25,7 +25,7 @@ verify_proactive_review() {
   if [[ ! -f "$review_file" ]]; then
     echo "Error: Proactive review approval file not found!" >&2
     echo "       In accordance with Gate 3 (Review Gate) of 'development-process.md'," >&2
-    echo "       you MUST run the review agent first: @review_agent" >&2
+    echo "       you MUST run the review agent first: @project_manager" >&2
     exit 1
   fi
 

@@ -25,7 +25,7 @@ To maintain absolute system integrity and prevent unvetted code modifications, t
 - **Verification File**: `review-approval.json`.
 - **Protocol**: This gate is programmatically validated by the enforcer hooks. It requires that:
   1. The automated unit and linter checks pass successfully, storing the tested diff_hash in `phase-state.json`.
-  2. A proactive code review is executed by the isolated, sandboxed **Review Subagent** (`review_agent`), which writes `review-approval.json` upon reporting a clean review.
+  2. A proactive code review is executed by the isolated, sandboxed **Map-Reduce Review pipeline** coordinated by `@project_manager`, which writes `review-approval.json` upon reporting a clean review.
 - **Enforcement**: If any workspace files are modified after Gate 2 is signed, the enforcer hooks automatically delete the signatures, revoking approval and requiring re-testing and re-review.
 
 ### **Gate 3: Commit Gate (User-Facing)**
@@ -67,8 +67,8 @@ To maintain absolute system integrity and prevent unvetted code modifications, t
 ### Phase 3: Review Phase (Gate 2)
 
 1. **Testing Sign-Off**: Run local test suites to verify full codebase integration, which stores the tested diff_hash in `phase-state.json`.
-2. **Delegate Proactive Review**: Delegate a proactive code review of the active local Git diff to the sandboxed `review_agent` using `invoke_agent`.
-3. **Resolve Findings**: The review agent's primary goal is to be a critical, adversarial peer reviewer. If the subagent flags any architectural gaps or documentation inconsistencies under the `Findings & Comments` section of the report, surgically resolve them and re-run the review until all 4 passes are checked (`- [x]`) and exactly `0 comments/findings` are reported, which allows the enforcer hook to programmatically sign and write `review-approval.json`.
+2. **Delegate Proactive Review**: Delegate a proactive code review of the active local Git diff to the sandboxed `@project_manager` using `invoke_agent`.
+3. **Resolve Findings**: The project manager's primary goal is to orchestrate a critical, adversarial peer review. If the subagents flag any architectural gaps or documentation inconsistencies under the `Findings & Comments` section of the report, surgically resolve them and re-run the review until all 4 passes are checked (`- [x]`) and exactly `0 comments/findings` are reported, which allows the enforcer hook to programmatically sign and write `review-approval.json`.
 
 ### Phase 4: Commit Phase (Gate 3)
 
@@ -83,8 +83,8 @@ To maintain absolute system integrity and prevent unvetted code modifications, t
 
 When resolving comments or feedback on an open Pull Request, developers and agents must adhere to the following systematic quality iteration loop:
 
-1. **Update Review Agent Guidelines First**: Translate the review comments into strict checking rules and append them to `.gemini/agents/review_agent.md` under Section 3 ("Strict Quality Gates, Refactoring, & Safety Verification").
-2. **Run Review Agent on Unmodified Codebase**: Run the `review_agent` on the unmodified codebase files. The subagent must successfully reproduce the findings in its report and conclude with `PR Review status: 🔴 FINDINGS - Violations detected.`.
-3. **Implement Surgical Code Fixes**: Only after the subagent successfully reproduces the findings in its local report are you authorized to modify files to address the comments.
-4. **Local Verification & Final Review**: Run local linters and tests. Then, execute the `review_agent` one final time to confirm it approves the workspace changes with a clean `PR Review status: 🟢 PERFECT - 0 findings`.
+1. **Update Reference Coding Standards First**: Translate the review comments into strict checking rules and append them to the relevant coding standards file under `docs/development/reference/` (e.g., `Go.md`, `JavaScript.md`, etc.).
+2. **Run Map-Reduce Review on Unmodified Codebase**: Run the `@project_manager` on the unmodified codebase files. The review pipeline must successfully reproduce the findings in its report and conclude with `PR Review status: 🔴 FINDINGS - Violations detected.`.
+3. **Implement Surgical Code Fixes**: Only after the review pipeline successfully reproduces the findings in its local report are you authorized to modify files to address the comments.
+4. **Local Verification & Final Review**: Run local linters and tests. Then, execute the `@project_manager` one final time to confirm it approves the workspace changes with a clean `PR Review status: 🟢 PERFECT - 0 findings`.
 5. **Push Updates & Resolve**: Stage the changes, commit using the Commit Gate, and push to the remote branch. Execute `.gemini/skills/resolve-pr-reviews.sh` to programmatically resolve the comment threads on GitHub.

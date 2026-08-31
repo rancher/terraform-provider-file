@@ -131,13 +131,13 @@ Alternatively, you can create a native macOS Touch ID-backed SSH key using the A
 
 ## 🤖 Programmatic Subagent Isolation & AfterTool Hook Integration
 
-While Gates 1 and 3 require human Touch ID biometrics, **Gate 2 (Proactive Review)** is programmatically audited and signed by invoking a specialized local subagent (`review_agent`). Automated tests are enforced programmatically in the pre-review hooks, eliminating the need for a standalone testing subagent.
+While Gates 1 and 3 require human Touch ID biometrics, **Gate 2 (Proactive Review)** is programmatically audited and signed by invoking our specialized Map-Reduce coordinator agent (`project_manager`). Automated tests are enforced programmatically in the pre-review hooks, eliminating the need for a standalone testing subagent.
 
-To guarantee absolute objectivity, the subagent is **fully isolated and sandboxed**:
+To guarantee absolute objectivity, the subagents are **fully isolated and sandboxed**:
 
-1. **Read-Only Enforcements**: The `review_agent` is stripped of write capabilities, restricting its toolset strictly to `[read_file]`. It cannot modify code or write approvals.
+1. **Read-Only Enforcements**: The subagents (`project_manager`, `heads_down_coder`, and `data_scientist`) are stripped of write capabilities on source files, restricting their toolsets strictly to `[read_file]`, `[glob]`, and read-only shell commands. They cannot modify code or write approvals.
 2. **AfterTool Hook Verification**:
-   - When the main agent calls `invoke_agent` targeting `review_agent`, the native `AfterTool` hook (`03-review-phase.js --after-invoke`) intercepts the subagent's execution report.
+   - When the main agent calls `invoke_agent` targeting `project_manager`, the native `AfterTool` hook (`03-review-phase.js --after-invoke`) intercepts the subagent's execution report.
    - It programmatically parses the report to verify that:
      1. All 4 sequential passes (`Pass 1`, `Pass 2`, `Pass 3`, and `Pass 4`) are checked as complete checklist items (e.g. `- [x] Pass 1`).
      2. Exactly 0 findings are reported, verified by the presence of the clean marker `0 comments/findings` or `0 findings`.

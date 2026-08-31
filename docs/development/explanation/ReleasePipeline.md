@@ -1,6 +1,6 @@
-# Release Process & Automation
+# Release Process & Automation (Conceptual Explanation)
 
-This topic overview details the standard repository release process, tracing how codebase modifications on the `main` branch are systematically packaged, GPG-signed, and published to production.
+This document provides a conceptual, architectural explanation of the automated release pipeline, tracing how codebase changes on the `main` branch are packaged, GPG-signed, and published to production.
 
 ---
 
@@ -18,21 +18,17 @@ Our release process is designed around two core architectural components that wo
 
 We release all product versions directly from our single source of truth—the `main` branch. This eliminates the complexity and drift of maintaining parallel release branches.
 
-- More details on this strategy, GPG-signing configuration, and release candidate lifecycle can be found in **[Release From Main](./ReleaseProcess/MainBranchReleases.md)**.
-
 ### 2. Manifest-Driven Automation
 
 To automate versioning and changelog generation, we leverage `release-please` in manifest mode. This tool scans Conventional Commit squash-merge titles on the `main` branch, computes the correct SemVer increment, and maintains a running "Release PR." Once this PR is merged, the system automatically tags the release and initiates the compilation pipeline.
-
-- More details on the action parameters, CLI usage, and manifest configurations can be found in **[Release Please](./ReleaseProcess/ReleasePlease.md)**.
 
 ### 🔄 The Combined Execution Lifecycle
 
 When a developer's contribution lands on the `main` branch:
 
-1. **Trigger & Version Calculation**: The `release-please` action is invoked. It scans the squash-merge commit title and updates the running Release PR (or opens a new one if none exists), generating an automated changelog.
-2. **Integration & Acceptance Testing**: To guarantee stability, any push to a Release Please branch triggers our comprehensive OpenID Connect (OIDC) acceptance tests inside a Nix shell, deploying real AWS infrastructure to verify binary correctness.
-3. **Verification & Signing**: Upon maintainer merge of the Release PR, the pipeline securely extracts our GPG signing credentials, compiles the binaries via GoReleaser inside a hardened container, cryptographically signs the assets, and publishes them natively to the GitHub Release Registry.
+1. **Trigger & Version Calculation:** The `release-please` action is invoked. It scans the squash-merge commit title and updates the running Release PR (or opens a new one if none exists), generating an automated changelog.
+2. **Integration & Acceptance Testing:** To guarantee stability, any push to a Release Please branch triggers our comprehensive OpenID Connect (OIDC) acceptance tests inside a Nix shell, deploying real AWS infrastructure to verify binary correctness.
+3. **Verification & Signing:** Upon maintainer merge of the Release PR, the pipeline securely extracts our GPG signing credentials, compiles the binaries via GoReleaser inside a hardened container, cryptographically signs the assets, and publishes them natively to the GitHub Release Registry.
 
 ---
 
@@ -71,7 +67,7 @@ This swimlane diagram traces the detailed event triggers and data flow between d
 |                                             |                                                                |
 |     (Option C: "Pokes" via comment)         |                                                                |
 |     └─► Types top-level or thread comment -> | ──► Trigger: issue_comment / pull_request_review_comment       |
-|         (e.g., "resolved", "ready")         |       ──► Coordinator executes (Merge Mode)                    |
+|         (e.g., \"resolved\", \"ready\")         |       ──► Coordinator executes (Merge Mode)                    |
 |                                             |           - GraphQL: Queries all review threads                |
 |                                             |           - Finds: All threads are marked resolved             |
 |                                             |           - Action: Updates status comment, waits for Approval │
@@ -124,3 +120,5 @@ This swimlane diagram traces the detailed event triggers and data flow between d
 |                                             |           - Action: Reconciles Release PR labels in GitHub     |
 |                                             |                                                                |
 ```
+
+Refactored code: N/A (Explanation is conceptual)

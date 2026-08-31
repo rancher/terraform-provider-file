@@ -70,8 +70,8 @@ export function preReviewTesting(tool_input) {
 export function afterInvoke(inputData) {
   const { tool_name, tool_input, tool_response } = inputData;
 
-  if (tool_name !== 'invoke_agent' || !tool_input || tool_input.agent_name !== 'review_agent') {
-    allow('afterInvoke', 'Execution allowed, tool is not invoke_agent or agent is not review_agent.');
+  if (tool_name !== 'invoke_agent' || !tool_input || tool_input.agent_name !== 'project_manager') {
+    allow('afterInvoke', 'Execution allowed, tool is not invoke_agent or agent is not project_manager.');
   }
 
   if (!tool_response || !tool_response.llmContent) {
@@ -79,8 +79,8 @@ export function afterInvoke(inputData) {
     revokeReviewState();
     deny(
       'Gate 2 (Review Gate) Verification',
-      'The review_agent returned an empty response or did not output report content.',
-      'Please re-run the review_agent to perform the code review.',
+      'The project_manager returned an empty response or did not output report content.',
+      'Please re-run the project_manager to perform the code review.',
     );
   }
 
@@ -96,12 +96,12 @@ export function afterInvoke(inputData) {
     revokeReviewState();
     deny(
       'Gate 2 (Review Gate) Verification',
-      'The review_agent returned an empty or unparsable report.',
-      'Please re-run the review_agent to perform the code review.',
+      'The project_manager returned an empty or unparsable report.',
+      'Please re-run the project_manager to perform the code review.',
     );
   }
 
-  saveReport('review_agent', report, LOGS_DIR);
+  saveReport('project_manager', report, LOGS_DIR);
 
   const planHash = verifyPlanGate(TARGET_DIR);
   if (!planHash) {
@@ -136,8 +136,8 @@ export function afterInvoke(inputData) {
     revokeReviewState();
     deny(
       'Gate 2 (Review Gate) Verification',
-      `The review agent's report is incomplete. It is missing explicit checks for: ${missingTopics.join(', ')}.`,
-      'Please explicitly instruct the review agent to perform these checks and re-run the review_agent to proceed.',
+      `The project manager's report is incomplete. It is missing explicit checks for: ${missingTopics.join(', ')}.`,
+      'Please explicitly instruct the project manager to perform these checks and re-run the project_manager to proceed.',
     );
   }
 
@@ -151,7 +151,7 @@ export function afterInvoke(inputData) {
     revokeReviewState();
     deny(
       'Gate 2 (Review Gate) Verification',
-      "The review agent's passes are incomplete or unchecked.",
+      "The project manager's passes are incomplete or unchecked.",
       'All 4 sequential passes must be checked as complete (e.g. - [x] Pass 1, - [x] Pass 2, etc.) in the report checklist to proceed.',
     );
   }
@@ -167,12 +167,12 @@ export function afterInvoke(inputData) {
 
   if (!isPerfect) {
     revokeReviewState();
-    let sysMsg = 'The review agent did not approve the changes but provided no explicit comments.';
-    let nextSteps = 'Please re-run the review_agent.';
+    let sysMsg = 'The project manager did not approve the changes but provided no explicit comments.';
+    let nextSteps = 'Please re-run the project_manager.';
     if (hasComments) {
-      sysMsg = 'The review agent found issues and did not approve the changes.';
+      sysMsg = 'The project manager found issues and did not approve the changes.';
       nextSteps =
-        'Please review the comments and findings from the review_agent, implement the necessary fixes, and then re-run the review_agent.';
+        'Please review the comments and findings from the project_manager, implement the necessary fixes, and then re-run the project_manager.';
     }
     deny('Gate 2 (Review Gate) Verification', sysMsg, nextSteps);
   }

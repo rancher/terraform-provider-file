@@ -31,7 +31,7 @@ Review comments from human maintainers and automated bots provide valuable insig
 For each comment retrieved, perform a critical architectural assessment:
 
 - **Evaluate Validity**: Is there an actual logic flaw, security vulnerability, syntax error, or style deviation?
-  - **If Valid**: Acknowledge the concern and design a custom, idiomatic fix conforming to `docs/development/CodingStandards/`.
+  - **If Valid**: Acknowledge the concern and design a custom, idiomatic fix conforming to `docs/development/reference/`.
   - **If Invalid**: Prepare a clear, professional, and technical explanation why the current implementation is correct.
 - **Reject Bot Hacks**: Never blindly copy sub-optimal recommendations, hacks that disable warnings, or "soft-failure" defaults that mask configuration errors.
 

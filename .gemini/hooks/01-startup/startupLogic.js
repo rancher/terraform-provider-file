@@ -151,8 +151,8 @@ export function buildCombinedContext(nixText, frameworkContext) {
 # 4. Enforcing standard quality gates.                                              #
 # 5. Updating documentation to describe the changes.                                #
 #                                                                                   #
-# REVIEW AGENT INSTRUCTIONS:                                                        #
-# When invoking the review_agent, you must explicitly instruct it to check for:     #
+# MAP-REDUCE REVIEW PIPELINE INSTRUCTIONS:                                          #
+# When invoking the project_manager, you must explicitly instruct it to check for:  #
 # security, coding standards, spelling/wording, and an automation audit.            #
 # It must also be instructed to provide a Commit Title and Commit Message,          #
 # and output an explicit approval status.                                           #

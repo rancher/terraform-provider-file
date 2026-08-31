@@ -108,13 +108,13 @@ function main() {
   } else {
     const { tool_name, tool_input } = inputData;
 
-    // Proceed only if the target is the review agent being invoked
-    if (tool_name !== 'invoke_agent' || !tool_input || tool_input.agent_name !== 'review_agent') {
+    // Proceed only if the target is the project_manager being invoked
+    if (tool_name !== 'invoke_agent' || !tool_input || tool_input.agent_name !== 'project_manager') {
       console.log(
         JSON.stringify({
           decision: 'allow',
           systemMessage:
-            '🔒 Hook Notification: Execution allowed, tool is not invoke_agent or agent is not review_agent.',
+            '🔒 Hook Notification: Execution allowed, tool is not invoke_agent or agent is not project_manager.',
         }),
       );
       process.exit(0);

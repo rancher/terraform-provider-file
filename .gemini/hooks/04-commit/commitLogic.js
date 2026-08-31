@@ -166,7 +166,7 @@ export function beforeAskUserCommit(inputData, targetDir) {
     deny(
       'Gate 3 (Commit Gate) Quality Verification',
       'You cannot ask for Developer Commit Approval (Gate 3) because the Review prerequisite (Gate 2) is missing or has been invalidated by recent file changes!',
-      'Please run the Review Subagent first to perform a code review and sign the branch: invoke_agent(agent_name="review_agent", prompt="Please review my changes.")',
+      'Please run the Review Subagent first to perform a code review and sign the branch: invoke_agent(agent_name="project_manager", prompt="Please review my changes.")',
     );
   }
 
