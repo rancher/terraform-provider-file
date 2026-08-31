@@ -332,7 +332,7 @@ test('Hooks End-to-End Integration Tests', async (t) => {
     const payload = {
       tool_name: 'invoke_agent',
       tool_input: {
-        agent_name: 'review_agent',
+        agent_name: 'project_manager',
       },
       tool_response: {
         llmContent: `
@@ -369,7 +369,7 @@ test('Hooks End-to-End Integration Tests', async (t) => {
     const payload = {
       tool_name: 'invoke_agent',
       tool_input: {
-        agent_name: 'review_agent',
+        agent_name: 'project_manager',
       },
       tool_response: {
         llmContent: `

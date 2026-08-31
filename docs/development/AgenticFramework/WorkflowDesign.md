@@ -40,7 +40,7 @@ To optimize collaboration and ensure zero unvetted changes, the framework coordi
    - **Authorization**: Unlocks autonomous file modification, compilation, and testing capabilities.
 2. **Quality Gate (Gate 2 - Programmatic)**:
    - **Phase Transition**: Implement $\rightarrow$ Review.
-   - **Security**: Natively verifies that local unit/integration tests pass successfully and delegates an automated code review to our sandboxed `review_agent` to secure the review signature (`review-approval.json`).
+   - **Security**: Natively verifies that local unit/integration tests pass successfully and delegates an automated code review to our sandboxed `@project_manager` to secure the review signature (`review-approval.json`).
 3. **Commit Gate (Gate 3 - User-Facing)**:
    - **Phase Transition**: Review $\rightarrow$ Commit.
    - **Security**: Displays the live unstaged Git diff in chat, requesting Conventional Commit message approval. It triggers macOS Touch ID to verify the developer's physical sign-off and write `user-approval.json`.
@@ -66,6 +66,6 @@ Mechanical linter validation (such as scanning for trailing whitespace, checking
 By implementing strict, deterministic, and hermetic formatting tools (Prettier, shfmt, gofmt) in our local environment:
 
 - All formatting enforcements are offloaded to local compiler binaries.
-- We **prune all mechanical style rules** from the instructions of our AI agents (e.g., `review_agent.md`).
+- We **prune all mechanical style rules** from the instructions of our AI agents (e.g., `project_manager.md`).
 - This dramatically reduces prompt sizes, minimizing context window footprint and cloud-processing API costs.
-- The `review_agent` can focus 100% of its cognitive window on high-signal architectural logic, security vectors, and structural compliance.
+- The `@project_manager` and its subagents can focus 100% of their cognitive window on high-signal architectural logic, security vectors, and structural compliance.

@@ -26,7 +26,8 @@ export function verifyGitCommand(command, cwd) {
     trimmedCmd.includes('.claude/hooks/') ||
     trimmedCmd.includes('.claude/hooks') ||
     trimmedCmd.includes('agent-scripts/');
-  if (isExecutingHooksManually) {
+  const isGitDiff = commandClean.trim().startsWith('git diff');
+  if (isExecutingHooksManually && !isGitDiff) {
     return {
       decision: 'deny',
       reason:
@@ -36,7 +37,7 @@ export function verifyGitCommand(command, cwd) {
         'Do not try to run or trigger hook scripts manually. Instead, use the correct lifecycle tools:\n' +
         '1. For Plan Approval, call the `ask_user` tool with intent = "plan approval" containing your TOML payload.\n' +
         '2. For Commit Approval, call the `ask_user` tool with intent = "commit approval" containing your TOML payload.\n' +
-        '3. To run reviews, run: invoke_agent(agent_name="review_agent", prompt="Please review my changes.")',
+        '3. To run reviews, run: invoke_agent(agent_name="project_manager", prompt="Please review my changes.")',
       systemMessage: '🔒 Security Block: Manual execution of secure scripts is prohibited.',
     };
   }
