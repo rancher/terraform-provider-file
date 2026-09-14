@@ -1,0 +1,20 @@
+[
+  {
+    "file": ".gemini/project-report.json",
+    "finding": "The project report file incorrectly labels adherence to mandatory Blueprint Compliance and Strict 3-Gate Architecture as 'out of scope', which contradicts the repository's foundational coding standards.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. The project report file itself is not targeted by the active implementation plan."
+  },
+  {
+    "file": "agent-scripts/code-review.js",
+    "finding": "Empty catch block discards potential exceptions. All exceptions must be explicitly logged or handled.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting issue in untouched sections of code-review.js."
+  },
+  {
+    "file": "agent-scripts/code-review.js",
+    "finding": "Raw console.log() usage is prohibited in GHA/agent scripts. Use core.* methods or console.error() for consistency and proper GHA UI annotation.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting minor style issue on files untouched by the plan's direct implementation."
+  }
+]

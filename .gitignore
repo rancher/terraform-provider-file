@@ -27,3 +27,4 @@ report.json
 .claude/settings.local.json
 
 node_modules
+gemini-reset.lock
