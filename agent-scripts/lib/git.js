@@ -413,7 +413,7 @@ export async function runAutomatedCommitAndPush(targetDir, commitMessage, cwd = 
       console.log(`::notice::${commitOut.trim()}`);
     }
 
-    const prScriptPath = path.resolve(cwd, 'agent-scripts/pr.js');
+    const prScriptPath = path.resolve(cwd, 'agent-scripts/tools/pr.js');
     console.log(`::notice::Hook Info: Spawning pr.js to create pull request for branch ${activeBranch}`);
     const prOut = await executeFileSafe(
       prScriptPath,
