@@ -24,7 +24,7 @@ export function verifyNixEnvironment() {
   const inNixShell = !!process.env.IN_NIX_SHELL;
   const text = inNixShell
     ? '✅ NIX ENVIRONMENT: Session is securely running inside a hermetic Nix shell.\n\n'
-    : '⚠️ NIX ENVIRONMENT WARNING: Session is NOT running inside a Nix shell. Standard dependencies may be missing. Advise the developer to run `nix develop`.\n\n';
+    : '⚠️ NIX ENVIRONMENT WARNING: Session is NOT running inside a Nix shell. Standard dependencies may be missing. Use the .github/workflows/scripts/nix-run.sh to run scripts.\n\n';
 
   if (inNixShell) {
     console.error('Nix shell environment verified.');
@@ -42,9 +42,8 @@ export function verifyNixEnvironment() {
 export async function loadFrameworkContext() {
   console.error('Loaded token-optimized Agentic Framework context pointer.');
   return `# Gated Agentic Framework Reference
-The repository implements a secure Gated 4-Phase Lifecycle (Plan, Implement, Review, Commit) with 3 authoritative cryptographic approval gates. Direct git commits and pushes are blocked.
-Subagents (Local Reviewer, Global Reviewer, Concurrency Auditor, Security Auditor, Aggregator, Action Items Analyzer, and Surgical Coder) operate strictly headlessly in isolated sandboxes to audit, verify, and remediate modifications.
-Refer strictly to "docs/development/AgenticFramework.md" for full architectural specifications.
+Programmatic Gated 4-Phase Lifecycle (Plan, Implement, Review, Commit) & 3 authoritative cryptographic approval gates in effect. Direct commits are blocked.
+Subagents (including codebase_investigator, cli_help, generalist, quality_assurance, lead_architect, security_auditor) run headlessly to audit/remediate changes. See "docs/development/AgenticFramework.md".
 `;
 }
 
@@ -98,46 +97,18 @@ export async function protectExcludeFiles() {
  * Combines critical mandates, Nix status, and framework documentation into a single markdown context block.
  */
 export function buildCombinedContext(nixText, frameworkContext) {
-  const mandateHeader = `###############################################################################
-#                           CRITICAL AGENT MANDATES                                 #
-#                                                                                   #
-# 1. YOU MUST FOLLOW THE DEVELOPMENT PROCESS IN 'docs/development/how-to/DevelopmentProcess.md'. #
-# 2. YOU ARE STRICTLY FORBIDDEN FROM EXECUTING ANY COMMIT OR PUSH COMMANDS.         #
-#    COMMITS AND PUSHES ARE SOLELY MANAGED OUT-OF-BAND BY SYSTEM HOOKS.             #
-# 3. SOURCE EDITS ARE BLOCKED UNTIL PLAN APPROVAL IS GRANTED.                       #
-#    ALL ACTIVE TASK CHECKLISTS RESIDE STRICTLY INSIDE THE PLAN.                    #
-# 4. WE ENFORCE A GATED 4-PHASE LIFECYCLE (Plan, Implement, Review, Commit).        #
-#    YOU MUST TRANSITION THROUGH THESE PHASES SEQUENTIALLY WITHOUT SKIPPING.        #
-#    UPON COMPLETING A PHASE, IMMEDIATELY PROCEED TO THE NEXT.                      #
-#                                                                                   #
-# FAILURE TO COMPLY WILL TRIGGER SECURITY BLOCKS AND PROCESS TERMINATION.           #
-#                                                                                   #
-# DEVELOPMENT PHILOSOPHY:                                                           #
-# We prefer explicit composition over complex inheritance or prototype hacks.        #
-# NEVER swallow errors or use empty catch blocks in any hook or application files.   #
-# Every caught exception must be explicitly logged or safely handled.                 #
-###############################################################################\n\n`;
+  const mandateHeader = `# Critical Agent Mandates
+- Follow 'docs/development/how-to/DevelopmentProcess.md'.
+- NO COMMIT/PUSH COMMANDS (handled out-of-band by hooks).
+- SOURCE EDITS BLOCKED until plan approval. Task checklists MUST be in the plan.
+- Follow 4-Phase Gated Lifecycle: Plan -> Implement -> Review -> Commit.
 
-  const mandateFooter = `###############################################################################
-#                           IMMEDIATE ACTION REQUIRED                               #
-#                                                                                   #
-# You must immediately enter PLAN MODE as your first action in this session.        #
-# Evaluate the user's initial request and draft a step-by-step imperative plan.     #
-#                                                                                   #
-# PLAN FORMAT REQUIREMENTS:                                                         #
-# Your plan MUST include a markdown checklist (using "- [ ]") that covers:          #
-# 1. The specific implementation tasks.                                             #
-# 2. Running comprehensive tests and linters.                                       #
-# 3. Maintaining the agentic framework if improvements or bugs are found.           #
-# 4. Enforcing standard quality gates.                                              #
-# 5. Updating documentation to describe the changes.                                #
-#                                                                                   #
-# MAP-REDUCE REVIEW PIPELINE INSTRUCTIONS:                                          #
-# Run the local code-review.js agent script to initiate the automated Map-Reduce    #
-# review pipeline, which executes tests, audits, and obtains Gate 2 signatures.     #
-###############################################################################\n`;
+Philosophy: Prefer explicit composition. Never swallow errors.\n\n`;
 
-  const actionPrompt = `\n👉 ACTION REQUIRED: You must call the \`enter_plan_mode\` tool to formally enter the Plan Phase before utilizing other tools or modifying code.\n`;
+  const mandateFooter = `# Immediate Action Required
+👉 Run \`enter_plan_mode\` to draft a checklist plan, and \`agent-scripts/quality-assurance.js\` to run reviews.\n`;
+
+  const actionPrompt = '';
 
   return mandateHeader + nixText + frameworkContext + mandateFooter + actionPrompt;
 }
