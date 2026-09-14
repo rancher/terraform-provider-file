@@ -93,7 +93,7 @@ export function runGh(args, options = {}) {
           const fallbackEnv = { ...env };
           delete fallbackEnv.GITHUB_TOKEN;
           try {
-            const fallbackResult = await runGh(args, { ...options, envOverrides: { GITHUB_TOKEN: undefined } });
+            const fallbackResult = await runGh(args, { ...options, envOverrides: { GITHUB_TOKEN: '' } });
             resolve(fallbackResult);
             return;
           } catch (fallbackErr) {
