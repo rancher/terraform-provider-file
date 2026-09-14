@@ -86,7 +86,7 @@ export function getStandardsFile(filePath) {
   return mappings[ext] || mappings['default'];
 }
 
-function parseJSONFromText(text) {
+export function parseJSONFromText(text) {
   const match = text.match(/```json\s*\n([\s\S]*?)\n\s*```/) || text.match(/```\s*\n([\s\S]*?)\n\s*```/);
   const clean = (match ? match[1] : text).trim();
   try {
@@ -97,7 +97,7 @@ function parseJSONFromText(text) {
   }
 }
 
-const qaValidator = (output) => {
+export const qaValidator = (output) => {
   const parsed = parseJSONFromText(output);
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new Error('Output must be a valid JSON object.');
@@ -168,24 +168,63 @@ export async function getRepoDefaultBranch() {
 
 export function filterExcludedFiles(files, excludeRules) {
   const results = [];
+
+  const exclusions = [];
+  const negations = [];
+
+  for (const rule of excludeRules) {
+    const trimmed = rule.trim();
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue;
+    }
+    if (trimmed.startsWith('!')) {
+      negations.push(trimmed.slice(1));
+    } else {
+      exclusions.push(trimmed);
+    }
+  }
+
+  const matchesRule = (filePath, rule) => {
+    if (rule.endsWith('/')) {
+      const dirRule = rule.slice(0, -1);
+      return filePath === dirRule || filePath.startsWith(rule) || filePath.includes('/' + rule);
+    }
+    if (rule.includes('*') || rule.includes('?')) {
+      const escaped = rule.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+      const regexStr = escaped.replace(/\*/g, '.*').replace(/\?/g, '.');
+      const regex = new RegExp(`(^|/)${regexStr}$`);
+      return regex.test(filePath);
+    }
+    if (rule.startsWith('.')) {
+      return path.extname(filePath) === rule || filePath.endsWith(rule);
+    }
+    return filePath === rule || filePath.endsWith('/' + rule);
+  };
+
   for (const file of files) {
     const filePath = file.trim();
     if (!filePath) {
       continue;
     }
-    const shouldExclude = () => {
-      const ext = path.extname(filePath);
-      return excludeRules.some((rule) => {
-        if (rule.startsWith('.')) {
-          return ext === rule || filePath.includes(rule);
+
+    let isExcluded = false;
+    for (const rule of exclusions) {
+      if (matchesRule(filePath, rule)) {
+        isExcluded = true;
+        break;
+      }
+    }
+
+    if (isExcluded) {
+      for (const rule of negations) {
+        if (matchesRule(filePath, rule)) {
+          isExcluded = false;
+          break;
         }
-        if (rule.endsWith('/')) {
-          return filePath.startsWith(rule) || filePath.includes('/' + rule);
-        }
-        return filePath === rule || filePath.endsWith('/' + rule);
-      });
-    };
-    if (!shouldExclude()) {
+      }
+    }
+
+    if (!isExcluded) {
       results.push(filePath);
     }
   }
@@ -332,6 +371,13 @@ async function main() {
 
   const changedFiles = filterExcludedFiles(rawChangedFiles, excludeRules);
 
+  if (unfilteredDiff && unfilteredDiff.trim() !== '' && changedFiles.length === 0) {
+    console.error('::error::❌ Security Gating Failure: Staged changes consist solely of protected/excluded files.');
+    await revokeSignature(TARGET_DIR, 'review-approval.json');
+    await teardown();
+    process.exit(1);
+  }
+
   if (!unfilteredDiff || unfilteredDiff.trim() === '') {
     console.info('::notice::🟢 No changes detected. Automatically approving Review Gate.');
     const emptyReport = {
@@ -404,54 +450,23 @@ async function main() {
   }
 
   // Step 7: Construct QA Reviewer system & evaluation prompt
-  const qaPrompt = `You are a rigorous, highly-intelligent QA Reviewer.
-Your primary objective is to review the staged code changes in <git_diff> to ensure that they are completely clean, functional, secure, and idiomatic, so that there are absolutely zero comments or issues when the PR is opened.
+  const qaPrompt = `Please perform a single-pass quality assurance review of the staged code changes in <git_diff> by applying your system instructions to evaluate Plan congruence, security, concurrency, and style correctness.
 
-Guidelines for your review:
-1. **Plan/PR Description Congruence:** The active Implementation Plan in <active_plan> acts as the living PR description. Every single code change in <git_diff> MUST align with and be described by the intent of the active Plan. If there are changes that implement logic NOT described in the Plan, flag them as an out-of-plan deviation. Conversely, if a planned change is missing, flag it.
-2. **Prior Decisions & Approved Tradeoffs:** Do NOT flag any issues that match semantically with the approved tradeoffs in <prior_decisions>. Treat those as out-of-scope/already approved.
-3. **Common Criticisms to Preempt:**
-   - Security flaws (path traversals, credential leaks, unverified user input, SQL injection, unsafe shell commands).
-   - Async-await or concurrency bugs (blocking synchronous I/O, promise race conditions, unhandled rejections).
-   - Logical bugs, off-by-one errors, resource leaks (e.g., unclosed file handles, database connections, sockets).
-   - Code style, readability, or standards violations relative to the relevant standards in <coding_standards>.
-   - Missing unit or integration tests for newly introduced logic/files.
-4. **Actionable Narrative:** For each finding, provide clear, explicit, and constructive instructions on exactly what needs to be fixed.
+  <active_plan>
+  ${activePlan}
+  </active_plan>
 
-You must return your output strictly in the following JSON schema:
-{
-  "approval_status": "APPROVED/UNAPPROVED",
-  "findings": [
-    {
-      "file": "relative_filepath",
-      "line_numbers": [12, 13],
-      "narrative": "Detailed instruction/description of the bug, plan violation, or standard issue, and how to fix it"
-    }
-  ],
-  "suggested_commit": {
-    "title": "conventional commit title",
-    "message": "conventional commit message body"
-  }
-}
+  <prior_decisions>
+  ${JSON.stringify(priorDecisions, null, 2)}
+  </prior_decisions>
 
-If you identify any new issues, bugs, plan deviations, or test gaps, set "approval_status" to "UNAPPROVED" and provide the findings.
-If the diff is completely aligned with the plan and has absolutely zero issues (and is thus ready to pass review with zero comments), set "approval_status" to "APPROVED" and set "findings" to an empty array [].
+  <coding_standards>
+  ${codingStandardsText}
+  </coding_standards>
 
-<active_plan>
-${activePlan}
-</active_plan>
-
-<prior_decisions>
-${JSON.stringify(priorDecisions, null, 2)}
-</prior_decisions>
-
-<coding_standards>
-${codingStandardsText}
-</coding_standards>
-
-<git_diff>
-${activeDiff}
-</git_diff>`;
+  <git_diff>
+  ${activeDiff}
+  </git_diff>`;
 
   console.info('::notice::🔍 Performing single-pass QA Review via @quality_assurance...');
   const schemaPrompt = `{
