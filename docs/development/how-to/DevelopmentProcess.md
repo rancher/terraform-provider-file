@@ -27,7 +27,7 @@ To maintain absolute system integrity and prevent unvetted code modifications, t
 - **Verification File**: `review-approval.json`.
 - **Protocol**: This gate is programmatically validated by the enforcer hooks. It requires that:
   1. The automated unit and linter checks pass successfully, storing the tested diff_hash in `phase-state.json`.
-  2. A proactive code review is executed by the isolated, sandboxed **Map-Reduce Review pipeline** coordinated by `agent-scripts/code-review.js`, which writes `review-approval.json` upon reporting a clean review.
+  2. A proactive code review is executed by our isolated, sandboxed review subagents, coordinated either via the multi-agent Map-Reduce pipeline (`agent-scripts/code-review.js`) or the fast, single-pass QA script (`agent-scripts/quality-assurance.js`), which writes `review-approval.json` upon reporting a clean review. Under the `quality-assurance.js` workflow, the Plan is treated as a living document and must encompass all intended changes for the QA script to pass. Any code modification not explicitly described in the active Plan will result in a validation failure.
 - **Enforcement**: If any workspace files are modified after Gate 2 is signed, the enforcer hooks automatically delete the signatures, revoking approval and requiring re-testing and re-review.
 
 ### **Gate 3: Commit Gate (User-Facing)**
@@ -69,8 +69,8 @@ To maintain absolute system integrity and prevent unvetted code modifications, t
 ### Phase 3: Review Phase (Gate 2)
 
 1. **Testing Sign-Off**: Run local test suites to verify full codebase integration, which stores the tested diff_hash in `phase-state.json`.
-2. **Delegate Proactive Review**: Run the proactive code review of the active local Git diff by executing `agent-scripts/code-review.js` directly.
-3. **Resolve Findings**: The project manager's primary goal is to orchestrate a critical, adversarial peer review. If the subagents flag any architectural gaps or documentation inconsistencies under the `Findings & Comments` section of the report, surgically resolve them and re-run the review until all 4 passes are checked (`- [x]`) and exactly `0 comments/findings` are reported, which allows the enforcer hook to programmatically sign and write `review-approval.json`.
+2. **Delegate Proactive Review**: Run the proactive code review of the active local Git diff by executing either our standard multi-agent `agent-scripts/code-review.js` or our fast, single-pass QA script `agent-scripts/quality-assurance.js` directly.
+3. **Resolve Findings**: The subagents' primary goal is to orchestrate a critical, adversarial peer review. If they flag any architectural gaps, logic bugs, or plan deviations, surgically resolve them and re-run the review script until it approves with `0 findings`, allowing the script to programmatically write `review-approval.json`.
 
 ### Phase 4: Commit Phase (Gate 3)
 

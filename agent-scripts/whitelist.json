@@ -6,6 +6,7 @@
     "agent-scripts/sync-boilerplate.js",
     "agent-scripts/update-modules.sh",
     "agent-scripts/cleanup-data.js",
-    "agent-scripts/exercise-agents.js"
+    "agent-scripts/exercise-agents.js",
+    "agent-scripts/quality-assurance.js"
   ]
 }
