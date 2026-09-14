@@ -3,12 +3,12 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { revokeSignature, verifyPlanGate } from './lib/approval.js';
-import { executeGit, gitAddAll, gitDiffHeadNameOnly, gitDiffStagedContext } from './lib/git.js';
-import { runGeminiWithValidation } from './lib/gemini.js';
-import { resolveTargetDir } from './lib/file.js';
-import { runPreReviewTests } from './lib/test.js';
-import { readPlan } from './lib/plan.js';
+import { revokeSignature, verifyPlanGate } from './tools/approval.js';
+import { executeGit, gitAddAll, gitDiffHeadNameOnly, gitDiffStagedContext } from './tools/git.js';
+import { runGeminiWithValidation } from './tools/gemini.js';
+import { resolveTargetDir } from './tools/file.js';
+import { runPreReviewTests } from './tools/test.js';
+import { readPlan } from './tools/plan.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -166,6 +166,32 @@ export async function getRepoDefaultBranch() {
   }
 }
 
+export function filterExcludedFiles(files, excludeRules) {
+  const results = [];
+  for (const file of files) {
+    const filePath = file.trim();
+    if (!filePath) {
+      continue;
+    }
+    const shouldExclude = () => {
+      const ext = path.extname(filePath);
+      return excludeRules.some((rule) => {
+        if (rule.startsWith('.')) {
+          return ext === rule || filePath.includes(rule);
+        }
+        if (rule.endsWith('/')) {
+          return filePath.startsWith(rule) || filePath.includes('/' + rule);
+        }
+        return filePath === rule || filePath.endsWith('/' + rule);
+      });
+    };
+    if (!shouldExclude()) {
+      results.push(filePath);
+    }
+  }
+  return results;
+}
+
 function showHelp() {
   console.info('Usage: node agent-scripts/quality-assurance.js [options]');
   console.info('');
@@ -254,7 +280,27 @@ async function main() {
   console.info('::notice::Staging all workspace changes (git add -A)...');
   await gitAddAll();
 
+  // Load .aiexclude rules
+  let excludeRules = [];
+  try {
+    const aiexcludePath = path.join(process.cwd(), '.aiexclude');
+    if (await asyncExists(aiexcludePath)) {
+      const content = await fs.promises.readFile(aiexcludePath, 'utf8');
+      excludeRules = content
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith('#'));
+    }
+  } catch (err) {
+    console.warn(`Failed to read .aiexclude: ${err.message}`);
+  }
+
+  if (excludeRules.length === 0) {
+    excludeRules = ['go.sum', 'package-lock.json', '.png', '.jpg', '.svg', '.gif', '.lock'];
+  }
+
   let activeDiff;
+  let unfilteredDiff;
   let changedFilesOutput;
 
   const defaultBranch = await getRepoDefaultBranch();
@@ -263,28 +309,30 @@ async function main() {
   if (currentBranch && currentBranch !== defaultBranch) {
     console.info(`::notice::[Feature Branch] Reviewing all changes against base branch 'origin/${defaultBranch}'...`);
     try {
-      activeDiff = await executeGit(['diff', '-U10', `origin/${defaultBranch}`]);
+      unfilteredDiff = await executeGit(['diff', '-U10', `origin/${defaultBranch}`]);
       changedFilesOutput = await executeGit(['diff', `origin/${defaultBranch}`, '--name-only']);
     } catch (err) {
       // If origin/<defaultBranch> doesn't exist or fetch failed, fallback to local defaultBranch
       console.warn(
         `::warning::Failed to diff against origin/${defaultBranch}, falling back to local ${defaultBranch}: ${err.message}`,
       );
-      activeDiff = await executeGit(['diff', '-U10', defaultBranch]);
+      unfilteredDiff = await executeGit(['diff', '-U10', defaultBranch]);
       changedFilesOutput = await executeGit(['diff', defaultBranch, '--name-only']);
     }
   } else {
     console.info('::notice::[Targeted Diff] Identifying changed files relative to HEAD...');
-    activeDiff = await gitDiffStagedContext();
+    unfilteredDiff = await gitDiffStagedContext();
     changedFilesOutput = await gitDiffHeadNameOnly();
   }
 
-  const changedFiles = changedFilesOutput
+  const rawChangedFiles = changedFilesOutput
     .split('\n')
     .map((f) => f.trim())
     .filter(Boolean);
 
-  if (!activeDiff || activeDiff.trim() === '') {
+  const changedFiles = filterExcludedFiles(rawChangedFiles, excludeRules);
+
+  if (!unfilteredDiff || unfilteredDiff.trim() === '') {
     console.info('::notice::🟢 No changes detected. Automatically approving Review Gate.');
     const emptyReport = {
       approval_status: 'APPROVED',
@@ -297,6 +345,22 @@ async function main() {
     await writeSignatures(emptyReport, planHash, '', TARGET_DIR);
     await teardown();
     process.exit(0);
+  }
+
+  // Generate the filtered activeDiff for Gemini audit
+  if (changedFiles.length > 0) {
+    if (currentBranch && currentBranch !== defaultBranch) {
+      try {
+        activeDiff = await executeGit(['diff', '-U10', `origin/${defaultBranch}`, '--', ...changedFiles]);
+      } catch (err) {
+        console.debug(`Failed to diff against origin/${defaultBranch}, trying local fallback: ${err.message}`);
+        activeDiff = await executeGit(['diff', '-U10', defaultBranch, '--', ...changedFiles]);
+      }
+    } else {
+      activeDiff = await executeGit(['diff', '-U10', 'HEAD', '--staged', '--', ...changedFiles]);
+    }
+  } else {
+    activeDiff = '';
   }
 
   // Step 4: Load the active Plan (acting as living PR description)
@@ -431,7 +495,17 @@ ${activeDiff}
 
   if (isApproved) {
     console.info('::notice::🟢 QA Review Approved! No issues detected.');
-    await writeSignatures(qaReportObj, planHash, activeDiff, TARGET_DIR);
+    // Remove stale remediation-report.json to prevent subsequent auto-remediation from running on stale data
+    const remediationChecklistPath = path.join(TARGET_DIR, 'remediation-report.json');
+    if (await asyncExists(remediationChecklistPath)) {
+      try {
+        await fs.promises.unlink(remediationChecklistPath);
+        console.info('::notice::Cleaned up stale remediation-report.json successfully.');
+      } catch (err) {
+        console.warn(`::warning::Failed to remove stale remediation report: ${err.message}`);
+      }
+    }
+    await writeSignatures(qaReportObj, planHash, unfilteredDiff, TARGET_DIR);
     await teardown();
     process.exit(0);
   } else {

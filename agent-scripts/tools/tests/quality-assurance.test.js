@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { getStandardsFile, getRepoDefaultBranch } from '../../quality-assurance.js';
+import { getStandardsFile, getRepoDefaultBranch, filterExcludedFiles } from '../../quality-assurance.js';
 
 test('quality-assurance script unit tests', async (t) => {
   await t.test('getStandardsFile maps extensions correctly', () => {
@@ -16,5 +16,20 @@ test('quality-assurance script unit tests', async (t) => {
     const branch = await getRepoDefaultBranch();
     assert.ok(typeof branch === 'string');
     assert.ok(branch.length > 0);
+  });
+
+  await t.test('filterExcludedFiles filters out files based on rules correctly', () => {
+    const files = [
+      'main.go',
+      'logo.png',
+      'agent-scripts/quality-assurance.js',
+      'go.sum',
+      'docs/development/explanation/AgenticFramework.md',
+    ];
+    const rules = ['.png', 'agent-scripts/', 'go.sum'];
+
+    const filtered = filterExcludedFiles(files, rules);
+
+    assert.deepStrictEqual(filtered, ['main.go', 'docs/development/explanation/AgenticFramework.md']);
   });
 });
