@@ -100,7 +100,7 @@ async function main() {
   try {
     inputData = JSON.parse(fs.readFileSync(0, 'utf-8'));
   } catch (err) {
-    console.error(`🔒 Hook Warning: Failed to read/parse STDIN in main: ${err.message || err}`);
+    throw new Error(`Failed to read/parse STDIN in main: ${err.message || err}`, { cause: err });
   }
 
   const targetDir = await resolveTargetDir();
