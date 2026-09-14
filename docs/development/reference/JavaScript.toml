@@ -1,0 +1,123 @@
+title = "JavaScript & Node.js Coding Standards"
+description = "Strict reference index of JavaScript syntax, security, and integration rules for local tooling, agent scripts, enforcer hooks, and GHA workflows."
+quadrant = "Reference"
+
+[[items]]
+name = "Syntax, Formatting & Linter Compliance"
+type = "Standard"
+signature = "errors, exports, actions"
+description = "Rules regarding linter compliance, error swallowing, and GitHub action script signatures."
+
+  [[items.parameters]]
+  name = "no empty catch blocks"
+  required = true
+  type = "constraint"
+  description = "Absolutely no empty catch blocks or discarded exceptions may exist in any JavaScript file. Exceptions must be explicitly logged or handled."
+
+  [[items.parameters]]
+  name = "gha export definition"
+  required = true
+  type = "constraint"
+  description = "Every script run by actions/github-script MUST export an asynchronous default function receiving the action context object (e.g. export default async ({ github, context, core, process }) => { ... })."
+
+  [[items.parameters]]
+  name = "banned gha package imports"
+  required = true
+  type = "constraint"
+  description = "Never manually import or require @actions/github or @actions/core inside GitHub Script runner files. Rely strictly on the injected function parameters."
+
+[[items]]
+name = "Robust Logic, State & Error Resilience"
+type = "Standard"
+signature = "json, octokit, REST"
+description = "Rules for robust JSON parsing, REST endpoint preference, and explicit async-await in GHA scripts."
+
+  [[items.parameters]]
+  name = "fail-safe json parsing"
+  required = true
+  type = "constraint"
+  description = "All JSON file reads and parsing routines must be wrapped in try-catch blocks, providing a fallback to a fresh default state if corrupt or malformed JSON is encountered."
+
+  [[items.parameters]]
+  name = "mandatory octokit pagination"
+  required = true
+  type = "constraint"
+  description = "All GHA REST API calls that return arrays MUST use the github.paginate wrapper to guarantee exhaustive collection of paginated results."
+
+  [[items.parameters]]
+  name = "preferred rest over graphql"
+  required = true
+  type = "constraint"
+  description = "Prefer github.rest.[endpoint] for standard operations. If GraphQL is structurally required, ensure the query is parameterized."
+
+  [[items.parameters]]
+  name = "mandatory async await"
+  required = true
+  type = "constraint"
+  description = "All asynchronous API calls must be explicitly prefixed with await to prevent race conditions."
+
+[[items]]
+name = "Concurrency, Safety & Execution"
+type = "Standard"
+signature = "subprocess, git, SSH, webhooks"
+description = "Vulnerability prevention, safe Git operations, correct SSH key signing, and sanitized payload handlers."
+
+  [[items.parameters]]
+  name = "safe subprocess execution"
+  required = true
+  type = "constraint"
+  description = "All Git, GitHub CLI (gh), and system CLI executions inside local scripts and hooks MUST use execFileSync (or execFile) with positional argv arrays to prevent shell-injection."
+
+  [[items.parameters]]
+  name = "banned automatic destructive git"
+  required = true
+  type = "constraint"
+  description = "Automation scripts and hooks are strictly forbidden from running destructive git commands (git reset --hard or git clean -fd) automatically without user confirmation."
+
+  [[items.parameters]]
+  name = "correct private key signing"
+  required = true
+  type = "constraint"
+  description = "ssh-keygen -Y sign invocations in signing hooks, unit tests, and shell wrappers must always be passed the private key file path, never the public .pub path."
+
+  [[items.parameters]]
+  name = "sanitized gha payloads"
+  required = true
+  type = "constraint"
+  description = "Treat all inputs from context.payload (PR titles, issue bodies, authors) as untrusted strings. Sanitize them before running regex matches or logging them."
+
+  [[items.parameters]]
+  name = "graceful api failures"
+  required = true
+  type = "constraint"
+  description = "Wrap all GHA API operations in try-catch blocks, calling core.setFailed(error.message) on failure to gracefully exit."
+
+[[items]]
+name = "Automation Quality Gates, Testing & Architecture"
+type = "Standard"
+signature = "gates, logging, outputs"
+description = "Requirements for gate artifact protection, immediate state revocation on failures, GHA native UI logging, and output bindings."
+
+  [[items.parameters]]
+  name = "gate artifact tamper protection"
+  required = true
+  type = "constraint"
+  description = "Enforcer hooks must implement a strict denylist blocking edits, creation, or replacement of gating artifacts (*-approval.json, *.sig, *.challenge)."
+
+  [[items.parameters]]
+  name = "immediate state revocation"
+  required = true
+  type = "constraint"
+  description = "If a validation step detects empty, missing, corrupt, or non-compliant outputs, the script must actively unlink or delete the active phase approval file and state flags."
+
+  [[items.parameters]]
+  name = "gha ui-native logging"
+  required = true
+  type = "constraint"
+  description = "Avoid using raw console.log() inside GHA scripts. Use core.info(), core.notice(), core.warning(), or core.error() to ensure logs are natively parsed in the Actions UI."
+
+  [[items.parameters]]
+  name = "explicit output bindings"
+  required = true
+  type = "constraint"
+  description = "Set workflow step outputs explicitly using core.setOutput('name', value) rather than relying on the function's implicit return value."

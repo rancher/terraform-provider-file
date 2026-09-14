@@ -1,0 +1,975 @@
+{
+  "docs/development/explanation/Diataxis.toml": {
+    "title": "Diátaxis Documentation Framework",
+    "description": "Overview of the 4 documentation quadrants used in this repository.",
+    "quadrant": "Explanation",
+    "background": {
+      "context": "Technical documentation is often chaotic, mixing step-by-step instructions, references, and discussions. This causes cognitive overload for developers and parsing issues for sub-agents."
+    },
+    "sections": [
+      {
+        "heading": "What Is Diátaxis?",
+        "content": "Diátaxis is a systematic framework for structuring technical documentation. It proposes that all documentation should be split into 4 distinct quadrants based on two axes: Learning vs. Task and Theoretical vs. Practical."
+      },
+      {
+        "heading": "The 4 Quadrants",
+        "content": "The 4 quadrants are: Tutorials (Learning-Oriented / Practical), How-To Guides (Goal-Oriented / Practical), Reference (Information-Oriented / Theoretical), and Explanation (Understanding-Oriented / Theoretical)."
+      },
+      {
+        "heading": "Rules of Separation",
+        "content": "To prevent drift and keep documents high-signal, a single file must belong to exactly one quadrant. A How-To Guide must not explain background concepts; a Tutorial must not contain exhaustive API specifications."
+      },
+      {
+        "heading": "Compiled JSON Context Injection",
+        "content": "To ensure sub-agents receive perfectly formatted, deterministic, and highly structured guidelines, all repository documentation is written in strict TOML format according to Diátaxis principles. During agent executions (like code reviews), these TOML documents are programmatically compiled into a single unified JSON index (docs/docs-compiled.json) and injected directly into the sub-agent contexts, completely replacing unstructured legacy Markdown files."
+      }
+    ]
+  },
+  "docs/development/reference/CodingStandards.toml": {
+    "title": "Coding Standards & Guidelines",
+    "description": "The main reference index of the repository's mandatory coding standards, security baselines, and quality criteria.",
+    "quadrant": "Reference",
+    "items": [
+      {
+        "name": "Core Development Languages",
+        "type": "Index",
+        "signature": "Go, Terraform",
+        "description": "Standard rules for core development languages used in the repository.",
+        "parameters": [
+          {
+            "name": "Go Standards",
+            "required": true,
+            "type": "reference",
+            "description": "Dry, searchable reference index of Go syntax, context propagation, error wrapping, concurrency, and standalone test module configurations. Defined in Go.toml."
+          },
+          {
+            "name": "Terraform Standards",
+            "required": true,
+            "type": "reference",
+            "description": "Dry, searchable reference index of Terraform snake_case naming style, variable validations, check blocks, sensitive redaction, and module layouts. Defined in Terraform.toml."
+          }
+        ]
+      },
+      {
+        "name": "CI/CD & Automation Ecosystems",
+        "type": "Index",
+        "signature": "Workflows, JavaScript, ShellScripts",
+        "description": "Standards for workflows, Node/JS, and Shell execution scripting.",
+        "parameters": [
+          {
+            "name": "GitHub Actions Workflows",
+            "required": true,
+            "type": "reference",
+            "description": "Dry, searchable reference index of GHA workflow default permissions, OIDC token federation, SHA-pinned actions, allowed namespaces, and script isolation. Defined in Workflows.toml."
+          },
+          {
+            "name": "JavaScript & Node.js Rules",
+            "required": true,
+            "type": "reference",
+            "description": "Dry, searchable reference index of JavaScript empty catch block bans, GHA module exports, fail-safe JSON parsers, and execFileSync shell-injection safeguards. Defined in JavaScript.toml."
+          },
+          {
+            "name": "Shell Script Rules",
+            "required": true,
+            "type": "reference",
+            "description": "Dry, searchable reference index of Bash fail-fast parameters, double brackets, modular shebangs, command substitutions, local variable scoping, and Makefile structures. Defined in ShellScripts.toml."
+          }
+        ]
+      },
+      {
+        "name": "Documentation & Architectural Blueprints",
+        "type": "Index",
+        "signature": "DocumentationFormatting, CHANGELOG",
+        "description": "Standards for documentation and repository archives.",
+        "parameters": [
+          {
+            "name": "Documentation & Blueprints",
+            "required": true,
+            "type": "reference",
+            "description": "Dry, searchable reference index of Markdown linter compliance, spellchecking, Diátaxis layout quadrants, declarative blueprints, and strict 3-Gate/4-Phase framework guidelines. Defined in DocumentationFormatting.toml."
+          },
+          {
+            "name": "CHANGELOG",
+            "required": true,
+            "type": "reference",
+            "description": "Archive of historical project release records and semantic version updates. Defined in CHANGELOG.md (or CHANGELOG.toml)."
+          }
+        ]
+      }
+    ]
+  },
+  "docs/development/reference/DocumentationFormatting.toml": {
+    "title": "Documentation Formatting Schemas",
+    "description": "Strict TOML schemas for the 4 Diátaxis quadrants.",
+    "quadrant": "Reference",
+    "items": [
+      {
+        "name": "Tutorial",
+        "type": "Schema",
+        "signature": "docs/**/*.toml (quadrant = \"Tutorial\")",
+        "description": "Used for step-by-step hands-on lessons for beginners.",
+        "parameters": [
+          {
+            "name": "title",
+            "required": true,
+            "type": "string",
+            "description": "The main heading of the Tutorial."
+          },
+          {
+            "name": "description",
+            "required": true,
+            "type": "string",
+            "description": "A concise description of what the user will build or learn."
+          },
+          {
+            "name": "quadrant",
+            "required": true,
+            "type": "string",
+            "description": "Must be strictly \"Tutorial\"."
+          },
+          {
+            "name": "prerequisites",
+            "required": true,
+            "type": "table",
+            "description": "A table describing knowledge_level and tools_required."
+          },
+          {
+            "name": "steps",
+            "required": true,
+            "type": "array of tables",
+            "description": "List of steps, each containing title, action, and expected_result."
+          }
+        ]
+      },
+      {
+        "name": "How-To",
+        "type": "Schema",
+        "signature": "docs/**/*.toml (quadrant = \"How-To\")",
+        "description": "Used for task-focused recipes for experienced users.",
+        "parameters": [
+          {
+            "name": "title",
+            "required": true,
+            "type": "string",
+            "description": "Goal-oriented title starting with 'How to'."
+          },
+          {
+            "name": "description",
+            "required": true,
+            "type": "string",
+            "description": "The context of what the task accomplishes."
+          },
+          {
+            "name": "quadrant",
+            "required": true,
+            "type": "string",
+            "description": "Must be strictly \"How-To\"."
+          },
+          {
+            "name": "context",
+            "required": true,
+            "type": "table",
+            "description": "A table describing goal and audience."
+          },
+          {
+            "name": "instructions",
+            "required": true,
+            "type": "array of tables",
+            "description": "List of instructions, each containing step, description, code_snippet, or command."
+          }
+        ]
+      },
+      {
+        "name": "Reference",
+        "type": "Schema",
+        "signature": "docs/**/*.toml (quadrant = \"Reference\")",
+        "description": "Used for clinical, truth-oriented technical definitions.",
+        "parameters": [
+          {
+            "name": "title",
+            "required": true,
+            "type": "string",
+            "description": "Nouns representing the APIs, systems, or parameters documented."
+          },
+          {
+            "name": "description",
+            "required": true,
+            "type": "string",
+            "description": "Overview of the technical reference."
+          },
+          {
+            "name": "quadrant",
+            "required": true,
+            "type": "string",
+            "description": "Must be strictly \"Reference\"."
+          },
+          {
+            "name": "items",
+            "required": true,
+            "type": "array of tables",
+            "description": "List of reference objects, each containing name, type, signature, and parameters array."
+          }
+        ]
+      },
+      {
+        "name": "Explanation",
+        "type": "Schema",
+        "signature": "docs/**/*.toml (quadrant = \"Explanation\")",
+        "description": "Used for discussion and conceptual background.",
+        "parameters": [
+          {
+            "name": "title",
+            "required": true,
+            "type": "string",
+            "description": "Conceptual title describing the architecture or design topic."
+          },
+          {
+            "name": "description",
+            "required": true,
+            "type": "string",
+            "description": "A short summary of the explanation's theme."
+          },
+          {
+            "name": "quadrant",
+            "required": true,
+            "type": "string",
+            "description": "Must be strictly \"Explanation\"."
+          },
+          {
+            "name": "background",
+            "required": true,
+            "type": "table",
+            "description": "A table containing high-level context."
+          },
+          {
+            "name": "sections",
+            "required": true,
+            "type": "array of tables",
+            "description": "List of discussion sections, each containing heading and content."
+          }
+        ]
+      },
+      {
+        "name": "Syntax, Formatting & Linter Compliance",
+        "type": "Standard",
+        "signature": "cspell, markdownlint",
+        "description": "Formatting and quality rules for all repository documentation.",
+        "parameters": [
+          {
+            "name": "cspell",
+            "required": true,
+            "type": "Constraint",
+            "description": "All written documentation, code comments, and configuration descriptions must be free of typos and slang, with terms added strictly to custom_words.txt."
+          },
+          {
+            "name": "nesting",
+            "required": true,
+            "type": "Constraint",
+            "description": "Headers must follow sequential nesting (#, ##, ###) without skipping levels."
+          },
+          {
+            "name": "capitalization",
+            "required": true,
+            "type": "Constraint",
+            "description": "All headings must use title case or sentence case consistently. Comment blocks must begin with capitals and end with punctuation."
+          }
+        ]
+      },
+      {
+        "name": "Architectural Blueprints & Planning Documents",
+        "type": "Standard",
+        "signature": "blueprints",
+        "description": "Standard structure rules for high-level technical layouts.",
+        "parameters": [
+          {
+            "name": "topic layout",
+            "required": true,
+            "type": "Constraint",
+            "description": "Overarching domain documents mapping major system areas must reside under docs/development/ and contain a ## Abstract section with sub-component links."
+          },
+          {
+            "name": "declarative rules",
+            "required": true,
+            "type": "Constraint",
+            "description": "Blueprints must strictly describe the system's actual, current state. Writing task checklists, TODO blocks, or historic changelogs inside blueprints is strictly banned."
+          }
+        ]
+      },
+      {
+        "name": "Quality Gates & Framework Alignment",
+        "type": "Standard",
+        "signature": "lifecycle, gates",
+        "description": "Foundational mandates enforcing the repository's gated automated pipeline.",
+        "parameters": [
+          {
+            "name": "strict 3-gate architecture",
+            "required": true,
+            "type": "Constraint",
+            "description": "Documentation must explicitly state and adhere to exactly 3 Gates: Planning Gate (Gate 1), Programmatic Review/Testing Gate (Gate 2), and Commit Gate (Gate 3). 2 of these gates are user-facing."
+          },
+          {
+            "name": "gated 4-phase lifecycle",
+            "required": true,
+            "type": "Constraint",
+            "description": "Documentation must explicitly state and adhere to the Gated 4-Phase Lifecycle consisting of exactly these phases: Plan, Implement, Review, and Commit. Any references to other counts of gates or phases are strictly banned."
+          }
+        ]
+      }
+    ]
+  },
+  "docs/development/reference/Go.toml": {
+    "title": "Go (Golang) Coding Standards",
+    "description": "Strict reference index of Go syntax, security, concurrency, and architecture rules.",
+    "quadrant": "Reference",
+    "items": [
+      {
+        "name": "Syntax, Formatting & Linter Compliance",
+        "type": "Standard",
+        "signature": "golangci-lint, gofmt, goimports",
+        "description": "Rules regarding linter compliance, syntax formatting, and banned package-level functions.",
+        "parameters": [
+          {
+            "name": "golangci-lint",
+            "required": true,
+            "type": "constraint",
+            "description": "All Go code must pass the local golangci-lint configuration with zero warnings or violations."
+          },
+          {
+            "name": "no comment-out",
+            "required": true,
+            "type": "constraint",
+            "description": "Commented-out code blocks must be deleted from active source files. Use Git history for retrieval."
+          },
+          {
+            "name": "go formatting",
+            "required": true,
+            "type": "constraint",
+            "description": "All files must be formatted with gofmt -s and imports must be grouped/ordered using goimports."
+          },
+          {
+            "name": "no package init",
+            "required": true,
+            "type": "constraint",
+            "description": "Package-level init() functions are strictly banned, except when registering drivers or immutable compiler guards."
+          }
+        ]
+      },
+      {
+        "name": "Error Handling & Logic Resilience",
+        "type": "Standard",
+        "signature": "errors",
+        "description": "Rules regarding error checks, error wrapping, early returns, and panic/log.Fatal.",
+        "parameters": [
+          {
+            "name": "check errors immediately",
+            "required": true,
+            "type": "constraint",
+            "description": "Never ignore or discard return errors (using _ or omitting checks). Bad: local_func() Good: err := local_func(); if err != nil"
+          },
+          {
+            "name": "sentinel wrapping",
+            "required": true,
+            "type": "constraint",
+            "description": "Wrap bubbled errors using the %w verb to maintain the original call chain. Good: fmt.Errorf('... %w', err)"
+          },
+          {
+            "name": "happy-path alignment",
+            "required": true,
+            "type": "constraint",
+            "description": "Return immediately on error conditions to avoid deeply nested, hard-to-read conditional blocks."
+          },
+          {
+            "name": "banned panic/log.Fatal",
+            "required": true,
+            "type": "constraint",
+            "description": "Banned in all normal control flows and validation sequences, except for unrecoverable startup initialization failures."
+          }
+        ]
+      },
+      {
+        "name": "Concurrency, Safety & Execution",
+        "type": "Standard",
+        "signature": "concurrency",
+        "description": "Vulnerability prevention, secure random gen, and context propagation.",
+        "parameters": [
+          {
+            "name": "explicit context propagation",
+            "required": true,
+            "type": "constraint",
+            "description": "The first parameter of any blocking, network, disk, or DB function MUST be ctx context.Context. Signature: func Method(ctx context.Context, id string) error"
+          },
+          {
+            "name": "no struct-bound context",
+            "required": true,
+            "type": "constraint",
+            "description": "Contexts must flow dynamically down the call stack. Do not store contexts inside structs or configurations."
+          },
+          {
+            "name": "goroutine lifecycle cleanup",
+            "required": true,
+            "type": "constraint",
+            "description": "Every goroutine launched (go func()) must be tracked using sync.WaitGroup, errgroup, or context cancellation to prevent leaks."
+          },
+          {
+            "name": "channel closure safety",
+            "required": true,
+            "type": "constraint",
+            "description": "Channels must only be closed by the sender goroutine. Writing to a closed channel is strictly forbidden."
+          },
+          {
+            "name": "cryptographically secure random",
+            "required": true,
+            "type": "constraint",
+            "description": "For GPG signing, tokens, challenges, and keys, you MUST use crypto/rand. math/rand is strictly banned."
+          },
+          {
+            "name": "command injection mitigation",
+            "required": true,
+            "type": "constraint",
+            "description": "Do not construct CLI arguments using string formatting or variable interpolation. Pass separate strings via argv arrays. Good: exec.CommandContext(ctx, 'git', 'diff', branch)"
+          }
+        ]
+      },
+      {
+        "name": "Architecture, State, Testing & Gates",
+        "type": "Standard",
+        "signature": "architecture",
+        "description": "Rules regarding dependency injection, mutable package vars, naked returns, and testing.",
+        "parameters": [
+          {
+            "name": "interface-driven DI",
+            "required": true,
+            "type": "constraint",
+            "description": "Inject package dependencies as thin, descriptive interfaces (e.g., io.Writer) rather than concrete structs to support isolated mocking."
+          },
+          {
+            "name": "no package-level mutable vars",
+            "required": true,
+            "type": "constraint",
+            "description": "Global mutable package state is banned. Encapsulate state inside instantiated structs passed down via dependency injection."
+          },
+          {
+            "name": "no naked returns in long functions",
+            "required": true,
+            "type": "constraint",
+            "description": "Functions longer than 5 lines must explicitly name their return variables in the return statement."
+          },
+          {
+            "name": "stand-alone integration test",
+            "required": true,
+            "type": "constraint",
+            "description": "The ./test directory must contain its own independent Go module (test/go.mod) to separate testing dependencies."
+          },
+          {
+            "name": "seeded local plugin cache",
+            "required": true,
+            "type": "constraint",
+            "description": "Acceptance tests must use a localized Terraform plugin cache. The cache must be seeded offline from the global cache."
+          }
+        ]
+      }
+    ]
+  },
+  "docs/development/reference/JavaScript.toml": {
+    "title": "JavaScript & Node.js Coding Standards",
+    "description": "Strict reference index of JavaScript syntax, security, and integration rules for local tooling, agent scripts, enforcer hooks, and GHA workflows.",
+    "quadrant": "Reference",
+    "items": [
+      {
+        "name": "Syntax, Formatting & Linter Compliance",
+        "type": "Standard",
+        "signature": "errors, exports, actions",
+        "description": "Rules regarding linter compliance, error swallowing, and GitHub action script signatures.",
+        "parameters": [
+          {
+            "name": "no empty catch blocks",
+            "required": true,
+            "type": "constraint",
+            "description": "Absolutely no empty catch blocks or discarded exceptions may exist in any JavaScript file. Exceptions must be explicitly logged or handled."
+          },
+          {
+            "name": "gha export definition",
+            "required": true,
+            "type": "constraint",
+            "description": "Every script run by actions/github-script MUST export an asynchronous default function receiving the action context object (e.g. export default async ({ github, context, core, process }) => { ... })."
+          },
+          {
+            "name": "banned gha package imports",
+            "required": true,
+            "type": "constraint",
+            "description": "Never manually import or require @actions/github or @actions/core inside GitHub Script runner files. Rely strictly on the injected function parameters."
+          }
+        ]
+      },
+      {
+        "name": "Robust Logic, State & Error Resilience",
+        "type": "Standard",
+        "signature": "json, octokit, REST",
+        "description": "Rules for robust JSON parsing, REST endpoint preference, and explicit async-await in GHA scripts.",
+        "parameters": [
+          {
+            "name": "fail-safe json parsing",
+            "required": true,
+            "type": "constraint",
+            "description": "All JSON file reads and parsing routines must be wrapped in try-catch blocks, providing a fallback to a fresh default state if corrupt or malformed JSON is encountered."
+          },
+          {
+            "name": "mandatory octokit pagination",
+            "required": true,
+            "type": "constraint",
+            "description": "All GHA REST API calls that return arrays MUST use the github.paginate wrapper to guarantee exhaustive collection of paginated results."
+          },
+          {
+            "name": "preferred rest over graphql",
+            "required": true,
+            "type": "constraint",
+            "description": "Prefer github.rest.[endpoint] for standard operations. If GraphQL is structurally required, ensure the query is parameterized."
+          },
+          {
+            "name": "mandatory async await",
+            "required": true,
+            "type": "constraint",
+            "description": "All asynchronous API calls must be explicitly prefixed with await to prevent race conditions."
+          }
+        ]
+      },
+      {
+        "name": "Concurrency, Safety & Execution",
+        "type": "Standard",
+        "signature": "subprocess, git, SSH, webhooks",
+        "description": "Vulnerability prevention, safe Git operations, correct SSH key signing, and sanitized payload handlers.",
+        "parameters": [
+          {
+            "name": "safe subprocess execution",
+            "required": true,
+            "type": "constraint",
+            "description": "All Git, GitHub CLI (gh), and system CLI executions inside local scripts and hooks MUST use execFileSync (or execFile) with positional argv arrays to prevent shell-injection."
+          },
+          {
+            "name": "banned automatic destructive git",
+            "required": true,
+            "type": "constraint",
+            "description": "Automation scripts and hooks are strictly forbidden from running destructive git commands (git reset --hard or git clean -fd) automatically without user confirmation."
+          },
+          {
+            "name": "correct private key signing",
+            "required": true,
+            "type": "constraint",
+            "description": "ssh-keygen -Y sign invocations in signing hooks, unit tests, and shell wrappers must always be passed the private key file path, never the public .pub path."
+          },
+          {
+            "name": "sanitized gha payloads",
+            "required": true,
+            "type": "constraint",
+            "description": "Treat all inputs from context.payload (PR titles, issue bodies, authors) as untrusted strings. Sanitize them before running regex matches or logging them."
+          },
+          {
+            "name": "graceful api failures",
+            "required": true,
+            "type": "constraint",
+            "description": "Wrap all GHA API operations in try-catch blocks, calling core.setFailed(error.message) on failure to gracefully exit."
+          }
+        ]
+      },
+      {
+        "name": "Automation Quality Gates, Testing & Architecture",
+        "type": "Standard",
+        "signature": "gates, logging, outputs",
+        "description": "Requirements for gate artifact protection, immediate state revocation on failures, GHA native UI logging, and output bindings.",
+        "parameters": [
+          {
+            "name": "gate artifact tamper protection",
+            "required": true,
+            "type": "constraint",
+            "description": "Enforcer hooks must implement a strict denylist blocking edits, creation, or replacement of gating artifacts (*-approval.json, *.sig, *.challenge)."
+          },
+          {
+            "name": "immediate state revocation",
+            "required": true,
+            "type": "constraint",
+            "description": "If a validation step detects empty, missing, corrupt, or non-compliant outputs, the script must actively unlink or delete the active phase approval file and state flags."
+          },
+          {
+            "name": "gha ui-native logging",
+            "required": true,
+            "type": "constraint",
+            "description": "Avoid using raw console.log() inside GHA scripts. Use core.info(), core.notice(), core.warning(), or core.error() to ensure logs are natively parsed in the Actions UI."
+          },
+          {
+            "name": "explicit output bindings",
+            "required": true,
+            "type": "constraint",
+            "description": "Set workflow step outputs explicitly using core.setOutput('name', value) rather than relying on the function's implicit return value."
+          }
+        ]
+      }
+    ]
+  },
+  "docs/development/reference/ShellScripts.toml": {
+    "title": "Shell Script Coding Standards",
+    "description": "Strict reference index of shell script (Bash and POSIX sh) syntax, safety, execution, and structure rules.",
+    "quadrant": "Reference",
+    "items": [
+      {
+        "name": "Safety & Execution",
+        "type": "Standard",
+        "signature": "shebang, set, safe expansion",
+        "description": "Critical rules regarding interpreters, fail-fast parameters, and safe variable expansions.",
+        "parameters": [
+          {
+            "name": "context-aware shebangs",
+            "required": true,
+            "type": "constraint",
+            "description": "Always declare intended interpreter: #!/usr/bin/env bash or #!/bin/bash for Bash (Nix, CI, Local). Use #!/bin/sh for POSIX targets (Ubuntu/dash compatibility)."
+          },
+          {
+            "name": "fail-fast parameters",
+            "required": true,
+            "type": "constraint",
+            "description": "All scripts must terminate immediately on error: set -euo pipefail for Bash; set -eu for POSIX sh."
+          },
+          {
+            "name": "safe variable expansion",
+            "required": true,
+            "type": "constraint",
+            "description": "Always wrap and quote variable expansions to prevent word splitting and glob expansion. Good: rm -rf \"${DIR_PATH:?}\"/*"
+          }
+        ]
+      },
+      {
+        "name": "Syntax, Conditionals & Linters",
+        "type": "Standard",
+        "signature": "shellcheck, brackets, substitution",
+        "description": "Linter compliance, safe brackets, and substitution rules.",
+        "parameters": [
+          {
+            "name": "shellcheck compliance",
+            "required": true,
+            "type": "constraint",
+            "description": "All shell scripts must pass shellcheck with zero findings. Use shellcheck -s sh for POSIX scripts."
+          },
+          {
+            "name": "safe conditionals",
+            "required": true,
+            "type": "constraint",
+            "description": "Bash: Prefer double brackets [[ ]] (prevents word splitting/path expansion). POSIX sh: Must use single brackets [ ] and aggressively quote inside them."
+          },
+          {
+            "name": "command substitution",
+            "required": true,
+            "type": "constraint",
+            "description": "Always use $(command) for command substitution. Backticks are strictly banned."
+          }
+        ]
+      },
+      {
+        "name": "Naming Conventions & Modularity",
+        "type": "Standard",
+        "signature": "naming, scoping, functions",
+        "description": "Rules regarding variable naming styles, scoping inside functions, usage/help, and entry points.",
+        "parameters": [
+          {
+            "name": "local variable scoping",
+            "required": true,
+            "type": "constraint",
+            "description": "Always declare variables inside functions with the local keyword (except POSIX sh) to prevent global state leakage."
+          },
+          {
+            "name": "variable naming style",
+            "required": true,
+            "type": "constraint",
+            "description": "Use UPPER_CASE for global/configuration/env variables. Use lower_case or snake_case for internal, local, or helper variables."
+          },
+          {
+            "name": "mandatory modularity",
+            "required": true,
+            "type": "constraint",
+            "description": "Organize all script logic into cohesive, single-responsibility functions rather than monolithic script blocks."
+          },
+          {
+            "name": "help and usage",
+            "required": true,
+            "type": "constraint",
+            "description": "Implement standard usage and help parsing. Parse -h and --help, printing instruction manuals via a show_help() function and exiting status 0."
+          },
+          {
+            "name": "main execution entry",
+            "required": true,
+            "type": "constraint",
+            "description": "Every script must have a main() function at the bottom of the script orchestrating the flow, invoked explicitly as main \"$@\"."
+          }
+        ]
+      },
+      {
+        "name": "Test Scripts, Makefiles & Cleanup",
+        "type": "Standard",
+        "signature": "makefile, runner, traps",
+        "description": "Requirements for Makefile targets, automated test runner features, exit traps, and cleanup operations.",
+        "parameters": [
+          {
+            "name": "independent makefile actions",
+            "required": true,
+            "type": "constraint",
+            "description": "Makefile must run outside dev environment context, warning if Nix is missing, and must define targets: lint, test, build, and cleanup (takes ID)."
+          },
+          {
+            "name": "automated test runner",
+            "required": true,
+            "type": "constraint",
+            "description": "run_tests.sh must support --lint-only, --build-only, --cleanup_id, slow-mode, and offline local cache seeding."
+          },
+          {
+            "name": "guaranteed cleanup",
+            "required": true,
+            "type": "constraint",
+            "description": "Cleanup sequence must execute within a bash trap (on EXIT, ERR, INT) inside run_tests.sh to ensure execution on crashes."
+          },
+          {
+            "name": "standard tagged cleanup",
+            "required": true,
+            "type": "constraint",
+            "description": "cleanup.sh runs standalone. If no run ID is provided, it must find and destroy resources tagged with \"Owner\" = \"terraform-ci@suse.com\"."
+          }
+        ]
+      }
+    ]
+  },
+  "docs/development/reference/Terraform.toml": {
+    "title": "Terraform Coding Standards",
+    "description": "Strict reference index of Terraform variable validations, lifecycles, and state safety rules.",
+    "quadrant": "Reference",
+    "items": [
+      {
+        "name": "Syntax, Formatting & Linter Compliance",
+        "type": "Standard",
+        "signature": "terraform fmt, tflint",
+        "description": "Rules regarding linter compliance, formatting, and lowercase snake_case naming.",
+        "parameters": [
+          {
+            "name": "terraform fmt",
+            "required": true,
+            "type": "constraint",
+            "description": "All .tf files must comply strictly with standard terraform fmt indentation, spacing, and block alignment rules."
+          },
+          {
+            "name": "lowercase snake_case labels",
+            "required": true,
+            "type": "constraint",
+            "description": "All block identifiers, resource names, data source names, variable names, module names, and output names MUST use lowercase letters, digits, and underscores only (snake_case). Never use uppercase letters or hyphens."
+          },
+          {
+            "name": "tflint",
+            "required": true,
+            "type": "constraint",
+            "description": "All directories must pass local tflint static analysis scans with zero warnings or violations."
+          }
+        ]
+      },
+      {
+        "name": "Declarative Logic & Lifecycle Management",
+        "type": "Standard",
+        "signature": "lifecycles",
+        "description": "Stability via for_each, post-apply validations, variable validation, and depends_on scoped usage.",
+        "parameters": [
+          {
+            "name": "for_each over count",
+            "required": true,
+            "type": "constraint",
+            "description": "Prefer using for_each over count when creating multiple resources from lists or maps to avoid redundant resource destruction/creation cycles on item deletions."
+          },
+          {
+            "name": "basic validations",
+            "required": true,
+            "type": "constraint",
+            "description": "Use validation blocks on variables for input-level correctness (regex patterns, CIDR blocks, string options) at the earliest stage."
+          },
+          {
+            "name": "complex post-apply validations",
+            "required": true,
+            "type": "constraint",
+            "description": "Use check blocks for post-apply functional validations, especially assertions comparing inputs/outputs across multiple separate resources."
+          },
+          {
+            "name": "complex execution preconditions",
+            "required": true,
+            "type": "constraint",
+            "description": "Use terraform_data resource preconditions for complex structural assertions that cannot be evaluated in standard check blocks to halt apply before destruction."
+          },
+          {
+            "name": "scoped depends_on",
+            "required": true,
+            "type": "constraint",
+            "description": "Avoid depends_on unless implicit dependencies are structurally impossible. Document precisely why if used."
+          }
+        ]
+      },
+      {
+        "name": "Security, Hardening & State Safety",
+        "type": "Standard",
+        "signature": "security",
+        "description": "Redaction of private values, credential management, and tfsec/trivy static security scanning.",
+        "parameters": [
+          {
+            "name": "sensitive outputs",
+            "required": true,
+            "type": "constraint",
+            "description": "Any variable or output containing credentials, TLS private keys, API keys, passwords, or personal data MUST be explicitly marked with sensitive = true."
+          },
+          {
+            "name": "no hardcoded credentials",
+            "required": true,
+            "type": "constraint",
+            "description": "Under no circumstances should secrets or tokens be hardcoded inside any .tf file. Manage secrets through secure variables, vault data sources, or environment."
+          },
+          {
+            "name": "static security scans",
+            "required": true,
+            "type": "constraint",
+            "description": "All configurations must pass static security scans (tfsec or trivy) to ensure compliance with infrastructure hardening baselines."
+          }
+        ]
+      },
+      {
+        "name": "Architecture, Modularization & Testing",
+        "type": "Standard",
+        "signature": "architecture",
+        "description": "Strict type enforcement, standardized module file layout, and descriptive documentation comments.",
+        "parameters": [
+          {
+            "name": "explicit types",
+            "required": true,
+            "type": "constraint",
+            "description": "Never declare variables with type = any. Always declare explicit, tightly constrained schemas to catch configuration errors during planning."
+          },
+          {
+            "name": "module layout",
+            "required": true,
+            "type": "constraint",
+            "description": "Directories must separate block types into discrete standardized files: main.tf, variables.tf, outputs.tf, and versions.tf."
+          },
+          {
+            "name": "descriptive comments",
+            "required": true,
+            "type": "constraint",
+            "description": "Every variable and output declaration MUST contain a meaningful, grammatically correct description string explaining its purpose."
+          }
+        ]
+      }
+    ]
+  },
+  "docs/development/reference/Workflows.toml": {
+    "title": "GitHub Actions Workflow Coding Standards",
+    "description": "Strict reference index of GitHub Actions workflow security, reliability, and orchestration rules.",
+    "quadrant": "Reference",
+    "items": [
+      {
+        "name": "Security & Hardening",
+        "type": "Standard",
+        "signature": "permissions, OIDC, SHA pin, namespace, interpolation",
+        "description": "Critical rules to prevent GHA vulnerabilities, enforce least-privilege, and secure third-party integrations.",
+        "parameters": [
+          {
+            "name": "explicit least-privilege permissions",
+            "required": true,
+            "type": "constraint",
+            "description": "All workflows must declare a global default permissions: {} (all scopes none) at top level, selectively enabling exact scopes on individual jobs."
+          },
+          {
+            "name": "mandatory oidc federated identity",
+            "required": true,
+            "type": "constraint",
+            "description": "Long-lived credentials inside GHA runner contexts are banned. Always authenticate securely using OIDC tokens via native configure-aws-credentials-like actions."
+          },
+          {
+            "name": "pin actions by 40-character commit sha",
+            "required": true,
+            "type": "constraint",
+            "description": "Mutable tag names or branches in uses: are banned. All actions must be pinned strictly to a 40-character commit SHA hash with tag commented, preceded by a link to the official releases page."
+          },
+          {
+            "name": "strict namespace allowlist",
+            "required": true,
+            "type": "constraint",
+            "description": "Third-party actions must belong strictly to the allowed list (actions/*, aquasecurity/*, aws-actions/*, dependabot/*, fossas/*, golang/*, golangci/*, google-github-actions/*, goreleaser/*, hashicorp/*, rancher-eio/*, renovatebot/*, and updatecli/*)."
+          },
+          {
+            "name": "banned inline context interpolation",
+            "required": true,
+            "type": "constraint",
+            "description": "Direct interpolation of untrusted fields (like PR titles, head refs) into templates in run: or github-script is banned. Pass through env: variables instead."
+          },
+          {
+            "name": "banned pull_request_target trigger",
+            "required": true,
+            "type": "constraint",
+            "description": "The pull_request_target trigger is strictly banned from all repository workflows. Use standard pull_request triggers instead."
+          }
+        ]
+      },
+      {
+        "name": "Reliability & Performance",
+        "type": "Standard",
+        "signature": "timeouts, concurrency, cache",
+        "description": "Rules regarding timeouts, redundant run cancellation, and dependencies caching.",
+        "parameters": [
+          {
+            "name": "mandatory job-level timeouts",
+            "required": true,
+            "type": "constraint",
+            "description": "Every individual job MUST declare an explicit timeout-minutes value, never relying on defaults."
+          },
+          {
+            "name": "redundant run cancellation",
+            "required": true,
+            "type": "constraint",
+            "description": "PR workflows must implement a concurrency block to automatically cancel previous redundant pipeline runs for the same branch on a new push."
+          },
+          {
+            "name": "cached runners dependency",
+            "required": true,
+            "type": "constraint",
+            "description": "Speed up builds by implementing runner-level dependency caching via actions/cache or setup action config toggles."
+          }
+        ]
+      },
+      {
+        "name": "Structure & Maintainability",
+        "type": "Standard",
+        "signature": "orchestrate, scripts, steps",
+        "description": "Declarative GHA orchestration, script isolation, descriptive names, and protected environments.",
+        "parameters": [
+          {
+            "name": "declarative orchestration",
+            "required": true,
+            "type": "constraint",
+            "description": "Workflows must orchestrate, not execute. Delegate code execution to external actions or isolated scripts."
+          },
+          {
+            "name": "external script isolation",
+            "required": true,
+            "type": "constraint",
+            "description": "Scripts longer than 5 lines must be moved into .github/workflows/scripts/ directory."
+          },
+          {
+            "name": "external script validation",
+            "required": true,
+            "type": "constraint",
+            "description": "All external scripts in .github/workflows/scripts must be validated/linted inside pull_request.yaml workflow."
+          },
+          {
+            "name": "descriptive step naming",
+            "required": true,
+            "type": "constraint",
+            "description": "Every workflow, job, and step MUST contain a descriptive name string."
+          },
+          {
+            "name": "protected environments",
+            "required": true,
+            "type": "constraint",
+            "description": "Any job utilizing production secrets or deploying to registries/environments must be gated behind manual approval environment blocks."
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -96,6 +96,8 @@ remediation
 remediations
 renovatebot
 rewordings
+respawn
+respawning
 sandbox
 sandboxed
 sandboxing
