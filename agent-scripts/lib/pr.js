@@ -2,35 +2,91 @@ import { spawn } from 'child_process';
 import { gitBranchShowCurrent } from './git.js';
 
 /**
+ * Safe JSON parsing helper to comply with fail-safe standards.
+ */
+function safeJsonParse(str, fallback = {}) {
+  try {
+    return JSON.parse(str);
+  } catch (err) {
+    console.warn(`JSON parsing failed: ${err.message}. Raw value: ${str}`);
+    return fallback;
+  }
+}
+
+/**
  * Safely executes the `gh` CLI, returning stdout.
  * Bypasses the shell for maximum security against injection.
  */
 export function runGh(args, options = {}) {
-  const { envOverrides = {}, cwd = process.cwd() } = options;
+  const { envOverrides = {}, cwd = process.cwd(), input, signal } = options;
   const env = { ...process.env, ...envOverrides };
   const spawnOptions = {
     cwd,
     env,
+    ...(signal ? { signal } : {}),
   };
 
   return new Promise((resolve, reject) => {
+    // Type validation to comply with fail-safe types standards
+    if (input !== undefined && input !== null && typeof input !== 'string' && !globalThis.Buffer.isBuffer(input)) {
+      return reject(new TypeError('options.input must be a string or Buffer'));
+    }
+
     const child = spawn('gh', args, spawnOptions);
+
     let stdout = '';
     let stderr = '';
+    const bufferLimit = 10 * 1024 * 1024; // 10MB memory protection limit
+    let limitExceeded = false;
+
+    // Attach error listener to stdin to handle backpressure and ignore EPIPE
+    if (child.stdin) {
+      child.stdin.on('error', (err) => {
+        if (err.code !== 'EPIPE' && !limitExceeded) {
+          reject(new Error(`gh stdin error: ${err.message}`));
+        }
+      });
+    }
+
+    if (input !== undefined && input !== null) {
+      child.stdin.write(input);
+      child.stdin.end();
+    }
 
     child.stdout.on('data', (data) => {
+      if (limitExceeded) {
+        return;
+      }
       stdout += data.toString();
+      if (stdout.length > bufferLimit) {
+        limitExceeded = true;
+        child.kill();
+        reject(new Error('Memory Exhaustion Protection: stdout limit exceeded 10MB'));
+      }
     });
 
     child.stderr.on('data', (data) => {
+      if (limitExceeded) {
+        return;
+      }
       stderr += data.toString();
+      if (stderr.length > bufferLimit) {
+        limitExceeded = true;
+        child.kill();
+        reject(new Error('Memory Exhaustion Protection: stderr limit exceeded 10MB'));
+      }
     });
 
     child.on('error', (err) => {
-      reject(new Error(`Failed to execute gh: ${err.message}`));
+      if (!limitExceeded) {
+        reject(new Error(`Failed to execute gh: ${err.message}`));
+      }
     });
 
     child.on('close', async (code) => {
+      if (limitExceeded) {
+        return;
+      }
       if (code !== 0) {
         // Smart fallback: If gh fails and GITHUB_TOKEN is set, retry using the native keychain auth.
         if (env.GITHUB_TOKEN) {
@@ -40,8 +96,8 @@ export function runGh(args, options = {}) {
             const fallbackResult = await runGh(args, { ...options, envOverrides: { GITHUB_TOKEN: undefined } });
             resolve(fallbackResult);
             return;
-          } catch {
-            // If fallback also fails, reject with original error
+          } catch (fallbackErr) {
+            console.warn(`Fallback execution failed: ${fallbackErr.message}`);
           }
         }
         reject(new Error(`gh ${args.join(' ')} failed:\n${stderr || stdout}`));
@@ -57,7 +113,7 @@ export function runGh(args, options = {}) {
  */
 export async function getRepoContext(prNumber) {
   const out = await runGh(['pr', 'view', String(prNumber), '--json', 'url'], {});
-  const url = JSON.parse(out).url;
+  const url = safeJsonParse(out, { url: '' }).url;
   // URL format: https://github.com/owner/repo/pull/123
   const parts = url.split('/');
   return { owner: parts[3], repo: parts[4] };
@@ -66,7 +122,7 @@ export async function getRepoContext(prNumber) {
 export async function exists(branch, owner, cwd = process.cwd()) {
   const head = owner ? `${owner}:${branch}` : branch;
   const out = await runGh(['pr', 'list', '--state', 'open', '--head', head, '--json', 'number'], { cwd });
-  const prs = JSON.parse(out);
+  const prs = safeJsonParse(out, []);
   return prs.length > 0 ? prs[0].number : null;
 }
 
@@ -82,21 +138,23 @@ export async function detectPrId(cwd = process.cwd()) {
   return null;
 }
 
-export async function create({ title, body, base = 'main', head, draft = true, repo }, cwd = process.cwd()) {
-  const args = ['pr', 'create', '--title', title, '--body', body, '--base', base];
+export async function create(prData, cwd = process.cwd()) {
+  const { title, body, base = 'main', head } = prData;
+  if (typeof title !== 'string' || typeof body !== 'string') {
+    throw new TypeError('title and body must be strings');
+  }
+  const args = ['pr', 'create', '--draft', '--title', title, '--body', body];
+  if (base) {
+    args.push('--base', base);
+  }
   if (head) {
     args.push('--head', head);
-  }
-  if (draft) {
-    args.push('--draft');
-  }
-  if (repo) {
-    args.push('--repo', repo);
   }
   return await runGh(args, { cwd });
 }
 
-export async function update(prNumber, { title, body }, cwd = process.cwd()) {
+export async function update(prNumber, prData, cwd = process.cwd()) {
+  const { title, body } = prData;
   const args = ['pr', 'edit', String(prNumber)];
   if (title) {
     args.push('--title', title);
@@ -117,7 +175,7 @@ export async function comment(prNumber, body, cwd = process.cwd()) {
 
 export async function getGeneralComments(prNumber, cwd = process.cwd()) {
   const out = await runGh(['pr', 'view', String(prNumber), '--json', 'comments'], { cwd });
-  return JSON.parse(out).comments;
+  return safeJsonParse(out, { comments: [] }).comments;
 }
 
 export async function getReviewThreads(prNumber, cwd = process.cwd()) {
@@ -161,44 +219,111 @@ export async function getReviewThreads(prNumber, cwd = process.cwd()) {
     ],
     { cwd },
   );
-  const data = JSON.parse(out);
-  return data.data.repository.pullRequest.reviewThreads.nodes;
+  const data = safeJsonParse(out, null);
+  return data?.data?.repository?.pullRequest?.reviewThreads?.nodes || [];
+}
+
+globalThis.__prThreadMutexes = globalThis.__prThreadMutexes || new Map();
+const threadMutexes = globalThis.__prThreadMutexes;
+
+/**
+ * Higher-order mutex and timeout synchronization wrapper.
+ */
+async function withMutex(lockKey, taskFn) {
+  const lenKey = lockKey + ':len';
+  const prior = threadMutexes.get(lockKey) || Promise.resolve();
+  const currentLen = (threadMutexes.get(lenKey) || 0) + 1;
+  threadMutexes.set(lenKey, currentLen);
+
+  const nextPromise = prior.then(async () => {
+    const controller = new globalThis.AbortController();
+    const timer = setTimeout(() => {
+      controller.abort(new Error('Timeout Error: Operation stalled'));
+    }, 30000);
+    timer.unref();
+
+    try {
+      return await taskFn(controller.signal);
+    } catch (err) {
+      console.log(`::error::PR Thread API Error: ${err.message}`);
+      throw err;
+    } finally {
+      clearTimeout(timer);
+      const newLen = (threadMutexes.get(lenKey) || 1) - 1;
+      if (newLen <= 0) {
+        threadMutexes.delete(lockKey);
+        threadMutexes.delete(lenKey);
+      } else {
+        threadMutexes.set(lenKey, newLen);
+      }
+    }
+  });
+
+  threadMutexes.set(lockKey, nextPromise);
+  return await nextPromise;
 }
 
 export async function replyToReviewComment(prNumber, commentId, body, cwd = process.cwd()) {
-  const { owner, repo } = await getRepoContext(prNumber);
-  await runGh(
-    [
-      'api',
-      `repos/${owner}/${repo}/pulls/${prNumber}/comments/${commentId}/replies`,
-      '-X',
-      'POST',
-      '-f',
-      `body=${body}`,
-    ],
-    { cwd },
-  );
-}
-
-export async function resolveReviewThread(threadId, cwd = process.cwd()) {
-  const mutation = `mutation($threadId: ID!) { resolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } } }`;
-  await runGh(['api', 'graphql', '-F', `threadId=${threadId}`, '-f', `query=${mutation}`], { cwd });
-}
-
-export async function resolveThread(threadId, filePath, author, cwd = process.cwd()) {
-  console.log(`Resolving thread ${threadId} on '${filePath}' by @${author}...`);
-  try {
-    await resolveReviewThread(threadId, cwd);
-    console.log('✅ Thread successfully resolved!');
-  } catch (err) {
-    console.error(`❌ Failed to resolve thread ${threadId}: ${err.message}`);
+  if (typeof body !== 'string' || body.trim() === '') {
+    throw new TypeError('body must be a non-empty string');
   }
+
+  const lockKey = 'comment:' + commentId;
+  return await withMutex(lockKey, async (signal) => {
+    const { owner, repo } = await getRepoContext(prNumber);
+    await runGh(
+      ['api', `repos/${owner}/${repo}/pulls/${prNumber}/comments/${commentId}/replies`, '-X', 'POST', '-f', 'body=-'],
+      { cwd, input: body, signal },
+    );
+  });
+}
+
+export async function resolveReviewThread(threadId, message = null, cwd = process.cwd()) {
+  if (message !== null && message !== undefined) {
+    if (typeof message !== 'string' || message.trim() === '') {
+      throw new TypeError('message must be a non-empty string');
+    }
+  }
+
+  const lockKey = 'thread:' + threadId;
+  return await withMutex(lockKey, async (signal) => {
+    if (message !== null && message !== undefined) {
+      const mutation = `mutation($threadId: ID!, $body: String!) {
+        addPullRequestReviewThreadReply(input: {pullRequestThreadId: $threadId, body: $body}) { clientMutationId }
+        resolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } }
+      }`;
+      await runGh(['api', 'graphql', '-F', `threadId=${threadId}`, '-f', 'body=-', '-f', `query=${mutation}`], {
+        cwd,
+        input: message,
+        signal,
+      });
+    } else {
+      const mutation = `mutation($threadId: ID!) { resolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } } }`;
+      await runGh(['api', 'graphql', '-F', `threadId=${threadId}`, '-f', `query=${mutation}`], { cwd, signal });
+    }
+  });
+}
+
+export async function replyToReviewThread(threadId, body, cwd = process.cwd()) {
+  if (typeof body !== 'string' || body.trim() === '') {
+    throw new TypeError('body must be a non-empty string');
+  }
+
+  const lockKey = 'thread:' + threadId;
+  return await withMutex(lockKey, async (signal) => {
+    const mutation = `mutation($threadId: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestThreadId: $threadId, body: $body}) { clientMutationId } }`;
+    await runGh(['api', 'graphql', '-F', `threadId=${threadId}`, '-f', 'body=-', '-f', `query=${mutation}`], {
+      cwd,
+      input: body,
+      signal,
+    });
+  });
 }
 
 export async function view(target, fields = ['state', 'number', 'url', 'isDraft'], cwd = process.cwd()) {
   try {
     const out = await runGh(['pr', 'view', String(target), '--json', fields.join(',')], { cwd });
-    return JSON.parse(out);
+    return safeJsonParse(out);
   } catch (err) {
     if (err.message.includes('no pull requests found') || err.message.includes('could not find pull request')) {
       return null;
@@ -221,7 +346,7 @@ export async function getDefaultBranch(cwd = process.cwd()) {
 
 export async function listUrl(branch, cwd = process.cwd()) {
   const out = await runGh(['pr', 'list', '--head', branch, '--json', 'url'], { cwd });
-  const prs = JSON.parse(out);
+  const prs = safeJsonParse(out, []);
   return prs.length > 0 ? prs[0].url : null;
 }
 
@@ -233,8 +358,8 @@ export async function getAllComments(prNumber, cwd = process.cwd()) {
   const { owner, repo } = await getRepoContext(prNumber);
   const genOut = await runGh(['api', `repos/${owner}/${repo}/issues/${prNumber}/comments`, '--paginate'], { cwd });
   const revOut = await runGh(['api', `repos/${owner}/${repo}/pulls/${prNumber}/comments`, '--paginate'], { cwd });
-  const gen = JSON.parse(genOut || '[]').map((c) => ({ ...c, type: 'general' }));
-  const rev = JSON.parse(revOut || '[]').map((c) => ({ ...c, type: 'review' }));
+  const gen = safeJsonParse(genOut || '[]', []).map((c) => ({ ...c, type: 'general' }));
+  const rev = safeJsonParse(revOut || '[]', []).map((c) => ({ ...c, type: 'review' }));
   return [...gen, ...rev].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 }
 
