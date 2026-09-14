@@ -29,6 +29,7 @@ These specifications establish the step-by-step procedures and rules for executi
 These components form our zero-bypass security sandbox, preventing unauthorized code modification, secret leaks, or command injection:
 
 - **[Secure Workflows & Hooks](../reference/SecureWorkflowsAndHooks.md):** Intercepts unvetted direct `git commit`/`push` commands and enforces the presence of signed planning blueprints prior to any file writes.
+- **Context Reduction**: Employs a token-optimized context injection strategy, where startup hooks provide dense, bulleted mandates and condensed framework reference pointers to aggressively minimize inherent prompt context and conserve token usage.
 - **[Cryptographic Gating](../reference/GatingAndApprovals.md):** Coordinates Apple Secure Enclave / Touch ID developer biometrics and chains planning, testing, and review gate signatures.
 - **[Workflow Optimization & Subagent Design](../reference/WorkflowDesign.md):** Configures our custom specialized subagents with hardened, read-only permissions and prunes mechanical style checks from core LLM prompts.
 - **[Review Subagents](../reference/ProjectManager.md):** Detailed specifications and sandboxing parameters for our pre-commit Review Agents (Heads-Down Coder and Data Scientist), which can be coordinated via our standard multi-agent `code-review.js` pipeline or our single-pass `quality-assurance.js` (Quality Assurance) script. In the latter, the Plan is treated as a living document and must encompass all intended changes for the QA script to pass.

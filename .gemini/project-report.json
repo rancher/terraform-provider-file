@@ -16,5 +16,23 @@
     "finding": "Raw console.log() usage is prohibited in GHA/agent scripts. Use core.* methods or console.error() for consistency and proper GHA UI annotation.",
     "severity": "MEDIUM",
     "reason": "Out of scope of the active plan. Preexisting minor style issue on files untouched by the plan's direct implementation."
+  },
+  {
+    "file": ".gemini/hooks/01-startup/startupLogic.js",
+    "finding": "Reduction of emphatic mandate warnings and 'Fail-Fast' termination clauses weakens the procedural enforcement.",
+    "severity": "HIGH",
+    "reason": "Intended tradeoff. The active plan explicitly directs condensing the mandate header and footer into a single short sentence and rewriting rules into brief bulleted lists to aggressively reduce context size."
+  },
+  {
+    "file": ".gemini/system.md",
+    "finding": "Simplification of operational boundaries and loss of explicit positive/negative communication patterns reduces perceived rigidity.",
+    "severity": "MEDIUM",
+    "reason": "Intended tradeoff. The active plan explicitly requires removing conversational filler, analogies, and redundant explanations to compress the context."
+  },
+  {
+    "file": ".gemini/hooks/01-startup/startupLogic.js",
+    "finding": "Aggressive truncation of error-handling mandates (e.g., replacing detailed catch block rules with 'Never swallow errors').",
+    "severity": "MEDIUM",
+    "reason": "Intended tradeoff. The plan's primary objective is to condense rules into concise bullet points without the wordiness."
   }
 ]
