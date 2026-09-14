@@ -98,9 +98,9 @@ async function main() {
   restoreSshAgent();
   let inputData = {};
   try {
-    inputData = JSON.parse(await fs.promises.readFile(0, 'utf-8'));
-  } catch {
-    // Ignore EAGAIN
+    inputData = JSON.parse(fs.readFileSync(0, 'utf-8'));
+  } catch (err) {
+    console.error(`🔒 Hook Warning: Failed to read/parse STDIN in main: ${err.message || err}`);
   }
 
   const targetDir = await resolveTargetDir();
@@ -125,6 +125,7 @@ async function main() {
 main().catch((err) => {
   const errMsg = `Fatal Commit Phase Hook Error: ${err.stack || err.message}`;
   console.error('::error::' + errMsg);
+  hasLogged = true;
   process.stdout.write(
     JSON.stringify({
       decision: 'deny',

@@ -316,8 +316,14 @@ export async function calculateDiffHash(cwd = process.cwd()) {
 
     // 1. Accumulate tracked diffs
     if (currentBranch !== 'main' && currentBranch !== '') {
-      // Feature branch: diff working tree (staged + unstaged) against main
-      const diffMain = await gitDiff('main', cwd);
+      // Feature branch: diff working tree (staged + unstaged) against main with -U10 context to match review pipeline
+      let diffMain;
+      try {
+        diffMain = await executeGit(['diff', '-U10', 'origin/main'], cwd);
+      } catch (err) {
+        console.warn(`::warning::Failed to diff against origin/main, falling back to local main: ${err.message}`);
+        diffMain = await executeGit(['diff', '-U10', 'main'], cwd);
+      }
       hash.update(diffMain);
     } else {
       // Main or detached HEAD: diff unstaged changes

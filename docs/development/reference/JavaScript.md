@@ -28,6 +28,8 @@ This document is a dry, structured reference index of JavaScript syntax, securit
 
 - **Rule: Fail-Safe JSON Parsing (State Management)**
   - **Constraint:** All JSON file reads and parsing routines (such as loading `phase-state.json`) must be wrapped in `try-catch` blocks, providing a fallback to a fresh default state if corrupt or malformed JSON is encountered.
+- **Rule: No Abrupt process.exit in Shared Library Modules**
+  - **Constraint:** Functions inside shared library files (such as `agent-scripts/lib/approval.js`) must never call `process.exit(1)` directly when encountering an error. Instead, they must throw an `Error` to allow the calling enforcer hook or CLI tool to catch and gracefully format/route the failure (e.g., via `deny()`), preventing unformatted crash loops.
 - **Rule: Mandatory Octokit Pagination (GHA Specific)**
   - **Constraint:** All GHA REST API calls that return arrays (like listing PR comments or repositories) MUST use the `github.paginate` wrapper to guarantee exhaustive collection of paginated results.
 - **Rule: Preferred REST over GraphQL (GHA Specific)**

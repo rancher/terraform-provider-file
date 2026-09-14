@@ -94,6 +94,11 @@ export async function afterAskUserPlan(inputData, targetDir) {
   const { tool_name, tool_input, tool_response } = inputData;
   const hookName = 'afterAskUserPlan';
 
+  if (!tool_name || tool_name !== 'ask_user' || !tool_input || !tool_response) {
+    allow(hookName, tool_name || 'no-tool-called');
+    return;
+  }
+
   validateAskUser(hookName, tool_name, tool_input);
   const tomlData = getTomlFrom(tool_input);
 
@@ -143,13 +148,16 @@ export async function afterAskUserPlan(inputData, targetDir) {
   const homeDir = os.homedir();
   const sshPubKeyFile = path.resolve(homeDir, '.gemini/ssh-key.pub');
   const planContent = tomlData.plan;
-  const result = await handlePlanApproval(targetDir, sshPubKeyFile, planContent);
-
-  allow(
-    hookName,
-    tool_name,
-    tool_input,
-    '',
-    '\n\n' + (result ? result.systemMessage : '') + ' You may now call exit_plan_mode.',
-  );
+  try {
+    const result = await handlePlanApproval(targetDir, sshPubKeyFile, planContent);
+    allow(
+      hookName,
+      tool_name,
+      tool_input,
+      '',
+      '\n\n' + (result ? result.systemMessage : '') + ' You may now call exit_plan_mode.',
+    );
+  } catch (err) {
+    deny('Gate 1 (Planning Gate) Execution', err.message, 'Please address the error and run ask_user again.');
+  }
 }
