@@ -117,7 +117,7 @@ export function extractPlanContent(promptText) {
 }
 
 export async function savePlanContent(targetDir, planContent) {
-  let activePlan = findLatestActivePlan(targetDir);
+  let activePlan = await findLatestActivePlan(targetDir);
   if (!activePlan && planContent) {
     let activeSessions = [];
     try {
@@ -125,7 +125,7 @@ export async function savePlanContent(targetDir, planContent) {
         activeSessions = await fsPromises.readdir(targetDir);
       }
     } catch (err) {
-      console.log(`::warning::savePlanContent failed to read target directory: ${err.message}`);
+      console.error(`::warning::savePlanContent failed to read target directory: ${err.message}`);
     }
 
     let plansDir = null;
@@ -152,10 +152,10 @@ export async function savePlanContent(targetDir, planContent) {
       await writeFileSafe(activePlan, planContent, { mode: 0o600 });
       console.error(`🔒 Hook Info: Successfully bypassed write block to save plan to ${activePlan}`);
     } catch (err) {
-      console.log(`::error::Hook Error: Failed to write plan to ${activePlan}: ${err.message}`);
+      console.error(`::error::Hook Error: Failed to write plan to ${activePlan}: ${err.message}`);
     }
   }
-  return activePlan || findLatestActivePlan(targetDir);
+  return activePlan || (await findLatestActivePlan(targetDir));
 }
 
 // Calculate SHA-256 hash of a file's content

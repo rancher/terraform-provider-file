@@ -1,5 +1,6 @@
 # Hide security hooks and scripts
 .gemini/hooks/
+!.gemini/hooks/01-startup/startupLogic.js
 .claude/hooks/
 !agent-scripts/
 
