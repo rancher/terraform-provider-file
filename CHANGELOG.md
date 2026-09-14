@@ -4,7 +4,6 @@
 
 ### Bug Fixes
 
-- **docs**: migrate developer reference markdown files under docs/development/reference/ to structured TOML formats and resolve review linter errors
 - **env**: fix PS1 prompt line-wrapping and remove terminal columns resizing to prevent glitches
 
 ## [2.4.17](https://github.com/rancher/terraform-provider-file/compare/v2.4.16...v2.4.17) (2026-08-05)
