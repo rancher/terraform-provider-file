@@ -83,6 +83,7 @@ async function main() {
   }
 
   if (!inputData || typeof inputData !== 'object' || Array.isArray(inputData)) {
+    hasLogged = true;
     process.stdout.write(
       JSON.stringify({
         decision: 'deny',

@@ -4,14 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { revokeSignature, verifyPlanGate } from './tools/approval.js';
-import {
-  executeGit,
-  gitAddAll,
-  getActiveDiff,
-  getActiveChangedFiles,
-  getRepoDefaultBranch,
-  gitBranchShowCurrent,
-} from './tools/git.js';
+import { executeGit, gitAddAll, getActiveDiff, getActiveChangedFiles } from './tools/git.js';
 import { runGeminiWithValidation } from './tools/gemini.js';
 import { resolveTargetDir } from './tools/file.js';
 import { runPreReviewTests } from './tools/test.js';
@@ -336,8 +329,6 @@ async function main() {
   }
 
   let activeDiff;
-  const defaultBranch = await getRepoDefaultBranch();
-  const currentBranch = await gitBranchShowCurrent();
 
   console.info('::notice::[Unified Diff] Calculating active workspace difference...');
   const unfilteredDiff = await getActiveDiff(process.cwd());
@@ -374,16 +365,7 @@ async function main() {
 
   // Generate the filtered activeDiff for Gemini audit
   if (changedFiles.length > 0) {
-    if (currentBranch && currentBranch !== defaultBranch) {
-      try {
-        activeDiff = await executeGit(['diff', '-U10', `origin/${defaultBranch}`, '--', ...changedFiles]);
-      } catch (err) {
-        console.debug(`Failed to diff against origin/${defaultBranch}, trying local fallback: ${err.message}`);
-        activeDiff = await executeGit(['diff', '-U10', defaultBranch, '--', ...changedFiles]);
-      }
-    } else {
-      activeDiff = await executeGit(['diff', '-U10', 'HEAD', '--staged', '--', ...changedFiles]);
-    }
+    activeDiff = await executeGit(['diff', '-U10', 'HEAD', '--staged', '--', ...changedFiles]);
   } else {
     activeDiff = '';
   }
