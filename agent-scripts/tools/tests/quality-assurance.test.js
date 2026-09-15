@@ -5,12 +5,15 @@ import { getStandardsFile, filterExcludedFiles, parseJSONFromText, qaValidator }
 
 test('quality-assurance script unit tests', async (t) => {
   await t.test('getStandardsFile maps extensions correctly', () => {
-    assert.strictEqual(getStandardsFile('main.go'), 'docs/development/reference/Go.md');
-    assert.strictEqual(getStandardsFile('variables.tf'), 'docs/development/reference/Terraform.md');
-    assert.strictEqual(getStandardsFile('script.sh'), 'docs/development/reference/ShellScripts.md');
-    assert.strictEqual(getStandardsFile('app.js'), 'docs/development/reference/JavaScript.md');
-    assert.strictEqual(getStandardsFile('doc.md'), 'docs/development/reference/Documentation.md');
-    assert.strictEqual(getStandardsFile('unknown.file'), 'docs/development/reference/CodingStandards.md');
+    assert.strictEqual(getStandardsFile('main.go'), 'docs/development/reference/Go.toml');
+    assert.strictEqual(getStandardsFile('variables.tf'), 'docs/development/reference/Terraform.toml');
+    assert.strictEqual(getStandardsFile('script.sh'), 'docs/development/reference/ShellScripts.toml');
+    assert.strictEqual(getStandardsFile('app.js'), 'docs/development/reference/JavaScript.toml');
+    assert.strictEqual(getStandardsFile('doc.md'), 'docs/development/reference/DocumentationFormatting.toml');
+    assert.strictEqual(getStandardsFile('doc.toml'), 'docs/development/reference/DocumentationFormatting.toml');
+    assert.strictEqual(getStandardsFile('workflow.yml'), 'docs/development/reference/Workflows.toml');
+    assert.strictEqual(getStandardsFile('workflow.yaml'), 'docs/development/reference/Workflows.toml');
+    assert.strictEqual(getStandardsFile('unknown.file'), 'docs/development/reference/CodingStandards.toml');
   });
 
   await t.test('getRepoDefaultBranch resolves default branch successfully', async () => {
@@ -25,7 +28,7 @@ test('quality-assurance script unit tests', async (t) => {
       'logo.png',
       'agent-scripts/quality-assurance.js',
       'go.sum',
-      'docs/development/explanation/AgenticFramework.md',
+      'docs/development/explanation/AgenticFramework.toml',
       'test-approval.json',
       'another.sig',
       'important-signature.sig',
@@ -37,7 +40,7 @@ test('quality-assurance script unit tests', async (t) => {
 
     assert.deepStrictEqual(filtered, [
       'main.go',
-      'docs/development/explanation/AgenticFramework.md',
+      'docs/development/explanation/AgenticFramework.toml',
       'important-signature.sig',
     ]);
   });

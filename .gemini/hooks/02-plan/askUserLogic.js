@@ -149,7 +149,7 @@ export async function afterAskUserPlan(inputData, targetDir) {
       'To fail-forward and fix this instantly, run the following troubleshooting commands in your local shell:\n\n' +
         '  eval "$(ssh-agent -s)"\n' +
         '  ssh-add ~/.gemini/ssh-key\n\n' +
-        'For detailed setup guidance, please see the developer setup documentation: docs/development/tutorials/GettingStarted.md',
+        'For detailed setup guidance, please see the developer setup documentation: docs/development/tutorials/GettingStarted.toml',
     );
   }
 

@@ -72,16 +72,19 @@ async function readFileSafe(filePath) {
 export function getStandardsFile(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   const mappings = {
-    '.go': 'docs/development/reference/Go.md',
-    '.tf': 'docs/development/reference/Terraform.md',
-    '.sh': 'docs/development/reference/ShellScripts.md',
-    '.bash': 'docs/development/reference/ShellScripts.md',
-    '.js': 'docs/development/reference/JavaScript.md',
-    '.mjs': 'docs/development/reference/JavaScript.md',
-    '.cjs': 'docs/development/reference/JavaScript.md',
-    '.ts': 'docs/development/reference/JavaScript.md',
-    '.md': 'docs/development/reference/Documentation.md',
-    default: 'docs/development/reference/CodingStandards.md',
+    '.go': 'docs/development/reference/Go.toml',
+    '.tf': 'docs/development/reference/Terraform.toml',
+    '.sh': 'docs/development/reference/ShellScripts.toml',
+    '.bash': 'docs/development/reference/ShellScripts.toml',
+    '.js': 'docs/development/reference/JavaScript.toml',
+    '.mjs': 'docs/development/reference/JavaScript.toml',
+    '.cjs': 'docs/development/reference/JavaScript.toml',
+    '.ts': 'docs/development/reference/JavaScript.toml',
+    '.md': 'docs/development/reference/DocumentationFormatting.toml',
+    '.toml': 'docs/development/reference/DocumentationFormatting.toml',
+    '.yml': 'docs/development/reference/Workflows.toml',
+    '.yaml': 'docs/development/reference/Workflows.toml',
+    default: 'docs/development/reference/CodingStandards.toml',
   };
   return mappings[ext] || mappings['default'];
 }

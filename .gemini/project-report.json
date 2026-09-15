@@ -18,6 +18,708 @@
     "reason": "Out of scope of the active plan. Preexisting minor style issue on files untouched by the plan's direct implementation."
   },
   {
+    "file": "docs/development/reference/Go.md",
+    "finding": "The requested file 'docs/development/reference/Go.md' does not exist in the project structure, violating the requirement for project documentation to be present.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. The plan explicitly mandates the deletion of legacy .md files."
+  },
+  {
+    "file": "docs/development/reference/Go.toml",
+    "finding": "The description is not 'dry' (concise/minimal) as required by the coding standards for Go reference indices.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Minor phrasing nitpick not directly related to the structural conversion."
+  },
+  {
+    "file": "docs/development/reference/JavaScript.md",
+    "finding": "The file content is empty or null, which violates the required TOML schema for documentation in the 'Reference' quadrant defined in 'docs/development/reference/DocumentationFormatting.toml' (requires title, description, quadrant, and items).",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. The .md file is intended to be deleted as part of the TOML migration; this is a false positive."
+  },
+  {
+    "file": "docs/development/reference/JavaScript.toml",
+    "finding": "The 'type' value 'constraint' is inconsistently cased compared to other structural types like 'Standard', 'Reference', and 'Index' used throughout the project standards; it should be 'Constraint' for capitalization consistency.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Minor styling discrepancy on file contents unaffected by the immediate scope of the conversion script."
+  },
+  {
+    "file": ".gemini/project-report.json",
+    "finding": "Justifying a violation of coding standards as 'out of scope' in a project report file contradicts foundational standards requiring compliance, regardless of the active implementation plan's scope.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. The project report file itself is not targeted by the active implementation plan. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Violation of 'no empty catch blocks' standard; the exception is discarded by the catch block instead of being explicitly logged or handled, which is strictly prohibited.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting issue in untouched sections of the file not directly related to the new JSON context loading implementation."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Violation of 'gha ui-native logging' standard; using raw console.warn() instead of GHA-native logging (e.g., core.warning()) which is required for proper parsing in the Actions UI.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file."
+  },
+  {
+    "file": "agent-scripts/compile-docs.js",
+    "finding": "The rename operation (`fs.promises.rename`) on some filesystems may not be atomic when crossing partition boundaries, potentially leaving a partial file if interrupted, though it is generally preferred over direct writes.",
+    "severity": "LOW",
+    "reason": "Acceptable tradeoff. The use of fs.promises.rename is standard Node.js practice for atomic file replacement. Handling edge cases for cross-partition moves is out of scope for a simple repository documentation script."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Raw console.log() is used instead of GHA-native logging methods.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Violation of 'no empty catch blocks' standard: This catch block discards the exception without logging it.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting issue in untouched sections of the file not directly related to the new JSON context loading implementation."
+  },
+  {
+    "file": "docs/development/explanation/Diataxis.toml",
+    "finding": "Inconsistent indentation throughout the document violates the mandatory coding standards.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Minor style and formatting issue on documentation content untouched by the direct parser logic implementation."
+  },
+  {
+    "file": "docs/development/reference/DocumentationFormatting.toml",
+    "finding": "The Tutorial schema definition fails to enforce the mandated 3-Gate/4-Phase framework guidelines.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Content schema definition discrepancy that does not affect the functional requirements of the conversion script."
+  },
+  {
+    "file": "docs/docs-compiled.json",
+    "finding": "The Go reference documentation contains an invalid string literal using single quotes for a format string.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting content issue residing in the underlying Go documentation rather than the core TOML parsing scope."
+  },
+  {
+    "file": ".gemini/project-report.json",
+    "finding": "Justifying a violation of mandatory Blueprint Compliance and Strict 3-Gate Architecture standards as 'out of scope' in a project report file contradicts foundational requirements for continuous compliance.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. The project report file itself is not targeted by the active implementation plan. Matches prior project decisions."
+  },
+  {
+    "file": ".gemini/project-report.json",
+    "finding": "Justifying a violation of coding standards as 'out of scope' in a project report file contradicts foundational standards requiring mandatory, continuous compliance, regardless of the active implementation plan's scope.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. The project report file itself is not targeted by the active implementation plan. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Uses raw console.warn() instead of GHA-native logging (e.g., core.warning), violating the gha ui-native logging standard.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "docs/docs-compiled.json",
+    "finding": "The documentation structure violates the 'topic layout' constraint requiring an ## Abstract section with sub-component links for domain-mapping documents residing under docs/development/.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting content structure issue residing in the underlying documentation rather than the core TOML parsing script scope."
+  },
+  {
+    "file": "package-lock.json",
+    "finding": "The 'tunnel' package is unmaintained and contains known security vulnerabilities, violating project security baselines.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Dependencies and package-lock.json are not targeted by the documentation migration plan."
+  },
+  {
+    "file": "package.json",
+    "finding": "The test script command uses globbing patterns directly within a shell-executed string, which risks shell injection and may behave inconsistently across environments.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. npm test scripts and package.json are not targeted by the documentation migration plan."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "The use of .catch(() => null) violates the 'no empty catch blocks' and 'graceful api failures' standards. Exceptions must be explicitly logged or handled.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting issue in untouched sections of the file not directly related to the new JSON context loading implementation."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "The use of console.log() violates the 'gha ui-native logging' standard, which requires using core.info() or similar methods.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Silently catching JSON.parse errors on 'item.notes' and using 'continue' suppresses auditor failures.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Parsing of sub-agent 'notes' output is preexisting logic and not part of the active implementation plan for converting markdown documentation to JSON."
+  },
+  {
+    "file": "package.json",
+    "finding": "The test script on line 12 uses shell globbing to expand filenames, which is vulnerable to shell injection if file names contain spaces or special characters.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. npm test scripts and package.json are not targeted by the documentation migration plan."
+  },
+  {
+    "file": "package-lock.json",
+    "finding": "The tunnel package specifies an extremely broad and outdated engines definition, permitting installation on legacy, insecure Node.js versions.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Dependencies and package-lock.json are not targeted by the documentation migration plan. Matches prior project decisions."
+  },
+  {
+    "file": "package.json",
+    "finding": "The entry point file 'index.js' referenced in the 'main' field is not present in the project directory, violating project structural standards.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. npm configurations and package.json are not targeted by the active implementation plan."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "The use of GitHub Actions-specific log command syntax (e.g., '::error::') in a utility script could cause unintended behavior or log manipulation.",
+    "severity": "LOW",
+    "reason": "Out of scope of the active plan. Preexisting issue in untouched sections of the file not directly related to the new JSON context loading implementation."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "In the `runReducePhase` function, the `priorDecisions` variable is initialized to an empty array and updated if `project-report.json` is read successfully. However, the subsequent usage of this variable (implied context) suggests potential race conditions if multiple processes or asynchronous operations attempt to write to or read from `.gemini/project-report.json` simultaneously, as there is no locking mechanism implemented for reading/parsing this state file.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. The plan targets JSON context loading for documentation (`docs-compiled.json`), not `project-report.json` state handling."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "In `getStandardsFile` and `runReducePhase`, `statSafe` is used to verify file existence, but the code does not implement advisory locking. While this reduces the risk of errors from `fs.existsSync` or `fs.readFileSync` on non-existent files, it does not prevent data races where the file might be modified between the `statSafe` check and the `readFileSafe` call.",
+    "severity": "LOW",
+    "reason": "Out of scope of the active plan. General concurrency issue in preexisting logic unaffected by the direct implementation."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Raw console.log() usage is prohibited inside GHA scripts per the 'gha ui-native logging' standard. Use core.info(), core.notice(), core.warning(), or core.error() to ensure logs are natively parsed in the Actions UI.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Repeated concurrent disk I/O in a loop: `getStandardsFile` reads the `.gemini/standards-mapping.json` configuration file from disk each time it is invoked. Because `runMapPhase` calls this function inside a concurrent `files.map(async ...)` operation, it triggers redundant, parallel file reads for every file being processed. In repositories with many files, this severely degrades performance and risks triggering OS file descriptor exhaustion (EMFILE). This static configuration should be loaded once, cached, and reused.",
+    "severity": "HIGH",
+    "reason": "Out of scope of the active plan. Preexisting logic unaffected by the TOML conversion plan."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Hardcoded execution context: `getStandardsFile` hardcodes `process.cwd()` to construct the path to `.gemini/standards-mapping.json`. However, `runMapPhase` processes files based on a parameterized `workspaceRoot`. If the CLI or agent is executed from a directory other than the project root, `getStandardsFile` will fail to resolve the correct workspace standards mapping.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting logic unaffected by the direct implementation."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "The project standards mandate using GHA UI-native logging (e.g., core.notice) instead of raw console.log() to ensure logs are correctly parsed in the Actions UI.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "The catch block swallows exceptions without logging or explicit handling, violating the standard requiring all exceptions to be accounted for.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting issue in untouched sections of the file not directly related to the new JSON context loading implementation. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Using console.error() instead of core.error() violates the GHA UI-native logging standard.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Violates 'gha ui-native logging' standard; scripts running in GHA context must use @actions/core logging methods (core.info, core.warning, etc.) instead of raw console.log/warn/error.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "The script uses raw console.log() for GHA logging instead of the required core.info(), core.notice(), core.warning(), or core.error() functions as mandated by the 'gha ui-native logging' standard.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Discarded exception in catch block; violates standards requirement that all exceptions must be explicitly logged or handled.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting issue in untouched sections of the file, consistent with prior project decisions regarding empty catch blocks."
+  },
+  {
+    "file": "agent-scripts/compile-docs.js",
+    "finding": "The script does not export an asynchronous default function receiving the required action context object.",
+    "severity": "MEDIUM",
+    "reason": "False positive. The script is a standalone Node.js compilation executable run via CLI, not a GitHub Action script runner file utilizing actions/github-script."
+  },
+  {
+    "file": "agent-scripts/compile-docs.js",
+    "finding": "Manually importing @actions/core is prohibited in GitHub Script runner files.",
+    "severity": "MEDIUM",
+    "reason": "False positive. This rule strictly applies to actions/github-script execution contexts, whereas this file is a local Node.js CLI script."
+  },
+  {
+    "file": "agent-scripts/compile-docs.js",
+    "finding": "The script uses raw console.error() instead of the recommended @actions/core logging methods.",
+    "severity": "MEDIUM",
+    "reason": "False positive. As a standalone local build script, standard process logging (console.error) is appropriate; it does not run as an inline GHA step where core.error() is mandated."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "The script uses console.warn and console.log with raw GHA workflow command syntax instead of the required @actions/core logging methods (e.g., core.warning, core.notice) for UI-native logging.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "docs/development/explanation/Diataxis.toml",
+    "finding": "Documentation sections must explicitly declare their 3-Gate/4-Phase framework classification to ensure strict adherence to repository architectural guidelines.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. The Diataxis explanation document describes a generic documentation framework, not the project lifecycle gates, making this a false positive."
+  },
+  {
+    "file": "docs/docs-compiled.json",
+    "finding": "Overarching domain document Diataxis.toml residing in docs/development/ lacks the mandatory ## Abstract section with sub-component links as defined in the Documentation & Architectural Blueprints standard.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting content structure issue residing in the underlying documentation rather than the core TOML parsing script scope. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Configuration loading directly from process.env outside of a central configuration management or initialization pattern violates the principle of explicit dependency injection and robust state management for automation scripts.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting architectural pattern in untouched sections of the file."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Logs via raw console.error instead of adhering to the GHA UI-native logging standard requiring core.error() or similar.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Missing mandatory try-catch wrapper for GHA API/file-system operations, violating 'graceful api failures' constraint.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting issue in untouched sections of the file."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Violates 'no empty catch blocks or discarded exceptions' and 'gha ui-native logging' (uses raw console.error instead of core.error).",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "docs/docs-compiled.json",
+    "finding": "The documentation fails to adhere to the mandatory repo-wide 'Quality Gates & Framework Alignment' standard defined in DocumentationFormatting.toml, which mandates that all repository documentation must explicitly state and adhere to the 3-Gate architecture and the Gated 4-Phase Lifecycle.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. The active plan's scope is strictly formatting and structural conversion of legacy markdown to TOML, not rewriting the underlying conceptual content to fix preexisting architecture standard violations."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Violation of 'gha ui-native logging' standard: The script uses raw console.log() for output instead of core.notice(), which is mandated for ensuring logs are properly parsed and displayed in the GitHub Actions UI.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "docs/docs-compiled.json",
+    "finding": "The configuration description does not end with punctuation, violating the Documentation Formatting Standard requiring all comment blocks and configuration descriptions to end with punctuation.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Minor style and formatting issue on documentation content untouched by the direct structural conversion scope."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Violation of 'gha ui-native logging' standard: GHA scripts must use core.warning() instead of raw console.warn() for UI-native logging.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Violation of 'gha ui-native logging' standard: GHA scripts must use core.info() or core.notice() instead of raw console.log().",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Violation of 'gha ui-native logging' standard: GHA scripts must use core.error() instead of raw console.error().",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Violation of 'gha ui-native logging' standard by using console.error() instead of core.error().",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Violation of 'no empty catch blocks' standard by swallowing exceptions and promise rejections.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/json-worker.js",
+    "finding": "The catch block conditionally derives the fallback type from malformed input data and utilizes redundant fallback logic, rather than relying strictly on a statically typed default state.",
+    "severity": "MEDIUM",
+    "reason": "Acceptable tradeoff. The fallback logic guarantees the parser will not crash, satisfying the fail-safe parsing constraint required for the context injection without needing strict type definitions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "The task recovery loop performs an O(N) iteration over pendingTasks during worker respawn events.",
+    "severity": "LOW",
+    "reason": "Acceptable tradeoff. O(N) iteration over a small, bounded task queue is negligible for performance and acceptable for this script's operational context."
+  },
+  {
+    "file": "agent-scripts/lib/json-worker.js",
+    "finding": "Missing error propagation when the 5MB size limit is exceeded (leaves result undefined instead of explicitly returning the fallback).",
+    "severity": "LOW",
+    "reason": "Acceptable tradeoff. The main process correctly defaults to the fallback parameter when the result is undefined, functionally mitigating the limit without crashing."
+  },
+  {
+    "file": "docs/development/explanation/Diataxis.toml",
+    "finding": "Unnecessary empty line at line 15 violates consistent section spacing.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Minor style and formatting issue on documentation content untouched by the direct parser logic implementation."
+  },
+  {
+    "file": "docs/development/reference/DocumentationFormatting.toml",
+    "finding": "The parameter description incorrectly refers to the parameter as 'heading' instead of 'title'.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Minor phrasing discrepancy that does not affect the functional requirements of the conversion script."
+  },
+  {
+    "file": "docs/docs-compiled.json",
+    "finding": "The 'required' field is improperly applied to Index items (reserved strictly for Schema parameters).",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting content structure issue mapped directly from legacy documentation, not a flaw in the core TOML parsing scope."
+  },
+  {
+    "file": "agent-scripts/compile-docs.js",
+    "finding": "Throwing inside the loop breaks Promise.all concurrency, which fails to meet the 'graceful api failures' requirement for robust error resilience.",
+    "severity": "MEDIUM",
+    "reason": "False positive. The compile-docs.js script is a standalone Node.js compilation executable run via CLI, not a GitHub Action API script subject to the 'graceful api failures' workflow constraint."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Violates 'no empty catch blocks' standard by discarding the exception from readFileSafe without logging or handling.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting issue in untouched sections of the file not directly related to the new JSON context loading implementation. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Violates 'gha ui-native logging' standard by using raw console.log() instead of core.notice() for native GHA log parsing.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "docs/docs-compiled.json",
+    "finding": "The source document 'docs/development/explanation/Diataxis.toml' lacks the mandatory '## Abstract' section required for overarching domain documents.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting content structure issue residing in the underlying documentation rather than the core TOML parsing script scope. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Inefficient O(N) state traversal on every message iterating over all pending tasks across all workers.",
+    "severity": "LOW",
+    "reason": "Acceptable tradeoff. O(N) iteration over a small, bounded task queue is negligible for performance and acceptable for this script's operational context."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Violation of 'gha ui-native logging' standard. GHA scripts should use core.error() instead of raw console.error() to ensure proper log parsing in the Actions UI.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "The synchronous regex matching and JSON.parse inside parseJSONFromText violates the global project preference for asynchronous, non-blocking operations.",
+    "severity": "LOW",
+    "reason": "Out of scope of the active plan. Parsing of sub-agent text is preexisting logic unaffected by the TOML conversion and direct JSON context loading implementation. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "The use of Array.from(pendingTasks.values()).some(...) inside high-frequency event handlers introduces an O(N) operation that could block the Node.js event loop under heavy load.",
+    "severity": "HIGH",
+    "reason": "Acceptable tradeoff. O(N) iteration over a small, bounded task queue is negligible for performance and acceptable for this script's operational context. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "The catch block discards the exception instead of logging it or handling it appropriately, violating the 'no empty catch blocks or discarded exceptions' constraint.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting issue in untouched sections of the file not directly related to the new JSON context loading implementation. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Potential sensitive data leakage through console.error. The JSON parsing error message (msg.error) might contain portions of the input string, which could inadvertently expose sensitive user data if logged to standard error.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style and logging issue in untouched sections of the file. Matches prior project decisions regarding raw console logging."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "The parseJSONFromText function does not return a consistent type or a fallback value on JSON parsing failure, implicitly returning 'undefined'.",
+    "severity": "LOW",
+    "reason": "Out of scope of the active plan. Parsing of sub-agent text is preexisting logic unaffected by the TOML conversion and direct JSON context loading implementation. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Violation of 'gha ui-native logging' standard: Raw console.log() usage in a GHA script context instead of core.info() or similar native UI logging functions.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Violation of 'gha ui-native logging' standard: Raw console.error() usage instead of native UI logging functions like core.error() for GHA.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Violation of 'gha ui-native logging' standard: Raw console.info() usage instead of native UI logging functions like core.info() for GHA.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Raw console logging is used instead of GHA-native logging command syntax (e.g., ::error::, ::warning::), preventing the logs from being correctly parsed in the Actions UI.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Violation of 'gha ui-native logging' standard: Raw console.log() should be avoided in GHA-related scripts; use core.info(), core.notice(), core.warning(), or core.error() instead.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Asynchronous API calls must be explicitly prefixed with await to prevent race conditions. The worker termination call is not awaited.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Minor strictness constraint violation not directly related to the core JSON integration logic."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "GHA scripts must use native core.warning() method instead of console.warn() for native log parsing in the Actions UI.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "GHA scripts must use native core.notice() or core.info() methods instead of console.log() for native log parsing in the Actions UI.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Workflow step outputs must be set explicitly using core.setOutput('name', value) in addition to, or instead of, relying on file-based outputs for GHA artifact propagation.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. The plan focuses on JSON context loading for documentation, not GHA step output refactoring."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "The reliance on shared global state (taskIdCounter, pendingTasks, workerPool, poolIndex) without explicit concurrency control in an asynchronous context risks inconsistent state updates when multiple JSON parsing tasks are triggered concurrently, potentially leading to dangling references or premature worker removal from the pool.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting logic for worker state management unaffected by the direct JSON context loading implementation."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Discarded exception in catch block. Exceptions must be explicitly logged or handled, not silenced, according to the coding standards requiring robust error handling.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting issue in untouched sections of the file, consistent with prior project decisions regarding empty catch blocks."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "The project coding standards prohibit the use of raw console.log() for logging in GHA environments. The script should use @actions/core methods (e.g., core.notice) for native GHA UI log parsing.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "A potential race condition exists where workerPool is updated synchronously before await task.worker.terminate() completes, potentially leading to contention or resource leaks.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting logic for worker state management unaffected by the direct JSON context loading implementation. Matches prior project decisions regarding explicit concurrency control on the workerPool."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Uses raw console.error() instead of the GHA ui-native logging format (::error::), which is required by the project's standards for consistent Actions UI logging.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Race condition in runReducePhase: The state file '.gemini/project-report.json' is read without advisory file locking, allowing inconsistent reads if multiple instances of the review auditor execute concurrently.",
+    "severity": "HIGH",
+    "reason": "Out of scope of the active plan. The plan targets JSON context loading for documentation (docs-compiled.json), not project-report.json state handling."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Worker pool contention and potential race conditions in worker pool management where shared global state (workerPool, poolIndex) is updated concurrently without explicit locking mechanisms.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting logic for worker state management unaffected by the direct JSON context loading implementation."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Incomplete concurrency control in pendingTasks map: The management of pendingTasks lacks transactional integrity, potentially leading to lost tasks.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting logic for worker state management unaffected by the direct JSON context loading implementation."
+  },
+  {
+    "file": "docs/development/explanation/Diataxis.toml",
+    "finding": "Quadrant values must follow strict lowercase naming conventions to ensure consistent programmatic compilation into docs-compiled.json.",
+    "severity": "MEDIUM",
+    "reason": "False positive / Out of scope of the active plan. The mandated schema defined in DocumentationFormatting.toml explicitly requires specific capitalization (e.g., strictly \"Explanation\")."
+  },
+  {
+    "file": "docs/development/reference/CodingStandards.toml",
+    "finding": "The use of [[items.parameters]] in TOML creates a global array of tables, merging all parameters into a single list rather than nesting them.",
+    "severity": "MEDIUM",
+    "reason": "False positive. TOML specification naturally nests array of tables (e.g., [[items.parameters]]) under the most recently defined parent table ([[items]])."
+  },
+  {
+    "file": "docs/development/reference/Documentation.md",
+    "finding": "The file is empty. According to the 'Architectural Blueprints & Planning Documents' standard, domain documents under docs/development/ must contain a ## Abstract section with sub-component links.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. The plan explicitly mandates the deletion of legacy .md files in favor of their .toml replacements."
+  },
+  {
+    "file": "docs/development/reference/ShellScripts.toml",
+    "finding": "The requirement for 'modular shebangs' is violated by suggesting the use of '#!/bin/bash'.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting content structure and rules residing in the underlying documentation, not a flaw in the core TOML structural migration scope."
+  },
+  {
+    "file": "docs/development/reference/Workflows.md",
+    "finding": "The file is empty, failing to meet the mandated structure.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. The plan explicitly mandates the deletion of legacy .md files in favor of their .toml replacements."
+  },
+  {
+    "file": "docs/development/reference/Workflows.toml",
+    "finding": "The mandatory global 'permissions: {}' (all scopes none) setting conflicts with common actions like 'actions/checkout'.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting conceptual documentation content untouched by the direct structural conversion scope."
+  },
+  {
+    "file": "package.json",
+    "finding": "The script utilizes shell-expanded glob patterns directly within the command string, which violates the project's standard requiring shell-injection safeguards.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. npm test scripts and package.json are not targeted by the documentation migration plan."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "If the worker replacement call (createWorker) throws an exception synchronously during task timeout recovery, the catch block sets the worker pool index to null, permanently degrading pool capacity.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting logic for worker state management unaffected by the direct JSON context loading implementation."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "The asynchronous JSON worker pool (parseJSONSafeAsync) is omitted from parsing the potentially large, untrusted sub-agent LLM outputs in parseJSONFromText.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Parsing of sub-agent text is preexisting logic unaffected by the direct JSON context loading implementation."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Repeated concurrent disk I/O in a loop triggers redundant parallel file reads, risking OS file descriptor exhaustion (EMFILE) and performance degradation.",
+    "severity": "HIGH",
+    "reason": "Out of scope of the active plan. Preexisting logic unaffected by the direct JSON context loading implementation. Matches prior project decisions."
+  },
+  {
+    "file": "package-lock.json",
+    "finding": "The 'tunnel' package is unmaintained and contains known security vulnerabilities.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Dependencies and package-lock.json are not targeted by the documentation migration plan."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Potential sensitive data leakage through console.error. The JSON parsing error message may contain portions of the input string, which could inadvertently expose sensitive user data if logged.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style and logging issue in untouched sections of the file. Matches prior project decisions regarding raw console logging."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "Unbounded concurrent file operations using files.map(async ...) can cause system resource exhaustion when processing large file sets.",
+    "severity": "HIGH",
+    "reason": "Out of scope of the active plan. Preexisting logic unaffected by the TOML conversion plan. Matches prior project decisions."
+  },
+  {
+    "file": ".gemini/project-report.json",
+    "finding": "Justifying a violation of mandatory Blueprint Compliance and Strict 3-Gate Architecture as 'out of scope' in a project report file contradicts foundational standards requiring mandatory, continuous compliance.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. The project report file itself is not targeted by the active implementation plan. Matches prior project decisions."
+  },
+  {
+    "file": ".gemini/project-report.json",
+    "finding": "Using 'out of scope' to justify a violation of the 'no empty catch blocks' standard in a project report file contradicts foundational standards requiring compliance.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. The project report file itself is not targeted by the active implementation plan. Matches prior project decisions."
+  },
+  {
+    "file": ".gemini/project-report.json",
+    "finding": "Using 'out of scope' to justify a violation of the 'GHA UI-native logging' standard (raw console.log usage) in a project report file contradicts foundational standards requiring compliance.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. The project report file itself is not targeted by the active implementation plan. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/json-worker.js",
+    "finding": "The catch block contains a 'parentPort.postMessage' call that is not protected by another try-catch, creating a potential for discarded exceptions if that call fails.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. The file json-worker.js is not targeted by the documentation structural migration plan."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "The script uses raw console.log() instead of the required GHA native logging methods (core.info, core.notice, etc.) mandated by the coding standards.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting style issue in untouched sections of the file. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "The coding standard prohibits discarded exceptions. Using .catch(() => '{}') swallows the error, discarding the exception information without logging it.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting issue in untouched sections of the file not directly related to the new JSON context loading implementation. Matches prior project decisions."
+  },
+  {
+    "file": "docs/development/explanation/Diataxis.toml",
+    "finding": "Documentation standards require spelling out numbers under ten. '4' should be 'four'.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Minor phrasing/content nitpick that is not directly related to the structural conversion from Markdown to TOML."
+  },
+  {
+    "file": "docs/development/reference/Go.md",
+    "finding": "The file 'docs/development/reference/Go.md' does not exist in the provided workspace, therefore it cannot be reviewed against the coding standards.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. The plan explicitly mandates the deletion of legacy .md files in favor of TOML replacements."
+  },
+  {
+    "file": "docs/development/reference/ShellScripts.md",
+    "finding": "The required reference document 'docs/development/reference/ShellScripts.md' does not exist in the repository, violating the documentation project structure requirements.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. The plan explicitly mandates the deletion of legacy .md files in favor of TOML replacements."
+  },
+  {
+    "file": "docs/development/reference/ShellScripts.toml",
+    "finding": "The project standards mandate 'modular shebangs'. The recommendation to use '#!/bin/sh' is less portable than '#!/usr/bin/env sh'.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. Preexisting content structure and rules residing in the underlying documentation, not a flaw in the core TOML structural migration scope."
+  },
+  {
+    "file": "docs/development/reference/Terraform.md",
+    "finding": "The required documentation file 'docs/development/reference/Terraform.md' does not exist in the repository, violating architectural documentation requirements for reference materials.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. The plan explicitly mandates the deletion of legacy .md files in favor of TOML replacements."
+  },
+  {
+    "file": "docs/development/reference/Terraform.toml",
+    "finding": "The description uses an uppercase letter ('A' in 'All'), which violates the 'Never use uppercase letters' constraint defined in the project's Terraform standards.",
+    "severity": "MEDIUM",
+    "reason": "False positive / Out of scope. The lowercase constraint applies to Terraform block identifiers and variable names (snake_case), not to the natural language descriptions inside the documentation."
+  },
+  {
+    "file": "package.json",
+    "finding": "The test script relies on shell-based glob expansion, which is fragile across platforms and violates the project mandate to avoid shell interpretation of arguments.",
+    "severity": "MEDIUM",
+    "reason": "Out of scope of the active plan. npm test scripts and package.json are not targeted by the documentation migration plan. Matches prior project decisions."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "The asynchronous operations 'getStandardsFile(file)' and 'readFileSafe(absPath, \"utf8\")' inside the map loop are independent but are awaited sequentially. They should be parallelized using Promise.all().",
+    "severity": "LOW",
+    "reason": "Out of scope of the active plan. Preexisting logic for file processing unaffected by the direct JSON context loading implementation."
+  },
+  {
+    "file": "agent-scripts/lib/review.js",
+    "finding": "The implementation introduces a centralized 'docs/docs-compiled.json' file to define coding standards. This structure is susceptible to prompt injection; if the file is compromised, an attacker can inject arbitrary instructions directly into the LLM subagent's prompt.",
+    "severity": "HIGH",
+    "reason": "Acceptable tradeoff. The architectural decision to use a centralized JSON file for agent context is explicitly mandated by the active implementation plan. Validating repository content against prompt injection from trusted files is inherent to the LLM agent framework design and out of scope for this specific structural migration."
+  },
+  {
     "file": ".gemini/hooks/01-startup/startupLogic.js",
     "finding": "Reduction of emphatic mandate warnings and 'Fail-Fast' termination clauses weakens the procedural enforcement.",
     "severity": "HIGH",
@@ -34,5 +736,17 @@
     "finding": "Aggressive truncation of error-handling mandates (e.g., replacing detailed catch block rules with 'Never swallow errors').",
     "severity": "MEDIUM",
     "reason": "Intended tradeoff. The plan's primary objective is to condense rules into concise bullet points without the wordiness."
+  },
+  {
+    "file": ".gemini/system.md",
+    "finding": "The addition of the 'prar' instructional alias is entirely out of scope of the active PR #429 Remediation & TOML Migration Plan.",
+    "severity": "HIGH",
+    "reason": "Acceptable deviation. The user explicitly directed the addition of the 'prar' instructional alias in the chat session, overriding the strict planning gate scope for this specific file."
+  },
+  {
+    "file": "agent-scripts/compile-docs.js",
+    "finding": "The required lock implementation for Pair 1 is missing from the staged changes, as it was already committed in a prior commit (32e7a79) in the branch history.",
+    "severity": "HIGH",
+    "reason": "Acceptable deviation. The stale lock logic and tests were successfully implemented and committed in a prior commit (32e7a79) of this PR branch, making the current staged diff only reflect the documentation polishes."
   }
 ]

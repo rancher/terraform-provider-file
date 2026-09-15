@@ -166,7 +166,7 @@ export async function checkDefunctBranch(branch, cwd = process.cwd()) {
         `Error: The current branch '${branch}' already has a merged Pull Request (#${prInfo.number}) on GitHub.`,
       );
       console.error(
-        `       This branch is defunct. In accordance with 'docs/development/how-to/DevelopmentProcess.md' Phase 5, Step 12, you MUST:`,
+        `       This branch is defunct. In accordance with 'docs/development/how-to/DevelopmentProcess.toml' Phase 5, Step 12, you MUST:`,
       );
       console.error(`       1. Switch to 'main': git checkout main`);
       console.error(`       2. Synchronize with upstream default branch: bash agent-scripts/git-sync.sh`);
@@ -547,7 +547,7 @@ export async function verifyStagingLimits(cwd = process.cwd()) {
       `Error: Committing too much code at once is prohibited (${stagedCount} files staged; max allowed is ${maxAllowed}).`,
     );
     console.error(
-      "       In accordance with Phase 5, Step 11 of 'docs/development/how-to/DevelopmentProcess.md', please split your commit into smaller, surgical layers.",
+      "       In accordance with Phase 5, Step 11 of 'docs/development/how-to/DevelopmentProcess.toml', please split your commit into smaller, surgical layers.",
     );
     process.exit(1);
   }
@@ -652,8 +652,8 @@ export async function verifySafeGitCommand(commandClean, cwd = process.cwd()) {
         if (prInfo && prInfo.isDraft === true) {
           return {
             decision: 'deny',
-            reason: `Security Policy Violation: Moving to a new PR or branch is prohibited while the current branch PR (#${prInfo.number}) is still in Draft mode.\n\nIn accordance with Phase 6, Step 18 (Convert to Ready) and Phase 7, Step 20 (Proceed to Next Layer) of 'docs/development/how-to/DevelopmentProcess.md', you MUST first graduate the current PR from Draft to Ready-for-Review before checking out 'main' or switching tasks.\n\nTo proceed:\n1. Complete all iteration reviews and obtain local sign-off.\n2. Convert the draft PR to Ready-for-Review (Phase 6, Step 18) using: \`gh pr ready ${prInfo.number}\` (or the create-pr.sh skill).\n3. Once the PR is marked as ready for review on GitHub, you will be authorized to switch branches (Phase 7, Step 20).`,
-            systemMessage: `🔒 Security Block: Current PR #${prInfo.number} is in Draft mode. Please comply with Phase 6, Step 18 of docs/development/how-to/DevelopmentProcess.md.`,
+            reason: `Security Policy Violation: Moving to a new PR or branch is prohibited while the current branch PR (#${prInfo.number}) is still in Draft mode.\n\nIn accordance with Phase 6, Step 18 (Convert to Ready) and Phase 7, Step 20 (Proceed to Next Layer) of 'docs/development/how-to/DevelopmentProcess.toml', you MUST first graduate the current PR from Draft to Ready-for-Review before checking out 'main' or switching tasks.\n\nTo proceed:\n1. Complete all iteration reviews and obtain local sign-off.\n2. Convert the draft PR to Ready-for-Review (Phase 6, Step 18) using: \`gh pr ready ${prInfo.number}\` (or the create-pr.sh skill).\n3. Once the PR is marked as ready for review on GitHub, you will be authorized to switch branches (Phase 7, Step 20).`,
+            systemMessage: `🔒 Security Block: Current PR #${prInfo.number} is in Draft mode. Please comply with Phase 6, Step 18 of docs/development/how-to/DevelopmentProcess.toml.`,
           };
         }
       }
@@ -671,7 +671,7 @@ export async function verifySafeGitCommand(commandClean, cwd = process.cwd()) {
   if (isCommitOrPush) {
     return {
       decision: 'deny',
-      reason: `Security Policy Violation: Direct manual git commit and push commands are strictly prohibited in this repository.\n\nIn accordance with Phase 6, Step 15 (Authorized Commit & Push) of 'docs/development/how-to/DevelopmentProcess.md', only our secure automated commit hooks are authorized to execute commits and pushes upon verified Touch ID signing.\n\nTo proceed:\n1. Stage your changes cleanly: \`git add <files>...\`\n2. Request developer commit approval by calling the \`ask_user\` tool with \`intent = "commit approval"\` containing your TOML payload.\n3. Upon developer approval, our secure automated commit hooks will automatically sign, commit, and push the changes for you.`,
+      reason: `Security Policy Violation: Direct manual git commit and push commands are strictly prohibited in this repository.\n\nIn accordance with Phase 6, Step 15 (Authorized Commit & Push) of 'docs/development/how-to/DevelopmentProcess.toml', only our secure automated commit hooks are authorized to execute commits and pushes upon verified Touch ID signing.\n\nTo proceed:\n1. Stage your changes cleanly: \`git add <files>...\`\n2. Request developer commit approval by calling the \`ask_user\` tool with \`intent = "commit approval"\` containing your TOML payload.\n3. Upon developer approval, our secure automated commit hooks will automatically sign, commit, and push the changes for you.`,
       systemMessage:
         '🔒 Security Block: Direct git commit/push is blocked. Please stage files and call the ask_user tool with intent = "commit approval" to proceed.',
     };

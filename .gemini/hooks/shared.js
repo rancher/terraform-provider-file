@@ -10,7 +10,7 @@ export function deny(phaseName, reason, nextSteps) {
     `❌ ${phaseName} Failure!\n\n` +
     `👉 REASON: ${reason}\n\n` +
     `👉 WHAT TO DO NEXT:\n${nextSteps}\n\n` +
-    `For the exact schema, templates, and proper formatting, please refer to the documentation: docs/development/reference/AskUserComponent.md`;
+    `For the exact schema, templates, and proper formatting, please refer to the documentation: docs/development/reference/AskUserComponent.toml`;
 
   console.log(
     JSON.stringify({

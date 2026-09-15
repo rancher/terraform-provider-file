@@ -4,7 +4,7 @@
 
 This directory contains a modular suite of GHA UI-native and shell-compliant utility scripts that orchestrate the Gated 4-Phase Lifecycle (Plan, Implement, Review, Commit) and enforce our strict **Gated 3-Gate Architecture**. These tools validate staging counts, ensure remote fast-forward ancestry, verify cryptographic plan/review signatures, and automate secure, Conventional GPG/SSH-signed commits.
 
-For a detailed explanation of the three-tier hierarchy (Libraries, Tools, Scripts) used in this folder, please refer to the [Agent Scripts Architecture Reference Document](../docs/development/reference/AgentScriptsArchitecture.md).
+For a detailed explanation of the three-tier hierarchy (Libraries, Tools, Scripts) used in this folder, please refer to the [Agent Scripts Architecture Reference Document](../docs/development/reference/AgentScriptsArchitecture.toml).
 
 ---
 
