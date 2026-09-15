@@ -85,3 +85,26 @@ To prevent this, custom subagent profiles designed to run in empty directories m
 1. **Explicit No-Tool Rules:** System instructions must carry a loud, high-priority section instructing the model that it must **never** call any directory-listing, file-reading, or search tools.
 2. **XML Payload Reliance:** System instructions must command the model to rely exclusively on the structured XML data structures (such as `<git_diff>` and `<active_plan>`) provided directly within the prompt payload, rather than attempting filesystem exploration.
 3. **Graceful Failures:** This guarantees that even when model capacity failovers occur, the subagent session remains compact, silent, highly focused, and free of false-positive sandbox blocks.
+
+---
+
+## 🔒 Post-Review Worktree Gating & Performance Optimization
+
+To protect the cryptographic integrity of Gate 2 (Review) and Gate 3 (Commit) from post-review tampering or silent, unvetted edits, the framework enforces a strict **zero-unstaged-changes policy** during hash calculation:
+
+### 1. Worktree Gating (Unstaged & Untracked Prevention)
+
+If a developer runs `quality-assurance.js` to sign Gate 2, all modifications are staged in the index and hashed. If they subsequently edit a tracked file in their worktree or add an untracked file, but do not stage it:
+
+- The pre-commit hook runs `calculateDiffHash`.
+- Rather than silently ignoring the unstaged modifications (which would allow unreviewed code to sit in the worktree during the commit), the function explicitly executes `git diff` and `git ls-files --others` to verify if the worktree is 100% clean.
+- If any unstaged tracked changes or untracked files are detected, the gate throws a `Security Gating Failure` error and halts the commit.
+- This forces the developer to explicitly stage the changes, altering the staged diff hash and invalidating the prior Gate 2 approval, requiring a fresh and fully transparent QA review cycle.
+
+### 2. Deferred Default Branch Resolution (Offline Resilience)
+
+To maximize local developer performance and guarantee 100% offline resilience:
+
+- In incremental review modes (`forceFull = false`), the Git helpers compare the index strictly against `HEAD`, which does not require resolving the repository's default branch.
+- The framework defers calling `getRepoDefaultBranch` (which might fall back to slow network queries like `git remote show origin`) until inside the explicit `forceFull` block.
+- This ensures everyday local development workflows remain ultra-responsive, completely offline-compatible, and free of remote-lookup latencies.

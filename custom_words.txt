@@ -142,5 +142,6 @@ variablize
 vulnerability
 webfetch
 worklist
+worktree
 yamux
 yubi

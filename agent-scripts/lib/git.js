@@ -1,6 +1,6 @@
 import { execFile } from 'child_process';
 import crypto from 'crypto';
-import fs, { promises as fsPromises } from 'fs';
+import fs from 'fs';
 import path from 'path';
 import process from 'process';
 import { promisify } from 'util';
@@ -309,33 +309,39 @@ export async function syncUpstreamDefaultBranch(cwd = process.cwd()) {
 
 // Calculate active local diff hash securely (staged + unstaged combined, relative to default branch on feature branches, and including untracked files)
 export async function calculateDiffHash(cwd = process.cwd()) {
+  // Check for unstaged changes
+  const unstagedDiff = await executeGit(['diff', '-U10'], cwd);
+  if (unstagedDiff.trim() !== '') {
+    throw new Error(
+      '❌ Security Gating Failure: Unstaged changes detected in the worktree!\n' +
+        'In accordance with repository safety standards and user preference,\n' +
+        "you MUST stage all changes ('git add <file>') before reviewing or committing\n" +
+        'to ensure all modifications are completely and transparently reviewed.',
+    );
+  }
+
+  const untrackedFilesOutput = await executeGit(['ls-files', '--others', '--exclude-standard'], cwd);
+  const untrackedFiles = untrackedFilesOutput.split('\n').filter(Boolean);
+  if (untrackedFiles.length > 0) {
+    throw new Error(
+      '❌ Security Gating Failure: Untracked files detected in the workspace!\n' +
+        'In accordance with repository safety standards and user preference,\n' +
+        "you MUST stage all changes ('git add <file>') before reviewing or committing\n" +
+        'to ensure all modifications are completely and transparently reviewed.\n' +
+        `Untracked files: ${untrackedFiles.join(', ')}`,
+    );
+  }
+
   try {
     const hash = crypto.createHash('sha256');
 
     // 1. Accumulate tracked diffs
-    const activeDiff = await getActiveDiff(cwd);
+    const activeDiff = await getActiveDiff(cwd, false);
     hash.update(activeDiff);
-
-    // 2. Accumulate untracked files to prevent silent additions
-    const untrackedFiles = (await gitLsFilesOthersExcludeStandard(cwd)).split('\n').filter(Boolean);
-
-    for (const file of untrackedFiles) {
-      const absolutePath = path.resolve(cwd, file);
-      try {
-        const stats = await fsPromises.stat(absolutePath);
-        if (stats.isFile()) {
-          const fileContent = await fsPromises.readFile(absolutePath);
-          hash.update(`untracked:${file}\n`);
-          hash.update(fileContent);
-        }
-      } catch (fileErr) {
-        console.log(`::error::Failed to read untracked file ${file} {"message":"${fileErr.message}"}`);
-      }
-    }
 
     return hash.digest('hex');
   } catch (err) {
-    console.log(`::error::calculateDiffHash failed {"message":"${err.message}"}`);
+    console.error(`::error::calculateDiffHash failed {"message":"${err.message}"}`);
     return null;
   }
 }
@@ -769,9 +775,8 @@ export async function getRepoDefaultBranch(cwd = process.cwd()) {
 
 // Retrieve unified diff securely (using -U10 context width and base-selection rules)
 export async function getActiveDiff(cwd = process.cwd(), forceFull = false) {
-  const defaultBranch = await getRepoDefaultBranch(cwd);
-
   if (forceFull) {
+    const defaultBranch = await getRepoDefaultBranch(cwd);
     try {
       return await executeGit(['diff', '--staged', '-U10', `origin/${defaultBranch}`], cwd);
     } catch (err) {
@@ -785,9 +790,8 @@ export async function getActiveDiff(cwd = process.cwd(), forceFull = false) {
 
 // Retrieve the list of active changed files name-only relative to base branch or HEAD
 export async function getActiveChangedFiles(cwd = process.cwd(), forceFull = false) {
-  const defaultBranch = await getRepoDefaultBranch(cwd);
-
   if (forceFull) {
+    const defaultBranch = await getRepoDefaultBranch(cwd);
     try {
       return await executeGit(['diff', '--staged', '--name-only', `origin/${defaultBranch}`], cwd);
     } catch (err) {
