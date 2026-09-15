@@ -1,5 +1,5 @@
 title = "Auto-Merging Component: Pull Request Triggers & Target Resolution"
-description = "## Abstract"
+description = "The **Pull Request Triggers & Target Resolution** component is the initial entry gate of the automated merging pipeline. Backed by..."
 quadrant = "Explanation"
 
 [background]
@@ -7,21 +7,21 @@ context = "Detailed architectural background and explanations."
 
 [[sections]]
 heading = "Introduction"
-content = """
+content = '''
 > **Blueprint Compliance:** This integration MUST adhere strictly to the **Strict 4-Phase Lifecycle** (Plan, Implement, Review, Commit) and the **Strict 3-Gate Architecture** (Planning Gate (Gate 1), Programmatic Review/Testing Gate (Gate 2), and Commit Gate (Gate 3)). Of these 3 gates, the Planning Gate and Commit Gate are user-facing. No phase or gate may be bypassed.
-"""
+'''
 
 [[sections]]
 heading = "Abstract"
-content = """
+content = '''
 The **Pull Request Triggers & Target Resolution** component is the initial entry gate of the automated merging pipeline. Backed by `get-target-pr.js` and orchestrated via `.github/workflows/pr-executor.yml`, this subsystem asynchronously triggers on pull request activities, resolves the target PR context across multiple API fallbacks, and executes immediate security checks to safeguard release-critical branches.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "Technical Specification"
-content = """
+content = '''
 ### 1. Trigger Mechanics
 
 The orchestrator workflow (`pr-executor.yml`) has no direct triggers of its own for general pull requests. Instead, it relies on two primary channels:
@@ -67,14 +67,14 @@ Before returning the resolved PR number to the orchestrator, `get-target-pr.js` 
 This protects release-prep branches and automated changelog updates from being accidentally squash-merged by the bot before maintainers have reviewed the release versioning details.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "Standing Implementation Decisions"
-content = """
+content = '''
 ### Hermetic Workflow Execution
 
 - **Run Environment**: Must execute strictly within the Nix CI container (`ghcr.io/rancher/ci-image/nix:...`) to prevent dependency contamination or environment changes.
 - **Fail-Fast**: If the PR context is completely unresolved, the script must fail immediately rather than proceeding with default values, ensuring zero unvetted actions are taken on the repository.
-"""
+'''
 

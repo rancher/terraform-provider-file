@@ -325,7 +325,7 @@ export async function verifyProactiveReview(cwd = process.cwd()) {
   if (!reviewData) {
     throw new Error(
       'Proactive review approval file not found or could not be parsed!\n' +
-        "In accordance with Gate 2 (Programmatic Review/Testing Gate) of 'docs/development/how-to/DevelopmentProcess.md',\n" +
+        "In accordance with Gate 2 (Programmatic Review/Testing Gate) of 'docs/development/how-to/DevelopmentProcess.toml',\n" +
         'you MUST run the review script first: node agent-scripts/code-review.js',
     );
   }

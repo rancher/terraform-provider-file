@@ -81,6 +81,7 @@ export function getStandardsFile(filePath) {
     '.cjs': 'docs/development/reference/JavaScript.toml',
     '.ts': 'docs/development/reference/JavaScript.toml',
     '.md': 'docs/development/reference/DocumentationFormatting.toml',
+    '.toml': 'docs/development/reference/DocumentationFormatting.toml',
     '.yml': 'docs/development/reference/Workflows.toml',
     '.yaml': 'docs/development/reference/Workflows.toml',
     default: 'docs/development/reference/CodingStandards.toml',

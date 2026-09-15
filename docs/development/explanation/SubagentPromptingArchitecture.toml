@@ -7,15 +7,15 @@ context = "Detailed architectural background and explanations."
 
 [[sections]]
 heading = "Introduction"
-content = """
+content = '''
 This document provides a reflective, concept-oriented overview of the specialized subagent prompting philosophy, the core mental-model shift required to build deterministic agents, and the mitigation of LLM attention dilution. It aligns with our mandatory 4-Phase Lifecycle (Plan, Implement, Review, Commit) and the 3-Gate Architecture (Planning Gate 1, Review/Testing Gate 2, Commit Gate 3) to ensure architectural nomenclature alignment across all automation scripts and subagents.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "1. The Core Mental-Model Shift"
-content = """
+content = '''
 Transitioning from standard chatbot prompts to effective subagent prompt engineering requires shifting the engineering mindset from **"How do I get an answer?"** to **"How do I build a modular software component?"**
 
 When a parent coordinator spawns a subagent, it is not initiating a loose, conversational dialogue. It is executing a **tightly scoped, deterministic function call**.
@@ -26,11 +26,11 @@ When a parent coordinator spawns a subagent, it is not initiating a loose, conve
 By stripping away conversational elements and treating the LLM as a data-transformation pipe, we can achieve high predictability, rapid execution, and robust error handling.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "2. Key Prompting Concepts"
-content = """
+content = '''
 ### A. Find the "Goldilocks Zone" (Altitude Control)
 
 A common mistake in subagent prompting is writing overly restrictive, brittle rules (hardcoding precise multi-step execution sequences) or providing broad, abstract advice.
@@ -52,11 +52,11 @@ Because a subagent's output must be programmatically parsed and consumed by a pa
 - This allows the parent process to run automated validation scripts (unit tests) over the subagent outputs before passing them to the next agent in line, completely blocking downstream context bloat or malformed structures.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "3. Combating LLM Attention Dilution & \"Loop-Flapping\""
-content = """
+content = '''
 ### The Phenomenon of Attention Dilution
 
 When an LLM is passed a very large context (such as a massive git diff containing multi-file modifications), its **attention density** is diluted. The model struggles with context retrieval, failing to notice subtle architectural, concurrency, or security-grade violations. It only flags the most obvious issues.
@@ -87,5 +87,5 @@ To permanently break this loop-flapping behavior, the review phase must be broke
 1. **Maximum Attention Density**: Each specialized agent is given a microscopic prompt and asked to look for exactly one narrow category of violation. It cannot be distracted by other issues.
 2. **100% Completeness on Pass 1**: Because the work is distributed across multiple focused minds, they will catch _every_ issue (including synchronous I/O, path traversal, or spacing) on the **very first pass**, producing a complete, exhaustive checklist.
 3. **Low Latency & Cost**: Since the specialized reviewers run concurrently in parallel sandboxes during the Map Phase, they add zero latency. By utilizing least-powerful model tier assignments (e.g. `gemini-2.5-flash-lite` for localized audits), the total token cost is lower than running a single, expensive Pro model.
-"""
+'''
 

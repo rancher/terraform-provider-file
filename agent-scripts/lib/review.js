@@ -34,6 +34,14 @@ function createWorker(index) {
       pendingTasks.delete(msg.id);
       if (msg.error) {
         console.error(`JSON parsing failed: ${msg.error}`);
+        if (task.fallback === null) {
+          task.reject(new Error(`JSON parsing failed: ${msg.error}`));
+          const hasPending = Array.from(pendingTasks.values()).some((t) => t.worker === worker);
+          if (!hasPending) {
+            worker.unref();
+          }
+          return;
+        }
       }
       task.resolve(msg.result !== undefined ? msg.result : task.fallback);
     }
@@ -57,7 +65,11 @@ function createWorker(index) {
         clearTimeout(task.timeoutId);
         pendingTasks.delete(id);
         console.warn(`Recovered pending JSON task ${id} from dead worker`);
-        task.resolve(task.fallback);
+        if (task.fallback === null) {
+          task.reject(new Error(`JSON parsing task ${id} failed because worker pool thread terminated unexpectedly.`));
+        } else {
+          task.resolve(task.fallback);
+        }
       }
     }
 
@@ -120,7 +132,7 @@ const SCIENTIST_SCHEMA_PROMPT = `{
 async function parseJSONSafeAsync(data, fallback) {
   taskIdCounter++;
   const id = taskIdCounter;
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const timeoutId = setTimeout(async () => {
       const task = pendingTasks.get(id);
       if (task) {
@@ -134,7 +146,11 @@ async function parseJSONSafeAsync(data, fallback) {
                 clearTimeout(sibling.timeoutId);
               }
               pendingTasks.delete(siblingId);
-              sibling.resolve(sibling.fallback);
+              if (sibling.fallback === null) {
+                sibling.reject(new Error(`JSON parsing task ${siblingId} failed due to worker timeout.`));
+              } else {
+                sibling.resolve(sibling.fallback);
+              }
             }
           }
           // Remove and immediately replace the worker in the pool to prevent pool depletion
@@ -154,7 +170,11 @@ async function parseJSONSafeAsync(data, fallback) {
             console.error(`Worker termination failed: ${err.message}`);
           }
         }
-        resolve(fallback);
+        if (fallback === null) {
+          reject(new Error(`JSON parsing task ${id} timed out.`));
+        } else {
+          resolve(fallback);
+        }
       }
     }, 10000); // 10-second SLA timeout
 
@@ -169,10 +189,13 @@ async function parseJSONSafeAsync(data, fallback) {
     if (!worker) {
       clearTimeout(timeoutId);
       pendingTasks.delete(id);
+      if (fallback === null) {
+        return reject(new Error('JSON parsing pool depleted.'));
+      }
       return resolve(fallback);
     }
 
-    pendingTasks.set(id, { resolve, fallback, worker, timeoutId: timeoutId });
+    pendingTasks.set(id, { resolve, reject, fallback, worker, timeoutId: timeoutId });
 
     try {
       worker.ref(); // Ensure event loop remains active during active processing
@@ -184,6 +207,9 @@ async function parseJSONSafeAsync(data, fallback) {
       const hasPending = Array.from(pendingTasks.values()).some((t) => t.worker === worker);
       if (!hasPending) {
         worker.unref();
+      }
+      if (fallback === null) {
+        return reject(err);
       }
       resolve(fallback);
     }
@@ -202,6 +228,7 @@ async function getStandardsFile(filePath) {
     '.cjs': 'docs/development/reference/JavaScript.toml',
     '.ts': 'docs/development/reference/JavaScript.toml',
     '.md': 'docs/development/reference/DocumentationFormatting.toml',
+    '.toml': 'docs/development/reference/DocumentationFormatting.toml',
     '.yml': 'docs/development/reference/Workflows.toml',
     '.yaml': 'docs/development/reference/Workflows.toml',
     default: 'docs/development/reference/CodingStandards.toml',

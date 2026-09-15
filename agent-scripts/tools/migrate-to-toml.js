@@ -15,14 +15,22 @@ const skipList = new Set([
 ]);
 
 const renameMap = {
-  'Documentation.md': 'DocumentationFormatting.toml',
+  'DocumentationFormatting.toml': 'DocumentationFormatting.toml',
 };
 
-// Helper to recursively get files with specific extension in docs/development
+// Helper to recursively get files with specific extension
 async function getFilesRecursively(dir, ext) {
   let results = [];
-  const list = await fs.promises.readdir(dir);
+  const list = await fs.promises.readdir(dir).catch((err) => {
+    if (err.code !== 'ENOENT') {
+      console.error(`Failed to read directory ${dir}: ${err.message}`);
+    }
+    return [];
+  });
   for (const file of list) {
+    if (file === 'node_modules' || file === '.git' || file === 'tmp') {
+      continue;
+    }
     const fullPath = path.join(dir, file);
     const stat = await fs.promises.stat(fullPath);
     if (stat && stat.isDirectory()) {
@@ -61,7 +69,9 @@ async function migrateFile(filePath) {
   } else {
     tomlPath = filePath.replace(/\.md$/, '.toml');
   }
-  const relTomlPath = path.relative(process.cwd(), tomlPath);
+  const relTomlPathRaw = path.relative(process.cwd(), tomlPath);
+  // Normalize Windows separators before skipList check (F1)
+  const relTomlPath = relTomlPathRaw.split(path.sep).join('/');
 
   if (skipList.has(relTomlPath)) {
     console.info(`Skipping predefined high-quality TOML reference: ${relTomlPath}`);
@@ -69,7 +79,12 @@ async function migrateFile(filePath) {
     const exists = await fs.promises
       .stat(filePath)
       .then(() => true)
-      .catch(() => false);
+      .catch((err) => {
+        if (err.code === 'ENOENT') {
+          return false;
+        }
+        throw err; // Rethrow non-ENOENT errors (F10)
+      });
     if (exists) {
       await fs.promises.unlink(filePath);
     }
@@ -84,8 +99,6 @@ async function migrateFile(filePath) {
   } else if (relativeParts.includes('tutorials')) {
     quadrant = 'Tutorial';
   } else if (relativeParts.includes('reference')) {
-    // For prose documents inside reference/ directory, we map them to quadrant = "Explanation"
-    // so they can safely use the generic [[sections]] layout schema
     quadrant = 'Explanation';
   } else if (relativeParts.includes('explanation')) {
     quadrant = 'Explanation';
@@ -101,12 +114,20 @@ async function migrateFile(filePath) {
   }
 
   // Match first paragraph after title as description (fallback to title)
-  // Clean paragraphs, ignoring blueprint blocks, HTML blocks, or other headers
+  // Clean paragraphs, ignoring horizontal rules, secondary headers, blueprint blocks, HTML blocks (F10)
   const cleanParagraphs = content
     .replace(/^#\s+.+$/m, '') // strip title
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) => line.length > 0 && !line.startsWith('>') && !line.startsWith('**') && !line.startsWith('<'));
+    .filter(
+      (line) =>
+        line.length > 0 &&
+        !line.startsWith('>') &&
+        !line.startsWith('**') &&
+        !line.startsWith('<') &&
+        !line.startsWith('---') &&
+        !line.startsWith('##'),
+    );
 
   let description = title;
   if (cleanParagraphs.length > 0) {
@@ -169,7 +190,7 @@ async function migrateFile(filePath) {
     }
   }
 
-  // Construct TOML string using schema-compliant formats
+  // Construct TOML string using schema-compliant formats and literal multi-line strings (F10)
   let toml = `title = "${title.replace(/"/g, '\\"')}"\n`;
   toml += `description = "${truncateDescription(description)}"\n`;
   toml += `quadrant = "${quadrant}"\n\n`;
@@ -177,13 +198,12 @@ async function migrateFile(filePath) {
   if (quadrant === 'Tutorial') {
     toml += `[prerequisites]\n`;
     toml += `knowledge_level = "Intermediate"\n`;
-    toml += `tools_required = ["git", "go", "nix"]\n\n`;
+    toml += `tools_required = ["git", "go", "nix", "gpg"]\n\n`;
 
     for (const sec of sections) {
       toml += `[[steps]]\n`;
       toml += `title = "${sec.heading.replace(/"/g, '\\"')}"\n`;
-      const escapedContent = sec.content.replace(/"""/g, '\\"\\"\\"');
-      toml += `action = """\n${escapedContent}\n"""\n`;
+      toml += `action = '''\n${sec.content}\n'''\n`;
       toml += `expected_result = "Verification completes successfully."\n\n`;
     }
   } else if (quadrant === 'How-To') {
@@ -194,8 +214,7 @@ async function migrateFile(filePath) {
     for (const sec of sections) {
       toml += `[[instructions]]\n`;
       toml += `step = "${sec.heading.replace(/"/g, '\\"')}"\n`;
-      const escapedContent = sec.content.replace(/"""/g, '\\"\\"\\"');
-      toml += `description = """\n${escapedContent}\n"""\n\n`;
+      toml += `description = '''\n${sec.content}\n'''\n\n`;
     }
   } else {
     // Explanation schema
@@ -205,8 +224,7 @@ async function migrateFile(filePath) {
     for (const sec of sections) {
       toml += `[[sections]]\n`;
       toml += `heading = "${sec.heading.replace(/"/g, '\\"')}"\n`;
-      const escapedContent = sec.content.replace(/"""/g, '\\"\\"\\"');
-      toml += `content = """\n${escapedContent}\n"""\n\n`;
+      toml += `content = '''\n${sec.content}\n'''\n\n`;
     }
   }
 
@@ -222,7 +240,9 @@ async function updateReferences(filePath) {
 
   // Robust relative path regex matching folders or dot-references without word boundaries blocks
   const refRegex = /((?:\.\.?\/)?(?:reference|how-to|tutorials|explanation)\/[\w.-]+)\.md\b/g;
-  const readmeRegex = /(\bREADME)\.md\b/g;
+
+  // Restrict README.md replacement to relative dot-references to avoid breaking .gemini/README.md or root README.md
+  const readmeRegex = /(\.\.?\/README)\.md\b/g;
   const dotRefRegex = /(\.\/[\w.-]+)\.md\b/g;
   const dotDotRefRegex = /(\.\.\/[\w/.-]+)\.md\b/g;
 
@@ -230,13 +250,13 @@ async function updateReferences(filePath) {
   updated = updated.replace(readmeRegex, '$1.toml');
 
   updated = updated.replace(dotRefRegex, (match, p1) => {
-    if (p1.includes('remediation-report')) {
+    if (p1.includes('remediation-report') || p1.includes('.gemini') || p1.includes('node_modules')) {
       return match;
     }
     return `${p1}.toml`;
   });
   updated = updated.replace(dotDotRefRegex, (match, p1) => {
-    if (p1.includes('remediation-report')) {
+    if (p1.includes('remediation-report') || p1.includes('.gemini') || p1.includes('node_modules')) {
       return match;
     }
     return `${p1}.toml`;
@@ -260,9 +280,14 @@ async function main() {
     await migrateFile(file);
   }
 
-  // Phase 2: Search and replace .md with .toml references in the newly created .toml files
+  // Phase 2: Search and replace .md with .toml references repository-wide (F10)
   const tomlFiles = await getFilesRecursively(docsDir, '.toml');
-  for (const file of tomlFiles) {
+  const jsFiles = await getFilesRecursively(path.join(process.cwd(), 'agent-scripts'), '.js');
+  const agentMdFiles = await getFilesRecursively(path.join(process.cwd(), 'agent-scripts'), '.md');
+  const hookFiles = await getFilesRecursively(path.join(process.cwd(), '.gemini/hooks'), '.js');
+
+  const allRefFiles = [...tomlFiles, ...jsFiles, ...agentMdFiles, ...hookFiles];
+  for (const file of allRefFiles) {
     await updateReferences(file);
   }
 

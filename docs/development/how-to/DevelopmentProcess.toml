@@ -1,5 +1,5 @@
 title = "Standard Gated Development Process"
-description = "---"
+description = "This component outlines the repository's standard, step-by-step developer and agent development process. It is structured around a **Gated 4-Phase..."
 quadrant = "How-To"
 
 [context]
@@ -8,23 +8,23 @@ audience = "Developer"
 
 [[instructions]]
 step = "Introduction"
-description = """
+description = '''
 > **Blueprint Compliance:** This integration MUST adhere strictly to the **Strict 4-Phase Lifecycle** (Plan, Implement, Review, Commit) and the **Strict 3-Gate Architecture** (Planning Gate (Gate 1), Programmatic Review/Testing Gate (Gate 2), and Commit Gate (Gate 3)). Of these 3 gates, the Planning Gate and Commit Gate are user-facing. No phase or gate may be bypassed.
 
 ---
-"""
+'''
 
 [[instructions]]
 step = "Abstract"
-description = """
+description = '''
 This component outlines the repository's standard, step-by-step developer and agent development process. It is structured around a **Gated 4-Phase Lifecycle** (Plan, Implement, Review, Commit) and **3-Gate Architecture** (two of which are user-facing) to enforce strict planning, automated quality, and cryptographic biometric commits.
 
 ---
-"""
+'''
 
 [[instructions]]
 step = "The Three Authoritative Approval Gates"
-description = """
+description = '''
 To maintain absolute system integrity and prevent unvetted code modifications, the development lifecycle is anchored around three sequential approval gates. The agent operates with full autonomous authorization between gates, but is strictly blocked from advancing phases or committing code until the respective gate is satisfied.
 
 ### **Gate 1: Planning Gate (User-Facing)**
@@ -51,11 +51,11 @@ To maintain absolute system integrity and prevent unvetted code modifications, t
 - **Execution**: The hook (`04-commit-phase.js --after-ask`) intercepts the approval and triggers Touch ID biometrics to write `user-approval.json`. It then securely stages the files, commits using the signed key, pushes the branch, and programmatically generates a Draft Pull Request on GitHub.
 
 ---
-"""
+'''
 
 [[instructions]]
 step = "Core Mandates"
-description = """
+description = '''
 1. **Zero Data Loss Guarantee:** Destructive Git commands (`git reset --hard`, `git checkout .`, `git clean -fd`) must never be run on uncommitted workspace files unless explicitly requested by the developer, or after backing up work to a temporary branch or the standard backup directory (`~/.gemini/tmp/<repo-name>/backup_changes`).
 2. **IDE Review Priority:** Developers review code changes directly in their IDE while they are **unstaged** to maintain color-coded diff visibility. No commits can occur without presenting the unstaged diff and receiving explicit GPG-signed commit approval via the `ask_user` tool.
 3. **No Upstream Pushes:** All remote pushes must target the developer's fork, never the upstream "rancher" remote.
@@ -64,11 +64,11 @@ description = """
    - **Internal Dev Changes:** Changes to helper scripts, CI/CD configuration, linters, internal hooks, or test suites must use non-bumping conventional prefixes such as `build`, `ci`, `test`, `docs`, `fix`, or `chore`.
 
 ---
-"""
+'''
 
 [[instructions]]
 step = "Step-by-Step Procedure"
-description = """
+description = '''
 ### Phase 1: Plan Phase (Gate 1)
 
 1. **Research & Explore**: Map the goal and hurdle. Search the codebase for existing patterns and affected source or test files.
@@ -97,17 +97,17 @@ description = """
 4. **Graduation & Conclude**: Convert the Draft PR to "Ready for Review" via `gh pr ready <pr-number>` once finalized, and cleanly close the session.
 
 ---
-"""
+'''
 
 [[instructions]]
 step = "Pull Request Iteration & Comment Resolution Protocol"
-description = """
+description = '''
 When resolving comments or feedback on an open Pull Request, developers and agents must adhere to the following systematic quality iteration loop:
 
-1. **Update Reference Coding Standards First**: Translate the review comments into strict checking rules and append them to the relevant coding standards file under `docs/development/reference/` (e.g., `Go.md`, `JavaScript.md`, etc.).
+1. **Update Reference Coding Standards First**: Translate the review comments into strict checking rules and append them to the relevant coding standards file under `docs/development/reference/` (e.g., `Go.toml`, `JavaScript.toml`, etc.).
 2. **Run Map-Reduce Review on Unmodified Codebase**: Run the review orchestrator on the unmodified codebase files. The review pipeline must successfully reproduce the findings in its report and conclude with `PR Review status: 🔴 FINDINGS - Violations detected.`.
 3. **Implement Surgical Code Fixes**: Only after the review pipeline successfully reproduces the findings in its local report are you authorized to modify files to address the comments.
 4. **Local Verification & Final Review**: Run local linters and tests. Then, execute the review orchestrator one final time to confirm it approves the workspace changes with a clean `PR Review status: 🟢 PERFECT - 0 findings`.
 5. **Push Updates & Resolve**: Stage the changes, commit using the Commit Gate, and push to the remote branch. Execute `node agent-scripts/resolve-pr-reviews.js` to programmatically resolve the comment threads on GitHub.
-"""
+'''
 

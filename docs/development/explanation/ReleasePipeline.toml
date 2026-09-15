@@ -7,25 +7,25 @@ context = "Detailed architectural background and explanations."
 
 [[sections]]
 heading = "Introduction"
-content = """
+content = '''
 > **Blueprint Compliance:** This integration MUST adhere strictly to the **Strict 4-Phase Lifecycle** (Plan, Implement, Review, Commit) and the **Strict 3-Gate Architecture** (Planning Gate (Gate 1), Programmatic Review/Testing Gate (Gate 2), and Commit Gate (Gate 3)). Of these 3 gates, the Planning Gate and Commit Gate are user-facing. No phase or gate may be bypassed.
 
 This document provides a conceptual, architectural explanation of the automated release pipeline, tracing how codebase changes on the `main` branch are packaged, GPG-signed, and published to production.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "Abstract"
-content = """
+content = '''
 The release process establishes a highly automated, trunk-based deployment pipeline that translates Conventional Commits into formal, GPG-signed product releases. By eliminating manual tagging and utilizing strict manifest-driven versioning, we ensure that every release is secure, auditable, and deterministic.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "🧭 How Our Components Work Together"
-content = """
+content = '''
 Our release process is designed around two core architectural components that work in tandem to orchestrate the software delivery lifecycle:
 
 ### 1. Trunk-Based Release Strategy
@@ -45,11 +45,11 @@ When a developer's contribution lands on the `main` branch:
 3. **Verification & Signing:** Upon maintainer merge of the Release PR, the pipeline securely extracts our GPG signing credentials, compiles the binaries via GoReleaser inside a hardened container, cryptographically signs the assets, and publishes them natively to the GitHub Release Registry.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "📊 Actor-vs-Automation Interaction Swimlanes"
-content = """
+content = '''
 This swimlane diagram traces the detailed event triggers and data flow between development roles and automated GHA runners:
 
 ```text
@@ -138,5 +138,5 @@ This swimlane diagram traces the detailed event triggers and data flow between d
 ```
 
 Refactored code: N/A (Explanation is conceptual)
-"""
+'''
 

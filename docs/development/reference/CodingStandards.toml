@@ -60,4 +60,4 @@ description = "Standards for documentation and repository archives."
   name = "CHANGELOG"
   required = true
   type = "reference"
-  description = "Archive of historical project release records and semantic version updates. Defined in CHANGELOG.md (or CHANGELOG.toml)."
+  description = "Archive of historical project release records and semantic version updates. Defined in CHANGELOG.toml."

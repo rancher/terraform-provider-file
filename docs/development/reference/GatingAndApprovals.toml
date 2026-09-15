@@ -1,5 +1,5 @@
 title = "Agentic Framework: Cryptographic Gating & Approvals"
-description = "## Abstract"
+description = "To maintain absolute system integrity and prevent unauthorized code modifications in an autonomous programming workspace, the Agentic Framework..."
 quadrant = "Explanation"
 
 [background]
@@ -7,21 +7,21 @@ context = "Detailed architectural background and explanations."
 
 [[sections]]
 heading = "Introduction"
-content = """
+content = '''
 > **Blueprint Compliance:** This integration MUST adhere strictly to the **Strict 4-Phase Lifecycle** (Plan, Implement, Review, Commit) and the **Strict 3-Gate Architecture** (Planning Gate (Gate 1), Programmatic Review/Testing Gate (Gate 2), and Commit Gate (Gate 3)). Of these 3 gates, the Planning Gate and Commit Gate are user-facing. No phase or gate may be bypassed.
-"""
+'''
 
 [[sections]]
 heading = "Abstract"
-content = """
+content = '''
 To maintain absolute system integrity and prevent unauthorized code modifications in an autonomous programming workspace, the Agentic Framework implements a secure, **cryptographically chained gating pipeline**. This system mathematically guarantees that no code can be committed or pushed without satisfying sequential, hardware-authorized checkpoints: Planning Gate (Gate 1), Programmatic Review/Testing Gate (Gate 2), and Commit Gate (Gate 3).
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "🔒 Architectural Rationale: Why We Cryptographically Chain Gates"
-content = """
+content = '''
 Traditional CI/CD pipelines and pre-commit checks are highly vulnerable to **TOCTOU (Time-of-Check to Time-of-Use)** attacks and race conditions. An autonomous AI agent could theoretically modify files _after_ passing local tests and reviews, but _before_ executing the final commit, thereby injecting unvetted code into the repository.
 
 To eliminate this vulnerability, our framework enforces a **Strict Cryptographic Chaining Rule**:
@@ -35,11 +35,11 @@ To eliminate this vulnerability, our framework enforces a **Strict Cryptographic
 4. **Self-Healing Revocation**: If any check fails or if the agent modifies any source file, the enforcer hooks automatically unlink (delete) the downstream signatures, immediately revoking approvals and halting the pipeline.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "🧬 Hardware-Backed 2FA Gating & Threat Model"
-content = """
+content = '''
 In a secure, semi-autonomous engineering environment, the ultimate threat is **Agent Autonomy Escalation**: an AI agent fabricating or signing off on its own changes without real developer oversight.
 
 To prevent this, the framework binds the **Planning Gate (Gate 1)** and the final **Commit Gate (Gate 3)** to a cryptographic key. We highly recommend that the user have some form of 2-factor access to their key—whether that is a TOTP, a hardware security key (like a YubiKey), or biometric authorization (like Mac Touch ID). This requires a physical confirmation from the developer to cryptographically sign approvals, ensuring the developer remains the absolute authority over the codebase.
@@ -70,11 +70,11 @@ To prevent this, the framework binds the **Planning Gate (Gate 1)** and the fina
 4. **Biometric Validation**: If the developer touches the sensor, the Secure Enclave decrypts the token, confirming human presence. The hook then saves the valid `plan-approval.json` or `user-approval.json` signature to disk, unblocking the pipeline.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "🛠️ Step-by-Step age and Touch ID Key Setup Guide"
-content = """
+content = '''
 The framework uses the `age` modern encryption utility and `age-plugin-se` (Apple Secure Enclave plugin) to coordinate biometric signatures. Both packages are **natively provided** by our hermetic Nix development shell (`flake.nix`).
 
 ### 1. Generate a Standard age Key (Fallback / Linux)
@@ -146,11 +146,11 @@ Alternatively, you can create a native macOS Touch ID-backed SSH key using the A
 6. **Forward the agent:** Ensure your local VM (e.g., Colima) is configured to forward your SSH agent to your containers.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "🤖 Programmatic Subagent Isolation & AfterTool Hook Integration"
-content = """
+content = '''
 While Gates 1 and 3 require human Touch ID biometrics, **Gate 2 (Proactive Review)** is programmatically audited and signed by invoking our specialized Map-Reduce coordinator agent (`project_manager`). Automated tests are enforced programmatically in the pre-review hooks, eliminating the need for a standalone testing subagent.
 
 To guarantee absolute objectivity, the subagents are **fully isolated and sandboxed**:
@@ -173,21 +173,21 @@ To guarantee absolute objectivity, the subagents are **fully isolated and sandbo
 This architecture prevents the main agent or subagent from manually writing approvals or manipulating results, enforcing a completely deterministic quality gateway.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "🤖 Hook Timeout & Debugging Configuration"
-content = """
+content = '''
 To ensure reliable execution during remote Git pushes and GitHub Pull Request creation, the `commit-phase-after-ask-user` hook (`04-commit-phase.js --after-ask`) is configured with a generous timeout of `60000` ms (60 seconds) inside `.gemini/settings.json`.
 
 The hook isolates the automated commit, push, and PR generation steps into distinct, targeted try-catch blocks. This prevents remote connection timeouts or Git authentication errors from being incorrectly reported as Touch ID signature failures, ensuring clear, high-signal debugging logs during execution.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "🤖 Modular Controller & Function Decoupling (Agent-Scripts)"
-content = """
+content = '''
 The agentic framework decouples core agent logic (such as signing, verification, and Git helper scripts) from the Gemini-specific CLI integration layer. This ensures code reuse, simplifies testing, and supports multi-agent workspaces.
 
 ### 1. Root-Level `agent-scripts/` Directory
@@ -215,11 +215,11 @@ The core enforcer and automation layers are decoupled into the following dedicat
 - **Automated Quality Verification**: Granular mock-scaffolded unit tests in the `agent-scripts/tests/` directory validate the cryptographic consistency and execution safety of all decoupled helper scripts.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "🛠️ Troubleshooting: Headless TTY GPG/SSH Signing Lockout"
-content = """
+content = '''
 ### The Problem
 
 When approving Gate 3 (Commit Gate) in the chat via `ask_user`, the enforcer hook executes the commit-push tool wrapper inside an automated, non-interactive node child subprocess. Because this subprocess has no terminal TTY, attempts to prompt the developer for biometric/hardware GPG or SSH authorization (e.g. Touch ID or GPG passphrases) will fail silently, causing `git commit -S -s` to fail.
@@ -283,11 +283,11 @@ Alternatively, ensure your GPG or SSH credentials are fully unlocked and cached 
   ```
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "🛡️ Robust Local Hook & CLI Fallback Standards"
-content = """
+content = '''
 ### 1. Fail-Closed STDIN Parsing inside Enforcer Hooks
 
 All enforcer hook interceptors must treat process inputs as untrusted and fail-closed. When reading or parsing incoming JSON payloads from standard input (`STDIN`), hooks must not initialize `inputData` with a default empty object `let inputData = {}` if a parse or read exception occurs. Instead:
@@ -302,5 +302,5 @@ When interfacing with GitHub via the GitHub CLI (`gh`), automation scripts run w
 
 - Fallback wrappers must actively detect and clear both `GITHUB_TOKEN` and `GH_TOKEN` environment variables.
 - Retry execution with explicit overrides (`GITHUB_TOKEN: '', GH_TOKEN: ''`) in the child environment, which forces the GitHub CLI to discard Actions-scoped tokens and cleanly fallback to native user session credentials.
-"""
+'''
 

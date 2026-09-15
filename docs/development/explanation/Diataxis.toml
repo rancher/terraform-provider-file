@@ -19,4 +19,4 @@ content = "To prevent drift and keep documents high-signal, a single file must b
 
 [[sections]]
 heading = "Compiled JSON Context Injection"
-content = "To ensure sub-agents receive perfectly formatted, deterministic, and highly structured guidelines, all repository developer-reference standards and guidelines are written in strict TOML format according to Diátaxis principles. During agent executions (like code reviews), these TOML documents are programmatically compiled into a single unified JSON index (docs/docs-compiled.json) and injected directly into the sub-agent contexts, replacing unstructured legacy reference Markdown files."
+content = "To ensure sub-agents receive perfectly formatted, deterministic, and highly structured guidelines, all repository documentation is written in strict TOML format according to Diátaxis principles. During agent executions (like code reviews), these TOML documents are programmatically compiled into a single unified JSON index (docs/docs-compiled.json) and injected directly into the sub-agent contexts, completely replacing unstructured legacy Markdown files."

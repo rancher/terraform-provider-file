@@ -80,7 +80,8 @@ export default async function main(core) {
     for (const chunk of chunks) {
       await Promise.all(
         chunk.map(async (file) => {
-          const relativePath = path.relative(workspaceRoot, file);
+          const relativePathRaw = path.relative(workspaceRoot, file);
+          const relativePath = relativePathRaw.split(path.sep).join('/');
           const stat = await fs.promises.stat(file);
 
           // DoS Prevention: Verify file size is less than 1MB

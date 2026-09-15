@@ -98,7 +98,7 @@ export async function protectExcludeFiles() {
  */
 export function buildCombinedContext(nixText, frameworkContext) {
   const mandateHeader = `# Critical Agent Mandates
-- Follow 'docs/development/how-to/DevelopmentProcess.md'.
+- Follow 'docs/development/how-to/DevelopmentProcess.toml'.
 - NO COMMIT/PUSH COMMANDS (handled out-of-band by hooks).
 - SOURCE EDITS BLOCKED until plan approval. Task checklists MUST be in the plan.
 - Follow 4-Phase Gated Lifecycle: Plan -> Implement -> Review -> Commit.

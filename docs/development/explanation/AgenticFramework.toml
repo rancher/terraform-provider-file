@@ -7,25 +7,25 @@ context = "Detailed architectural background and explanations."
 
 [[sections]]
 heading = "Introduction"
-content = """
+content = '''
 > **Blueprint Compliance:** This integration MUST adhere strictly to the **Strict 4-Phase Lifecycle** (Plan, Implement, Review, Commit) and the **Strict 3-Gate Architecture** (Planning Gate (Gate 1), Programmatic Review/Testing Gate (Gate 2), and Commit Gate (Gate 3)). Of these 3 gates, the Planning Gate and Commit Gate are user-facing. No phase or gate may be bypassed.
 
 This document provides a reflective, concept-oriented overview of the repository's secure developer automation, zero-bypass security sandbox, and Gated 4-Phase Lifecycle.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "Abstract"
-content = """
+content = '''
 The Agentic Framework represents a secure, zero-trust developer environment designed to optimize and coordinate human engineers and autonomous subagents. By utilizing containerized sandboxing, Apple Secure Enclave biometric gating, and event-driven hooks, the framework ensures absolute codebase integrity, strict process compliance, and rapid software delivery with zero cognitive drag.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "How Our Framework Components Work Together"
-content = """
+content = '''
 Our framework is comprised of 12 closely integrated components that work together dynamically to guide developers and agents through the software development lifecycle:
 
 ### 1. Architectural & Process Specifications
@@ -57,11 +57,11 @@ These utilities and formatting styles maintain clean, high-signal, and standardi
 - **Conversational Output Style:** Rules and structural guidelines for the collaborative peer partner response persona.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "🔄 The Combined Gated 4-Phase Lifecycle"
-content = """
+content = '''
 This integrated narrative traces how our system coordinates work across 4 development phases and 3 authoritative gates to execute a standard codebase change:
 
 1. **Plan Phase (Gate 1):** The developer and agent research the requirements, write a failing reproduction test if fixing a bug, and draft an imperative plan checklist under `plans/` in the session workspace. Before any code files can be modified, the **Planning Gate (Gate 1)** intercepts execution to verify the plan's validity, prompting GPG/Touch ID biometrics to write the planning signature (`plan-approval.json`).
@@ -71,5 +71,5 @@ This integrated narrative traces how our system coordinates work across 4 develo
    To guarantee absolute cryptographic parity between the review phase and the final commit gate, the framework employs a centralized, unified diff-hashing strategy (`getActiveDiff` / `getActiveChangedFiles`). Rather than employing fragmented diffing logic across different scripts, the framework dynamically selects the correct comparison base—forcing context-aware `-U10` staged diffs on the main branch, while correctly evaluating the full branch diff relative to the tracking remote (`origin/main`) on feature branches. This prevents validation mismatches and ensures that what is committed matches what was actually reviewed.
 
 4. **Commit Phase (Gate 3):** Once all quality and testing requirements are satisfied, the developer or agent initiates the **Commit Gate (Gate 3)**. This triggers GPG/Touch ID biometrics via the enforcer hook to sign the commit (`user-approval.json`), stage files, commit cleanly, and push the active changes to GitHub to open a Pull Request.
-"""
+'''
 

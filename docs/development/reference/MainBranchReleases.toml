@@ -1,5 +1,5 @@
 title = "Release Process: Trunk-Based Release from Main"
-description = "## Abstract"
+description = "To establish a highly standardized, predictable, and simple release lifecycle, the repository adopts a **trunk-based development release..."
 quadrant = "Explanation"
 
 [background]
@@ -7,21 +7,21 @@ context = "Detailed architectural background and explanations."
 
 [[sections]]
 heading = "Introduction"
-content = """
+content = '''
 > **Blueprint Compliance:** This integration MUST adhere strictly to the **Strict 4-Phase Lifecycle** (Plan, Implement, Review, Commit) and the **Strict 3-Gate Architecture** (Planning Gate (Gate 1), Programmatic Review/Testing Gate (Gate 2), and Commit Gate (Gate 3)). Of these 3 gates, the Planning Gate and Commit Gate are user-facing. No phase or gate may be bypassed.
-"""
+'''
 
 [[sections]]
 heading = "Abstract"
-content = """
+content = '''
 To establish a highly standardized, predictable, and simple release lifecycle, the repository adopts a **trunk-based development release strategy**. This system coordinates automated production releases directly from the `main` branch, completely eliminating long-lived, error-prone `release/v*` branch structures and aligning our SemVer delivery directly with squash-merged conventional commits on `main`.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "Technical Specification"
-content = """
+content = '''
 ### 1. Trunk-Based Release Please Trigger
 
 Our pipeline coordinates automatically with `release-please` to manage stable SemVer versions and automate draft release manifests.
@@ -39,13 +39,13 @@ When the `release-please` workflow triggers, it calculates the target version an
 - **Biometric / Bot Attribution**: Tag creation is handled programmatically via `github.rest.git.createRef` utilizing the runner's authenticated token, ensuring precise, bot-attributed GitHub releases without local SSH or GPG keychain dependencies on the GHA runner.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "Standing Implementation Decisions"
-content = """
+content = '''
 1. **No Outdated Branch Releases**: Releases must always be cut directly from `main`. Branches prefixed with `release/v*` are obsolete and blocked from triggering stable releases.
 2. **Attribution Principle**: All release candidate tags are created using the native GitHub REST API and authenticated GITHUB_TOKEN rather than direct command-line git commands, ensuring cryptographically secure, traceable tag histories.
 3. **No Issue Notification Overhead**: Outdated manual release notification scripts (such as `rc-notify.js`) are permanently removed, streamlining releases of core Terraform binaries without tracking issue spam.
-"""
+'''
 

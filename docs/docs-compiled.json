@@ -1,7 +1,7 @@
 {
   "docs/development/README.toml": {
     "title": "Developer Documentation Center",
-    "description": "## Abstract",
+    "description": "This document defines the dry, structured conceptual reference of **Developer Documentation Center** within this repository. It establishes the...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -49,7 +49,7 @@
   },
   "docs/development/explanation/AutoMerging.toml": {
     "title": "Auto-Merging & Verification Infrastructure (Conceptual Explanation)",
-    "description": "## Abstract",
+    "description": "This document defines the dry, structured reflective conceptual explanation of **Auto-Merging & Verification Infrastructure (Conceptual...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -99,7 +99,7 @@
       },
       {
         "heading": "Compiled JSON Context Injection",
-        "content": "To ensure sub-agents receive perfectly formatted, deterministic, and highly structured guidelines, all repository developer-reference standards and guidelines are written in strict TOML format according to Diátaxis principles. During agent executions (like code reviews), these TOML documents are programmatically compiled into a single unified JSON index (docs/docs-compiled.json) and injected directly into the sub-agent contexts, replacing unstructured legacy reference Markdown files."
+        "content": "To ensure sub-agents receive perfectly formatted, deterministic, and highly structured guidelines, all repository documentation is written in strict TOML format according to Diátaxis principles. During agent executions (like code reviews), these TOML documents are programmatically compiled into a single unified JSON index (docs/docs-compiled.json) and injected directly into the sub-agent contexts, completely replacing unstructured legacy Markdown files."
       }
     ]
   },
@@ -151,7 +151,7 @@
       },
       {
         "heading": "📊 Actor-vs-Automation Interaction Swimlanes",
-        "content": "This swimlane diagram traces the detailed event triggers and data flow between development roles and automated GHA runners:\n\n```text\n|                [ Actor ]                    |                  [ Automation (GHA / Nix / Vault) ]            |\n├─────────────────────────────────────────────┼────────────────────────────────────────────────────────────────┤\n|                                             |                                                                |\n| === PART 1: PULL REQUEST TO SQUASH-MERGE ===|                                                                |\n|                                             |                                                                |\n|  1. PR Opened or Code Updated ------------> | ──► Trigger: pull_request (opened / synchronize)               |\n|     (Contributor submits change)            |    ├─► Native Copilot Review triggers automatically            |\n|                                             |    └─► Nix: Runs static tests, linting, and unit-checks        |\n|                                             |         │                                                      |\n|                                             |         ▼ (Checks Completed successfully)                      |\n|                                             |       Trigger: workflow_run (completed)                        |\n|                                             |       ──► Coordinator executes (Dry-Run Mode)                  |\n|                                             |           - Scans approval state                               |\n|                                             |           - Finds: No trusted reviews or approvals yet         |\n|                                             |           - Action: Posts comment: \"PR Needs Collaborator Review\"|\n|                                             |                                                                |\n|  2. Collaborator Reviews PR & Comments ---->| ──► Trigger: pull_request_review (submitted)                   |\n|     (Collaborator leaves feedback/questions)|       ──► Coordinator executes (Merge Mode)                    |\n|                                             |           - Finds: No approvals, unresolved comment threads    |\n|                                             |           - Action: Posts status comment: \"Unresolved Comments\"|\n|                                             |                                                                |\n|  3. Contributor Resolves Comments           |                                                                |\n|     (Option A: Fixes code & pushes commit)  |                                                                |\n|     └─► Pushes Commit ────────────────────> | ──► Re-runs Step 1 (Nix Unit Tests -> Dry-Run check)           |\n|                                             |                                                                |\n|     (Option B: Resolves via browser)        |                                                                |\n|     └─► Resolves conversation on GitHub     |      [ No GHA trigger fired for \"clicking resolve\" ]           |\n|                                             |                                                                |\n|     (Option C: \"Pokes\" via comment)         |                                                                |\n|     └─► Types top-level or thread comment -> | ──► Trigger: issue_comment / pull_request_review_comment       |\n|         (e.g., \"resolved\", \"ready\")         |       ──► Coordinator executes (Merge Mode)                    |\n|                                             |           - GraphQL: Queries all review threads                |\n|                                             |           - Finds: All threads are marked resolved             |\n|                                             |           - Action: Updates status comment, waits for Approval │\n|                                             |                                                                |\n|  4. Collaborator Submits Final Approval ──> | ──► Trigger: pull_request_review (submitted)                   |\n|     (Trusted Collaborator clicks \"Approve\") |       ──► Coordinator executes (Merge Mode)                    |\n|                                             |           - GQL Check: Confirms 100% of comment threads resolved│\n|                                             |           - Review Check: Validates ≥ 1 Collaborator Approval  |\n|                                             |           - Action: Fires Proxy Approval (vouching for review) │\n|                                             |           - Action: Fires SemVer Guard (scopes file boundary)  |\n|                                             |           - Action: Sanitizes commit message (product-safe)    |\n|                                             |           - Action: Executes NATIVE AUTO-MERGE into 'main'     |\n|                                             |           - Action: Automatically deletes status comments      |\n|                                             |                                                                |\n| === PART 2: SQUASH-MERGE TO PRODUCTION RELEASE =================─────────────────────────────────────────────┤\n|                                             |                                                                |\n|  5. Squash Merge Lands on main ───────────> | ──► Trigger: push to main                                      |\n|                                             |       ──► Release Please Action runs:                          |\n|                                             |           - Scans Conventional Commit squash titles            |\n|                                             |           - Calculates next version increment                  |\n|                                             |           - Action: Updates/creates draft \"Release PR\"         |\n|                                             |             (e.g., \"chore: release v1.2.3\")                    |\n|                                             |                                                                |\n|                                             | ──► Trigger: pull_request (targeting Release Please branch)    |\n|                                             |       ──► Release PR CI runs:                                  |\n|                                             |           - Nix: Runs Unit Tests                               |\n|                                             |           - AWS: Assumes OIDC IAM Role                         |\n|                                             |           - Nix: Executes FULL ACCEPTANCE TEST SUITE           |\n|                                             |                  (acc-relay: Real AWS resource deployment)      |\n|                                             |         │                                                      |\n|                                             |         ▼ (Heavy Integration Tests Pass)                       |\n|                                             |       ──► Release Candidate (RC) Step:                         |\n|                                             |           - Calculates next RC tag (e.g., v1.2.3-rc.0) via API |\n|                                             |           - Vault: Securely extracts GPG keys                  |\n|                                             |           - Nix: GoReleaser compiles & signs RC binaries       |\n|                                             |           - Action: Publishes GPG-Signed RC Release            |\n|                                             |                                                                |\n|  6. Maintainer Merges Release PR ─────────> | ──► Trigger: push to main (Release PR merged)                  |\n|     (Maintainer approves/merges Release PR) |       ──► Release Please Action runs:                          |\n|                                             |           - Detects Release PR merge                           |\n|                                             |           - Action: Outputs: release_created = true            |\n|                                             |         │                                                      |\n|                                             |         ▼                                                      |\n|                                             |       ──► Full Release Step:                                   |\n|                                             |           - Action: Automatically tags version (v1.2.3)        |\n|                                             |           - Vault: Securely extracts GPG credentials           |\n|                                             |           - Keyring Workaround: Dynamically parses primary ID  |\n|                                             |           - Nix: GoReleaser cross-compiles stable binaries     |\n|                                             |           - Action: Publishes Final GPG-Signed Release         |\n|                                             |           - Action: Reconciles Release PR labels in GitHub     |\n|                                             |                                                                |\n```\n\nRefactored code: N/A (Explanation is conceptual)\n"
+        "content": "This swimlane diagram traces the detailed event triggers and data flow between development roles and automated GHA runners:\n\n```text\n|                [ Actor ]                    |                  [ Automation (GHA / Nix / Vault) ]            |\n├─────────────────────────────────────────────┼────────────────────────────────────────────────────────────────┤\n|                                             |                                                                |\n| === PART 1: PULL REQUEST TO SQUASH-MERGE ===|                                                                |\n|                                             |                                                                |\n|  1. PR Opened or Code Updated ------------> | ──► Trigger: pull_request (opened / synchronize)               |\n|     (Contributor submits change)            |    ├─► Native Copilot Review triggers automatically            |\n|                                             |    └─► Nix: Runs static tests, linting, and unit-checks        |\n|                                             |         │                                                      |\n|                                             |         ▼ (Checks Completed successfully)                      |\n|                                             |       Trigger: workflow_run (completed)                        |\n|                                             |       ──► Coordinator executes (Dry-Run Mode)                  |\n|                                             |           - Scans approval state                               |\n|                                             |           - Finds: No trusted reviews or approvals yet         |\n|                                             |           - Action: Posts comment: \"PR Needs Collaborator Review\"|\n|                                             |                                                                |\n|  2. Collaborator Reviews PR & Comments ---->| ──► Trigger: pull_request_review (submitted)                   |\n|     (Collaborator leaves feedback/questions)|       ──► Coordinator executes (Merge Mode)                    |\n|                                             |           - Finds: No approvals, unresolved comment threads    |\n|                                             |           - Action: Posts status comment: \"Unresolved Comments\"|\n|                                             |                                                                |\n|  3. Contributor Resolves Comments           |                                                                |\n|     (Option A: Fixes code & pushes commit)  |                                                                |\n|     └─► Pushes Commit ────────────────────> | ──► Re-runs Step 1 (Nix Unit Tests -> Dry-Run check)           |\n|                                             |                                                                |\n|     (Option B: Resolves via browser)        |                                                                |\n|     └─► Resolves conversation on GitHub     |      [ No GHA trigger fired for \"clicking resolve\" ]           |\n|                                             |                                                                |\n|     (Option C: \"Pokes\" via comment)         |                                                                |\n|     └─► Types top-level or thread comment -> | ──► Trigger: issue_comment / pull_request_review_comment       |\n|         (e.g., \\\"resolved\\\", \\\"ready\\\")         |       ──► Coordinator executes (Merge Mode)                    |\n|                                             |           - GraphQL: Queries all review threads                |\n|                                             |           - Finds: All threads are marked resolved             |\n|                                             |           - Action: Updates status comment, waits for Approval │\n|                                             |                                                                |\n|  4. Collaborator Submits Final Approval ──> | ──► Trigger: pull_request_review (submitted)                   |\n|     (Trusted Collaborator clicks \"Approve\") |       ──► Coordinator executes (Merge Mode)                    |\n|                                             |           - GQL Check: Confirms 100% of comment threads resolved│\n|                                             |           - Review Check: Validates ≥ 1 Collaborator Approval  |\n|                                             |           - Action: Fires Proxy Approval (vouching for review) │\n|                                             |           - Action: Fires SemVer Guard (scopes file boundary)  |\n|                                             |           - Action: Sanitizes commit message (product-safe)    |\n|                                             |           - Action: Executes NATIVE AUTO-MERGE into 'main'     |\n|                                             |           - Action: Automatically deletes status comments      |\n|                                             |                                                                |\n| === PART 2: SQUASH-MERGE TO PRODUCTION RELEASE =================─────────────────────────────────────────────┤\n|                                             |                                                                |\n|  5. Squash Merge Lands on main ───────────> | ──► Trigger: push to main                                      |\n|                                             |       ──► Release Please Action runs:                          |\n|                                             |           - Scans Conventional Commit squash titles            |\n|                                             |           - Calculates next version increment                  |\n|                                             |           - Action: Updates/creates draft \"Release PR\"         |\n|                                             |             (e.g., \"chore: release v1.2.3\")                    |\n|                                             |                                                                |\n|                                             | ──► Trigger: pull_request (targeting Release Please branch)    |\n|                                             |       ──► Release PR CI runs:                                  |\n|                                             |           - Nix: Runs Unit Tests                               |\n|                                             |           - AWS: Assumes OIDC IAM Role                         |\n|                                             |           - Nix: Executes FULL ACCEPTANCE TEST SUITE           |\n|                                             |                  (acc-relay: Real AWS resource deployment)      |\n|                                             |         │                                                      |\n|                                             |         ▼ (Heavy Integration Tests Pass)                       |\n|                                             |       ──► Release Candidate (RC) Step:                         |\n|                                             |           - Calculates next RC tag (e.g., v1.2.3-rc.0) via API |\n|                                             |           - Vault: Securely extracts GPG keys                  |\n|                                             |           - Nix: GoReleaser compiles & signs RC binaries       |\n|                                             |           - Action: Publishes GPG-Signed RC Release            |\n|                                             |                                                                |\n|  6. Maintainer Merges Release PR ─────────> | ──► Trigger: push to main (Release PR merged)                  |\n|     (Maintainer approves/merges Release PR) |       ──► Release Please Action runs:                          |\n|                                             |           - Detects Release PR merge                           |\n|                                             |           - Action: Outputs: release_created = true            |\n|                                             |         │                                                      |\n|                                             |         ▼                                                      |\n|                                             |       ──► Full Release Step:                                   |\n|                                             |           - Action: Automatically tags version (v1.2.3)        |\n|                                             |           - Vault: Securely extracts GPG credentials           |\n|                                             |           - Keyring Workaround: Dynamically parses primary ID  |\n|                                             |           - Nix: GoReleaser cross-compiles stable binaries     |\n|                                             |           - Action: Publishes Final GPG-Signed Release         |\n|                                             |           - Action: Reconciles Release PR labels in GitHub     |\n|                                             |                                                                |\n```\n\nRefactored code: N/A (Explanation is conceptual)\n"
       }
     ]
   },
@@ -230,7 +230,7 @@
   },
   "docs/development/how-to/DevelopmentProcess.toml": {
     "title": "Standard Gated Development Process",
-    "description": "---",
+    "description": "This component outlines the repository's standard, step-by-step developer and agent development process. It is structured around a **Gated 4-Phase...",
     "quadrant": "How-To",
     "context": {
       "goal": "Perform procedural workspace changes.",
@@ -259,13 +259,13 @@
       },
       {
         "step": "Pull Request Iteration & Comment Resolution Protocol",
-        "description": "When resolving comments or feedback on an open Pull Request, developers and agents must adhere to the following systematic quality iteration loop:\n\n1. **Update Reference Coding Standards First**: Translate the review comments into strict checking rules and append them to the relevant coding standards file under `docs/development/reference/` (e.g., `Go.md`, `JavaScript.md`, etc.).\n2. **Run Map-Reduce Review on Unmodified Codebase**: Run the review orchestrator on the unmodified codebase files. The review pipeline must successfully reproduce the findings in its report and conclude with `PR Review status: 🔴 FINDINGS - Violations detected.`.\n3. **Implement Surgical Code Fixes**: Only after the review pipeline successfully reproduces the findings in its local report are you authorized to modify files to address the comments.\n4. **Local Verification & Final Review**: Run local linters and tests. Then, execute the review orchestrator one final time to confirm it approves the workspace changes with a clean `PR Review status: 🟢 PERFECT - 0 findings`.\n5. **Push Updates & Resolve**: Stage the changes, commit using the Commit Gate, and push to the remote branch. Execute `node agent-scripts/resolve-pr-reviews.js` to programmatically resolve the comment threads on GitHub.\n"
+        "description": "When resolving comments or feedback on an open Pull Request, developers and agents must adhere to the following systematic quality iteration loop:\n\n1. **Update Reference Coding Standards First**: Translate the review comments into strict checking rules and append them to the relevant coding standards file under `docs/development/reference/` (e.g., `Go.toml`, `JavaScript.toml`, etc.).\n2. **Run Map-Reduce Review on Unmodified Codebase**: Run the review orchestrator on the unmodified codebase files. The review pipeline must successfully reproduce the findings in its report and conclude with `PR Review status: 🔴 FINDINGS - Violations detected.`.\n3. **Implement Surgical Code Fixes**: Only after the review pipeline successfully reproduces the findings in its local report are you authorized to modify files to address the comments.\n4. **Local Verification & Final Review**: Run local linters and tests. Then, execute the review orchestrator one final time to confirm it approves the workspace changes with a clean `PR Review status: 🟢 PERFECT - 0 findings`.\n5. **Push Updates & Resolve**: Stage the changes, commit using the Commit Gate, and push to the remote branch. Execute `node agent-scripts/resolve-pr-reviews.js` to programmatically resolve the comment threads on GitHub.\n"
       }
     ]
   },
   "docs/development/how-to/PRReviewResolution.toml": {
     "title": "PR review comment resolution",
-    "description": "---",
+    "description": "This component defines our high-standard engineering process for analyzing, planning, and executing resolutions for Pull Request review comments...",
     "quadrant": "How-To",
     "context": {
       "goal": "Perform procedural workspace changes.",
@@ -292,7 +292,7 @@
   },
   "docs/development/how-to/ReleaseProcess.toml": {
     "title": "Release Process & Lifecycle Map",
-    "description": "## Abstract",
+    "description": "This document defines the dry, structured process map of the **Release Process & Lifecycle** within this repository. It establishes the clinical...",
     "quadrant": "How-To",
     "context": {
       "goal": "Perform procedural workspace changes.",
@@ -327,7 +327,7 @@
   },
   "docs/development/how-to/Testing.toml": {
     "title": "How to Run Linting, Formatting, and Code Quality Tests",
-    "description": "## Abstract",
+    "description": "This guide provides sequential, goal-oriented instructions for verifying code quality, formatting files, running static analysis linters, and...",
     "quadrant": "How-To",
     "context": {
       "goal": "Perform procedural workspace changes.",
@@ -405,7 +405,7 @@
   },
   "docs/development/reference/AgentScriptsArchitecture.toml": {
     "title": "Agent Scripts Directory Architecture",
-    "description": "## Abstract",
+    "description": "This document defines the dry, structured conceptual reference of **Agent Scripts Directory Architecture** within this repository. It establishes...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -431,7 +431,7 @@
   },
   "docs/development/reference/AskUserComponent.toml": {
     "title": "💬 Ask User Component",
-    "description": "---",
+    "description": "The `ask_user` tool is the primary mechanism for the autonomous agent to collaborate with, ask clarification questions of, or obtain...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -455,7 +455,7 @@
       },
       {
         "heading": "🛠️ Example Tool Call Payload",
-        "content": "When invoking the `ask_user` tool, the entire TOML string is passed as the `question` field value inside the `questions` array parameter.\n\n```json\n{\n  \"questions\": [\n    {\n      \"question\": \"intent = \"clarification\"\nrequest = \"What branch should I create this PR from?\"\",\n      \"header\": \"Branch question\",\n      \"type\": \"choice\",\n      \"options\": [\n        { \"label\": \"main\", \"description\": \"Merge directly into main branch\" },\n        { \"label\": \"feature\", \"description\": \"Merge into feature branch\" }\n      ]\n    }\n  ]\n}\n```\n\n---\n"
+        "content": "When invoking the `ask_user` tool, the entire TOML string is passed as the `question` field value inside the `questions` array parameter.\n\n```json\n{\n  \"questions\": [\n    {\n      \"question\": \"intent = \\\"clarification\\\"\\nrequest = \\\"What branch should I create this PR from?\\\"\",\n      \"header\": \"Branch question\",\n      \"type\": \"choice\",\n      \"options\": [\n        { \"label\": \"main\", \"description\": \"Merge directly into main branch\" },\n        { \"label\": \"feature\", \"description\": \"Merge into feature branch\" }\n      ]\n    }\n  ]\n}\n```\n\n---\n"
       },
       {
         "heading": "💡 Templates & Examples",
@@ -469,7 +469,7 @@
   },
   "docs/development/reference/BoilerplateSync.toml": {
     "title": "Agentic Framework: Boilerplate Sync Script",
-    "description": "## Abstract",
+    "description": "To maintain cross-project consistency across multiple repositories without the heavy administrative overhead of Git submodules, the Agentic...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -499,7 +499,7 @@
   },
   "docs/development/reference/CHANGELOG.toml": {
     "title": "Developer Documentation Changelog",
-    "description": "## Abstract",
+    "description": "This document tracks all updates, refactors, and structural changes made to the developer architecture blueprints and repository specifications...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -515,7 +515,7 @@
       },
       {
         "heading": "[Unreleased] - 2026-08-19",
-        "content": "### Refactored\n\n- **Consolidated Topics & Directories**: Grouped all process guidelines, workflows, and formatting rules under a unified directory structure to maximize cohesive discoverability and comply strictly with standard paradigms.\n- **Relocated Workflows**: Moved all repository-specific automation workflows from `.gemini/workflows/` to `docs/development/how-to/` or `docs/development/explanation/` respectively:\n  - `development-process.md` -> `how-to/DevelopmentProcess.toml`\n  - `resolve-pr-reviews.md` -> `how-to/PRReviewResolution.toml`\n  - `troubleshoot-workflows.md` -> `how-to/WorkflowTroubleshooting.toml`\n- **Relocated Formatting Styles**: Moved formatting style guidelines from `.gemini/output-styles/` to `docs/development/explanation/`:\n  - `strict.md` -> `explanation/OutputStyleStrict.toml`\n  - `conversational.md` -> `explanation/OutputStyleConversational.toml`\n- **Established Coding Standards Topic**: Created a new top-level **Coding Standards** topic overview (`reference/CodingStandards.toml`) and relocated all standards and language instructions from `.gemini/rules/` to `docs/development/reference/`:\n  - `go.instructions.md` -> `reference/Go.toml`\n  - `terraform.instructions.md` -> `reference/Terraform.toml`\n  - `workflows.instructions.md` -> `reference/Workflows.toml`\n  - `github-script.instructions.md` -> `reference/GitHubScript.toml`\n  - `shell-scripts.instructions.md` -> `reference/ShellScripts.toml`\n  - `github-copilot-review.instructions.md` -> `reference/GitHubCopilotReview.toml`\n  - `documentation.instructions.md` -> `reference/DocumentationFormatting.toml`\n  - `blueprints.instructions.md` -> `reference/Blueprints.toml`\n  - `standards.md` -> Eliminated by absorbing global linting/spelling/formatting rules into `reference/CodingStandards.toml` and standard testing targets into `how-to/Testing.toml`.\n- **Pruned Unused Folders**: Completely deleted `.gemini/workflows/`, `.gemini/output-styles/`, and `.gemini/rules/` from the automation suite, restoring `.gemini/` as a generic portable template.\n- **Retired `PLAN_LOG.md`**: Removed the redundant historical plan logs.\n\n### Added\n\n- **Official Gemini layout reference**: Created `.gemini/README.toml` defining Google's standard user-level vs project-level folder structure.\n- **Changelog**: Added this `CHANGELOG.md` file specifically tracking developer documentation under `docs/development/reference/`.\n"
+        "content": "### Refactored\n\n- **Consolidated Topics & Directories**: Grouped all process guidelines, workflows, and formatting rules under a unified directory structure to maximize cohesive discoverability and comply strictly with standard paradigms.\n- **Relocated Workflows**: Moved all repository-specific automation workflows from `.gemini/workflows/` to `docs/development/how-to/` or `docs/development/explanation/` respectively:\n  - `development-process.md` -> `how-to/DevelopmentProcess.toml`\n  - `resolve-pr-reviews.md` -> `how-to/PRReviewResolution.toml`\n  - `troubleshoot-workflows.md` -> `how-to/WorkflowTroubleshooting.toml`\n- **Relocated Formatting Styles**: Moved formatting style guidelines from `.gemini/output-styles/` to `docs/development/explanation/`:\n  - `strict.md` -> `explanation/OutputStyleStrict.toml`\n  - `conversational.md` -> `explanation/OutputStyleConversational.toml`\n- **Established Coding Standards Topic**: Created a new top-level **Coding Standards** topic overview (`reference/CodingStandards.toml`) and relocated all standards and language instructions from `.gemini/rules/` to `docs/development/reference/`:\n  - `go.instructions.md` -> `reference/Go.toml`\n  - `terraform.instructions.md` -> `reference/Terraform.toml`\n  - `workflows.instructions.md` -> `reference/Workflows.toml`\n  - `github-script.instructions.md` -> Consolidated into `reference/JavaScript.toml`\n  - `shell-scripts.instructions.md` -> `reference/ShellScripts.toml`\n  - `github-copilot-review.instructions.md` -> Consolidated into `reference/CodingStandards.toml`\n  - `documentation.instructions.md` -> `reference/DocumentationFormatting.toml`\n  - `blueprints.instructions.md` -> Consolidated into `reference/CodingStandards.toml`\n  - `standards.md` -> Eliminated by absorbing global linting/spelling/formatting rules into `reference/CodingStandards.toml` and standard testing targets into `how-to/Testing.toml`.\n- **Pruned Unused Folders**: Completely deleted `.gemini/workflows/`, `.gemini/output-styles/`, and `.gemini/rules/` from the automation suite, restoring `.gemini/` as a generic portable template.\n- **Retired `PLAN_LOG.md`**: Removed the redundant historical plan logs.\n\n### Added\n\n- **Official Gemini layout reference**: Created `.gemini/README.md` defining Google's standard user-level vs project-level folder structure.\n- **Changelog**: Added this `CHANGELOG.toml` file specifically tracking developer documentation under `docs/development/reference/`.\n"
       }
     ]
   },
@@ -586,7 +586,7 @@
             "name": "CHANGELOG",
             "required": true,
             "type": "reference",
-            "description": "Archive of historical project release records and semantic version updates. Defined in CHANGELOG.md (or CHANGELOG.toml)."
+            "description": "Archive of historical project release records and semantic version updates. Defined in CHANGELOG.toml."
           }
         ]
       }
@@ -645,7 +645,7 @@
             "name": "title",
             "required": true,
             "type": "string",
-            "description": "Goal-oriented title."
+            "description": "Goal-oriented title starting with 'How to'."
           },
           {
             "name": "description",
@@ -813,7 +813,7 @@
   },
   "docs/development/reference/EnforceAskUserIntents.toml": {
     "title": "Enforce Strict TOML Ask-User Intent Validation",
-    "description": "---",
+    "description": "This document defines the formal reference specification and TOML schemas for `ask_user` tool invocations across all gating transitions in the...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -833,7 +833,7 @@
       },
       {
         "heading": "Intent Schemas & Payloads",
-        "content": "The `question` field in the `ask_user` tool payload MUST contain a valid TOML document matching the respective schemas below:\n\n### 1. Plan Approval Schema (`plan approval`)\n\nUsed at Gate 1 (Planning Gate) to request physical GPG-signed approval of the dynamic plan.\n\n**TOML Schema:**\n\n```toml\nintent = \"plan approval\"\nrequest = \"A string representing the sign-off question.\"\nplan = \"The complete markdown plan content enclosing the implementation checklist.\"\n```\n\n**Example JSON Tool Payload:**\n\n```json\n{\n  \"questions\": [\n    {\n      \"header\": \"Approve Plan\",\n      \"type\": \"yesno\",\n      \"question\": \"intent = \"plan approval\"\nrequest = \"Do you approve the proposed feature plan?\"\nplan = \"\"\"# Plan: Feature X\n- [ ] Task 1\n- [ ] Task 2\n\"\"\"\"\n    }\n  ]\n}\n```\n\n---\n\n### 2. Commit Approval Schema (`commit approval`)\n\nUsed at Gate 3 (Commit Gate) to request physical GPG-signed approval of the Conventional Commit.\n\n**TOML Schema:**\n\n```toml\nintent = \"commit approval\"\nrequest = \"A string representing the commit sign-off question.\"\nhash = \"The SHA-256 hash of the current unstaged Git diff.\"\n\"commit-message\" = \"The proposed Conventional Commit message.\"\n\"pr-description\" = \"The detailed pull request description.\"\n```\n\n**Example JSON Tool Payload:**\n\n```json\n{\n  \"questions\": [\n    {\n      \"header\": \"Approve Commit\",\n      \"type\": \"yesno\",\n      \"question\": \"intent = \"commit approval\"\nrequest = \"Do you approve the commit and PR details?\"\nhash = \"a1b2c3d4...\"\ncommit-message = \"feat: add module x\"\npr-description = \"This PR implements module x.\"\"\n    }\n  ]\n}\n```\n\n---\n\n### 3. Clarification Schema (`clarification`)\n\nUsed during research or development to obtain technical clarification.\n\n**TOML Schema:**\n\n```toml\nintent = \"clarification\"\nrequest = \"The explicit question for the developer.\"\n```\n\n**Example JSON Tool Payload:**\n\n```json\n{\n  \"questions\": [\n    {\n      \"header\": \"Clarification\",\n      \"type\": \"choice\",\n      \"options\": [\n        { \"label\": \"Option A\", \"description\": \"Choose option A\" },\n        { \"label\": \"Option B\", \"description\": \"Choose option B\" }\n      ],\n      \"question\": \"intent = \"clarification\"\nrequest = \"Which option should we proceed with?\"\"\n    }\n  ]\n}\n```\n\n---\n\n### 4. Suggest Action Schema (`suggest action`)\n\nUsed to suggest procedural resolutions or course-corrections.\n\n**TOML Schema:**\n\n```toml\nintent = \"suggest action\"\nrequest = \"The description of the suggested action.\"\n```\n\n**Example JSON Tool Payload:**\n\n```json\n{\n  \"questions\": [\n    {\n      \"header\": \"Action Proposal\",\n      \"type\": \"choice\",\n      \"options\": [\n        { \"label\": \"Yes\", \"description\": \"Execute suggested action\" },\n        { \"label\": \"No\", \"description\": \"Skip suggested action\" }\n      ],\n      \"question\": \"intent = \"suggest action\"\nrequest = \"Would you like to resolve the current findings automatically?\"\"\n    }\n  ]\n}\n```\n\n---\n"
+        "content": "The `question` field in the `ask_user` tool payload MUST contain a valid TOML document matching the respective schemas below:\n\n### 1. Plan Approval Schema (`plan approval`)\n\nUsed at Gate 1 (Planning Gate) to request physical GPG-signed approval of the dynamic plan.\n\n**TOML Schema:**\n\n```toml\nintent = \"plan approval\"\nrequest = \"A string representing the sign-off question.\"\nplan = \"The complete markdown plan content enclosing the implementation checklist.\"\n```\n\n**Example JSON Tool Payload:**\n\n```json\n{\n  \"questions\": [\n    {\n      \"header\": \"Approve Plan\",\n      \"type\": \"yesno\",\n      \"question\": \"intent = \\\"plan approval\\\"\\nrequest = \\\"Do you approve the proposed feature plan?\\\"\\nplan = \\\"\\\"\\\"# Plan: Feature X\\n- [ ] Task 1\\n- [ ] Task 2\\n\\\"\\\"\\\"\"\n    }\n  ]\n}\n```\n\n---\n\n### 2. Commit Approval Schema (`commit approval`)\n\nUsed at Gate 3 (Commit Gate) to request physical GPG-signed approval of the Conventional Commit.\n\n**TOML Schema:**\n\n```toml\nintent = \"commit approval\"\nrequest = \"A string representing the commit sign-off question.\"\nhash = \"The SHA-256 hash of the current unstaged Git diff.\"\n\"commit-message\" = \"The proposed Conventional Commit message.\"\n\"pr-description\" = \"The detailed pull request description.\"\n```\n\n**Example JSON Tool Payload:**\n\n```json\n{\n  \"questions\": [\n    {\n      \"header\": \"Approve Commit\",\n      \"type\": \"yesno\",\n      \"question\": \"intent = \\\"commit approval\\\"\\nrequest = \\\"Do you approve the commit and PR details?\\\"\\nhash = \\\"a1b2c3d4...\\\"\\ncommit-message = \\\"feat: add module x\\\"\\npr-description = \\\"This PR implements module x.\\\"\"\n    }\n  ]\n}\n```\n\n---\n\n### 3. Clarification Schema (`clarification`)\n\nUsed during research or development to obtain technical clarification.\n\n**TOML Schema:**\n\n```toml\nintent = \"clarification\"\nrequest = \"The explicit question for the developer.\"\n```\n\n**Example JSON Tool Payload:**\n\n```json\n{\n  \"questions\": [\n    {\n      \"header\": \"Clarification\",\n      \"type\": \"choice\",\n      \"options\": [\n        { \"label\": \"Option A\", \"description\": \"Choose option A\" },\n        { \"label\": \"Option B\", \"description\": \"Choose option B\" }\n      ],\n      \"question\": \"intent = \\\"clarification\\\"\\nrequest = \\\"Which option should we proceed with?\\\"\"\n    }\n  ]\n}\n```\n\n---\n\n### 4. Suggest Action Schema (`suggest action`)\n\nUsed to suggest procedural resolutions or course-corrections.\n\n**TOML Schema:**\n\n```toml\nintent = \"suggest action\"\nrequest = \"The description of the suggested action.\"\n```\n\n**Example JSON Tool Payload:**\n\n```json\n{\n  \"questions\": [\n    {\n      \"header\": \"Action Proposal\",\n      \"type\": \"choice\",\n      \"options\": [\n        { \"label\": \"Yes\", \"description\": \"Execute suggested action\" },\n        { \"label\": \"No\", \"description\": \"Skip suggested action\" }\n      ],\n      \"question\": \"intent = \\\"suggest action\\\"\\nrequest = \\\"Would you like to resolve the current findings automatically?\\\"\"\n    }\n  ]\n}\n```\n\n---\n"
       },
       {
         "heading": "Validation Failure & Rejections",
@@ -843,7 +843,7 @@
   },
   "docs/development/reference/EnforceQuestionTypes.toml": {
     "title": "Enforce Strict Question Types and Restore Pipeline Logs",
-    "description": "---",
+    "description": "This document defines the architectural specification for enforcing strict, deterministic `yesno` question types for all cryptographic approval...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -865,7 +865,7 @@
   },
   "docs/development/reference/GatingAndApprovals.toml": {
     "title": "Agentic Framework: Cryptographic Gating & Approvals",
-    "description": "## Abstract",
+    "description": "To maintain absolute system integrity and prevent unauthorized code modifications in an autonomous programming workspace, the Agentic Framework...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -966,7 +966,7 @@
             "name": "sentinel wrapping",
             "required": true,
             "type": "constraint",
-            "description": "Wrap bubbled errors using the %w verb to maintain the original call chain. Good: fmt.Errorf(\"... %w\", err)"
+            "description": "Wrap bubbled errors using the %w verb to maintain the original call chain. Good: fmt.Errorf('... %w', err)"
           },
           {
             "name": "happy-path alignment",
@@ -1022,7 +1022,7 @@
             "name": "command injection mitigation",
             "required": true,
             "type": "constraint",
-            "description": "Do not construct CLI arguments using string formatting or variable interpolation. Pass separate strings via argv arrays. Good: exec.CommandContext(ctx, \"git\", \"diff\", branch)"
+            "description": "Do not construct CLI arguments using string formatting or variable interpolation. Pass separate strings via argv arrays. Good: exec.CommandContext(ctx, 'git', 'diff', branch)"
           }
         ]
       },
@@ -1148,10 +1148,10 @@
             "description": "Automation scripts and hooks are strictly forbidden from running destructive git commands (git reset --hard or git clean -fd) automatically without user confirmation."
           },
           {
-            "name": "correct public key verification",
+            "name": "correct private key signing",
             "required": true,
             "type": "constraint",
-            "description": "ssh-keygen -Y sign invocations in signing hooks, unit tests, and shell wrappers must always be passed the public key file path (ending in .pub), allowing the active SSH agent to perform signing via touch-id/biometrics securely."
+            "description": "ssh-keygen -Y sign invocations in signing hooks, unit tests, and shell wrappers must always be passed the private key file path, never the public .pub path."
           },
           {
             "name": "sanitized gha payloads",
@@ -1196,12 +1196,6 @@
             "required": true,
             "type": "constraint",
             "description": "Set workflow step outputs explicitly using core.setOutput('name', value) rather than relying on the function's implicit return value."
-          },
-          {
-            "name": "no abrupt exit in approval",
-            "required": true,
-            "type": "constraint",
-            "description": "Absolutely no direct process.exit(1) or process.exit(0) calls may be made inside shared approval modules (such as agent-scripts/lib/approval.js or its tools facade). Shared helpers must bubble errors up to the orchestrator."
           }
         ]
       }
@@ -1209,7 +1203,7 @@
   },
   "docs/development/reference/MainBranchReleases.toml": {
     "title": "Release Process: Trunk-Based Release from Main",
-    "description": "## Abstract",
+    "description": "To establish a highly standardized, predictable, and simple release lifecycle, the repository adopts a **trunk-based development release...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -1291,7 +1285,7 @@
   },
   "docs/development/reference/PullRequestTriggers.toml": {
     "title": "Auto-Merging Component: Pull Request Triggers & Target Resolution",
-    "description": "## Abstract",
+    "description": "The **Pull Request Triggers & Target Resolution** component is the initial entry gate of the automated merging pipeline. Backed by...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -1317,7 +1311,7 @@
   },
   "docs/development/reference/PullRequestVerification.toml": {
     "title": "Auto-Merging Component: Pull Request Requirements Verification",
-    "description": "## Abstract",
+    "description": "The **Pull Request Requirements Verification** component is the central quality and security gate of the automated merging pipeline. Implemented...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -1343,7 +1337,7 @@
   },
   "docs/development/reference/ReleasePlease.toml": {
     "title": "Release Please Automation",
-    "description": "---",
+    "description": "This component details the configuration, inputs, outputs, and CLI usage of the Google Release Please tool, which automates our changelog...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -1369,7 +1363,7 @@
   },
   "docs/development/reference/SecureWorkflowsAndHooks.toml": {
     "title": "Agentic Framework: Secure Workflows & Hook Enforcements",
-    "description": "## Abstract",
+    "description": "To establish a zero-trust, compliant development workspace, the Agentic Framework implements a **secure workflow and git hook enforcement...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -1524,7 +1518,7 @@
   },
   "docs/development/reference/SquashMergeExecutor.toml": {
     "title": "Auto-Merging Component: Squash Merge & SemVer Safety Executor",
-    "description": "## Abstract",
+    "description": "The **Squash Merge & SemVer Safety Executor** component is the execution and regulatory enforcement engine of the automated merging pipeline....",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -1550,7 +1544,7 @@
   },
   "docs/development/reference/SubagentPrompting.toml": {
     "title": "Sub-Agent Prompting Specifications",
-    "description": "## Abstract",
+    "description": "This reference document defines the standard template, configurations, and strict handoff contracts required to create and integrate specialized...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -1699,7 +1693,7 @@
   },
   "docs/development/reference/VaultTokenRetrieval.toml": {
     "title": "Auto-Merging Component: Vault Token Retrieval & Secret Management",
-    "description": "## Abstract",
+    "description": "The **Vault Token Retrieval & Secret Management** component is the authentication and privilege engine of the automated merging pipeline. Executed...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -1725,7 +1719,7 @@
   },
   "docs/development/reference/WorkflowDesign.toml": {
     "title": "Agentic Framework: Workflow Optimization & Design",
-    "description": "## Abstract",
+    "description": "To maximize efficiency and eliminate friction in a human-agent collaborative environment, the Agentic Framework streamlines processes, eliminates...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -1832,7 +1826,7 @@
             "name": "strict namespace allowlist",
             "required": true,
             "type": "constraint",
-            "description": "Third-party actions must belong strictly to the allowed list (actions/*, aquasecurity/*, aws-actions/*, dependabot/*, fossas/*, golang/*, golangci/*, google-github-actions/*, goreleaser/*, hashicorp/*, rancher-eio/*, renovatebot/*, and updatecli/*)."
+            "description": "Third-party actions must belong strictly to the allowed list (actions/*, aquasecurity/*, aws-actions/*, dependabot/*, fossas/*, github/*, golang/*, golangci/*, google-github-actions/*, goreleaser/*, hashicorp/*, rancher-eio/*, renovatebot/*, and updatecli/*)."
           },
           {
             "name": "banned inline context interpolation",

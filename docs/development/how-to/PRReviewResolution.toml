@@ -1,5 +1,5 @@
 title = "PR review comment resolution"
-description = "---"
+description = "This component defines our high-standard engineering process for analyzing, planning, and executing resolutions for Pull Request review comments..."
 quadrant = "How-To"
 
 [context]
@@ -8,31 +8,31 @@ audience = "Developer"
 
 [[instructions]]
 step = "Introduction"
-description = """
+description = '''
 > **Blueprint Compliance:** This integration MUST adhere strictly to the **Strict 4-Phase Lifecycle** (Plan, Implement, Review, Commit) and the **Strict 3-Gate Architecture** (Planning Gate (Gate 1), Programmatic Review/Testing Gate (Gate 2), and Commit Gate (Gate 3)). Of these 3 gates, the Planning Gate and Commit Gate are user-facing. No phase or gate may be bypassed.
 
 ---
-"""
+'''
 
 [[instructions]]
 step = "Abstract"
-description = """
+description = '''
 This component defines our high-standard engineering process for analyzing, planning, and executing resolutions for Pull Request review comments in a dedicated development session.
 
 ---
-"""
+'''
 
 [[instructions]]
 step = "Purpose"
-description = """
+description = '''
 Review comments from human maintainers and automated bots provide valuable insights. This workflow enforces a **"Discernment-First"** protocol: AI agents must analyze the _underlying concerns_, critically evaluate if they are valid, design high-quality, standard-compliant solutions, post clear responses to each thread on GitHub, and programmatically resolve them after refactoring.
 
 ---
-"""
+'''
 
 [[instructions]]
 step = "Detailed step-by-step procedure"
-description = """
+description = '''
 ### 1. Retrieve comments
 
 - First, retrieve a chronological timeline of all general and inline review comments:
@@ -86,5 +86,5 @@ agent-scripts/resolve-pr-reviews.sh [PR_ID] --bypass-token --all
 ```
 
 Verify that all threads are fully closed on GitHub, concluding the resolution session.
-"""
+'''
 

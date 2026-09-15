@@ -1,5 +1,5 @@
 title = "Enforce Strict TOML Ask-User Intent Validation"
-description = "---"
+description = "This document defines the formal reference specification and TOML schemas for `ask_user` tool invocations across all gating transitions in the..."
 quadrant = "Explanation"
 
 [background]
@@ -7,25 +7,25 @@ context = "Detailed architectural background and explanations."
 
 [[sections]]
 heading = "Introduction"
-content = """
+content = '''
 > **Blueprint Compliance:** This integration MUST adhere strictly to the **Strict 4-Phase Lifecycle** (Plan, Implement, Review, Commit) and the **Strict 3-Gate Architecture** (Planning Gate (Gate 1), Programmatic Review/Testing Gate (Gate 2), and Commit Gate (Gate 3)). Of these 3 gates, the Planning Gate and Commit Gate are user-facing. No phase or gate may be bypassed.
 >
 > **Diátaxis Archetype**: Reference Manual
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "Abstract"
-content = """
+content = '''
 This document defines the formal reference specification and TOML schemas for `ask_user` tool invocations across all gating transitions in the repository's secure, zero-trust developer environment.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "Allowed Intents Allowlist"
-content = """
+content = '''
 All automated and collaborative `ask_user` tool calls are checked against a strict, secure allowlist of recognized intents:
 
 1. **`plan approval`**: Requesting developer sign-off on a proposed plan to satisfy Gate 1.
@@ -34,11 +34,11 @@ All automated and collaborative `ask_user` tool calls are checked against a stri
 4. **`suggest action`**: Proposing a procedural next step or alternative implementation path.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "Intent Schemas & Payloads"
-content = """
+content = '''
 The `question` field in the `ask_user` tool payload MUST contain a valid TOML document matching the respective schemas below:
 
 ### 1. Plan Approval Schema (`plan approval`)
@@ -160,15 +160,15 @@ request = "The description of the suggested action."
 ```
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "Validation Failure & Rejections"
-content = """
+content = '''
 If a tool call is executed with an invalid TOML structure or an unrecognized intent, the validation engine immediately blocks execution and returns a structured fail-forward response. This response details:
 
 1. The exact syntax error.
 2. The mismatched schema parameter.
 3. Actionable remediation steps with reference templates.
-"""
+'''
 

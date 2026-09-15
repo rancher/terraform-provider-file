@@ -1,5 +1,5 @@
 title = "💬 Ask User Component"
-description = "---"
+description = "The `ask_user` tool is the primary mechanism for the autonomous agent to collaborate with, ask clarification questions of, or obtain..."
 quadrant = "Explanation"
 
 [background]
@@ -7,23 +7,23 @@ context = "Detailed architectural background and explanations."
 
 [[sections]]
 heading = "Introduction"
-content = """
+content = '''
 > **Blueprint Compliance:** This integration MUST adhere strictly to the **Strict 4-Phase Lifecycle** (Plan, Implement, Review, Commit) and the **Strict 3-Gate Architecture** (Planning Gate (Gate 1), Programmatic Review/Testing Gate (Gate 2), and Commit Gate (Gate 3)). Of these 3 gates, the Planning Gate and Commit Gate are user-facing. No phase or gate may be bypassed.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "Abstract"
-content = """
+content = '''
 The `ask_user` tool is the primary mechanism for the autonomous agent to collaborate with, ask clarification questions of, or obtain cryptographically signed approvals from the human developer. To prevent parsing ambiguity, maintain structured history, and guarantee robust automation validation, **all `ask_user` tool calls must be formatted as structured TOML payloads.**
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "📋 Strict Intent Allowlist"
-content = """
+content = '''
 All `ask_user` tool calls are strictly validated. You MUST set the `intent` field to one of the following recognized, allowed intents. Any unrecognized intent will result in the tool execution being immediately **denied**.
 
 | Intent            | Purpose                                                                        | Mandatory Fields                                                |
@@ -34,11 +34,11 @@ All `ask_user` tool calls are strictly validated. You MUST set the `intent` fiel
 | `suggest action`  | Proposing a specific path forward or resolving a technical hurdle.             | `intent`, `request`                                             |
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "📋 Schema Requirements"
-content = """
+content = '''
 Every `ask_user` request must format its question string as a valid, well-formed TOML document.
 
 ### 1. General Fields (Required for All Requests)
@@ -58,11 +58,11 @@ Every `ask_user` request must format its question string as a valid, well-formed
 - `pr-description` (string, markdown): The detailed description of the pull request to use when programmatically opening the PR.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "🛠️ Example Tool Call Payload"
-content = """
+content = '''
 When invoking the `ask_user` tool, the entire TOML string is passed as the `question` field value inside the `questions` array parameter.
 
 ```json
@@ -82,11 +82,11 @@ When invoking the `ask_user` tool, the entire TOML string is passed as the `ques
 ```
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "💡 Templates & Examples"
-content = """
+content = '''
 The following templates represent the correct formatting required for each intent. When using the `ask_user` tool, copy and populate the appropriate block exactly.
 
 ### 1. Plan Approval (`plan approval`)
@@ -96,7 +96,7 @@ Use this intent when asking for cryptographic plan approval at Gate 1.
 ```toml
 intent = "plan approval"
 request = "I have drafted the plan for implementing the TOML validation feature. Do you cryptographically approve this plan so that I can exit Plan Mode and begin writing the code?"
-plan = \"\"\"
+plan = """
 # Enforce TOML Format for ask_user Tool
 
 > **Blueprint Compliance:** This integration MUST adhere strictly to the **Strict 4-Phase Lifecycle** (Plan, Implement, Review, Commit) and the **Strict 3-Gate Architecture** (Planning Gate (Gate 1), Programmatic Review/Testing Gate (Gate 2), and Commit Gate (Gate 3)). No phase or gate may be bypassed.
@@ -108,7 +108,7 @@ Update the Agentic Framework to formalize all `ask_user` tool inputs into a stru
 - [ ] Install `@iarna/toml`
 - [ ] Create `.gemini/hooks/ask-user-toml-validator.js`
 - [ ] Configure `settings.json`
-\"\"\"
+"""
 ```
 
 ### 2. Commit Approval (`commit approval`)
@@ -120,14 +120,14 @@ intent = "commit approval"
 request = "My automated testing and review checks have completed successfully, and I have generated a candidate commit message. Do you approve these changes for commit?"
 hash = "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0"
 commit-message = "feat: implement structured TOML ask_user hooks"
-pr-description = \"\"\"
+pr-description = """
 This PR introduces structured TOML validation for all `ask_user` tool calls.
 
 ### Changes
 - Created `ask-user-toml-validator.js` enforcer hook.
 - Integrated validation in `settings.json`.
 - Modified plan and commit phase hooks to parse TOML.
-\"\"\"
+"""
 ```
 
 ### 3. Clarification (`clarification`)
@@ -149,20 +149,20 @@ request = "I encountered a dependency conflict with library X. I suggest either 
 ```
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "🔒 Violation & Enforcement"
-content = """
+content = '''
 Any `ask_user` tool call that is not well-formed TOML, is missing required fields (such as `intent` or `request`), or uses an unrecognized `intent` will be immediately rejected with a `deny` decision by our pre-tool enforcer hooks.
 
 If your tool call is blocked:
 
 1. Review the validation error returned by the hook.
 2. Ensure you have formatted your prompt inside `questions[0].question` or `question` exactly as a TOML document.
-3. Use triple-quotes (`\"\"\"`) for multiline strings (such as plans).
+3. Use triple-quotes (`"""`) for multiline strings (such as plans).
 4. Verify all mandatory keys are provided for your specific `intent`.
 5. Ensure your `intent` matches one of our 4 strictly allowed values.
 6. Ensure your tool call `type` parameter is set strictly to `"yesno"` if you are requesting a plan or commit approval.
-"""
+'''
 

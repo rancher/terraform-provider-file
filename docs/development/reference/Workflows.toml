@@ -30,7 +30,7 @@ description = "Critical rules to prevent GHA vulnerabilities, enforce least-priv
   name = "strict namespace allowlist"
   required = true
   type = "constraint"
-  description = "Third-party actions must belong strictly to the allowed list (actions/*, aquasecurity/*, aws-actions/*, dependabot/*, fossas/*, golang/*, golangci/*, google-github-actions/*, goreleaser/*, hashicorp/*, rancher-eio/*, renovatebot/*, and updatecli/*)."
+  description = "Third-party actions must belong strictly to the allowed list (actions/*, aquasecurity/*, aws-actions/*, dependabot/*, fossas/*, github/*, golang/*, golangci/*, google-github-actions/*, goreleaser/*, hashicorp/*, rancher-eio/*, renovatebot/*, and updatecli/*)."
 
   [[items.parameters]]
   name = "banned inline context interpolation"

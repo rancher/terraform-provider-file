@@ -48,7 +48,7 @@ description = "Used for task-focused recipes for experienced users."
   name = "title"
   required = true
   type = "string"
-  description = "Goal-oriented title."
+  description = "Goal-oriented title starting with 'How to'."
 
   [[items.parameters]]
   name = "description"

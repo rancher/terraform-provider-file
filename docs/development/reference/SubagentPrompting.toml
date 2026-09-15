@@ -1,5 +1,5 @@
 title = "Sub-Agent Prompting Specifications"
-description = "## Abstract"
+description = "This reference document defines the standard template, configurations, and strict handoff contracts required to create and integrate specialized..."
 quadrant = "Explanation"
 
 [background]
@@ -7,15 +7,15 @@ context = "Detailed architectural background and explanations."
 
 [[sections]]
 heading = "Abstract"
-content = """
+content = '''
 This reference document defines the standard template, configurations, and strict handoff contracts required to create and integrate specialized subagents within the agentic framework.
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "1. The Token-Efficient Sub-Agent Template"
-content = """
+content = '''
 To prevent context bloat and minimize API token consumption, all subagent configuration files (markdown files located in `.gemini/agents/`) MUST bypass generic conversational guidelines entirely. Instead, they must strictly act as micro-scoped, schema-contracted data-transformation pipes following this unified template:
 
 ```markdown
@@ -50,11 +50,11 @@ max_turns: [tightly bounded, e.g. 2]
 ```
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "2. Standardized Handoff Schemas"
-content = """
+content = '''
 ### A. Compact JSON Array Schema (Reviewer-Grade)
 
 For fine-grained code auditors, results must be formatted as a single JSON array wrapped inside a markdown code block. This allows the parent process to validate the structure programmatically before passing it to subsequent aggregation layers:
@@ -108,14 +108,14 @@ For task-creation agents, high-level ledger findings must be translated into fil
 ````
 
 ---
-"""
+'''
 
 [[sections]]
 heading = "3. Strict Operational Rules & Boundaries"
-content = """
+content = '''
 1. **Least Powerful Model Rule**: Always configure the subagent with the absolute lowest-power model capable of resolving its specific evaluation criteria (e.g., `gemini-2.5-flash-lite` for localized, line-by-line syntax checks, and `gemini-2.5-flash` for structural, cross-module relationship mapping).
 2. **No Solutions Rule**: Task-creator agents are strictly forbidden from inventing code fixes, outputting code blocks, or proposing raw code modifications. They must only index explicit narrative work instructions.
 3. **File Duplication Rule**: Shorthand summaries like "repeat for other files" or "same as above" are strictly banned. If a defect is widespread across multiple files, the task-creator MUST duplicate the problem checklist record explicitly under every single relevant file heading to enable isolated, parallel execution by downstream sandboxed agents.
 4. **No Conversational Noise**: Subagents must never output preambles, introductory filler ("Okay, I will look at..."), or polite sign-offs. Their entire outputs must reside strictly within the requested handoff schemas.
-"""
+'''
 
