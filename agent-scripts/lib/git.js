@@ -768,11 +768,35 @@ export async function getRepoDefaultBranch(cwd = process.cwd()) {
 }
 
 // Retrieve unified diff securely (using -U10 context width and base-selection rules)
-export async function getActiveDiff(cwd = process.cwd()) {
-  return await executeGit(['diff', '--staged', '-U10', 'HEAD'], cwd);
+export async function getActiveDiff(cwd = process.cwd(), forceFull = false) {
+  const defaultBranch = await getRepoDefaultBranch(cwd);
+
+  if (forceFull) {
+    try {
+      return await executeGit(['diff', '--staged', '-U10', `origin/${defaultBranch}`], cwd);
+    } catch (err) {
+      console.warn(`::warning::Failed to diff against origin/${defaultBranch}, falling back to local: ${err.message}`);
+      return await executeGit(['diff', '--staged', '-U10', defaultBranch], cwd);
+    }
+  } else {
+    return await executeGit(['diff', '--staged', '-U10', 'HEAD'], cwd);
+  }
 }
 
 // Retrieve the list of active changed files name-only relative to base branch or HEAD
-export async function getActiveChangedFiles(cwd = process.cwd()) {
-  return await executeGit(['diff', '--staged', '--name-only', 'HEAD'], cwd);
+export async function getActiveChangedFiles(cwd = process.cwd(), forceFull = false) {
+  const defaultBranch = await getRepoDefaultBranch(cwd);
+
+  if (forceFull) {
+    try {
+      return await executeGit(['diff', '--staged', '--name-only', `origin/${defaultBranch}`], cwd);
+    } catch (err) {
+      console.warn(
+        `::warning::Failed to get changed files against origin/${defaultBranch}, falling back to local: ${err.message}`,
+      );
+      return await executeGit(['diff', '--staged', '--name-only', defaultBranch], cwd);
+    }
+  } else {
+    return await executeGit(['diff', '--staged', '--name-only', 'HEAD'], cwd);
+  }
 }
