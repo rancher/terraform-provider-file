@@ -63,7 +63,7 @@ export async function generateAndSignApproval(targetDir, fileName, signingKeyFil
     );
   }
 
-  await execFileAsync('ssh-keygen', ['-Y', 'sign', '-f', privKeyFile, '-n', 'gemini', approvalFile]);
+  await execFileAsync('ssh-keygen', ['-Y', 'sign', '-f', pubKeyPath, '-n', 'gemini', approvalFile]);
 }
 
 export async function verifyPlanGate(targetDir) {

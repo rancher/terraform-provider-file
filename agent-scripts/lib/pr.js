@@ -88,12 +88,23 @@ export function runGh(args, options = {}) {
         return;
       }
       if (code !== 0) {
-        // Smart fallback: If gh fails and GITHUB_TOKEN is set, retry using the native keychain auth.
-        if (env.GITHUB_TOKEN) {
+        // Smart fallback: If gh fails and GITHUB_TOKEN or GH_TOKEN is set, retry using the native keychain auth if it is a token or sync issue.
+        const isTokenOrCommitIssue =
+          /GraphQL: Resource not accessible|No commits between|Head sha can't be blank|Resource not accessible by personal access token/i.test(
+            stderr || stdout,
+          );
+        if (isTokenOrCommitIssue && (env.GITHUB_TOKEN || env.GH_TOKEN)) {
+          console.log(
+            '::notice::[Fallback] Detected token authorization or commit synchronization failure. Retrying with GITHUB_TOKEN/GH_TOKEN dropped to fallback to keychain authentication...',
+          );
           const fallbackEnv = { ...env };
           delete fallbackEnv.GITHUB_TOKEN;
+          delete fallbackEnv.GH_TOKEN;
           try {
-            const fallbackResult = await runGh(args, { ...options, envOverrides: { GITHUB_TOKEN: '' } });
+            const fallbackResult = await runGh(args, {
+              ...options,
+              envOverrides: { GITHUB_TOKEN: '', GH_TOKEN: '' },
+            });
             resolve(fallbackResult);
             return;
           } catch (fallbackErr) {

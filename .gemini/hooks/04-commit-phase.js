@@ -96,7 +96,7 @@ function restoreSshAgent() {
 
 async function main() {
   restoreSshAgent();
-  let inputData = {};
+  let inputData;
   try {
     inputData = JSON.parse(fs.readFileSync(0, 'utf-8'));
   } catch (err) {

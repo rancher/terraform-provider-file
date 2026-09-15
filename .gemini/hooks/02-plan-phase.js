@@ -75,7 +75,7 @@ process.on('uncaughtException', (err) => {
 });
 
 async function main() {
-  let inputData = {};
+  let inputData;
   try {
     inputData = JSON.parse(fs.readFileSync(0, 'utf-8'));
   } catch (err) {

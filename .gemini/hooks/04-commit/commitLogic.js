@@ -268,9 +268,18 @@ export async function afterAskUserCommit(inputData, targetDir) {
     const sshPubKeyFile = path.resolve(homeDir, '.gemini/ssh-key.pub');
     const promptText = tomlData['commit-message'] || '';
     try {
+      console.error('🔒 Hook Info: Executing cryptographic commit signing and automatic push pipeline...');
       const result = await handleCommitApproval(targetDir, sshPubKeyFile, promptText);
+      console.error(
+        `🔒 Hook Info: Commit successfully signed and pushed. PR URL: ${result ? result.prUrl : 'unknown'}`,
+      );
       allow(hookName, tool_name, tool_input, '', '\n\n' + (result ? result.systemMessage : ''));
     } catch (err) {
+      console.error('🔒 Hook Error: Gate 3 commit/push pipeline failed!');
+      console.error(`🔒 Hook Error Message: ${err.message}`);
+      if (err.stack) {
+        console.error(`🔒 Hook Error Stack: ${err.stack}`);
+      }
       deny('Gate 3 (Commit Gate) Execution', err.message, 'Please address the error and run ask_user again.');
     }
   }

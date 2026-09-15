@@ -52,6 +52,9 @@ import {
   runAutomatedCommitAndPush,
   sanitizeOutput,
   syncUpstreamDefaultBranch,
+  getActiveDiff,
+  getActiveChangedFiles,
+  getRepoDefaultBranch,
 } from '../lib/git.js';
 
 export {
@@ -102,6 +105,9 @@ export {
   runAutomatedCommitAndPush,
   sanitizeOutput,
   syncUpstreamDefaultBranch,
+  getActiveDiff,
+  getActiveChangedFiles,
+  getRepoDefaultBranch,
 };
 
 function showHelp() {
@@ -183,6 +189,7 @@ async function main() {
 
         try {
           await gitDiffCachedQuiet(cwd);
+          console.error('--> [DEBUG] No staged changes found in workspace. Empty commit/no-op blocked.');
           console.error(
             "Error: No changes are currently staged for commit. Please stage your changes first using 'git add <files>...'.",
           );
@@ -190,6 +197,7 @@ async function main() {
         } catch (err) {
           // Expected exception from gitDiffCachedQuiet when staging has changes.
           // This is a standard exit code inversion test, so we safely handle the exception here.
+          console.log(`--> [DEBUG] Staged changes found: proceeding to commit...`);
           console.log(`::notice::Active staged changes verified (exit code inversion passed: ${err.message || err})`);
         }
         await verifyStagingLimits(cwd);

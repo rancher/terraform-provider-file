@@ -307,32 +307,14 @@ export async function syncUpstreamDefaultBranch(cwd = process.cwd()) {
   }
 }
 
-// Calculate active local diff hash securely (staged + unstaged combined, relative to main on feature branches, and including untracked files)
+// Calculate active local diff hash securely (staged + unstaged combined, relative to default branch on feature branches, and including untracked files)
 export async function calculateDiffHash(cwd = process.cwd()) {
   try {
-    const currentBranch = await gitBranchShowCurrent(cwd);
-
     const hash = crypto.createHash('sha256');
 
     // 1. Accumulate tracked diffs
-    if (currentBranch !== 'main' && currentBranch !== '') {
-      // Feature branch: diff working tree (staged + unstaged) against main with -U10 context to match review pipeline
-      let diffMain;
-      try {
-        diffMain = await executeGit(['diff', '-U10', 'origin/main'], cwd);
-      } catch (err) {
-        console.warn(`::warning::Failed to diff against origin/main, falling back to local main: ${err.message}`);
-        diffMain = await executeGit(['diff', '-U10', 'main'], cwd);
-      }
-      hash.update(diffMain);
-    } else {
-      // Main or detached HEAD: diff unstaged changes
-      const diffUnstaged = await gitDiff(null, cwd);
-      hash.update(diffUnstaged);
-      // Diff staged changes
-      const diffStaged = await gitDiffStaged(cwd);
-      hash.update(diffStaged);
-    }
+    const activeDiff = await getActiveDiff(cwd);
+    hash.update(activeDiff);
 
     // 2. Accumulate untracked files to prevent silent additions
     const untrackedFiles = (await gitLsFilesOthersExcludeStandard(cwd)).split('\n').filter(Boolean);
@@ -762,4 +744,58 @@ export function sanitizeOutput(str) {
     .replace(/github_token=[A-Za-z0-9_-]+/gi, 'github_token=[REDACTED]')
     .replace(/token=[A-Za-z0-9_-]+/gi, 'token=[REDACTED]')
     .replace(/https:\/\/[A-Za-z0-9_-]+:[A-Za-z0-9_-]+@/g, 'https://[REDACTED_USER_INFO]@');
+}
+
+export async function getRepoDefaultBranch(cwd = process.cwd()) {
+  try {
+    const symRef = await executeGit(['symbolic-ref', 'refs/remotes/origin/HEAD'], cwd);
+    return symRef.replace('refs/remotes/origin/', '').trim();
+  } catch {
+    try {
+      const show = await executeGit(['remote', 'show', 'origin'], cwd);
+      const match = show.match(/HEAD branch: (.*)/);
+      if (match) {
+        return match[1].trim();
+      }
+    } catch (err) {
+      console.warn(`::warning::Failed to resolve HEAD branch via remote show origin: ${err.message}`);
+    }
+    return 'main';
+  }
+}
+
+// Retrieve unified diff securely (using -U10 context width and base-selection rules)
+export async function getActiveDiff(cwd = process.cwd(), forceFull = false) {
+  const currentBranch = await gitBranchShowCurrent(cwd);
+  const defaultBranch = await getRepoDefaultBranch(cwd);
+
+  if (forceFull || (currentBranch && currentBranch !== defaultBranch && currentBranch !== '')) {
+    try {
+      return await executeGit(['diff', '-U10', `origin/${defaultBranch}`], cwd);
+    } catch (err) {
+      console.warn(`::warning::Failed to diff against origin/${defaultBranch}, falling back to local: ${err.message}`);
+      return await executeGit(['diff', '-U10', defaultBranch], cwd);
+    }
+  } else {
+    return await gitDiffStagedContext(cwd);
+  }
+}
+
+// Retrieve the list of active changed files name-only relative to base branch or HEAD
+export async function getActiveChangedFiles(cwd = process.cwd(), forceFull = false) {
+  const currentBranch = await gitBranchShowCurrent(cwd);
+  const defaultBranch = await getRepoDefaultBranch(cwd);
+
+  if (forceFull || (currentBranch && currentBranch !== defaultBranch && currentBranch !== '')) {
+    try {
+      return await executeGit(['diff', `origin/${defaultBranch}`, '--name-only'], cwd);
+    } catch (err) {
+      console.warn(
+        `::warning::Failed to get changed files against origin/${defaultBranch}, falling back to local: ${err.message}`,
+      );
+      return await executeGit(['diff', defaultBranch, '--name-only'], cwd);
+    }
+  } else {
+    return await gitDiffHeadNameOnly(cwd);
+  }
 }
