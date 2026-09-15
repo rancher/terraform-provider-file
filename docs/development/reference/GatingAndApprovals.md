@@ -257,3 +257,22 @@ Alternatively, ensure your GPG or SSH credentials are fully unlocked and cached 
   ```bash
   ssh-add -K
   ```
+
+---
+
+## 🛡️ Robust Local Hook & CLI Fallback Standards
+
+### 1. Fail-Closed STDIN Parsing inside Enforcer Hooks
+
+All enforcer hook interceptors must treat process inputs as untrusted and fail-closed. When reading or parsing incoming JSON payloads from standard input (`STDIN`), hooks must not initialize `inputData` with a default empty object `let inputData = {}` if a parse or read exception occurs. Instead:
+
+- Initialize the variable as unassigned (`let inputData;`).
+- On any read or parse failure inside the `try-catch` block, immediately raise a fatal exception to trigger the root-level crash handler.
+- This guarantees that a malformed, empty, or truncated input stream will fail-closed and abort hook execution, preventing unauthorized bypass of gating rules.
+
+### 2. Double-Token Fallback for GitHub CLI (`gh`) Execution
+
+When interfacing with GitHub via the GitHub CLI (`gh`), automation scripts run with restricted workflow access tokens (such as `GITHUB_TOKEN` and `GH_TOKEN`). To guarantee seamless failover to your full developer keychain/CLI session when executing restricted tasks (e.g., Pull Request creation):
+
+- Fallback wrappers must actively detect and clear both `GITHUB_TOKEN` and `GH_TOKEN` environment variables.
+- Retry execution with explicit overrides (`GITHUB_TOKEN: '', GH_TOKEN: ''`) in the child environment, which forces the GitHub CLI to discard Actions-scoped tokens and cleanly fallback to native user session credentials.

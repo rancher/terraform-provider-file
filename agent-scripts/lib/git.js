@@ -1,6 +1,6 @@
 import { execFile } from 'child_process';
 import crypto from 'crypto';
-import fs, { promises as fsPromises } from 'fs';
+import fs from 'fs';
 import path from 'path';
 import process from 'process';
 import { promisify } from 'util';
@@ -307,47 +307,41 @@ export async function syncUpstreamDefaultBranch(cwd = process.cwd()) {
   }
 }
 
-// Calculate active local diff hash securely (staged + unstaged combined, relative to main on feature branches, and including untracked files)
+// Calculate active local diff hash securely (staged + unstaged combined, relative to default branch on feature branches, and including untracked files)
 export async function calculateDiffHash(cwd = process.cwd()) {
-  try {
-    const currentBranch = await gitBranchShowCurrent(cwd);
+  // Check for unstaged changes
+  const unstagedDiff = await executeGit(['diff', '-U10'], cwd);
+  if (unstagedDiff.trim() !== '') {
+    throw new Error(
+      '❌ Security Gating Failure: Unstaged changes detected in the worktree!\n' +
+        'In accordance with repository safety standards and user preference,\n' +
+        "you MUST stage all changes ('git add <file>') before reviewing or committing\n" +
+        'to ensure all modifications are completely and transparently reviewed.',
+    );
+  }
 
+  const untrackedFilesOutput = await executeGit(['ls-files', '--others', '--exclude-standard'], cwd);
+  const untrackedFiles = untrackedFilesOutput.split('\n').filter(Boolean);
+  if (untrackedFiles.length > 0) {
+    throw new Error(
+      '❌ Security Gating Failure: Untracked files detected in the workspace!\n' +
+        'In accordance with repository safety standards and user preference,\n' +
+        "you MUST stage all changes ('git add <file>') before reviewing or committing\n" +
+        'to ensure all modifications are completely and transparently reviewed.\n' +
+        `Untracked files: ${untrackedFiles.join(', ')}`,
+    );
+  }
+
+  try {
     const hash = crypto.createHash('sha256');
 
     // 1. Accumulate tracked diffs
-    if (currentBranch !== 'main' && currentBranch !== '') {
-      // Feature branch: diff working tree (staged + unstaged) against main
-      const diffMain = await gitDiff('main', cwd);
-      hash.update(diffMain);
-    } else {
-      // Main or detached HEAD: diff unstaged changes
-      const diffUnstaged = await gitDiff(null, cwd);
-      hash.update(diffUnstaged);
-      // Diff staged changes
-      const diffStaged = await gitDiffStaged(cwd);
-      hash.update(diffStaged);
-    }
-
-    // 2. Accumulate untracked files to prevent silent additions
-    const untrackedFiles = (await gitLsFilesOthersExcludeStandard(cwd)).split('\n').filter(Boolean);
-
-    for (const file of untrackedFiles) {
-      const absolutePath = path.resolve(cwd, file);
-      try {
-        const stats = await fsPromises.stat(absolutePath);
-        if (stats.isFile()) {
-          const fileContent = await fsPromises.readFile(absolutePath);
-          hash.update(`untracked:${file}\n`);
-          hash.update(fileContent);
-        }
-      } catch (fileErr) {
-        console.log(`::error::Failed to read untracked file ${file} {"message":"${fileErr.message}"}`);
-      }
-    }
+    const activeDiff = await getActiveDiff(cwd, false);
+    hash.update(activeDiff);
 
     return hash.digest('hex');
   } catch (err) {
-    console.log(`::error::calculateDiffHash failed {"message":"${err.message}"}`);
+    console.error(`::error::calculateDiffHash failed {"message":"${err.message}"}`);
     return null;
   }
 }
@@ -407,7 +401,7 @@ export async function runAutomatedCommitAndPush(targetDir, commitMessage, cwd = 
       console.log(`::notice::${commitOut.trim()}`);
     }
 
-    const prScriptPath = path.resolve(cwd, 'agent-scripts/pr.js');
+    const prScriptPath = path.resolve(cwd, 'agent-scripts/tools/pr.js');
     console.log(`::notice::Hook Info: Spawning pr.js to create pull request for branch ${activeBranch}`);
     const prOut = await executeFileSafe(
       prScriptPath,
@@ -756,4 +750,57 @@ export function sanitizeOutput(str) {
     .replace(/github_token=[A-Za-z0-9_-]+/gi, 'github_token=[REDACTED]')
     .replace(/token=[A-Za-z0-9_-]+/gi, 'token=[REDACTED]')
     .replace(/https:\/\/[A-Za-z0-9_-]+:[A-Za-z0-9_-]+@/g, 'https://[REDACTED_USER_INFO]@');
+}
+
+export async function getRepoDefaultBranch(cwd = process.cwd()) {
+  try {
+    const symRef = await executeGit(['symbolic-ref', 'refs/remotes/origin/HEAD'], cwd);
+    return symRef.replace('refs/remotes/origin/', '').trim();
+  } catch {
+    try {
+      const show = await executeGit(['remote', 'show', 'origin'], cwd);
+      const match = show.match(/HEAD branch: (.*)/);
+      if (match) {
+        const branch = match[1].trim();
+        if (branch && branch !== '(unknown)') {
+          return branch;
+        }
+      }
+    } catch (err) {
+      console.warn(`::warning::Failed to resolve HEAD branch via remote show origin: ${err.message}`);
+    }
+    return 'main';
+  }
+}
+
+// Retrieve unified diff securely (using -U10 context width and base-selection rules)
+export async function getActiveDiff(cwd = process.cwd(), forceFull = false) {
+  if (forceFull) {
+    const defaultBranch = await getRepoDefaultBranch(cwd);
+    try {
+      return await executeGit(['diff', '--staged', '-U10', `origin/${defaultBranch}`], cwd);
+    } catch (err) {
+      console.warn(`::warning::Failed to diff against origin/${defaultBranch}, falling back to local: ${err.message}`);
+      return await executeGit(['diff', '--staged', '-U10', defaultBranch], cwd);
+    }
+  } else {
+    return await executeGit(['diff', '--staged', '-U10', 'HEAD'], cwd);
+  }
+}
+
+// Retrieve the list of active changed files name-only relative to base branch or HEAD
+export async function getActiveChangedFiles(cwd = process.cwd(), forceFull = false) {
+  if (forceFull) {
+    const defaultBranch = await getRepoDefaultBranch(cwd);
+    try {
+      return await executeGit(['diff', '--staged', '--name-only', `origin/${defaultBranch}`], cwd);
+    } catch (err) {
+      console.warn(
+        `::warning::Failed to get changed files against origin/${defaultBranch}, falling back to local: ${err.message}`,
+      );
+      return await executeGit(['diff', '--staged', '--name-only', defaultBranch], cwd);
+    }
+  } else {
+    return await executeGit(['diff', '--staged', '--name-only', 'HEAD'], cwd);
+  }
 }

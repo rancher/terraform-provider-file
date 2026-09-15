@@ -88,12 +88,20 @@ export function runGh(args, options = {}) {
         return;
       }
       if (code !== 0) {
-        // Smart fallback: If gh fails and GITHUB_TOKEN is set, retry using the native keychain auth.
-        if (env.GITHUB_TOKEN) {
-          const fallbackEnv = { ...env };
-          delete fallbackEnv.GITHUB_TOKEN;
+        // Smart fallback: If gh fails and GITHUB_TOKEN or GH_TOKEN is set, retry using the native keychain auth if it is a token or sync issue.
+        const isTokenOrCommitIssue =
+          /GraphQL: Resource not accessible|No commits between|Head sha can't be blank|Resource not accessible by personal access token/i.test(
+            stderr || stdout,
+          );
+        if (isTokenOrCommitIssue && (env.GITHUB_TOKEN || env.GH_TOKEN)) {
+          console.warn(
+            '::notice::[Fallback] Detected token authorization or commit synchronization failure. Retrying with GITHUB_TOKEN/GH_TOKEN dropped to fallback to keychain authentication...',
+          );
           try {
-            const fallbackResult = await runGh(args, { ...options, envOverrides: { GITHUB_TOKEN: undefined } });
+            const fallbackResult = await runGh(args, {
+              ...options,
+              envOverrides: { GITHUB_TOKEN: '', GH_TOKEN: '' },
+            });
             resolve(fallbackResult);
             return;
           } catch (fallbackErr) {
@@ -143,6 +151,26 @@ export async function create(prData, cwd = process.cwd()) {
   if (typeof title !== 'string' || typeof body !== 'string') {
     throw new TypeError('title and body must be strings');
   }
+
+  // Self-healing check: If an open PR already exists for the head branch, return its URL instead of failing!
+  if (head) {
+    try {
+      const existingPrNumber = await exists(head, null, cwd);
+      if (existingPrNumber) {
+        console.warn(
+          `::notice::[Self-Healing] Open Pull Request #${existingPrNumber} already exists for branch '${head}'. Retrieving URL...`,
+        );
+        const prDetailsOut = await runGh(['pr', 'view', String(existingPrNumber), '--json', 'url'], { cwd });
+        const prDetails = safeJsonParse(prDetailsOut, null);
+        if (prDetails && prDetails.url) {
+          return prDetails.url;
+        }
+      }
+    } catch (err) {
+      console.warn(`::warning::Failed to check for existing PR: ${err.message}`);
+    }
+  }
+
   const args = ['pr', 'create', '--draft', '--title', title, '--body', body];
   if (base) {
     args.push('--base', base);

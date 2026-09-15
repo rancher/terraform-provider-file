@@ -28,6 +28,8 @@ This document is a dry, structured reference index of JavaScript syntax, securit
 
 - **Rule: Fail-Safe JSON Parsing (State Management)**
   - **Constraint:** All JSON file reads and parsing routines (such as loading `phase-state.json`) must be wrapped in `try-catch` blocks, providing a fallback to a fresh default state if corrupt or malformed JSON is encountered.
+- **Rule: No Abrupt process.exit in Shared Approval Modules**
+  - **Constraint:** Functions inside shared approval library files (specifically `agent-scripts/lib/approval.js`) must never call `process.exit(1)` directly when encountering an error. Instead, they must throw an `Error` to allow the calling enforcer hook or CLI tool to catch and gracefully format/route the failure (e.g., via `deny()`), preventing unformatted crash loops.
 - **Rule: Mandatory Octokit Pagination (GHA Specific)**
   - **Constraint:** All GHA REST API calls that return arrays (like listing PR comments or repositories) MUST use the `github.paginate` wrapper to guarantee exhaustive collection of paginated results.
 - **Rule: Preferred REST over GraphQL (GHA Specific)**
@@ -41,8 +43,8 @@ This document is a dry, structured reference index of JavaScript syntax, securit
   - **Constraint:** All Git, GitHub CLI (`gh`), and system CLI executions inside local scripts and hooks MUST use `execFileSync` (or `execFile`) with positional argv arrays. Never use string formatting or template interpolation to execute commands, as this creates shell-injection risks.
 - **Rule: Banned Automatic Destructive Git Operations (CRITICAL)**
   - **Constraint:** Automation scripts and hooks are strictly forbidden from running destructive git commands (`git reset --hard` or `git clean -fd`) automatically without explicit user-approved confirmation.
-- **Rule: Correct Private Key Signing (SSH Sign)**
-  - **Constraint:** `ssh-keygen -Y sign` invocations in signing hooks, unit tests, and shell wrappers must always be passed the private key file path, never the public `.pub` key file path.
+- **Rule: Correct Public Key Signing (SSH Sign)**
+  - **Constraint:** `ssh-keygen -Y sign` invocations in signing hooks, unit tests, and shell wrappers must always be passed the public `.pub` key file path, never the private key file path. This forces OpenSSH to correctly query and route signing operations through the active `ssh-agent` for biometric or hardware confirmations.
 - **Rule: Sanitized GHA Webhook Payloads (GHA Specific)**
   - **Constraint:** Treat all inputs from `context.payload` (PR titles, issue bodies, authors) as untrusted, untethered strings. Sanitize them before running regex matches or logging them.
 - **Rule: Graceful API Failures (GHA Specific)**

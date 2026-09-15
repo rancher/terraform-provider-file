@@ -168,8 +168,17 @@ export async function afterAskUserCommit(inputData, targetDir) {
   const { tool_name, tool_input, tool_response } = inputData;
   const hookName = 'afterAskUserCommit';
 
-  if (tool_name !== 'ask_user' || !tool_input || !tool_response) {
-    allow(hookName, tool_name);
+  if (!tool_name || tool_name !== 'ask_user') {
+    allow(hookName, tool_name || 'no-tool-called');
+    return;
+  }
+
+  if (!tool_input || !tool_response) {
+    deny(
+      hookName,
+      'Incomplete ask_user hook payload (missing input or response)',
+      'Ensure tool_input and tool_response are supplied.',
+    );
   }
 
   if (await inPlanMode(targetDir)) {
@@ -266,8 +275,21 @@ export async function afterAskUserCommit(inputData, targetDir) {
     const homeDir = os.homedir();
     const sshPubKeyFile = path.resolve(homeDir, '.gemini/ssh-key.pub');
     const promptText = tomlData['commit-message'] || '';
-    const result = await handleCommitApproval(targetDir, sshPubKeyFile, promptText);
-    allow(hookName, tool_name, tool_input, '', '\n\n' + (result ? result.systemMessage : ''));
+    try {
+      console.error('🔒 Hook Info: Executing cryptographic commit signing and automatic push pipeline...');
+      const result = await handleCommitApproval(targetDir, sshPubKeyFile, promptText);
+      console.error(
+        `🔒 Hook Info: Commit successfully signed and pushed. PR URL: ${result ? result.prUrl : 'unknown'}`,
+      );
+      allow(hookName, tool_name, tool_input, '', '\n\n' + (result ? result.systemMessage : ''));
+    } catch (err) {
+      console.error('🔒 Hook Error: Gate 3 commit/push pipeline failed!');
+      console.error(`🔒 Hook Error Message: ${err.message}`);
+      if (err.stack) {
+        console.error(`🔒 Hook Error Stack: ${err.stack}`);
+      }
+      deny('Gate 3 (Commit Gate) Execution', err.message, 'Please address the error and run ask_user again.');
+    }
   }
 
   allow(hookName, tool_name);

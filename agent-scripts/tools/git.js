@@ -52,6 +52,9 @@ import {
   runAutomatedCommitAndPush,
   sanitizeOutput,
   syncUpstreamDefaultBranch,
+  getActiveDiff,
+  getActiveChangedFiles,
+  getRepoDefaultBranch,
 } from '../lib/git.js';
 
 export {
@@ -102,6 +105,9 @@ export {
   runAutomatedCommitAndPush,
   sanitizeOutput,
   syncUpstreamDefaultBranch,
+  getActiveDiff,
+  getActiveChangedFiles,
+  getRepoDefaultBranch,
 };
 
 function showHelp() {

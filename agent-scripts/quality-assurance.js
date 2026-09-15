@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { revokeSignature, verifyPlanGate } from './tools/approval.js';
-import { executeGit, gitAddAll, gitDiffHeadNameOnly, gitDiffStagedContext } from './tools/git.js';
+import { executeGit, gitAddAll, getActiveDiff, getActiveChangedFiles } from './tools/git.js';
 import { runGeminiWithValidation } from './tools/gemini.js';
 import { resolveTargetDir } from './tools/file.js';
 import { runPreReviewTests } from './tools/test.js';
@@ -154,16 +154,6 @@ async function writeSignatures(reportObj, planHash, activeDiff, targetDir) {
   await writeFileSafe(path.join(targetDir, 'phase.txt'), 'commit');
 
   console.info('::notice::🟢 Gate 2 (Review) Cryptographically Signed successfully!');
-}
-
-export async function getRepoDefaultBranch() {
-  try {
-    const ref = await executeGit(['symbolic-ref', 'refs/remotes/origin/HEAD']);
-    return ref.trim().replace('refs/remotes/origin/', '');
-  } catch (err) {
-    console.debug(`Failed to resolve default branch ref: ${err.message}`);
-    return 'main';
-  }
 }
 
 export function filterExcludedFiles(files, excludeRules) {
@@ -339,30 +329,10 @@ async function main() {
   }
 
   let activeDiff;
-  let unfilteredDiff;
-  let changedFilesOutput;
 
-  const defaultBranch = await getRepoDefaultBranch();
-  const currentBranch = await executeGit(['branch', '--show-current']);
-
-  if (currentBranch && currentBranch !== defaultBranch) {
-    console.info(`::notice::[Feature Branch] Reviewing all changes against base branch 'origin/${defaultBranch}'...`);
-    try {
-      unfilteredDiff = await executeGit(['diff', '-U10', `origin/${defaultBranch}`]);
-      changedFilesOutput = await executeGit(['diff', `origin/${defaultBranch}`, '--name-only']);
-    } catch (err) {
-      // If origin/<defaultBranch> doesn't exist or fetch failed, fallback to local defaultBranch
-      console.warn(
-        `::warning::Failed to diff against origin/${defaultBranch}, falling back to local ${defaultBranch}: ${err.message}`,
-      );
-      unfilteredDiff = await executeGit(['diff', '-U10', defaultBranch]);
-      changedFilesOutput = await executeGit(['diff', defaultBranch, '--name-only']);
-    }
-  } else {
-    console.info('::notice::[Targeted Diff] Identifying changed files relative to HEAD...');
-    unfilteredDiff = await gitDiffStagedContext();
-    changedFilesOutput = await gitDiffHeadNameOnly();
-  }
+  console.info('::notice::[Unified Diff] Calculating active workspace difference...');
+  const unfilteredDiff = await getActiveDiff(process.cwd());
+  const changedFilesOutput = await getActiveChangedFiles(process.cwd());
 
   const rawChangedFiles = changedFilesOutput
     .split('\n')
@@ -395,16 +365,7 @@ async function main() {
 
   // Generate the filtered activeDiff for Gemini audit
   if (changedFiles.length > 0) {
-    if (currentBranch && currentBranch !== defaultBranch) {
-      try {
-        activeDiff = await executeGit(['diff', '-U10', `origin/${defaultBranch}`, '--', ...changedFiles]);
-      } catch (err) {
-        console.debug(`Failed to diff against origin/${defaultBranch}, trying local fallback: ${err.message}`);
-        activeDiff = await executeGit(['diff', '-U10', defaultBranch, '--', ...changedFiles]);
-      }
-    } else {
-      activeDiff = await executeGit(['diff', '-U10', 'HEAD', '--staged', '--', ...changedFiles]);
-    }
+    activeDiff = await executeGit(['diff', '-U10', 'HEAD', '--staged', '--', ...changedFiles]);
   } else {
     activeDiff = '';
   }

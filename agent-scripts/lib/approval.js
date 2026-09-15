@@ -1,5 +1,4 @@
 import { execFile } from 'child_process';
-import crypto from 'crypto';
 import fs, { promises as fsPromises } from 'fs';
 import os from 'os';
 import path from 'path';
@@ -12,13 +11,7 @@ import {
   savePlanContent,
   writeFileSafe,
 } from './file.js';
-import {
-  calculateDiffHash,
-  gitBranchShowCurrent,
-  gitDiff,
-  gitRevParseShowToplevel,
-  runAutomatedCommitAndPush,
-} from './git.js';
+import { calculateDiffHash, gitRevParseShowToplevel, runAutomatedCommitAndPush } from './git.js';
 import { findLatestActivePlan } from './plan.js';
 import { readState, updateState } from './state.js';
 
@@ -70,7 +63,7 @@ export async function generateAndSignApproval(targetDir, fileName, signingKeyFil
     );
   }
 
-  await execFileAsync('ssh-keygen', ['-Y', 'sign', '-f', privKeyFile, '-n', 'gemini', approvalFile]);
+  await execFileAsync('ssh-keygen', ['-Y', 'sign', '-f', pubKeyPath, '-n', 'gemini', approvalFile]);
 }
 
 export async function verifyPlanGate(targetDir) {
@@ -326,33 +319,31 @@ export async function verifyProactiveReview(cwd = process.cwd()) {
 
   console.error('Verifying proactive review approval status...');
 
-  const currentBranch = await gitBranchShowCurrent(cwd);
-  const activeDiff =
-    currentBranch && currentBranch !== 'main' ? await gitDiff('main', cwd) : await gitDiff('HEAD', cwd);
-  const activeHash = crypto.createHash('sha256').update(activeDiff).digest('hex');
+  const activeHash = await calculateDiffHash(cwd);
 
   const reviewData = await readApprovalData(targetDir, 'review-approval.json');
   if (!reviewData) {
-    console.error('Error: Proactive review approval file not found or could not be parsed!');
-    console.error("       In accordance with Gate 3 (Review Gate) of 'docs/development/how-to/DevelopmentProcess.md',");
-    console.error('       you MUST run the review script first: node agent-scripts/code-review.js');
-    process.exit(1);
+    throw new Error(
+      'Proactive review approval file not found or could not be parsed!\n' +
+        "In accordance with Gate 2 (Programmatic Review/Testing Gate) of 'docs/development/how-to/DevelopmentProcess.md',\n" +
+        'you MUST run the review script first: node agent-scripts/code-review.js',
+    );
   }
 
   const status = reviewData.status || '';
   const diffHash = reviewData.diff_hash || '';
 
   if (status !== 'approved') {
-    console.error(`Error: Proactive review approval status is '${status}' (not approved).`);
-    process.exit(1);
+    throw new Error(`Proactive review approval status is '${status}' (not approved).`);
   }
 
   if (diffHash !== activeHash) {
-    console.error('Error: Local changes have been modified since your last proactive review!');
-    console.error(`       Approved SHA-256 hash: ${diffHash}`);
-    console.error(`       Current active SHA-256 hash: ${activeHash}`);
-    console.error('       Please run the review agent again on your latest changes.');
-    process.exit(1);
+    throw new Error(
+      'Local changes have been modified since your last proactive review!\n' +
+        `Approved SHA-256 hash: ${diffHash}\n` +
+        `Current active SHA-256 hash: ${activeHash}\n` +
+        'Please run the review agent again on your latest changes.',
+    );
   }
 
   console.error(`✅ Proactive review approval verified! (SHA-256 Hash: ${activeHash})`);
@@ -370,13 +361,11 @@ export async function handlePlanApproval(targetDir, signingKeyFile, promptText) 
   const activePlan = await savePlanContent(targetDir, planContent);
 
   if (!activePlan) {
-    console.log('::error::Cryptographic Pipeline Error: Active plan file not found.');
-    process.exit(1);
+    throw new Error('Cryptographic Pipeline Error: Active plan file not found.');
   }
   const planHash = await calculateFileHash(activePlan);
   if (!planHash) {
-    console.log('::error::Cryptographic Pipeline Error: Failed to calculate active plan hash.');
-    process.exit(1);
+    throw new Error('Cryptographic Pipeline Error: Failed to calculate active plan hash.');
   }
 
   const envelope = {
@@ -393,8 +382,9 @@ export async function handlePlanApproval(targetDir, signingKeyFile, promptText) 
       systemMessage: '✅ Gate 1 Approved: Plan cryptographically signed!',
     };
   } catch (err) {
-    console.log(`::error::Cryptographic Pipeline Error: Failed to execute plan decryption: ${err.message || err}`);
-    process.exit(1);
+    throw new Error(`Cryptographic Pipeline Error: Failed to execute plan decryption: ${err.message || err}`, {
+      cause: err,
+    });
   }
 }
 
@@ -407,8 +397,7 @@ export async function handleReviewApproval(targetDir, signingKeyFile) {
   const diffHash = await calculateDiffHash();
 
   if (!diffHash) {
-    console.log('::error::Cryptographic Pipeline Error: Failed to calculate active diff hash.');
-    process.exit(1);
+    throw new Error('Cryptographic Pipeline Error: Failed to calculate active diff hash.');
   }
 
   const envelope = {
@@ -426,8 +415,9 @@ export async function handleReviewApproval(targetDir, signingKeyFile) {
       systemMessage: '✅ Gate 2 Approved: Programmatic Review cryptographically signed!',
     };
   } catch (err) {
-    console.log(`::error::Cryptographic Pipeline Error: Failed to execute review signature: ${err.message || err}`);
-    process.exit(1);
+    throw new Error(`Cryptographic Pipeline Error: Failed to execute review signature: ${err.message || err}`, {
+      cause: err,
+    });
   }
 }
 
@@ -440,8 +430,7 @@ export async function handleCommitApproval(targetDir, signingKeyFile, promptText
   const diffHash = await calculateDiffHash();
 
   if (!diffHash) {
-    console.log('::error::Cryptographic Pipeline Error: Failed to calculate active diff hash.');
-    process.exit(1);
+    throw new Error('Cryptographic Pipeline Error: Failed to calculate active diff hash.');
   }
 
   const envelope = {
@@ -462,10 +451,10 @@ export async function handleCommitApproval(targetDir, signingKeyFile, promptText
       systemMessage: `✅ Gate 3 Approved: Developer Commit cryptographically signed!\n🎉 PR successfully created: ${prUrl}`,
     };
   } catch (err) {
-    console.log(
-      `::error::Cryptographic Pipeline Error: Failed to execute Secure Enclave commit decryption: ${err.message || err}`,
+    throw new Error(
+      `Cryptographic Pipeline Error: Failed to execute Secure Enclave commit decryption: ${err.message || err}`,
+      { cause: err },
     );
-    process.exit(1);
   }
 }
 
@@ -481,8 +470,7 @@ export async function handleApproval(type, targetDir, signingKeyFile, promptText
     case 'commit':
       return await handleCommitApproval(targetDir, signingKeyFile, promptText);
     default:
-      console.log(`::error::Unknown approval type: ${type}`);
-      process.exit(1);
+      throw new Error(`Unknown approval type: ${type}`);
   }
 }
 

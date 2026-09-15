@@ -5,7 +5,7 @@ import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { revokeSignature, verifyPlanGate } from './tools/approval.js';
-import { executeGit, gitAddAll, gitDiffHeadNameOnly, gitDiffStagedContext } from './tools/git.js';
+import { executeGit, gitAddAll, getActiveDiff, getActiveChangedFiles } from './tools/git.js';
 import { runMapPhase, runReducePhase } from './tools/review.js';
 import { runProjectManager } from './tools/project-manager.js';
 import { runMetaAnalysis } from './tools/meta-analysis.js';
@@ -29,15 +29,6 @@ process.on('unhandledRejection', async (reason) => {
   await teardown();
   process.exit(1);
 });
-
-async function getRepoDefaultBranch() {
-  try {
-    const ref = await executeGit(['symbolic-ref', 'refs/remotes/origin/HEAD']);
-    return ref.trim().replace('refs/remotes/origin/', '');
-  } catch {
-    return 'main';
-  }
-}
 
 async function asyncExists(filePath) {
   try {
@@ -191,18 +182,9 @@ async function identifyFilesToReview(argv, targetDir, isFullContext = false) {
     console.info('::notice::Staging all workspace changes (git add -A)...');
     await gitAddAll();
 
-    let filesOutput;
-    if (isFullContext) {
-      const defaultBranch = await getRepoDefaultBranch();
-      console.info(`::notice::[Full Context] Calculating diff against default branch (git diff ${defaultBranch})...`);
-      // Since executeGit is already imported and available, we can run:
-      activeDiff = await executeGit(['diff', 'origin/' + defaultBranch]);
-      filesOutput = await executeGit(['diff', 'origin/' + defaultBranch, '--name-only']);
-    } else {
-      console.info('::notice::[Targeted Diff] Identifying changed files relative to HEAD...');
-      activeDiff = await gitDiffStagedContext();
-      filesOutput = await gitDiffHeadNameOnly();
-    }
+    console.info('::notice::[Unified Diff] Calculating active workspace difference...');
+    activeDiff = await getActiveDiff(process.cwd(), isFullContext);
+    const filesOutput = await getActiveChangedFiles(process.cwd(), isFullContext);
 
     let excludeRules = [];
     try {
