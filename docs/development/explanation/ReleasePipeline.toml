@@ -1,5 +1,5 @@
 title = "Release Process & Automation (Conceptual Explanation)"
-description = "This document provides a conceptual, architectural explanation of the automated release pipeline, tracing how codebase changes on the `main` branch ar"
+description = "This document provides a conceptual, architectural explanation of the automated release pipeline, tracing how codebase changes on the `main`..."
 quadrant = "Explanation"
 
 [background]

@@ -14,28 +14,53 @@ const skipList = new Set([
   'docs/development/explanation/Diataxis.toml',
 ]);
 
-// Helper to recursively get all .md files in docs/development
-async function getFilesRecursively(dir) {
+const renameMap = {
+  'Documentation.md': 'DocumentationFormatting.toml',
+};
+
+// Helper to recursively get files with specific extension in docs/development
+async function getFilesRecursively(dir, ext) {
   let results = [];
   const list = await fs.promises.readdir(dir);
   for (const file of list) {
     const fullPath = path.join(dir, file);
     const stat = await fs.promises.stat(fullPath);
     if (stat && stat.isDirectory()) {
-      const subResults = await getFilesRecursively(fullPath);
+      const subResults = await getFilesRecursively(fullPath, ext);
       results = results.concat(subResults);
-    } else if (file.endsWith('.md')) {
+    } else if (file.endsWith(ext)) {
       results.push(fullPath);
     }
   }
   return results;
 }
 
+function truncateDescription(desc) {
+  const clean = desc.replace(/\n/g, ' ').trim();
+  if (clean.length <= 150) {
+    return clean;
+  }
+  // Truncate safely at word boundary
+  const truncated = clean.substring(0, 147);
+  const lastSpace = truncated.lastIndexOf(' ');
+  if (lastSpace > 100) {
+    return truncated.substring(0, lastSpace) + '...';
+  }
+  return truncated + '...';
+}
+
 // Convert a single .md file to TOML
 async function migrateFile(filePath) {
   const content = await fs.promises.readFile(filePath, 'utf8');
   const relativePath = path.relative(process.cwd(), filePath);
-  const tomlPath = filePath.replace(/\.md$/, '.toml');
+
+  const baseName = path.basename(filePath);
+  let tomlPath;
+  if (renameMap[baseName]) {
+    tomlPath = path.join(path.dirname(filePath), renameMap[baseName]);
+  } else {
+    tomlPath = filePath.replace(/\.md$/, '.toml');
+  }
   const relTomlPath = path.relative(process.cwd(), tomlPath);
 
   if (skipList.has(relTomlPath)) {
@@ -51,17 +76,18 @@ async function migrateFile(filePath) {
     return;
   }
 
-  // Determine quadrant from directory structure
+  // Determine quadrant from directory structure using platform-agnostic path.sep
+  const relativeParts = path.relative(process.cwd(), filePath).split(path.sep);
   let quadrant = 'Explanation';
-  if (filePath.includes('/how-to/')) {
+  if (relativeParts.includes('how-to')) {
     quadrant = 'How-To';
-  } else if (filePath.includes('/tutorials/')) {
+  } else if (relativeParts.includes('tutorials')) {
     quadrant = 'Tutorial';
-  } else if (filePath.includes('/reference/')) {
+  } else if (relativeParts.includes('reference')) {
     // For prose documents inside reference/ directory, we map them to quadrant = "Explanation"
     // so they can safely use the generic [[sections]] layout schema
     quadrant = 'Explanation';
-  } else if (filePath.includes('/explanation/')) {
+  } else if (relativeParts.includes('explanation')) {
     quadrant = 'Explanation';
   }
 
@@ -87,21 +113,28 @@ async function migrateFile(filePath) {
     description = cleanParagraphs[0].replace(/"/g, '\\"');
   }
 
-  // Split content into sections by h2 headers (##)
-  const sections = [];
-  const headingRegex = /^##\s+(.+)$/gm;
-  let match;
-
-  // Find headings
+  // Line-by-line parsing to extract headings that are NOT inside fenced code blocks (F3)
+  const lines = content.split('\n');
   const headings = [];
-  while ((match = headingRegex.exec(content)) !== null) {
-    headings.push({
-      title: match[1].trim(),
-      index: match.index,
-      fullLength: match[0].length,
-    });
+  let inCodeBlock = false;
+  let accumulatedIndex = 0;
+
+  for (const line of lines) {
+    if (line.trim().startsWith('```')) {
+      inCodeBlock = !inCodeBlock;
+    }
+    if (!inCodeBlock && line.startsWith('## ')) {
+      const headingTitle = line.substring(3).trim();
+      headings.push({
+        title: headingTitle,
+        index: accumulatedIndex,
+        fullLength: line.length + 1, // including newline
+      });
+    }
+    accumulatedIndex += line.length + 1; // plus newline
   }
 
+  const sections = [];
   if (headings.length === 0) {
     // Single section document
     const cleanBody = content.replace(/^#\s+.+$/m, '').trim();
@@ -138,7 +171,7 @@ async function migrateFile(filePath) {
 
   // Construct TOML string using schema-compliant formats
   let toml = `title = "${title.replace(/"/g, '\\"')}"\n`;
-  toml += `description = "${description.substring(0, 150).replace(/\n/g, ' ')}"\n`;
+  toml += `description = "${truncateDescription(description)}"\n`;
   toml += `quadrant = "${quadrant}"\n\n`;
 
   if (quadrant === 'Tutorial') {
@@ -209,6 +242,10 @@ async function updateReferences(filePath) {
     return `${p1}.toml`;
   });
 
+  // Explicitly fix Document -> DocumentationFormatting reference updates
+  updated = updated.replace(/Documentation\.md\b/g, 'DocumentationFormatting.toml');
+  updated = updated.replace(/Documentation\.toml\b/g, 'DocumentationFormatting.toml');
+
   if (content !== updated) {
     await fs.promises.writeFile(filePath, updated, 'utf8');
     console.info(`Updated references in: ${path.relative(process.cwd(), filePath)}`);
@@ -216,7 +253,7 @@ async function updateReferences(filePath) {
 }
 
 async function main() {
-  const mdFiles = await getFilesRecursively(docsDir);
+  const mdFiles = await getFilesRecursively(docsDir, '.md');
   console.info(`Found ${mdFiles.length} Markdown files to migrate.`);
 
   for (const file of mdFiles) {
@@ -224,7 +261,7 @@ async function main() {
   }
 
   // Phase 2: Search and replace .md with .toml references in the newly created .toml files
-  const tomlFiles = (await getFilesRecursively(docsDir)).filter((f) => f.endsWith('.toml'));
+  const tomlFiles = await getFilesRecursively(docsDir, '.toml');
   for (const file of tomlFiles) {
     await updateReferences(file);
   }

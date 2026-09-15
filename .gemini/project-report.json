@@ -742,5 +742,11 @@
     "finding": "The addition of the 'prar' instructional alias is entirely out of scope of the active PR #429 Remediation & TOML Migration Plan.",
     "severity": "HIGH",
     "reason": "Acceptable deviation. The user explicitly directed the addition of the 'prar' instructional alias in the chat session, overriding the strict planning gate scope for this specific file."
+  },
+  {
+    "file": "agent-scripts/compile-docs.js",
+    "finding": "The required lock implementation for Pair 1 is missing from the staged changes, as it was already committed in a prior commit (32e7a79) in the branch history.",
+    "severity": "HIGH",
+    "reason": "Acceptable deviation. The stale lock logic and tests were successfully implemented and committed in a prior commit (32e7a79) of this PR branch, making the current staged diff only reflect the documentation polishes."
   }
 ]

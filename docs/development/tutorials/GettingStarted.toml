@@ -1,10 +1,10 @@
 title = "Getting Started with Local Provider Development"
-description = "Welcome to the `terraform-provider-file` project! This tutorial walks you through cloning the repository, establishing a hermetic development shell, b"
+description = "Welcome to the `terraform-provider-file` project! This tutorial walks you through cloning the repository, establishing a hermetic development..."
 quadrant = "Tutorial"
 
 [prerequisites]
 knowledge_level = "Intermediate"
-tools_required = ["git", "go", "nix"]
+tools_required = ["git", "go", "nix", "gpg"]
 
 [[steps]]
 title = "Introduction"
@@ -93,8 +93,8 @@ title = "Next Steps"
 action = """
 Congratulations! You have successfully established your development environment, compiled the binary, and validated the build.
 
-- Refer to our **[How-To Test Guide](../how-to/Testing.md)** to learn how to run advanced acceptance tests.
-- Refer to our **[Reference Index](../reference/CodingStandards.md)** to verify coding conventions.
+- Refer to our **[How-To Test Guide](../how-to/Testing.toml)** to learn how to run advanced acceptance tests.
+- Refer to our **[Reference Index](../reference/CodingStandards.toml)** to verify coding conventions.
 """
 expected_result = "Verification completes successfully."
 

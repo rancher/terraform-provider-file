@@ -1,5 +1,5 @@
 title = "How to Troubleshoot CI/CD Workflows"
-description = "This guide provides sequential, goal-oriented procedures for investigating, retrieving logs from, and resolving broken GitHub Actions CI/CD pipelines "
+description = "This guide provides sequential, goal-oriented procedures for investigating, retrieving logs from, and resolving broken GitHub Actions CI/CD..."
 quadrant = "How-To"
 
 [context]

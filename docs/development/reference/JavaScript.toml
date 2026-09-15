@@ -75,10 +75,10 @@ description = "Vulnerability prevention, safe Git operations, correct SSH key si
   description = "Automation scripts and hooks are strictly forbidden from running destructive git commands (git reset --hard or git clean -fd) automatically without user confirmation."
 
   [[items.parameters]]
-  name = "correct private key signing"
+  name = "correct public key verification"
   required = true
   type = "constraint"
-  description = "ssh-keygen -Y sign invocations in signing hooks, unit tests, and shell wrappers must always be passed the private key file path, never the public .pub path."
+  description = "ssh-keygen -Y sign invocations in signing hooks, unit tests, and shell wrappers must always be passed the public key file path (ending in .pub), allowing the active SSH agent to perform signing via touch-id/biometrics securely."
 
   [[items.parameters]]
   name = "sanitized gha payloads"
@@ -121,3 +121,9 @@ description = "Requirements for gate artifact protection, immediate state revoca
   required = true
   type = "constraint"
   description = "Set workflow step outputs explicitly using core.setOutput('name', value) rather than relying on the function's implicit return value."
+
+  [[items.parameters]]
+  name = "no abrupt exit in approval"
+  required = true
+  type = "constraint"
+  description = "Absolutely no direct process.exit(1) or process.exit(0) calls may be made inside shared approval modules (such as agent-scripts/lib/approval.js or its tools facade). Shared helpers must bubble errors up to the orchestrator."

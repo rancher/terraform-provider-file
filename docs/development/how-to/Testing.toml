@@ -63,7 +63,7 @@ shellcheck agent-scripts/exercise-cron.sh
 npx eslint .
 
 # 4. Run CSpell to perform spellchecking:
-cspell docs/development/reference/Go.md
+cspell docs/development/reference/Go.toml
 ```
 
 ---

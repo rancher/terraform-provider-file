@@ -1,7 +1,7 @@
 import { parentPort } from 'node:worker_threads';
 
 parentPort.on('message', (msg) => {
-  const { id, data } = msg;
+  const { id, data, fallback } = msg;
 
   // DoS Prevention: Limit input size to 5MB
   if (typeof data !== 'string' || data.length > 5 * 1024 * 1024) {
@@ -14,6 +14,6 @@ parentPort.on('message', (msg) => {
     parentPort.postMessage({ id, result: parsedData });
   } catch (err) {
     // Let the caller apply its supplied fallback
-    parentPort.postMessage({ id, error: err.message });
+    parentPort.postMessage({ id, result: fallback, error: err.message });
   }
 });

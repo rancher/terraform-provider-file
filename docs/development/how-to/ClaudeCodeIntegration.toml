@@ -26,7 +26,7 @@ This document defines the dry, structured goal-oriented how-to task guide of **H
 step = "Prerequisites"
 description = """
 1. Install `claude` (Claude Code CLI).
-2. Generate or verify that your cryptographic keys exist under `~/.gemini/` by following the **[Cryptographic Gating & Approvals](../reference/GatingAndApprovals.md)** reference.
+2. Generate or verify that your cryptographic keys exist under `~/.gemini/` by following the **[Cryptographic Gating & Approvals](../reference/GatingAndApprovals.toml)** reference.
 
 ---
 """

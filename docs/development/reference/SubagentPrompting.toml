@@ -28,36 +28,24 @@ model: [least powerful model necessary, e.g. "gemini-2.5-flash-lite"]
 temperature: 0.1
 max_turns: [tightly bounded, e.g. 2]
 ---
-"""
 
-[[sections]]
-heading = "AGENT: [Agent Display Name]"
-content = """
+## AGENT: [Agent Display Name]
 
-"""
+## EVALUATION SCOPE
 
-[[sections]]
-heading = "EVALUATION SCOPE"
-content = """
 [Explicitly define the exact boundary of the agent's world, strictly prohibiting any investigation or commentary on adjacent files, patterns, or scopes.]
-"""
 
-[[sections]]
-heading = "SYSTEM INPUT CONTRACT"
-content = """
+## SYSTEM INPUT CONTRACT
+
 [Define the exact structure and payload format that this agent is designed to consume, e.g. "A raw JSON array" or "A single sandboxed file copy."]
-"""
 
-[[sections]]
-heading = "EVALUATION CRITERIA"
-content = """
+## EVALUATION CRITERIA
+
 - **[Dimension A]**: [Explicit, token-optimized bullet points defining what to search for]
 - **[Dimension B]**: [Explicit, token-optimized bullet points defining what to search for]
-"""
 
-[[sections]]
-heading = "HANDOFF SCHEMA"
-content = """
+## HANDOFF SCHEMA
+
 [Mandate a rigid, machine-parseable data block (using Markdown code blocks marked with JSON, XML, or exact formatting layouts) at the very end of the prompt. Explicitly forbid conversational preambles, introductory filler, or trailing commentary.]
 ```
 
@@ -104,23 +92,14 @@ For aggregator and severity-analyzer agents, fragmented inputs must be compiled 
 For task-creation agents, high-level ledger findings must be translated into file-grouped, narrative checklists following the **File Duplication Compliance Rule**:
 
 ````markdown
-"""
+## ACTIONABLE REMEDIATION PLAN
 
-[[sections]]
-heading = "ACTIONABLE REMEDIATION PLAN"
-content = """
+## FILE: [Relative Path to File A]
 
-"""
-
-[[sections]]
-heading = "FILE: [Relative Path to File A]"
-content = """
 - [ ] Task [CVD-ID]: [Action verb instruction indicating what to change, locate, or refactor in this specific file].
-"""
 
-[[sections]]
-heading = "FILE: [Relative Path to File B]"
-content = """
+## FILE: [Relative Path to File B]
+
 - [ ] Task [CVD-ID]: [Action verb instruction showing duplicated widespread problem detail specifically tailored to this file context].
 
 ```

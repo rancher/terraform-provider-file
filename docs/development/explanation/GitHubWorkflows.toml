@@ -1,5 +1,5 @@
 title = "GitHub Workflows & Automation (Conceptual Explanation)"
-description = "This document provides a conceptual, architectural explanation of the standard execution models, security policies, and script orchestration patterns "
+description = "This document provides a conceptual, architectural explanation of the standard execution models, security policies, and script orchestration..."
 quadrant = "Explanation"
 
 [background]

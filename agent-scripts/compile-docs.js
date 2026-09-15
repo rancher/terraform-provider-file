@@ -2,6 +2,7 @@
 /**
  * Script: compile-docs.js
  * Description: Programmatically parse all Diátaxis TOML files and output a unified compiled JSON.
+ * Refactored for secure lock-handling and programmatic on-demand compile execution.
  */
 
 import fs from 'node:fs';

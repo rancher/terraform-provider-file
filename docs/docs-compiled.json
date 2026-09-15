@@ -17,13 +17,13 @@
       },
       {
         "heading": "🧭 Diátaxis Table of Contents",
-        "content": "### 1. 🎓 Tutorials (Learning-Oriented)\n\nGentle, beginner-focused steps designed to help you set up your machine and complete your first local exercises:\n\n- **[Getting Started](./tutorials/GettingStarted.md):** Learn how to clone the repo, load the Nix shell, build the provider, and run a basic unit test.\n\n### 2. 📋 How-To Guides (Goal-Oriented)\n\nPractical, step-by-step procedural guides designed to help you accomplish specific development goals:\n\n- **[Running Tests & Linters](./how-to/Testing.md):** Procedural steps for formatting all code files, executing linters (`golangci-lint`, `shellcheck`, `cspell`), and running our acceptance testing suites.\n- **[Executing Releases](./how-to/ReleaseProcess.md):** Procedural checklist for configuring GPG keys, writing conventional commit PR titles, and merging Release PRs to publish signed production assets.\n\n### 3. 🧠 Explanation (Understanding-Oriented)\n\nHigh-level, concept-oriented narratives explaining \"why\" our architectures are designed the way they are:\n\n- **[Secure Agentic Framework](./explanation/AgenticFramework.md):** Background context on our zero-bypass sandbox, Apple Secure Enclave Touch ID biometric gating, and the Gated 4-Phase Lifecycle.\n- **[Automated Branch Merging](./explanation/AutoMerging.md):** Architectural explanation of our event-driven verification script pipeline, Vault token retrievals, and squash-merging enforcers.\n- **[Release Pipeline Lifecycle](./explanation/ReleasePipeline.md):** Concept tracing of our automated versioning triggers, SemVer guards, and GoReleaser compiler workflows.\n\n### 4. 📚 Reference Material (Information-Oriented)\n\nDry, clinical, and exhaustive technical indices of coding standards, linter rules, syntax constraints, and project history:\n\n- **[Coding Standards Reference Index](./reference/CodingStandards.md):** The primary index of all repository standards.\n  - **[Go Standards](./reference/Go.md):** Go linter configurations, error-wrapping, context propagation, and plugin caches.\n  - **[Terraform Standards](./reference/Terraform.md):** Resource snake_case naming style, variable validations, sensitive redactions, and module separation rules.\n  - **[JavaScript Standards](./reference/JavaScript.md):** Unified ESM rules, empty catch block bans, pagination, and command injection safeguards.\n  - **[Shell Scripts](./reference/ShellScripts.md):** Bash fail-fast parameters, shebangs, double brackets, and Makefile actions.\n  - **[Workflows](./reference/Workflows.md):** GHA permissions, SHA action pinning, and allowlist namespaces.\n  - **[Documentation](./reference/Documentation.md):** Markdown layout structures, Diátaxis specifications, and `cspell` spellcheck exclusions.\n- **[Agent Scripts Architecture Reference](./reference/AgentScriptsArchitecture.md):** Architectural Levels, Directory Structure, and Design Principles of automated helper scripts.\n- **[Changelog](./reference/CHANGELOG.md):** Historical log of all changes and structural refactors applied to this documentation library.\n"
+        "content": "### 1. 🎓 Tutorials (Learning-Oriented)\n\nGentle, beginner-focused steps designed to help you set up your machine and complete your first local exercises:\n\n- **[Getting Started](./tutorials/GettingStarted.toml):** Learn how to clone the repo, load the Nix shell, build the provider, and run a basic unit test.\n\n### 2. 📋 How-To Guides (Goal-Oriented)\n\nPractical, step-by-step procedural guides designed to help you accomplish specific development goals:\n\n- **[Running Tests & Linters](./how-to/Testing.toml):** Procedural steps for formatting all code files, executing linters (`golangci-lint`, `shellcheck`, `cspell`), and running our acceptance testing suites.\n- **[Executing Releases](./how-to/ReleaseProcess.toml):** Procedural checklist for configuring GPG keys, writing conventional commit PR titles, and merging Release PRs to publish signed production assets.\n\n### 3. 🧠 Explanation (Understanding-Oriented)\n\nHigh-level, concept-oriented narratives explaining \"why\" our architectures are designed the way they are:\n\n- **[Secure Agentic Framework](./explanation/AgenticFramework.toml):** Background context on our zero-bypass sandbox, Apple Secure Enclave Touch ID biometric gating, and the Gated 4-Phase Lifecycle.\n- **[Automated Branch Merging](./explanation/AutoMerging.toml):** Architectural explanation of our event-driven verification script pipeline, Vault token retrievals, and squash-merging enforcers.\n- **[Release Pipeline Lifecycle](./explanation/ReleasePipeline.toml):** Concept tracing of our automated versioning triggers, SemVer guards, and GoReleaser compiler workflows.\n\n### 4. 📚 Reference Material (Information-Oriented)\n\nDry, clinical, and exhaustive technical indices of coding standards, linter rules, syntax constraints, and project history:\n\n- **[Coding Standards Reference Index](./reference/CodingStandards.toml):** The primary index of all repository standards.\n  - **[Go Standards](./reference/Go.toml):** Go linter configurations, error-wrapping, context propagation, and plugin caches.\n  - **[Terraform Standards](./reference/Terraform.toml):** Resource snake_case naming style, variable validations, sensitive redactions, and module separation rules.\n  - **[JavaScript Standards](./reference/JavaScript.toml):** Unified ESM rules, empty catch block bans, pagination, and command injection safeguards.\n  - **[Shell Scripts](./reference/ShellScripts.toml):** Bash fail-fast parameters, shebangs, double brackets, and Makefile actions.\n  - **[Workflows](./reference/Workflows.toml):** GHA permissions, SHA action pinning, and allowlist namespaces.\n  - **[Documentation](./reference/DocumentationFormatting.toml):** Markdown layout structures, Diátaxis specifications, and `cspell` spellcheck exclusions.\n- **[Agent Scripts Architecture Reference](./reference/AgentScriptsArchitecture.toml):** Architectural Levels, Directory Structure, and Design Principles of automated helper scripts.\n- **[Changelog](./reference/CHANGELOG.toml):** Historical log of all changes and structural refactors applied to this documentation library.\n"
       }
     ]
   },
   "docs/development/explanation/AgenticFramework.toml": {
     "title": "Agentic Framework & Developer Tooling (Conceptual Explanation)",
-    "description": "This document provides a reflective, concept-oriented overview of the repository's secure developer automation, zero-bypass security sandbox, and Gate",
+    "description": "This document provides a reflective, concept-oriented overview of the repository's secure developer automation, zero-bypass security sandbox, and...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -39,7 +39,7 @@
       },
       {
         "heading": "How Our Framework Components Work Together",
-        "content": "Our framework is comprised of 12 closely integrated components that work together dynamically to guide developers and agents through the software development lifecycle:\n\n### 1. Architectural & Process Specifications\n\nThese specifications establish the step-by-step procedures and rules for executing modifications, resolving reviews, or debugging pipeline errors:\n\n- **[Development Process](../how-to/DevelopmentProcess.md):** Defines our Gated 4-Phase Lifecycle off of the `main` branch, structured around three authoritative approval gates.\n- **[PR Review Resolution](../how-to/PRReviewResolution.md):** Governs our asynchronous PR comment resolution workflow, separating comment timeline parsing, evaluation, and manual fixes.\n- **[Workflow Troubleshooting](../how-to/WorkflowTroubleshooting.md):** Establishes standard log-retrieval techniques, parsing, and diagnostic approaches to resolve CI/CD and release workflow failures.\n\n### 2. Gating, Safety & Security Infrastructure\n\nThese components form our zero-bypass security sandbox, preventing unauthorized code modification, secret leaks, or command injection:\n\n- **[Secure Workflows & Hooks](../reference/SecureWorkflowsAndHooks.md):** Intercepts unvetted direct `git commit`/`push` commands and enforces the presence of signed planning blueprints prior to any file writes.\n- **Context Reduction**: Employs a token-optimized context injection strategy, where startup hooks provide dense, bulleted mandates and condensed framework reference pointers to aggressively minimize inherent prompt context and conserve token usage.\n- **[Cryptographic Gating](../reference/GatingAndApprovals.md):** Coordinates Apple Secure Enclave / Touch ID developer biometrics and chains planning, testing, and review gate signatures.\n- **[Workflow Optimization & Subagent Design](../reference/WorkflowDesign.md):** Configures our custom specialized subagents with hardened, read-only permissions and prunes mechanical style checks from core LLM prompts.\n- **[Review Subagents](../reference/ProjectManager.md):** Detailed specifications and sandboxing parameters for our pre-commit Review Agents (Heads-Down Coder and Data Scientist), which can be coordinated via our standard multi-agent `code-review.js` pipeline or our single-pass `quality-assurance.js` (Quality Assurance) script. In the latter, the Plan is treated as a living document and must encompass all intended changes for the QA script to pass.\n- **[Claude Code Integration](../how-to/ClaudeCodeIntegration.md):** Documents how this same gated process is implemented for Claude Code via its own native primitives, in parallel with the Gemini CLI implementation.\n- **[Ask User Component](../reference/AskUserComponent.md):** Governs the structured TOML format requirements, schema, and templates for all collaborative and gating questions directed to the human developer, validated natively within each phase's submodule.\n\n### 3. Shared Skills & Persona Formatting Guidelines\n\nThese utilities and formatting styles maintain clean, high-signal, and standardized communication during collaborative engineering:\n\n- **[Boilerplate Sync Skill](../reference/BoilerplateSync.md):** Implements our manifest-driven, shallow-cloned boilerplate file syncing and exit-trap cleanup procedures.\n- **Strict Output Style:** Rules and structural guidelines for the high-signal, zero-chitchat agent response persona.\n- **Conversational Output Style:** Rules and structural guidelines for the collaborative peer partner response persona.\n\n---\n"
+        "content": "Our framework is comprised of 12 closely integrated components that work together dynamically to guide developers and agents through the software development lifecycle:\n\n### 1. Architectural & Process Specifications\n\nThese specifications establish the step-by-step procedures and rules for executing modifications, resolving reviews, or debugging pipeline errors:\n\n- **[Development Process](../how-to/DevelopmentProcess.toml):** Defines our Gated 4-Phase Lifecycle off of the `main` branch, structured around three authoritative approval gates.\n- **[PR Review Resolution](../how-to/PRReviewResolution.toml):** Governs our asynchronous PR comment resolution workflow, separating comment timeline parsing, evaluation, and manual fixes.\n- **[Workflow Troubleshooting](../how-to/WorkflowTroubleshooting.toml):** Establishes standard log-retrieval techniques, parsing, and diagnostic approaches to resolve CI/CD and release workflow failures.\n\n### 2. Gating, Safety & Security Infrastructure\n\nThese components form our zero-bypass security sandbox, preventing unauthorized code modification, secret leaks, or command injection:\n\n- **[Secure Workflows & Hooks](../reference/SecureWorkflowsAndHooks.toml):** Intercepts unvetted direct `git commit`/`push` commands and enforces the presence of signed planning blueprints prior to any file writes.\n- **Context Reduction**: Employs a token-optimized context injection strategy, where startup hooks provide dense, bulleted mandates and condensed framework reference pointers to aggressively minimize inherent prompt context and conserve token usage.\n- **[Cryptographic Gating](../reference/GatingAndApprovals.toml):** Coordinates Apple Secure Enclave / Touch ID developer biometrics and chains planning, testing, and review gate signatures.\n- **[Workflow Optimization & Subagent Design](../reference/WorkflowDesign.toml):** Configures our custom specialized subagents with hardened, read-only permissions and prunes mechanical style checks from core LLM prompts.\n- **[Review Subagents](../reference/ProjectManager.toml):** Detailed specifications and sandboxing parameters for our pre-commit Review Agents (Heads-Down Coder and Data Scientist), which can be coordinated via our standard multi-agent `code-review.js` pipeline or our single-pass `quality-assurance.js` (Quality Assurance) script. In the latter, the Plan is treated as a living document and must encompass all intended changes for the QA script to pass.\n- **[Claude Code Integration](../how-to/ClaudeCodeIntegration.toml):** Documents how this same gated process is implemented for Claude Code via its own native primitives, in parallel with the Gemini CLI implementation.\n- **[Ask User Component](../reference/AskUserComponent.toml):** Governs the structured TOML format requirements, schema, and templates for all collaborative and gating questions directed to the human developer, validated natively within each phase's submodule.\n\n### 3. Shared Skills & Persona Formatting Guidelines\n\nThese utilities and formatting styles maintain clean, high-signal, and standardized communication during collaborative engineering:\n\n- **[Boilerplate Sync Skill](../reference/BoilerplateSync.toml):** Implements our manifest-driven, shallow-cloned boilerplate file syncing and exit-trap cleanup procedures.\n- **Strict Output Style:** Rules and structural guidelines for the high-signal, zero-chitchat agent response persona.\n- **Conversational Output Style:** Rules and structural guidelines for the collaborative peer partner response persona.\n\n---\n"
       },
       {
         "heading": "🔄 The Combined Gated 4-Phase Lifecycle",
@@ -105,7 +105,7 @@
   },
   "docs/development/explanation/GitHubWorkflows.toml": {
     "title": "GitHub Workflows & Automation (Conceptual Explanation)",
-    "description": "This document provides a conceptual, architectural explanation of the standard execution models, security policies, and script orchestration patterns ",
+    "description": "This document provides a conceptual, architectural explanation of the standard execution models, security policies, and script orchestration...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -131,7 +131,7 @@
   },
   "docs/development/explanation/ReleasePipeline.toml": {
     "title": "Release Process & Automation (Conceptual Explanation)",
-    "description": "This document provides a conceptual, architectural explanation of the automated release pipeline, tracing how codebase changes on the `main` branch ar",
+    "description": "This document provides a conceptual, architectural explanation of the automated release pipeline, tracing how codebase changes on the `main`...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -157,7 +157,7 @@
   },
   "docs/development/explanation/SubagentPromptingArchitecture.toml": {
     "title": "Sub-Agent Prompting Architecture (Conceptual Explanation)",
-    "description": "This document provides a reflective, concept-oriented overview of the specialized subagent prompting philosophy, the core mental-model shift required ",
+    "description": "This document provides a reflective, concept-oriented overview of the specialized subagent prompting philosophy, the core mental-model shift...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -200,7 +200,7 @@
       },
       {
         "step": "Prerequisites",
-        "description": "1. Install `claude` (Claude Code CLI).\n2. Generate or verify that your cryptographic keys exist under `~/.gemini/` by following the **[Cryptographic Gating & Approvals](../reference/GatingAndApprovals.md)** reference.\n\n---\n"
+        "description": "1. Install `claude` (Claude Code CLI).\n2. Generate or verify that your cryptographic keys exist under `~/.gemini/` by following the **[Cryptographic Gating & Approvals](../reference/GatingAndApprovals.toml)** reference.\n\n---\n"
       },
       {
         "step": "Step 1: Initialize the Claude Configuration Directory",
@@ -309,7 +309,7 @@
       },
       {
         "step": "Phase 1: Local GPG Signing Key Configuration",
-        "description": "All commits that undergo gating checks must be cryptographically signed by your personal GPG key. The local setup process is outlined as follows:\n\n1. **Verify your key exists:**\n\n   ```bash\n   gpg --list-secret-keys --keyid-format=long\n   ```\n\n2. **Configure Git to use your GPG key:**\n\n   ```bash\n   git config --global user.signingkey <YOUR_KEY_ID>\n   git config --global commit.gpgsign true\n   ```\n\n3. **Register your GPG key in your local SSH agent if utilizing SSH-based signing keys:**\n   Refer to our **[Documentation Standards](../reference/Documentation.md)** to verify private/public key completeness.\n"
+        "description": "All commits that undergo gating checks must be cryptographically signed by your personal GPG key. The local setup process is outlined as follows:\n\n1. **Verify your key exists:**\n\n   ```bash\n   gpg --list-secret-keys --keyid-format=long\n   ```\n\n2. **Configure Git to use your GPG key:**\n\n   ```bash\n   git config --global user.signingkey <YOUR_KEY_ID>\n   git config --global commit.gpgsign true\n   ```\n\n3. **Register your GPG key in your local SSH agent if utilizing SSH-based signing keys:**\n   Refer to our **[Documentation Standards](../reference/DocumentationFormatting.toml)** to verify private/public key completeness.\n"
       },
       {
         "step": "Phase 2: Change Proposal via Conventional Commits",
@@ -352,7 +352,7 @@
       },
       {
         "step": "Step 3: Run Static Analysis & Linters",
-        "description": "Execute static analysis linter checks to catch potential security vulnerabilities, syntactic bugs, and style issues:\n\n```bash\n# 1. Run golangci-lint (gosec, errcheck, staticcheck):\nmake lint\n\n# 2. Run Shellcheck on all Bash scripts:\nshellcheck agent-scripts/exercise-cron.sh\n\n# 3. Run ESLint on JavaScript hooks and scripts:\nnpx eslint .\n\n# 4. Run CSpell to perform spellchecking:\ncspell docs/development/reference/Go.md\n```\n\n---\n"
+        "description": "Execute static analysis linter checks to catch potential security vulnerabilities, syntactic bugs, and style issues:\n\n```bash\n# 1. Run golangci-lint (gosec, errcheck, staticcheck):\nmake lint\n\n# 2. Run Shellcheck on all Bash scripts:\nshellcheck agent-scripts/exercise-cron.sh\n\n# 3. Run ESLint on JavaScript hooks and scripts:\nnpx eslint .\n\n# 4. Run CSpell to perform spellchecking:\ncspell docs/development/reference/Go.toml\n```\n\n---\n"
       },
       {
         "step": "Step 4: Execute the Go Unit Test Suite",
@@ -370,7 +370,7 @@
   },
   "docs/development/how-to/WorkflowTroubleshooting.toml": {
     "title": "How to Troubleshoot CI/CD Workflows",
-    "description": "This guide provides sequential, goal-oriented procedures for investigating, retrieving logs from, and resolving broken GitHub Actions CI/CD pipelines ",
+    "description": "This guide provides sequential, goal-oriented procedures for investigating, retrieving logs from, and resolving broken GitHub Actions CI/CD...",
     "quadrant": "How-To",
     "context": {
       "goal": "Perform procedural workspace changes.",
@@ -459,15 +459,7 @@
       },
       {
         "heading": "💡 Templates & Examples",
-        "content": "The following templates represent the correct formatting required for each intent. When using the `ask_user` tool, copy and populate the appropriate block exactly.\n\n### 1. Plan Approval (`plan approval`)\n\nUse this intent when asking for cryptographic plan approval at Gate 1.\n\n```toml\nintent = \"plan approval\"\nrequest = \"I have drafted the plan for implementing the TOML validation feature. Do you cryptographically approve this plan so that I can exit Plan Mode and begin writing the code?\"\nplan = \"\"\"\n# Enforce TOML Format for ask_user Tool\n\n> **Blueprint Compliance:** This integration MUST adhere strictly to the **Strict 4-Phase Lifecycle** (Plan, Implement, Review, Commit) and the **Strict 3-Gate Architecture** (Planning Gate (Gate 1), Programmatic Review/Testing Gate (Gate 2), and Commit Gate (Gate 3)). No phase or gate may be bypassed.\n"
-      },
-      {
-        "heading": "Objective",
-        "content": "Update the Agentic Framework to formalize all `ask_user` tool inputs into a structured TOML format...\n"
-      },
-      {
-        "heading": "Implementation Steps",
-        "content": "- [ ] Install `@iarna/toml`\n- [ ] Create `.gemini/hooks/ask-user-toml-validator.js`\n- [ ] Configure `settings.json`\n\"\"\"\n```\n\n### 2. Commit Approval (`commit approval`)\n\nUse this intent when requesting final sign-off to commit and push changes at Gate 3.\n\n```toml\nintent = \"commit approval\"\nrequest = \"My automated testing and review checks have completed successfully, and I have generated a candidate commit message. Do you approve these changes for commit?\"\nhash = \"a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0\"\ncommit-message = \"feat: implement structured TOML ask_user hooks\"\npr-description = \"\"\"\nThis PR introduces structured TOML validation for all `ask_user` tool calls.\n\n### Changes\n- Created `ask-user-toml-validator.js` enforcer hook.\n- Integrated validation in `settings.json`.\n- Modified plan and commit phase hooks to parse TOML.\n\"\"\"\n```\n\n### 3. Clarification (`clarification`)\n\nUse this intent when you need to resolve structural choices or ambiguities in the requirements.\n\n```toml\nintent = \"clarification\"\nrequest = \"I see multiple testing folders under `test/`. Should I place our new integration tests under `test/local/basic/` or create a new directory?\"\n```\n\n### 4. Suggest Action (`suggest action`)\n\nUse this intent when you hit an obstacle or have multiple paths forward, and want to suggest the best option.\n\n```toml\nintent = \"suggest action\"\nrequest = \"I encountered a dependency conflict with library X. I suggest either (1) upgrading library X to version 2.0 or (2) refactoring our utility to avoid using X. I recommend upgrading X because it is cleaner. How should I proceed?\"\n```\n\n---\n"
+        "content": "The following templates represent the correct formatting required for each intent. When using the `ask_user` tool, copy and populate the appropriate block exactly.\n\n### 1. Plan Approval (`plan approval`)\n\nUse this intent when asking for cryptographic plan approval at Gate 1.\n\n```toml\nintent = \"plan approval\"\nrequest = \"I have drafted the plan for implementing the TOML validation feature. Do you cryptographically approve this plan so that I can exit Plan Mode and begin writing the code?\"\nplan = \"\"\"\n# Enforce TOML Format for ask_user Tool\n\n> **Blueprint Compliance:** This integration MUST adhere strictly to the **Strict 4-Phase Lifecycle** (Plan, Implement, Review, Commit) and the **Strict 3-Gate Architecture** (Planning Gate (Gate 1), Programmatic Review/Testing Gate (Gate 2), and Commit Gate (Gate 3)). No phase or gate may be bypassed.\n\n## Objective\nUpdate the Agentic Framework to formalize all `ask_user` tool inputs into a structured TOML format...\n\n## Implementation Steps\n- [ ] Install `@iarna/toml`\n- [ ] Create `.gemini/hooks/ask-user-toml-validator.js`\n- [ ] Configure `settings.json`\n\"\"\"\n```\n\n### 2. Commit Approval (`commit approval`)\n\nUse this intent when requesting final sign-off to commit and push changes at Gate 3.\n\n```toml\nintent = \"commit approval\"\nrequest = \"My automated testing and review checks have completed successfully, and I have generated a candidate commit message. Do you approve these changes for commit?\"\nhash = \"a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0\"\ncommit-message = \"feat: implement structured TOML ask_user hooks\"\npr-description = \"\"\"\nThis PR introduces structured TOML validation for all `ask_user` tool calls.\n\n### Changes\n- Created `ask-user-toml-validator.js` enforcer hook.\n- Integrated validation in `settings.json`.\n- Modified plan and commit phase hooks to parse TOML.\n\"\"\"\n```\n\n### 3. Clarification (`clarification`)\n\nUse this intent when you need to resolve structural choices or ambiguities in the requirements.\n\n```toml\nintent = \"clarification\"\nrequest = \"I see multiple testing folders under `test/`. Should I place our new integration tests under `test/local/basic/` or create a new directory?\"\n```\n\n### 4. Suggest Action (`suggest action`)\n\nUse this intent when you hit an obstacle or have multiple paths forward, and want to suggest the best option.\n\n```toml\nintent = \"suggest action\"\nrequest = \"I encountered a dependency conflict with library X. I suggest either (1) upgrading library X to version 2.0 or (2) refactoring our utility to avoid using X. I recommend upgrading X because it is cleaner. How should I proceed?\"\n```\n\n---\n"
       },
       {
         "heading": "🔒 Violation & Enforcement",
@@ -523,7 +515,7 @@
       },
       {
         "heading": "[Unreleased] - 2026-08-19",
-        "content": "### Refactored\n\n- **Consolidated Topics & Directories**: Grouped all process guidelines, workflows, and formatting rules under a unified directory structure to maximize cohesive discoverability and comply strictly with standard paradigms.\n- **Relocated Workflows**: Moved all repository-specific automation workflows from `.gemini/workflows/` to `docs/development/how-to/` or `docs/development/explanation/` respectively:\n  - `development-process.md` -> `how-to/DevelopmentProcess.md`\n  - `resolve-pr-reviews.md` -> `how-to/PRReviewResolution.md`\n  - `troubleshoot-workflows.md` -> `how-to/WorkflowTroubleshooting.md`\n- **Relocated Formatting Styles**: Moved formatting style guidelines from `.gemini/output-styles/` to `docs/development/explanation/`:\n  - `strict.md` -> `explanation/OutputStyleStrict.md`\n  - `conversational.md` -> `explanation/OutputStyleConversational.md`\n- **Established Coding Standards Topic**: Created a new top-level **Coding Standards** topic overview (`reference/CodingStandards.md`) and relocated all standards and language instructions from `.gemini/rules/` to `docs/development/reference/`:\n  - `go.instructions.md` -> `reference/Go.md`\n  - `terraform.instructions.md` -> `reference/Terraform.md`\n  - `workflows.instructions.md` -> `reference/Workflows.md`\n  - `github-script.instructions.md` -> `reference/GitHubScript.md`\n  - `shell-scripts.instructions.md` -> `reference/ShellScripts.md`\n  - `github-copilot-review.instructions.md` -> `reference/GitHubCopilotReview.md`\n  - `documentation.instructions.md` -> `reference/Documentation.md`\n  - `blueprints.instructions.md` -> `reference/Blueprints.md`\n  - `standards.md` -> Eliminated by absorbing global linting/spelling/formatting rules into `reference/CodingStandards.md` and standard testing targets into `how-to/Testing.md`.\n- **Pruned Unused Folders**: Completely deleted `.gemini/workflows/`, `.gemini/output-styles/`, and `.gemini/rules/` from the automation suite, restoring `.gemini/` as a generic portable template.\n- **Retired `PLAN_LOG.md`**: Removed the redundant historical plan logs.\n\n### Added\n\n- **Official Gemini layout reference**: Created `.gemini/README.md` defining Google's standard user-level vs project-level folder structure.\n- **Changelog**: Added this `CHANGELOG.md` file specifically tracking developer documentation under `docs/development/reference/`.\n"
+        "content": "### Refactored\n\n- **Consolidated Topics & Directories**: Grouped all process guidelines, workflows, and formatting rules under a unified directory structure to maximize cohesive discoverability and comply strictly with standard paradigms.\n- **Relocated Workflows**: Moved all repository-specific automation workflows from `.gemini/workflows/` to `docs/development/how-to/` or `docs/development/explanation/` respectively:\n  - `development-process.md` -> `how-to/DevelopmentProcess.toml`\n  - `resolve-pr-reviews.md` -> `how-to/PRReviewResolution.toml`\n  - `troubleshoot-workflows.md` -> `how-to/WorkflowTroubleshooting.toml`\n- **Relocated Formatting Styles**: Moved formatting style guidelines from `.gemini/output-styles/` to `docs/development/explanation/`:\n  - `strict.md` -> `explanation/OutputStyleStrict.toml`\n  - `conversational.md` -> `explanation/OutputStyleConversational.toml`\n- **Established Coding Standards Topic**: Created a new top-level **Coding Standards** topic overview (`reference/CodingStandards.toml`) and relocated all standards and language instructions from `.gemini/rules/` to `docs/development/reference/`:\n  - `go.instructions.md` -> `reference/Go.toml`\n  - `terraform.instructions.md` -> `reference/Terraform.toml`\n  - `workflows.instructions.md` -> `reference/Workflows.toml`\n  - `github-script.instructions.md` -> `reference/GitHubScript.toml`\n  - `shell-scripts.instructions.md` -> `reference/ShellScripts.toml`\n  - `github-copilot-review.instructions.md` -> `reference/GitHubCopilotReview.toml`\n  - `documentation.instructions.md` -> `reference/DocumentationFormatting.toml`\n  - `blueprints.instructions.md` -> `reference/Blueprints.toml`\n  - `standards.md` -> Eliminated by absorbing global linting/spelling/formatting rules into `reference/CodingStandards.toml` and standard testing targets into `how-to/Testing.toml`.\n- **Pruned Unused Folders**: Completely deleted `.gemini/workflows/`, `.gemini/output-styles/`, and `.gemini/rules/` from the automation suite, restoring `.gemini/` as a generic portable template.\n- **Retired `PLAN_LOG.md`**: Removed the redundant historical plan logs.\n\n### Added\n\n- **Official Gemini layout reference**: Created `.gemini/README.toml` defining Google's standard user-level vs project-level folder structure.\n- **Changelog**: Added this `CHANGELOG.md` file specifically tracking developer documentation under `docs/development/reference/`.\n"
       }
     ]
   },
@@ -653,7 +645,7 @@
             "name": "title",
             "required": true,
             "type": "string",
-            "description": "Goal-oriented title starting with 'How to'."
+            "description": "Goal-oriented title."
           },
           {
             "name": "description",
@@ -1156,10 +1148,10 @@
             "description": "Automation scripts and hooks are strictly forbidden from running destructive git commands (git reset --hard or git clean -fd) automatically without user confirmation."
           },
           {
-            "name": "correct private key signing",
+            "name": "correct public key verification",
             "required": true,
             "type": "constraint",
-            "description": "ssh-keygen -Y sign invocations in signing hooks, unit tests, and shell wrappers must always be passed the private key file path, never the public .pub path."
+            "description": "ssh-keygen -Y sign invocations in signing hooks, unit tests, and shell wrappers must always be passed the public key file path (ending in .pub), allowing the active SSH agent to perform signing via touch-id/biometrics securely."
           },
           {
             "name": "sanitized gha payloads",
@@ -1204,6 +1196,12 @@
             "required": true,
             "type": "constraint",
             "description": "Set workflow step outputs explicitly using core.setOutput('name', value) rather than relying on the function's implicit return value."
+          },
+          {
+            "name": "no abrupt exit in approval",
+            "required": true,
+            "type": "constraint",
+            "description": "Absolutely no direct process.exit(1) or process.exit(0) calls may be made inside shared approval modules (such as agent-scripts/lib/approval.js or its tools facade). Shared helpers must bubble errors up to the orchestrator."
           }
         ]
       }
@@ -1237,7 +1235,7 @@
   },
   "docs/development/reference/PRExecutor.toml": {
     "title": "Component Specification: PR Executor Target PR Resolution",
-    "description": "- **Related Topic:** [GitHub Workflows & Automation](../explanation/GitHubWorkflows.md)",
+    "description": "- **Related Topic:** [GitHub Workflows & Automation](../explanation/GitHubWorkflows.toml)",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -1245,7 +1243,7 @@
     "sections": [
       {
         "heading": "Introduction",
-        "content": "> **Blueprint Compliance:** This integration MUST adhere strictly to the **Strict 4-Phase Lifecycle** (Plan, Implement, Review, Commit) and the **Strict 3-Gate Architecture** (Planning Gate (Gate 1), Programmatic Review/Testing Gate (Gate 2), and Commit Gate (Gate 3)). Of these 3 gates, the Planning Gate and Commit Gate are user-facing. No phase or gate may be bypassed.\n\n- **Related Topic:** [GitHub Workflows & Automation](../explanation/GitHubWorkflows.md)\n- **Target Component:** `.github/workflows/pr-executor.yml`\n- **Issue Reference:** rancher/terraform-provider-file#391\n\n---\n"
+        "content": "> **Blueprint Compliance:** This integration MUST adhere strictly to the **Strict 4-Phase Lifecycle** (Plan, Implement, Review, Commit) and the **Strict 3-Gate Architecture** (Planning Gate (Gate 1), Programmatic Review/Testing Gate (Gate 2), and Commit Gate (Gate 3)). Of these 3 gates, the Planning Gate and Commit Gate are user-facing. No phase or gate may be bypassed.\n\n- **Related Topic:** [GitHub Workflows & Automation](../explanation/GitHubWorkflows.toml)\n- **Target Component:** `.github/workflows/pr-executor.yml`\n- **Issue Reference:** rancher/terraform-provider-file#391\n\n---\n"
       },
       {
         "heading": "Abstract",
@@ -1267,7 +1265,7 @@
   },
   "docs/development/reference/ProjectManager.toml": {
     "title": "Project Manager & Map-Reduce Code Review Specifications",
-    "description": "This component specification details the persona, orchestration sequences, safety boundaries, and verification criteria governing our automated pre-co",
+    "description": "This component specification details the persona, orchestration sequences, safety boundaries, and verification criteria governing our automated...",
     "quadrant": "Explanation",
     "background": {
       "context": "Detailed architectural background and explanations."
@@ -1564,43 +1562,11 @@
       },
       {
         "heading": "1. The Token-Efficient Sub-Agent Template",
-        "content": "To prevent context bloat and minimize API token consumption, all subagent configuration files (markdown files located in `.gemini/agents/`) MUST bypass generic conversational guidelines entirely. Instead, they must strictly act as micro-scoped, schema-contracted data-transformation pipes following this unified template:\n\n```markdown\n---\nname: [unique_agent_identifier]\ndescription: \"[Concise description of the agent's role used by the coordinator]\"\nkind: local\ntools: [explicitly scoped, read-only by default, e.g. [\"read_file\"]]\nmodel: [least powerful model necessary, e.g. \"gemini-2.5-flash-lite\"]\ntemperature: 0.1\nmax_turns: [tightly bounded, e.g. 2]\n---\n"
-      },
-      {
-        "heading": "AGENT: [Agent Display Name]",
-        "content": "\n"
-      },
-      {
-        "heading": "EVALUATION SCOPE",
-        "content": "[Explicitly define the exact boundary of the agent's world, strictly prohibiting any investigation or commentary on adjacent files, patterns, or scopes.]\n"
-      },
-      {
-        "heading": "SYSTEM INPUT CONTRACT",
-        "content": "[Define the exact structure and payload format that this agent is designed to consume, e.g. \"A raw JSON array\" or \"A single sandboxed file copy.\"]\n"
-      },
-      {
-        "heading": "EVALUATION CRITERIA",
-        "content": "- **[Dimension A]**: [Explicit, token-optimized bullet points defining what to search for]\n- **[Dimension B]**: [Explicit, token-optimized bullet points defining what to search for]\n"
-      },
-      {
-        "heading": "HANDOFF SCHEMA",
-        "content": "[Mandate a rigid, machine-parseable data block (using Markdown code blocks marked with JSON, XML, or exact formatting layouts) at the very end of the prompt. Explicitly forbid conversational preambles, introductory filler, or trailing commentary.]\n```\n\n---\n"
+        "content": "To prevent context bloat and minimize API token consumption, all subagent configuration files (markdown files located in `.gemini/agents/`) MUST bypass generic conversational guidelines entirely. Instead, they must strictly act as micro-scoped, schema-contracted data-transformation pipes following this unified template:\n\n```markdown\n---\nname: [unique_agent_identifier]\ndescription: \"[Concise description of the agent's role used by the coordinator]\"\nkind: local\ntools: [explicitly scoped, read-only by default, e.g. [\"read_file\"]]\nmodel: [least powerful model necessary, e.g. \"gemini-2.5-flash-lite\"]\ntemperature: 0.1\nmax_turns: [tightly bounded, e.g. 2]\n---\n\n## AGENT: [Agent Display Name]\n\n## EVALUATION SCOPE\n\n[Explicitly define the exact boundary of the agent's world, strictly prohibiting any investigation or commentary on adjacent files, patterns, or scopes.]\n\n## SYSTEM INPUT CONTRACT\n\n[Define the exact structure and payload format that this agent is designed to consume, e.g. \"A raw JSON array\" or \"A single sandboxed file copy.\"]\n\n## EVALUATION CRITERIA\n\n- **[Dimension A]**: [Explicit, token-optimized bullet points defining what to search for]\n- **[Dimension B]**: [Explicit, token-optimized bullet points defining what to search for]\n\n## HANDOFF SCHEMA\n\n[Mandate a rigid, machine-parseable data block (using Markdown code blocks marked with JSON, XML, or exact formatting layouts) at the very end of the prompt. Explicitly forbid conversational preambles, introductory filler, or trailing commentary.]\n```\n\n---\n"
       },
       {
         "heading": "2. Standardized Handoff Schemas",
-        "content": "### A. Compact JSON Array Schema (Reviewer-Grade)\n\nFor fine-grained code auditors, results must be formatted as a single JSON array wrapped inside a markdown code block. This allows the parent process to validate the structure programmatically before passing it to subsequent aggregation layers:\n\n````markdown\n```json\n[\n  {\n    \"file\": \"string (relative path)\",\n    \"line\": integer,\n    \"issue_type\": \"EXPLICIT_ENUM_VAL_A|EXPLICIT_ENUM_VAL_B\",\n    \"evidence\": \"Exact string snippet of offending code\",\n    \"raw_rationale\": \"Concise technical explanation of the violation\"\n  }\n]\n```\n````\n\n### B. Standardized Code Vulnerability and Defect (CVD) Ledger (Aggregator-Grade)\n\nFor aggregator and severity-analyzer agents, fragmented inputs must be compiled into a security-grade defect ledger:\n\n```markdown\n### ID: CVD-[Year]-[Sequential Number]\n\n- **Title**: Short, punchy defect summary.\n- **Severity**: CRITICAL | HIGH | MEDIUM | LOW\n- **Origin Agents**: [Local / Global / Concurrency / Security / Multiple]\n- **Impacted Topology**: List of affected modules, files, or specific line indicators.\n- **Technical Vector**: Verbatim distillation of the fundamental underlying flaw.\n```\n\n### C. Actionable Remediation Plan (PM-Grade / Task Creator)\n\nFor task-creation agents, high-level ledger findings must be translated into file-grouped, narrative checklists following the **File Duplication Compliance Rule**:\n\n````markdown\n"
-      },
-      {
-        "heading": "ACTIONABLE REMEDIATION PLAN",
-        "content": "\n"
-      },
-      {
-        "heading": "FILE: [Relative Path to File A]",
-        "content": "- [ ] Task [CVD-ID]: [Action verb instruction indicating what to change, locate, or refactor in this specific file].\n"
-      },
-      {
-        "heading": "FILE: [Relative Path to File B]",
-        "content": "- [ ] Task [CVD-ID]: [Action verb instruction showing duplicated widespread problem detail specifically tailored to this file context].\n\n```\n\n```\n````\n\n---\n"
+        "content": "### A. Compact JSON Array Schema (Reviewer-Grade)\n\nFor fine-grained code auditors, results must be formatted as a single JSON array wrapped inside a markdown code block. This allows the parent process to validate the structure programmatically before passing it to subsequent aggregation layers:\n\n````markdown\n```json\n[\n  {\n    \"file\": \"string (relative path)\",\n    \"line\": integer,\n    \"issue_type\": \"EXPLICIT_ENUM_VAL_A|EXPLICIT_ENUM_VAL_B\",\n    \"evidence\": \"Exact string snippet of offending code\",\n    \"raw_rationale\": \"Concise technical explanation of the violation\"\n  }\n]\n```\n````\n\n### B. Standardized Code Vulnerability and Defect (CVD) Ledger (Aggregator-Grade)\n\nFor aggregator and severity-analyzer agents, fragmented inputs must be compiled into a security-grade defect ledger:\n\n```markdown\n### ID: CVD-[Year]-[Sequential Number]\n\n- **Title**: Short, punchy defect summary.\n- **Severity**: CRITICAL | HIGH | MEDIUM | LOW\n- **Origin Agents**: [Local / Global / Concurrency / Security / Multiple]\n- **Impacted Topology**: List of affected modules, files, or specific line indicators.\n- **Technical Vector**: Verbatim distillation of the fundamental underlying flaw.\n```\n\n### C. Actionable Remediation Plan (PM-Grade / Task Creator)\n\nFor task-creation agents, high-level ledger findings must be translated into file-grouped, narrative checklists following the **File Duplication Compliance Rule**:\n\n````markdown\n## ACTIONABLE REMEDIATION PLAN\n\n## FILE: [Relative Path to File A]\n\n- [ ] Task [CVD-ID]: [Action verb instruction indicating what to change, locate, or refactor in this specific file].\n\n## FILE: [Relative Path to File B]\n\n- [ ] Task [CVD-ID]: [Action verb instruction showing duplicated widespread problem detail specifically tailored to this file context].\n\n```\n\n```\n````\n\n---\n"
       },
       {
         "heading": "3. Strict Operational Rules & Boundaries",
@@ -1775,7 +1741,7 @@
       },
       {
         "heading": "Technical Specification",
-        "content": "### 1. The Gated 4-Phase Lifecycle & Three Gates\n\nTo optimize collaboration and ensure zero unvetted changes, the framework coordinates work across 4 distinct phases (`Plan`, `Implement`, `Review`, `Commit`) and enforces three strict, sequential gates:\n\n```text\n       [ Plan Phase ]\n             │\n             ▼\n 🔒 Gate 1: Planning Gate (User-Facing / GPG Touch ID)\n             │\n             ▼\n       [ Implement Phase (Autonomous) ]\n             │\n             ▼\n       [ Review Phase ]\n             │\n             ▼\n 🔒 Gate 2: Programmatic Review/Testing Gate (Programmatic / Test & Subagent)\n             │\n             ▼\n       [ Commit Phase ]\n             │\n             ▼\n 🔒 Gate 3: Commit Gate (User-Facing / GPG Touch ID)\n```\n\n1. **Planning Gate (Gate 1 - User-Facing)**:\n   - **Phase Transition**: Plan $\rightarrow$ Implement.\n   - **Security**: Prompts macOS Touch ID to GPG-sign the active strategy checklist on disk, writing `plan-approval.json`.\n   - **Authorization**: Unlocks autonomous file modification, compilation, and testing capabilities.\n2. **Programmatic Review/Testing Gate (Gate 2 - Programmatic)**:\n   - **Phase Transition**: Implement $\rightarrow$ Review.\n   - **Security**: Natively verifies that local unit/integration tests pass successfully and delegates an automated code review to our sandboxed `@project_manager` to secure the review signature (`review-approval.json`).\n3. **Commit Gate (Gate 3 - User-Facing)**:\n   - **Phase Transition**: Review $\rightarrow$ Commit.\n   - **Security**: Displays the live unstaged Git diff in chat, requesting Conventional Commit message approval. It triggers macOS Touch ID to verify the developer's physical sign-off and write `user-approval.json`.\n   - **Automation**: Upon biometric verification, the hook automatically stages files, commits with the signature, pushes, and programmatically opens a Draft PR on GitHub.\n\n---\n"
+        "content": "### 1. The Gated 4-Phase Lifecycle & Three Gates\n\nTo optimize collaboration and ensure zero unvetted changes, the framework coordinates work across 4 distinct phases (`Plan`, `Implement`, `Review`, `Commit`) and enforces three strict, sequential gates:\n\n```text\n       [ Plan Phase ]\n             │\n             ▼\n 🔒 Gate 1: Planning Gate (User-Facing / GPG Touch ID)\n             │\n             ▼\n       [ Implement Phase (Autonomous) ]\n             │\n             ▼\n       [ Review Phase ]\n             │\n             ▼\n 🔒 Gate 2: Programmatic Review/Testing Gate (Programmatic / Test & Subagent)\n             │\n             ▼\n       [ Commit Phase ]\n             │\n             ▼\n 🔒 Gate 3: Commit Gate (User-Facing / GPG Touch ID)\n```\n\n1. **Planning Gate (Gate 1 - User-Facing)**:\n   - **Phase Transition**: Plan $\\rightarrow$ Implement.\n   - **Security**: Prompts macOS Touch ID to GPG-sign the active strategy checklist on disk, writing `plan-approval.json`.\n   - **Authorization**: Unlocks autonomous file modification, compilation, and testing capabilities.\n2. **Programmatic Review/Testing Gate (Gate 2 - Programmatic)**:\n   - **Phase Transition**: Implement $\\rightarrow$ Review.\n   - **Security**: Natively verifies that local unit/integration tests pass successfully and delegates an automated code review to our sandboxed `@project_manager` to secure the review signature (`review-approval.json`).\n3. **Commit Gate (Gate 3 - User-Facing)**:\n   - **Phase Transition**: Review $\\rightarrow$ Commit.\n   - **Security**: Displays the live unstaged Git diff in chat, requesting Conventional Commit message approval. It triggers macOS Touch ID to verify the developer's physical sign-off and write `user-approval.json`.\n   - **Automation**: Upon biometric verification, the hook automatically stages files, commits with the signature, pushes, and programmatically opens a Draft PR on GitHub.\n\n---\n"
       },
       {
         "heading": "Asynchronous Review Iterations",
@@ -1950,14 +1916,15 @@
   },
   "docs/development/tutorials/GettingStarted.toml": {
     "title": "Getting Started with Local Provider Development",
-    "description": "Welcome to the `terraform-provider-file` project! This tutorial walks you through cloning the repository, establishing a hermetic development shell, b",
+    "description": "Welcome to the `terraform-provider-file` project! This tutorial walks you through cloning the repository, establishing a hermetic development...",
     "quadrant": "Tutorial",
     "prerequisites": {
       "knowledge_level": "Intermediate",
       "tools_required": [
         "git",
         "go",
-        "nix"
+        "nix",
+        "gpg"
       ]
     },
     "steps": [
@@ -1988,7 +1955,7 @@
       },
       {
         "title": "Next Steps",
-        "action": "Congratulations! You have successfully established your development environment, compiled the binary, and validated the build.\n\n- Refer to our **[How-To Test Guide](../how-to/Testing.md)** to learn how to run advanced acceptance tests.\n- Refer to our **[Reference Index](../reference/CodingStandards.md)** to verify coding conventions.\n",
+        "action": "Congratulations! You have successfully established your development environment, compiled the binary, and validated the build.\n\n- Refer to our **[How-To Test Guide](../how-to/Testing.toml)** to learn how to run advanced acceptance tests.\n- Refer to our **[Reference Index](../reference/CodingStandards.toml)** to verify coding conventions.\n",
         "expected_result": "Verification completes successfully."
       }
     ]

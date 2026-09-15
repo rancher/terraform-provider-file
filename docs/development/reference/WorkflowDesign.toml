@@ -49,14 +49,14 @@ To optimize collaboration and ensure zero unvetted changes, the framework coordi
 ```
 
 1. **Planning Gate (Gate 1 - User-Facing)**:
-   - **Phase Transition**: Plan $\rightarrow$ Implement.
+   - **Phase Transition**: Plan $\\rightarrow$ Implement.
    - **Security**: Prompts macOS Touch ID to GPG-sign the active strategy checklist on disk, writing `plan-approval.json`.
    - **Authorization**: Unlocks autonomous file modification, compilation, and testing capabilities.
 2. **Programmatic Review/Testing Gate (Gate 2 - Programmatic)**:
-   - **Phase Transition**: Implement $\rightarrow$ Review.
+   - **Phase Transition**: Implement $\\rightarrow$ Review.
    - **Security**: Natively verifies that local unit/integration tests pass successfully and delegates an automated code review to our sandboxed `@project_manager` to secure the review signature (`review-approval.json`).
 3. **Commit Gate (Gate 3 - User-Facing)**:
-   - **Phase Transition**: Review $\rightarrow$ Commit.
+   - **Phase Transition**: Review $\\rightarrow$ Commit.
    - **Security**: Displays the live unstaged Git diff in chat, requesting Conventional Commit message approval. It triggers macOS Touch ID to verify the developer's physical sign-off and write `user-approval.json`.
    - **Automation**: Upon biometric verification, the hook automatically stages files, commits with the signature, pushes, and programmatically opens a Draft PR on GitHub.
 

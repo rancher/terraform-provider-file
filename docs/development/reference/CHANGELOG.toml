@@ -26,28 +26,28 @@ content = """
 
 - **Consolidated Topics & Directories**: Grouped all process guidelines, workflows, and formatting rules under a unified directory structure to maximize cohesive discoverability and comply strictly with standard paradigms.
 - **Relocated Workflows**: Moved all repository-specific automation workflows from `.gemini/workflows/` to `docs/development/how-to/` or `docs/development/explanation/` respectively:
-  - `development-process.md` -> `how-to/DevelopmentProcess.md`
-  - `resolve-pr-reviews.md` -> `how-to/PRReviewResolution.md`
-  - `troubleshoot-workflows.md` -> `how-to/WorkflowTroubleshooting.md`
+  - `development-process.md` -> `how-to/DevelopmentProcess.toml`
+  - `resolve-pr-reviews.md` -> `how-to/PRReviewResolution.toml`
+  - `troubleshoot-workflows.md` -> `how-to/WorkflowTroubleshooting.toml`
 - **Relocated Formatting Styles**: Moved formatting style guidelines from `.gemini/output-styles/` to `docs/development/explanation/`:
-  - `strict.md` -> `explanation/OutputStyleStrict.md`
-  - `conversational.md` -> `explanation/OutputStyleConversational.md`
-- **Established Coding Standards Topic**: Created a new top-level **Coding Standards** topic overview (`reference/CodingStandards.md`) and relocated all standards and language instructions from `.gemini/rules/` to `docs/development/reference/`:
-  - `go.instructions.md` -> `reference/Go.md`
-  - `terraform.instructions.md` -> `reference/Terraform.md`
-  - `workflows.instructions.md` -> `reference/Workflows.md`
-  - `github-script.instructions.md` -> `reference/GitHubScript.md`
-  - `shell-scripts.instructions.md` -> `reference/ShellScripts.md`
-  - `github-copilot-review.instructions.md` -> `reference/GitHubCopilotReview.md`
-  - `documentation.instructions.md` -> `reference/Documentation.md`
-  - `blueprints.instructions.md` -> `reference/Blueprints.md`
-  - `standards.md` -> Eliminated by absorbing global linting/spelling/formatting rules into `reference/CodingStandards.md` and standard testing targets into `how-to/Testing.md`.
+  - `strict.md` -> `explanation/OutputStyleStrict.toml`
+  - `conversational.md` -> `explanation/OutputStyleConversational.toml`
+- **Established Coding Standards Topic**: Created a new top-level **Coding Standards** topic overview (`reference/CodingStandards.toml`) and relocated all standards and language instructions from `.gemini/rules/` to `docs/development/reference/`:
+  - `go.instructions.md` -> `reference/Go.toml`
+  - `terraform.instructions.md` -> `reference/Terraform.toml`
+  - `workflows.instructions.md` -> `reference/Workflows.toml`
+  - `github-script.instructions.md` -> `reference/GitHubScript.toml`
+  - `shell-scripts.instructions.md` -> `reference/ShellScripts.toml`
+  - `github-copilot-review.instructions.md` -> `reference/GitHubCopilotReview.toml`
+  - `documentation.instructions.md` -> `reference/DocumentationFormatting.toml`
+  - `blueprints.instructions.md` -> `reference/Blueprints.toml`
+  - `standards.md` -> Eliminated by absorbing global linting/spelling/formatting rules into `reference/CodingStandards.toml` and standard testing targets into `how-to/Testing.toml`.
 - **Pruned Unused Folders**: Completely deleted `.gemini/workflows/`, `.gemini/output-styles/`, and `.gemini/rules/` from the automation suite, restoring `.gemini/` as a generic portable template.
 - **Retired `PLAN_LOG.md`**: Removed the redundant historical plan logs.
 
 ### Added
 
-- **Official Gemini layout reference**: Created `.gemini/README.md` defining Google's standard user-level vs project-level folder structure.
+- **Official Gemini layout reference**: Created `.gemini/README.toml` defining Google's standard user-level vs project-level folder structure.
 - **Changelog**: Added this `CHANGELOG.md` file specifically tracking developer documentation under `docs/development/reference/`.
 """
 

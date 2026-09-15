@@ -100,17 +100,11 @@ plan = \"\"\"
 # Enforce TOML Format for ask_user Tool
 
 > **Blueprint Compliance:** This integration MUST adhere strictly to the **Strict 4-Phase Lifecycle** (Plan, Implement, Review, Commit) and the **Strict 3-Gate Architecture** (Planning Gate (Gate 1), Programmatic Review/Testing Gate (Gate 2), and Commit Gate (Gate 3)). No phase or gate may be bypassed.
-"""
 
-[[sections]]
-heading = "Objective"
-content = """
+## Objective
 Update the Agentic Framework to formalize all `ask_user` tool inputs into a structured TOML format...
-"""
 
-[[sections]]
-heading = "Implementation Steps"
-content = """
+## Implementation Steps
 - [ ] Install `@iarna/toml`
 - [ ] Create `.gemini/hooks/ask-user-toml-validator.js`
 - [ ] Configure `settings.json`
