@@ -94,12 +94,9 @@ export function runGh(args, options = {}) {
             stderr || stdout,
           );
         if (isTokenOrCommitIssue && (env.GITHUB_TOKEN || env.GH_TOKEN)) {
-          console.log(
+          console.warn(
             '::notice::[Fallback] Detected token authorization or commit synchronization failure. Retrying with GITHUB_TOKEN/GH_TOKEN dropped to fallback to keychain authentication...',
           );
-          const fallbackEnv = { ...env };
-          delete fallbackEnv.GITHUB_TOKEN;
-          delete fallbackEnv.GH_TOKEN;
           try {
             const fallbackResult = await runGh(args, {
               ...options,
@@ -160,7 +157,7 @@ export async function create(prData, cwd = process.cwd()) {
     try {
       const existingPrNumber = await exists(head, null, cwd);
       if (existingPrNumber) {
-        console.log(
+        console.warn(
           `::notice::[Self-Healing] Open Pull Request #${existingPrNumber} already exists for branch '${head}'. Retrieving URL...`,
         );
         const prDetailsOut = await runGh(['pr', 'view', String(existingPrNumber), '--json', 'url'], { cwd });

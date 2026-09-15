@@ -168,9 +168,17 @@ export async function afterAskUserCommit(inputData, targetDir) {
   const { tool_name, tool_input, tool_response } = inputData;
   const hookName = 'afterAskUserCommit';
 
-  if (!tool_name || tool_name !== 'ask_user' || !tool_input || !tool_response) {
+  if (!tool_name || tool_name !== 'ask_user') {
     allow(hookName, tool_name || 'no-tool-called');
     return;
+  }
+
+  if (!tool_input || !tool_response) {
+    deny(
+      hookName,
+      'Incomplete ask_user hook payload (missing input or response)',
+      'Ensure tool_input and tool_response are supplied.',
+    );
   }
 
   if (await inPlanMode(targetDir)) {

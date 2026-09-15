@@ -103,6 +103,16 @@ async function main() {
     throw new Error(`Failed to read/parse STDIN in main: ${err.message || err}`, { cause: err });
   }
 
+  if (!inputData || typeof inputData !== 'object' || Array.isArray(inputData)) {
+    process.stdout.write(
+      JSON.stringify({
+        decision: 'deny',
+        systemMessage: 'Invalid JSON input',
+      }) + '\n',
+    );
+    process.exit(0);
+  }
+
   const targetDir = await resolveTargetDir();
   const args = process.argv.slice(2);
 

@@ -780,7 +780,7 @@ export async function getActiveDiff(cwd = process.cwd(), forceFull = false) {
       return await executeGit(['diff', '-U10', defaultBranch], cwd);
     }
   } else {
-    return await gitDiffStagedContext(cwd);
+    return await executeGit(['diff', '-U10', 'HEAD'], cwd);
   }
 }
 
