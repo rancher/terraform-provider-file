@@ -8,6 +8,7 @@
     "agent-scripts/cleanup-data.js",
     "agent-scripts/exercise-agents.js",
     "agent-scripts/quality-assurance.js",
-    "agent-scripts/compile-docs.js"
+    "agent-scripts/compile-docs.js",
+    "agent-scripts/tools/migrate-to-toml.js"
   ]
 }

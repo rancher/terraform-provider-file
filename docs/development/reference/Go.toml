@@ -48,7 +48,7 @@ description = "Rules regarding error checks, error wrapping, early returns, and 
   name = "sentinel wrapping"
   required = true
   type = "constraint"
-  description = "Wrap bubbled errors using the %w verb to maintain the original call chain. Good: fmt.Errorf('... %w', err)"
+  description = "Wrap bubbled errors using the %w verb to maintain the original call chain. Good: fmt.Errorf(\"... %w\", err)"
 
   [[items.parameters]]
   name = "happy-path alignment"
@@ -102,7 +102,7 @@ description = "Vulnerability prevention, secure random gen, and context propagat
   name = "command injection mitigation"
   required = true
   type = "constraint"
-  description = "Do not construct CLI arguments using string formatting or variable interpolation. Pass separate strings via argv arrays. Good: exec.CommandContext(ctx, 'git', 'diff', branch)"
+  description = "Do not construct CLI arguments using string formatting or variable interpolation. Pass separate strings via argv arrays. Good: exec.CommandContext(ctx, \"git\", \"diff\", branch)"
 
 [[items]]
 name = "Architecture, State, Testing & Gates"

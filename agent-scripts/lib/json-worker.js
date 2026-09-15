@@ -13,8 +13,7 @@ parentPort.on('message', (msg) => {
     const parsedData = JSON.parse(data);
     parentPort.postMessage({ id, result: parsedData });
   } catch (err) {
-    // Fail-safe: return fallback fresh default state
-    const fallback = data.trim().startsWith('[') ? [] : {};
-    parentPort.postMessage({ id, result: fallback, error: err.message });
+    // Let the caller apply its supplied fallback
+    parentPort.postMessage({ id, error: err.message });
   }
 });

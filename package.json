@@ -9,7 +9,7 @@
     "test": "test"
   },
   "scripts": {
-    "test": "node --test \"agent-scripts/**/*.test.js\" \".github/workflows/scripts/tests/**/*.test.js\""
+    "test": "node agent-scripts/compile-docs.js && node --test \"agent-scripts/**/*.test.js\" \".github/workflows/scripts/tests/**/*.test.js\""
   },
   "repository": {
     "type": "git",

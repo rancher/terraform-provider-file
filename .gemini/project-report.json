@@ -718,6 +718,8 @@
     "finding": "The implementation introduces a centralized 'docs/docs-compiled.json' file to define coding standards. This structure is susceptible to prompt injection; if the file is compromised, an attacker can inject arbitrary instructions directly into the LLM subagent's prompt.",
     "severity": "HIGH",
     "reason": "Acceptable tradeoff. The architectural decision to use a centralized JSON file for agent context is explicitly mandated by the active implementation plan. Validating repository content against prompt injection from trusted files is inherent to the LLM agent framework design and out of scope for this specific structural migration."
+  },
+  {
     "file": ".gemini/hooks/01-startup/startupLogic.js",
     "finding": "Reduction of emphatic mandate warnings and 'Fail-Fast' termination clauses weakens the procedural enforcement.",
     "severity": "HIGH",

@@ -36,12 +36,33 @@ export default async function main(core) {
     lock = await fs.promises.open(lockPath, 'wx');
   } catch (err) {
     if (err.code === 'EEXIST') {
-      core.info('Compilation already in progress by another instance. Exiting.');
+      try {
+        const stat = await fs.promises.stat(lockPath);
+        if (Date.now() - stat.mtimeMs > 5 * 60 * 1000) {
+          // 5 minutes stale
+          core.info('Found stale compilation lock file. Removing and retrying...');
+          try {
+            await fs.promises.unlink(lockPath);
+          } catch (unlinkErr) {
+            if (unlinkErr.code !== 'ENOENT') {
+              throw unlinkErr;
+            }
+          }
+          lock = await fs.promises.open(lockPath, 'wx');
+        } else {
+          core.info('Compilation already in progress by another instance. Exiting.');
+          return;
+        }
+      } catch (staleErr) {
+        core.setFailed(`Failed to resolve compilation lock: ${staleErr.message}`);
+        process.exitCode = 1;
+        return;
+      }
+    } else {
+      core.setFailed(`Failed to acquire compilation lock: ${err.message}`);
+      process.exitCode = 1;
       return;
     }
-    core.setFailed(`Failed to acquire compilation lock: ${err.message}`);
-    process.exitCode = 1;
-    return;
   }
 
   try {
