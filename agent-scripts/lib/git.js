@@ -755,7 +755,10 @@ export async function getRepoDefaultBranch(cwd = process.cwd()) {
       const show = await executeGit(['remote', 'show', 'origin'], cwd);
       const match = show.match(/HEAD branch: (.*)/);
       if (match) {
-        return match[1].trim();
+        const branch = match[1].trim();
+        if (branch && branch !== '(unknown)') {
+          return branch;
+        }
       }
     } catch (err) {
       console.warn(`::warning::Failed to resolve HEAD branch via remote show origin: ${err.message}`);
