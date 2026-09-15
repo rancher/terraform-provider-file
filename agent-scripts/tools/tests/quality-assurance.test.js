@@ -1,12 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import {
-  getStandardsFile,
-  getRepoDefaultBranch,
-  filterExcludedFiles,
-  parseJSONFromText,
-  qaValidator,
-} from '../../quality-assurance.js';
+import { getRepoDefaultBranch } from '../../tools/git.js';
+import { getStandardsFile, filterExcludedFiles, parseJSONFromText, qaValidator } from '../../quality-assurance.js';
 
 test('quality-assurance script unit tests', async (t) => {
   await t.test('getStandardsFile maps extensions correctly', () => {

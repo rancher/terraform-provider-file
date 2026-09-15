@@ -96,11 +96,22 @@ function restoreSshAgent() {
 
 async function main() {
   restoreSshAgent();
-  let inputData = {};
+  let inputData;
   try {
-    inputData = JSON.parse(await fs.promises.readFile(0, 'utf-8'));
-  } catch {
-    // Ignore EAGAIN
+    inputData = JSON.parse(fs.readFileSync(0, 'utf-8'));
+  } catch (err) {
+    throw new Error(`Failed to read/parse STDIN in main: ${err.message || err}`, { cause: err });
+  }
+
+  if (!inputData || typeof inputData !== 'object' || Array.isArray(inputData)) {
+    hasLogged = true;
+    process.stdout.write(
+      JSON.stringify({
+        decision: 'deny',
+        systemMessage: 'Invalid JSON input',
+      }) + '\n',
+    );
+    process.exit(0);
   }
 
   const targetDir = await resolveTargetDir();
@@ -125,6 +136,7 @@ async function main() {
 main().catch((err) => {
   const errMsg = `Fatal Commit Phase Hook Error: ${err.stack || err.message}`;
   console.error('::error::' + errMsg);
+  hasLogged = true;
   process.stdout.write(
     JSON.stringify({
       decision: 'deny',
