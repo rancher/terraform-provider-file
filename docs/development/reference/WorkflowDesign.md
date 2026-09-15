@@ -71,3 +71,17 @@ By implementing strict, deterministic, and hermetic formatting tools (Prettier, 
 - We **prune all mechanical style rules** from the instructions of our AI agents (e.g., `project_manager.md`).
 - This dramatically reduces prompt sizes, minimizing context window footprint and cloud-processing API costs.
 - The `@project_manager` and its subagents can focus 100% of their cognitive window on high-signal architectural logic, security vectors, and structural compliance.
+
+---
+
+## 🔒 Self-Containment Prompt Strategy for Sandboxed Subagents
+
+When executing subagents in highly secure, isolated, and empty sandbox environments (such as those managed by `mkdtemp` in `code-review.js` or `quality-assurance.js`), the parent process actively intercepts any external filesystem tool calls (e.g. `list_directory`, `read_file`) to protect system integrity.
+
+However, lower-reasoning models (such as `gemini-3.5-flash` running in failover modes) can become confused by an empty working directory and attempt to explore up-tree, resulting in benign but distracting security blocks.
+
+To prevent this, custom subagent profiles designed to run in empty directories must implement a **Self-Containment Mandate**:
+
+1. **Explicit No-Tool Rules:** System instructions must carry a loud, high-priority section instructing the model that it must **never** call any directory-listing, file-reading, or search tools.
+2. **XML Payload Reliance:** System instructions must command the model to rely exclusively on the structured XML data structures (such as `<git_diff>` and `<active_plan>`) provided directly within the prompt payload, rather than attempting filesystem exploration.
+3. **Graceful Failures:** This guarantees that even when model capacity failovers occur, the subagent session remains compact, silent, highly focused, and free of false-positive sandbox blocks.

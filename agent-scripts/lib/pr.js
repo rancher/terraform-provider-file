@@ -154,6 +154,26 @@ export async function create(prData, cwd = process.cwd()) {
   if (typeof title !== 'string' || typeof body !== 'string') {
     throw new TypeError('title and body must be strings');
   }
+
+  // Self-healing check: If an open PR already exists for the head branch, return its URL instead of failing!
+  if (head) {
+    try {
+      const existingPrNumber = await exists(head, null, cwd);
+      if (existingPrNumber) {
+        console.log(
+          `::notice::[Self-Healing] Open Pull Request #${existingPrNumber} already exists for branch '${head}'. Retrieving URL...`,
+        );
+        const prDetailsOut = await runGh(['pr', 'view', String(existingPrNumber), '--json', 'url'], { cwd });
+        const prDetails = safeJsonParse(prDetailsOut, null);
+        if (prDetails && prDetails.url) {
+          return prDetails.url;
+        }
+      }
+    } catch (err) {
+      console.warn(`::warning::Failed to check for existing PR: ${err.message}`);
+    }
+  }
+
   const args = ['pr', 'create', '--draft', '--title', title, '--body', body];
   if (base) {
     args.push('--base', base);
