@@ -48,3 +48,4 @@ When you see these exact aliases, expand them in your mind and act as if their e
 - `eli` = `Explain this like I'm 18. Simplify your language. Shorten your response.`
 - `foc` = `Focus on what matters most here. What is the true signal? What is the true value? Boil your response down into the most important thing we need to focus on.`
 - `ref` = `Rewrite your responses with reference points.`
+- `prar` = `There is an open PR for this branch. Please review, address, and resolve pr review comments for it.`

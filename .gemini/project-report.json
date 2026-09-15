@@ -736,5 +736,11 @@
     "finding": "Aggressive truncation of error-handling mandates (e.g., replacing detailed catch block rules with 'Never swallow errors').",
     "severity": "MEDIUM",
     "reason": "Intended tradeoff. The plan's primary objective is to condense rules into concise bullet points without the wordiness."
+  },
+  {
+    "file": ".gemini/system.md",
+    "finding": "The addition of the 'prar' instructional alias is entirely out of scope of the active PR #429 Remediation & TOML Migration Plan.",
+    "severity": "HIGH",
+    "reason": "Acceptable deviation. The user explicitly directed the addition of the 'prar' instructional alias in the chat session, overriding the strict planning gate scope for this specific file."
   }
 ]
