@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Skill: resolve-pr-reviews.js
+ * Skill: manage-pr-comments.js
  * Description: Programmatically list and resolve review comment threads on a GitHub Pull Request.
  */
 
@@ -33,7 +33,7 @@ function validateInput(val, name) {
 }
 
 function showHelp() {
-  console.log(`Usage: resolve-pr-reviews.js [PR_ID] [options/file_pattern]
+  console.log(`Usage: manage-pr-comments.js [PR_ID] [options/file_pattern]
 
 Programmatically list and resolve review comment threads on a GitHub Pull Request.
 
@@ -51,13 +51,13 @@ Options:
   <pattern>             Resolve threads where the file path contains the given literal pattern.
 
 Examples:
-  agent-scripts/resolve-pr-reviews.js 390
-  agent-scripts/resolve-pr-reviews.js 390 --all
-  agent-scripts/resolve-pr-reviews.js 390 --message "Fix applied" --all
-  agent-scripts/resolve-pr-reviews.js 390 --general "PR review complete" --all
-  agent-scripts/resolve-pr-reviews.js 390 --verbose
-  agent-scripts/resolve-pr-reviews.js 390 --json
-  agent-scripts/resolve-pr-reviews.js 390 publish-release.test.js`);
+  agent-scripts/manage-pr-comments.js 390
+  agent-scripts/manage-pr-comments.js 390 --all
+  agent-scripts/manage-pr-comments.js 390 --message "Fix applied" --all
+  agent-scripts/manage-pr-comments.js 390 --general "PR review complete" --all
+  agent-scripts/manage-pr-comments.js 390 --verbose
+  agent-scripts/manage-pr-comments.js 390 --json
+  agent-scripts/manage-pr-comments.js 390 publish-release.test.js`);
 }
 
 function parseArguments() {
@@ -161,7 +161,7 @@ async function processThreads(threads, options) {
       } else {
         if (!json) {
           console.log(
-            `  -> Running in list mode. Run with 'agent-scripts/resolve-pr-reviews.js ${prId} --all' or 'agent-scripts/resolve-pr-reviews.js ${prId} ${filePath}' to resolve.`,
+            `  -> Running in list mode. Run with 'agent-scripts/manage-pr-comments.js ${prId} --all' or 'agent-scripts/manage-pr-comments.js ${prId} ${filePath}' to resolve.`,
           );
         }
       }

@@ -2,6 +2,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { Buffer } from 'node:buffer';
 import { verifySafeGitCommand, cleanCommandString } from '../../agent-scripts/tools/git.js';
 
 const hookName = path.basename(process.argv[1]);
@@ -90,7 +91,12 @@ process.on('unhandledRejection', (reason) => {
 async function main() {
   let inputData;
   try {
-    inputData = JSON.parse(fs.readFileSync(0, 'utf-8'));
+    const buffers = [];
+    for await (const chunk of process.stdin) {
+      buffers.push(chunk);
+    }
+    const rawData = Buffer.concat(buffers).toString('utf-8');
+    inputData = JSON.parse(rawData);
   } catch (err) {
     console.error('Failed to parse stdin JSON in block-restricted-commands:', err.message || err);
     console.log(

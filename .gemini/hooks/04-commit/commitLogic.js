@@ -1,5 +1,7 @@
+import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import * as core from '@actions/core';
 import { writeFileSafe } from '../../../agent-scripts/tools/file.js';
 import { calculateDiffHash } from '../../../agent-scripts/tools/git.js';
 import { readState, setLock } from '../../../agent-scripts/tools/state.js';
@@ -11,15 +13,7 @@ import {
   verifyPlanGate,
   verifyReviewGate,
 } from '../../../agent-scripts/tools/approval.js';
-import {
-  allow,
-  deny,
-  getPhase,
-  getTomlFrom,
-  hasValidSigningKey,
-  parseToolResponse,
-  validateAskUser,
-} from '../shared.js';
+import { allow, deny, getPhase, hasValidSigningKey, parseToolResponse, validateAskUser } from '../shared.js';
 
 async function inPlanMode(targetDir) {
   const phaseResult = await getPhase(targetDir);
@@ -92,75 +86,85 @@ export async function beforeAskUserCommit(inputData, targetDir) {
     allow(hookName, tool_name);
   }
 
-  // Run central TOML validation
-  validateAskUser(hookName, tool_name, tool_input);
-
-  const tomlData = getTomlFrom(tool_input);
-
-  const commitIntent = tomlData.intent.trim().toLowerCase();
-  const isCommitAsk = commitIntent === 'commit approval';
-
-  const hasCommitFields =
-    Object.prototype.hasOwnProperty.call(tomlData, 'hash') ||
-    Object.prototype.hasOwnProperty.call(tomlData, 'commit-message') ||
-    Object.prototype.hasOwnProperty.call(tomlData, 'pr-description');
-  if (hasCommitFields && !isCommitAsk) {
-    deny(
-      'Gate 3 (Commit Gate) Intent Validation',
-      `The TOML payload contains commit-specific fields, but the intent is set to "${tomlData.intent}".`,
-      'To request commit approval, you must set intent = "commit approval" in your TOML payload.',
-    );
+  // Attempt to read commit-metadata.json asynchronously and fail-safe
+  const metadataPath = path.join(targetDir, 'commit-metadata.json');
+  let metadataContent = null;
+  try {
+    metadataContent = await fs.promises.readFile(metadataPath, 'utf8');
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      deny(
+        'Gate 3 (Commit Gate) File Validation',
+        `Failed to read commit-metadata.json: ${err.message}`,
+        'Ensure commit-metadata.json is readable.',
+      );
+    } else {
+      core.debug(`[Commit Gate] Optional commit-metadata.json not found: ${err.message}`);
+    }
   }
 
-  if (!isCommitAsk) {
-    allow(hookName, tool_name);
+  if (metadataContent !== null) {
+    let metadata;
+    try {
+      metadata = JSON.parse(metadataContent);
+    } catch (err) {
+      deny(
+        'Gate 3 (Commit Gate) Format Validation',
+        `commit-metadata.json is not valid JSON: ${err.message}`,
+        'Ensure commit-metadata.json is formatted as a valid JSON object.',
+      );
+    }
+
+    const intent = metadata.intent ? metadata.intent.trim().toLowerCase() : '';
+    if (intent === 'commit approval') {
+      // Validate specific fields inside commit-metadata.json
+      if (!metadata.hash || typeof metadata.hash !== 'string') {
+        deny(
+          'Gate 3 (Commit Gate) Schema Validation',
+          "The 'hash' field inside commit-metadata.json is required.",
+          "Include a valid 'hash' string in commit-metadata.json.",
+        );
+      }
+      if (!metadata['commit-message'] || typeof metadata['commit-message'] !== 'string') {
+        deny(
+          'Gate 3 (Commit Gate) Schema Validation',
+          "The 'commit-message' field inside commit-metadata.json is required.",
+          "Include a valid 'commit-message' string in commit-metadata.json.",
+        );
+      }
+      if (!metadata['pr-description'] || typeof metadata['pr-description'] !== 'string') {
+        deny(
+          'Gate 3 (Commit Gate) Schema Validation',
+          "The 'pr-description' field inside commit-metadata.json is required.",
+          "Include a valid 'pr-description' string in commit-metadata.json.",
+        );
+      }
+
+      const planHash = await verifyPlanGate(targetDir);
+      if (!planHash) {
+        deny(
+          'Gate 3 (Commit Gate) Pipeline Verification',
+          'You cannot ask for Developer Commit Approval (Gate 3) because Gate 1 (Planning Gate) is missing or invalid!',
+          'Please obtain planning approval from the developer first by writing plans/ and calling ask_user with intent = "plan approval".',
+        );
+      }
+
+      const diffHash = await calculateDiffHash();
+
+      await checkAndRevokeStaleGates(targetDir, diffHash, planHash);
+
+      const reviewPassed = await verifyReviewGate(targetDir, diffHash, planHash);
+      if (!reviewPassed) {
+        deny(
+          'Gate 3 (Commit Gate) Quality Verification',
+          'You cannot ask for Developer Commit Approval (Gate 3) because the Review prerequisite (Gate 2) is missing or has been invalidated by recent file changes!',
+          'Please run the review script first to perform a code review and sign the branch: node agent-scripts/quality-assurance.js',
+        );
+      }
+    }
   }
 
-  // Validate specific fields
-  if (!tomlData.hash || typeof tomlData.hash !== 'string') {
-    deny(
-      'Gate 3 (Commit Gate) Schema Validation',
-      "For commit approval intent, the string 'hash' field containing the review phase diff hash is required.",
-      "Include the 'hash' field in your TOML with the exact diff SHA-256 hash calculated from the review phase.",
-    );
-  }
-  if (!tomlData['commit-message'] || typeof tomlData['commit-message'] !== 'string') {
-    deny(
-      'Gate 3 (Commit Gate) Schema Validation',
-      "For commit approval intent, the string 'commit-message' field containing the approved commit message is required.",
-      "Include the 'commit-message' field in your TOML with the exact conventional commit message to use for the automated commit.",
-    );
-  }
-  if (!tomlData['pr-description'] || typeof tomlData['pr-description'] !== 'string') {
-    deny(
-      'Gate 3 (Commit Gate) Schema Validation',
-      "For commit approval intent, the string 'pr-description' field containing the pull request description is required.",
-      "Include the 'pr-description' field in your TOML with the detailed description/body to use when programmatically opening the Pull Request.",
-    );
-  }
-
-  const planHash = await verifyPlanGate(targetDir);
-  if (!planHash) {
-    deny(
-      'Gate 3 (Commit Gate) Pipeline Verification',
-      'You cannot ask for Developer Commit Approval (Gate 3) because Gate 1 (Planning Gate) is missing or invalid!',
-      'Please obtain planning approval from the developer first by writing plans/ and calling ask_user with intent = "plan approval".',
-    );
-  }
-
-  const diffHash = await calculateDiffHash();
-
-  await checkAndRevokeStaleGates(targetDir, diffHash, planHash);
-
-  const reviewPassed = await verifyReviewGate(targetDir, diffHash, planHash);
-  if (!reviewPassed) {
-    deny(
-      'Gate 3 (Commit Gate) Quality Verification',
-      'You cannot ask for Developer Commit Approval (Gate 3) because the Review prerequisite (Gate 2) is missing or has been invalidated by recent file changes!',
-      'Please run the review script first to perform a code review and sign the branch: node agent-scripts/code-review.js',
-    );
-  }
-
+  // All filters passed, allow the standard human-readable ask_user tool call
   allow(hookName, tool_name);
 }
 
@@ -191,7 +195,39 @@ export async function afterAskUserCommit(inputData, targetDir) {
   }
 
   validateAskUser(hookName, tool_name, tool_input);
-  const tomlData = getTomlFrom(tool_input);
+
+  // Attempt to read commit-metadata.json asynchronously and fail-safe
+  const metadataPath = path.join(targetDir, 'commit-metadata.json');
+  let metadataContent = null;
+  try {
+    metadataContent = await fs.promises.readFile(metadataPath, 'utf8');
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      deny(
+        'Gate 3 (Commit Gate) File Validation',
+        `Failed to read commit-metadata.json: ${err.message}`,
+        'Ensure commit-metadata.json is present in the session directory and fully readable before requesting commit approval.',
+      );
+    } else {
+      core.debug(`[Commit Gate] Optional commit-metadata.json not found on afterAskUser: ${err.message}`);
+    }
+  }
+
+  if (metadataContent === null) {
+    // Optional metadata file not present, meaning this is a standard clarification question!
+    allow(hookName, tool_name);
+  }
+
+  let tomlData;
+  try {
+    tomlData = JSON.parse(metadataContent);
+  } catch (err) {
+    deny(
+      'Gate 3 (Commit Gate) Format Validation',
+      `commit-metadata.json is not valid JSON: ${err.message}`,
+      'Ensure commit-metadata.json contains a valid, correctly formatted JSON object.',
+    );
+  }
 
   const commitIntent = tomlData && tomlData.intent ? tomlData.intent.trim().toLowerCase() : '';
   const isCommitAsk = commitIntent === 'commit approval';
@@ -269,15 +305,20 @@ export async function afterAskUserCommit(inputData, targetDir) {
 
     const reviewPassed = await verifyReviewGate(targetDir, diffHash, planHash);
     if (!reviewPassed) {
-      allow(hookName, tool_name);
+      deny(
+        'Gate 3 (Commit Gate) Quality Verification',
+        'Your Gate 2 (Review) cryptographic signature is missing, invalid, or has been invalidated by recent file changes!',
+        'To resolve this, please re-run our single-pass Quality Assurance script to sign the latest staged changes:\n' +
+          '  node agent-scripts/quality-assurance.js\n\n' +
+          'Once signed, run your commit approval tool call again.',
+      );
     }
 
     const homeDir = os.homedir();
     const sshPubKeyFile = path.resolve(homeDir, '.gemini/ssh-key.pub');
-    const promptText = tomlData['commit-message'] || '';
     try {
       console.error('🔒 Hook Info: Executing cryptographic commit signing and automatic push pipeline...');
-      const result = await handleCommitApproval(targetDir, sshPubKeyFile, promptText);
+      const result = await handleCommitApproval(targetDir, sshPubKeyFile);
       console.error(
         `🔒 Hook Info: Commit successfully signed and pushed. PR URL: ${result ? result.prUrl : 'unknown'}`,
       );

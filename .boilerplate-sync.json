@@ -3,7 +3,6 @@
     { "local": ".gemini", "remote": ".gemini" },
     { "local": "docs/development", "remote": "docs/development" },
     { "local": "agent-scripts", "remote": "agent-scripts" },
-    { "local": ".aiexclude", "remote": ".aiexclude" },
     { "local": ".markdownlint.yaml", "remote": ".markdownlint.yaml" },
     { "local": ".prettierrc", "remote": ".prettierrc" },
     { "local": "package.json", "remote": "package.json" },

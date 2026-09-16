@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { gitRevParseShowToplevel } from '../../../agent-scripts/tools/git.js';
-import { initializeState } from '../../../agent-scripts/tools/state.js';
+import { initializeState, readState } from '../../../agent-scripts/tools/state.js';
 import { deny } from '../shared.js';
 
 /**
@@ -53,8 +53,13 @@ Subagents (including codebase_investigator, cli_help, generalist, quality_assura
  */
 export async function initializeWorkspaceFlags(targetDir) {
   try {
-    await initializeState(targetDir);
-    console.error('phase-state.json initialized successfully to plan.');
+    const existing = await readState(targetDir);
+    if (!existing) {
+      await initializeState(targetDir);
+      console.error('phase-state.json initialized successfully to plan.');
+    } else {
+      console.error(`phase-state.json loaded. Current phase: ${existing.currentPhase}`);
+    }
   } catch (err) {
     deny(
       'Startup Phase State Initialization',
@@ -76,14 +81,15 @@ export async function protectExcludeFiles() {
       console.error(`🔒 Hook Warning: Failed to determine git repo root: ${err.message}`);
     }
 
-    const excludeFiles = ['.aiexclude', '.claudeignore'];
+    const excludeFiles = ['.claudeignore'];
     for (const file of excludeFiles) {
       const filePath = path.join(repoRoot, file);
       try {
         await fs.promises.access(filePath);
         await fs.promises.chmod(filePath, 0o400);
-      } catch {
-        // Exclude file doesn't exist or is not readable, skip silently
+      } catch (err) {
+        // Exclude file doesn't exist or is not readable, skip silently as per design
+        console.debug(`🔒 Hook Info: Optional exclude file ${file} not found or inaccessible: ${err.message}`);
       }
     }
   } catch (err) {

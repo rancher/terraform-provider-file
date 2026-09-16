@@ -19,7 +19,14 @@ function safeJsonParse(str, fallback = {}) {
  */
 export function runGh(args, options = {}) {
   const { envOverrides = {}, cwd = process.cwd(), input, signal } = options;
-  const env = { ...process.env, ...envOverrides };
+  const env = { ...process.env };
+  for (const [key, val] of Object.entries(envOverrides)) {
+    if (val === '' || val === undefined) {
+      delete env[key];
+    } else {
+      env[key] = val;
+    }
+  }
   const spawnOptions = {
     cwd,
     env,
@@ -152,13 +159,33 @@ export async function create(prData, cwd = process.cwd()) {
     throw new TypeError('title and body must be strings');
   }
 
+  let formattedHead = head;
+  if (head) {
+    try {
+      // Safely parse the fork owner from git remote get-url origin
+      const { execFile } = await import('child_process');
+      const { promisify } = await import('util');
+      const execFileAsync = promisify(execFile);
+      const { stdout } = await execFileAsync('git', ['remote', 'get-url', 'origin'], { cwd });
+      if (stdout) {
+        const match = stdout.trim().match(/github\.com[/:](.+?)\//);
+        if (match && match[1]) {
+          const owner = match[1];
+          formattedHead = `${owner}:${head}`;
+        }
+      }
+    } catch (err) {
+      console.warn(`::warning::Failed to autodetect fork owner for PR: ${err.message}`);
+    }
+  }
+
   // Self-healing check: If an open PR already exists for the head branch, return its URL instead of failing!
   if (head) {
     try {
-      const existingPrNumber = await exists(head, null, cwd);
+      const existingPrNumber = await exists(formattedHead, null, cwd);
       if (existingPrNumber) {
         console.warn(
-          `::notice::[Self-Healing] Open Pull Request #${existingPrNumber} already exists for branch '${head}'. Retrieving URL...`,
+          `::notice::[Self-Healing] Open Pull Request #${existingPrNumber} already exists for branch '${formattedHead}'. Retrieving URL...`,
         );
         const prDetailsOut = await runGh(['pr', 'view', String(existingPrNumber), '--json', 'url'], { cwd });
         const prDetails = safeJsonParse(prDetailsOut, null);
@@ -175,8 +202,8 @@ export async function create(prData, cwd = process.cwd()) {
   if (base) {
     args.push('--base', base);
   }
-  if (head) {
-    args.push('--head', head);
+  if (formattedHead) {
+    args.push('--head', formattedHead);
   }
   return await runGh(args, { cwd });
 }

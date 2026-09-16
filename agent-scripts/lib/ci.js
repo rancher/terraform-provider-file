@@ -3,7 +3,37 @@ import fs from 'fs';
 import { promisify } from 'util';
 
 const execFileAsync = promisify(execFile);
-const DEFAULT_REPO = 'rancher/terraform-provider-file';
+
+let cachedDefaultRepo = null;
+async function getDefaultRepo() {
+  if (cachedDefaultRepo) {
+    return cachedDefaultRepo;
+  }
+  try {
+    const { stdout } = await execFileAsync('gh', ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner']);
+    if (stdout && stdout.trim()) {
+      cachedDefaultRepo = stdout.trim();
+      return cachedDefaultRepo;
+    }
+  } catch (err) {
+    console.warn(`::warning::Failed to resolve default repo via gh: ${err.message}`);
+    try {
+      const { stdout: gitStdout } = await execFileAsync('git', ['remote', 'get-url', 'origin']);
+      if (gitStdout) {
+        const match = gitStdout.trim().match(/github\.com[/:](.+)\.git/);
+        if (match) {
+          cachedDefaultRepo = match[1];
+          return cachedDefaultRepo;
+        }
+      }
+    } catch (gitErr) {
+      console.warn(`::warning::Failed to resolve default repo via git remote: ${gitErr.message}`);
+    }
+  }
+  throw new Error(
+    'Unable to resolve default repository. Please ensure you are inside a Git repository with an origin remote, or supply the repo name explicitly.',
+  );
+}
 
 async function runWithRetry(file, args, maxAttempts = 5, baseDelay = 2) {
   let attempt = 1;
@@ -28,13 +58,14 @@ export const ci = {
   /**
    * List recently failed CI runs via the GitHub CLI
    */
-  async listFailedRuns(repo = DEFAULT_REPO) {
+  async listFailedRuns(repo) {
+    const finalRepo = repo || (await getDefaultRepo());
     try {
       const output = await runWithRetry('gh', [
         'run',
         'list',
         '-R',
-        repo,
+        finalRepo,
         '-s',
         'failure',
         '--limit',
@@ -52,9 +83,10 @@ export const ci = {
   /**
    * List failed jobs for a specific CI run using the GitHub API
    */
-  async listFailedJobs(runId, repo = DEFAULT_REPO) {
+  async listFailedJobs(runId, repo) {
+    const finalRepo = repo || (await getDefaultRepo());
     try {
-      const output = await runWithRetry('gh', ['api', `repos/${repo}/actions/runs/${runId}/jobs`]);
+      const output = await runWithRetry('gh', ['api', `repos/${finalRepo}/actions/runs/${runId}/jobs`]);
       const data = JSON.parse(output);
       return (data.jobs || [])
         .filter((job) => job.conclusion === 'failure')
@@ -67,8 +99,9 @@ export const ci = {
   /**
    * Get the latest run ID, optionally filtered by workflow or status
    */
-  async getLatestRunId(workflow = '', status = '', repo = DEFAULT_REPO) {
-    const args = ['run', 'list', '-R', repo, '--limit', '1', '--json', 'databaseId'];
+  async getLatestRunId(workflow = '', status = '', repo) {
+    const finalRepo = repo || (await getDefaultRepo());
+    const args = ['run', 'list', '-R', finalRepo, '--limit', '1', '--json', 'databaseId'];
     if (workflow) {
       args.push('-w', workflow);
     }
@@ -86,7 +119,7 @@ export const ci = {
     } catch (error) {
       originalError = error;
     }
-    throw new Error(`No recent workflow runs found matching the criteria for repository '${repo}'.`, {
+    throw new Error(`No recent workflow runs found matching the criteria for repository '${finalRepo}'.`, {
       cause: originalError,
     });
   },
@@ -94,12 +127,13 @@ export const ci = {
   /**
    * Download and save logs for a specific run or job directly via fs
    */
-  async downloadLogs({ runId, jobId, repo = DEFAULT_REPO, outputPath }) {
+  async downloadLogs({ runId, jobId, repo, outputPath }) {
+    const finalRepo = repo || (await getDefaultRepo());
     const finalOutputPath = outputPath || `/tmp/gh-${jobId ? 'job' : 'run'}-${jobId || runId || 'latest'}.log`;
 
     const args = jobId
-      ? ['run', 'view', '--job', jobId, '-R', repo, '--log-failed']
-      : ['run', 'view', runId || (await this.getLatestRunId('', '', repo)), '-R', repo, '--log-failed'];
+      ? ['run', 'view', '--job', jobId, '-R', finalRepo, '--log-failed']
+      : ['run', 'view', runId || (await this.getLatestRunId('', '', finalRepo)), '-R', finalRepo, '--log-failed'];
 
     const output = await runWithRetry('gh', args);
 

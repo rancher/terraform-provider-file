@@ -1,4 +1,5 @@
 import TOML from '@iarna/toml';
+import * as core from '@actions/core';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
@@ -75,7 +76,7 @@ export async function getPhase(targetDir) {
   return { success: false, error: 'phase-state.json not found' };
 }
 
-function getAskUserPromptText(tool_input) {
+export function getAskUserPromptText(tool_input) {
   if (!tool_input) {
     return '';
   }
@@ -100,7 +101,14 @@ function parseToml(promptText) {
 }
 
 export function getTomlFrom(tool_input) {
-  const promptText = getAskUserPromptText(tool_input);
+  const promptText = (getAskUserPromptText(tool_input) || '').trim();
+  if (promptText.startsWith('{') && promptText.endsWith('}')) {
+    try {
+      return JSON.parse(promptText);
+    } catch (err) {
+      core.debug(`[getTomlFrom] JSON parsing failed: ${err.message}`);
+    }
+  }
   const tomlResult = parseToml(promptText);
   const tomlData = tomlResult.success ? tomlResult.data : null;
   return tomlData;
@@ -119,7 +127,7 @@ export function validateAskUser(hook_name, tool_name, tool_input) {
     );
   }
 
-  const promptText = getAskUserPromptText(tool_input);
+  const promptText = (getAskUserPromptText(tool_input) || '').trim();
   if (!promptText) {
     deny(
       `${hook_name}`,
@@ -128,23 +136,44 @@ export function validateAskUser(hook_name, tool_name, tool_input) {
     );
   }
 
-  // Parse TOML
-  const tomlResult = parseToml(promptText);
-  if (!tomlResult.success) {
-    deny(
-      `${hook_name}`,
-      `Failed to parse prompt as valid TOML. Error: ${tomlResult.error}`,
-      'Format your prompt string exactly as a valid TOML document. Ensure that all strings are correctly closed, and wrap multi-line strings (such as plans) using triple-quotes (""").',
-    );
+  // Parse TOML or JSON
+  const isJson = promptText.startsWith('{') && promptText.endsWith('}');
+  const isToml = promptText.includes('intent =') || promptText.includes('intent=');
+
+  if (!isJson && !isToml) {
+    // Standard human-readable Markdown prompt, bypass structured validation!
+    return;
   }
 
-  const tomlData = tomlResult.data;
+  let tomlData = null;
+
+  if (isJson) {
+    try {
+      tomlData = JSON.parse(promptText);
+    } catch (err) {
+      deny(
+        `${hook_name}`,
+        `Failed to parse prompt as valid JSON. Error: ${err.message}`,
+        'Format your prompt string exactly as a valid JSON document.',
+      );
+    }
+  } else {
+    const tomlResult = parseToml(promptText);
+    if (!tomlResult.success) {
+      deny(
+        `${hook_name}`,
+        `Failed to parse prompt as valid TOML. Error: ${tomlResult.error}`,
+        'Format your prompt string exactly as a valid TOML document. Ensure that all strings are correctly closed, and wrap multi-line strings (such as plans) using triple-quotes (""").',
+      );
+    }
+    tomlData = tomlResult.data;
+  }
 
   // Validate generic fields
   if (!tomlData.intent || typeof tomlData.intent !== 'string') {
     deny(
       `${hook_name}`,
-      "The TOML payload is missing the required 'intent' string field.",
+      "The payload is missing the required 'intent' string field.",
       'Add an \'intent\' field as a string indicating the purpose of the call (e.g., intent = "plan approval" or intent = "clarification").',
     );
   }
@@ -162,7 +191,7 @@ export function validateAskUser(hook_name, tool_name, tool_input) {
   if (!allowedIntents.includes(normalizedIntent)) {
     deny(
       `${hook_name}`,
-      `The TOML payload has an unrecognized 'intent': "${tomlData.intent}".`,
+      `The payload has an unrecognized 'intent': "${tomlData.intent}".`,
       `Please set a valid intent from the following list:\n` +
         allowedIntents.map((i) => `  - "${i}"`).join('\n') +
         `\n\n` +

@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import fs, { promises as fsPromises } from 'fs';
 import path from 'path';
+import TOML from '@iarna/toml';
 import { fileExistsSafe, readFileSafe, writeFileSafe, resolveTargetDir } from './file.js';
 
 export async function findLatestActivePlan(targetDir) {
@@ -16,7 +17,7 @@ export async function findLatestActivePlan(targetDir) {
       if (fs.existsSync(plansPath) && (await fsPromises.stat(plansPath)).isDirectory()) {
         const files = await fsPromises.readdir(plansPath);
         for (const file of files) {
-          if (file.endsWith('.md')) {
+          if (file.endsWith('.toml') || file.endsWith('.md')) {
             const filePath = path.join(plansPath, file);
             const stat = await fsPromises.stat(filePath);
             planFiles.push({
@@ -81,7 +82,7 @@ export async function calculatePlanChecksum(targetDir) {
 
 /**
  * Programmatically validates that a plan file contains all of our strict requirements.
- * @param {string} planPath - The path to the active plan markdown file
+ * @param {string} planPath - The path to the active plan file (.toml or .md)
  * @returns {Promise<object>} - { valid: boolean, errors: string[] }
  */
 export async function validatePlanContent(planPath) {
@@ -92,34 +93,78 @@ export async function validatePlanContent(planPath) {
     return { valid: false, errors: ['Plan file does not exist or could not be read.'] };
   }
 
-  // 1. Checklist check: must contain markdown checklist items "[ ]"
-  const checklistMatch = /-\s*\[\s*\]/g.test(content);
-  if (!checklistMatch) {
-    errors.push('The plan must include each step in a checklist (using "- [ ]").');
-  }
+  const isToml = planPath.endsWith('.toml');
 
-  // 2. Comprehensive tests check
-  const testMatch = /test|testing|linter/i.test(content);
-  if (!testMatch) {
-    errors.push('The plan must include running comprehensive tests.');
-  }
+  if (isToml) {
+    let parsed;
+    try {
+      parsed = TOML.parse(content);
+    } catch (err) {
+      return { valid: false, errors: [`Plan file is not valid TOML: ${err.message}`] };
+    }
 
-  // 3. Quality gates check
-  const gateMatch = /gate|signature|seal|approval/i.test(content);
-  if (!gateMatch) {
-    errors.push('The plan must include our standard quality gates.');
-  }
+    const items = parsed.tasks?.items || [];
+    if (!Array.isArray(items) || items.length === 0) {
+      errors.push('The plan must include a list of tasks in `[tasks]` under `[[tasks.items]]`.');
+    }
 
-  // 4. Maintaining the agentic framework check
-  const frameworkMatch = /agentic framework|system script|enforcer hook/i.test(content);
-  if (!frameworkMatch) {
-    errors.push('The plan must include maintaining the agentic framework if improvements or bugs are found in it.');
-  }
+    const combinedText =
+      items.map((item) => `${item.id || ''} ${item.description || ''}`).join(' ') +
+      ` ${parsed.metadata?.title || ''} ${parsed.metadata?.description || ''}`;
 
-  // 5. Updating documentation check
-  const docMatch = /document|documentation|docs\//i.test(content);
-  if (!docMatch) {
-    errors.push('The plan must include updating documentation to describe the changes we plan to make.');
+    // 2. Comprehensive tests check
+    const testMatch = /test|testing|linter/i.test(combinedText);
+    if (!testMatch) {
+      errors.push('The plan must include running comprehensive tests.');
+    }
+
+    // 3. Quality gates check
+    const gateMatch = /gate|signature|seal|approval/i.test(combinedText);
+    if (!gateMatch) {
+      errors.push('The plan must include our standard quality gates.');
+    }
+
+    // 4. Maintaining the agentic framework check
+    const frameworkMatch = /agentic framework|system script|enforcer hook/i.test(combinedText);
+    if (!frameworkMatch) {
+      errors.push('The plan must include maintaining the agentic framework if improvements or bugs are found in it.');
+    }
+
+    // 5. Updating documentation check
+    const docMatch = /document|documentation|docs\//i.test(combinedText);
+    if (!docMatch) {
+      errors.push('The plan must include updating documentation to describe the changes we plan to make.');
+    }
+  } else {
+    // 1. Checklist check: must contain markdown checklist items "[ ]"
+    const checklistMatch = /-\s*\[\s*\]/g.test(content);
+    if (!checklistMatch) {
+      errors.push('The plan must include each step in a checklist (using "- [ ]").');
+    }
+
+    // 2. Comprehensive tests check
+    const testMatch = /test|testing|linter/i.test(content);
+    if (!testMatch) {
+      errors.push('The plan must include running comprehensive tests.');
+    }
+
+    // 3. Quality gates check
+    const gateMatch = /gate|signature|seal|approval/i.test(content);
+    if (!gateMatch) {
+      errors.push('The plan must include our standard quality gates.');
+    }
+
+    // 4. Maintaining the agentic framework check
+    const frameworkMatch = /agentic framework|system script|enforcer hook/i.test(content);
+    if (!frameworkMatch) {
+      errors.push('The plan must include maintaining the agentic framework if improvements or bugs are found in it.');
+    }
+
+    // 5. Updating documentation check
+    const docMatch = /document|documentation|docs\//i.test(content);
+    if (!docMatch) {
+      errors.push('The plan must include updating documentation to describe the changes we plan to make.');
+    }
   }
 
   return {

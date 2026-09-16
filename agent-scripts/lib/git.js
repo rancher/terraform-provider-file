@@ -346,7 +346,7 @@ export async function calculateDiffHash(cwd = process.cwd()) {
   }
 }
 
-export async function runAutomatedCommitAndPush(targetDir, commitMessage, cwd = process.cwd()) {
+export async function runAutomatedCommitAndPush(targetDir, commitMessage, prTitle, prBody, cwd = process.cwd()) {
   console.log(`::notice::🚀 AUTOMATION TRIGGERED: Initiating commit and push...`);
   const pushArgs = ['commit-push', '-m', commitMessage];
 
@@ -403,16 +403,12 @@ export async function runAutomatedCommitAndPush(targetDir, commitMessage, cwd = 
 
     const prScriptPath = path.resolve(cwd, 'agent-scripts/tools/pr.js');
     console.log(`::notice::Hook Info: Spawning pr.js to create pull request for branch ${activeBranch}`);
-    const prOut = await executeFileSafe(
-      prScriptPath,
-      ['create', `Feature: ${activeBranch}`, 'Automated PR created by Gemini.', 'main', activeBranch],
-      {
-        env: { ...process.env },
-        cwd,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        maxBuffer: 10 * 1024 * 1024,
-      },
-    );
+    const prOut = await executeFileSafe(prScriptPath, ['create', prTitle, prBody, 'main', activeBranch], {
+      env: { ...process.env },
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      maxBuffer: 10 * 1024 * 1024,
+    });
     const prUrl = prOut ? prOut.trim() : '';
     if (prUrl) {
       console.log(`::notice::${prUrl}`);

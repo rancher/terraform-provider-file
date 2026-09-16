@@ -1,14 +1,12 @@
 {
   "allowed_scripts": [
-    "agent-scripts/code-review.js",
-    "agent-scripts/resolve-pr-reviews.js",
+    "agent-scripts/manage-pr-comments.js",
     "agent-scripts/update-action-versions.sh",
     "agent-scripts/sync-boilerplate.js",
     "agent-scripts/update-modules.sh",
     "agent-scripts/cleanup-data.js",
     "agent-scripts/exercise-agents.js",
     "agent-scripts/quality-assurance.js",
-    "agent-scripts/compile-docs.js",
-    "agent-scripts/tools/migrate-to-toml.js"
+    "agent-scripts/compile-docs.js"
   ]
 }

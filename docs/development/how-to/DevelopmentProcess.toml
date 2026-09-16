@@ -105,9 +105,9 @@ description = '''
 When resolving comments or feedback on an open Pull Request, developers and agents must adhere to the following systematic quality iteration loop:
 
 1. **Update Reference Coding Standards First**: Translate the review comments into strict checking rules and append them to the relevant coding standards file under `docs/development/reference/` (e.g., `Go.toml`, `JavaScript.toml`, etc.).
-2. **Run Map-Reduce Review on Unmodified Codebase**: Run the review orchestrator on the unmodified codebase files. The review pipeline must successfully reproduce the findings in its report and conclude with `PR Review status: 🔴 FINDINGS - Violations detected.`.
+2. **Run Quality Assurance Review on Unmodified Codebase**: Run the single-pass QA checker (`agent-scripts/quality-assurance.js`) on the unmodified codebase files. The review pipeline must successfully reproduce the findings in its report.
 3. **Implement Surgical Code Fixes**: Only after the review pipeline successfully reproduces the findings in its local report are you authorized to modify files to address the comments.
-4. **Local Verification & Final Review**: Run local linters and tests. Then, execute the review orchestrator one final time to confirm it approves the workspace changes with a clean `PR Review status: 🟢 PERFECT - 0 findings`.
-5. **Push Updates & Resolve**: Stage the changes, commit using the Commit Gate, and push to the remote branch. Execute `node agent-scripts/resolve-pr-reviews.js` to programmatically resolve the comment threads on GitHub.
+4. **Local Verification & Final Review**: Run local linters and tests. Then, execute the quality assurance tool one final time to confirm it approves the workspace changes with a clean review and 0 findings.
+5. **Push Updates & Resolve**: Stage the changes, commit using the Commit Gate, and push to the remote branch. Execute `node agent-scripts/manage-pr-comments.js` to programmatically resolve the comment threads on GitHub.
 '''
 

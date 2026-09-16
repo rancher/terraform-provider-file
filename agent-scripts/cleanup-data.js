@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
-import { fileExistsSafe, readdirSafe, statSafe, deleteFileSafe, readFileSafe } from './tools/file.js';
+import { fileExistsSafe, readdirSafe, statSafe, deleteFileSafe, readFileSafe, resolveTargetDir } from './tools/file.js';
 
-const tmpBaseDir = path.join(os.homedir(), '.gemini/tmp/terraform-provider-file');
+const tmpBaseDir = await resolveTargetDir();
 const logsFilePath = path.join(tmpBaseDir, 'logs.json');
 
 // Regex to extract UUID from file/directory names

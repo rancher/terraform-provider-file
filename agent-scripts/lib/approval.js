@@ -3,6 +3,8 @@ import fs, { promises as fsPromises } from 'fs';
 import os from 'os';
 import path from 'path';
 import { promisify } from 'util';
+import TOML from '@iarna/toml';
+import * as core from '@actions/core';
 import {
   calculateFileHash,
   deleteFileSafe,
@@ -280,7 +282,32 @@ export async function readApprovalData(targetDir, approvalFileName, key = null) 
   return null;
 }
 
+function parsePayload(text) {
+  if (!text) {
+    return null;
+  }
+  const trimmed = text.trim();
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    try {
+      return JSON.parse(trimmed);
+    } catch (err) {
+      core.debug(`[Payload Parser] Parsing as JSON failed, proceeding to TOML: ${err.message}`);
+    }
+  }
+  try {
+    return TOML.parse(trimmed);
+  } catch (err) {
+    core.debug(`[Payload Parser] Parsing as TOML failed: ${err.message}`);
+  }
+  return null;
+}
+
 export async function extractCommitMessage(targetDir, promptText) {
+  const parsed = parsePayload(promptText);
+  if (parsed && parsed['commit-message']) {
+    return parsed['commit-message'].replace(/<br>/g, '\n').trim();
+  }
+
   let commitMessage = (await readApprovalData(targetDir, 'review-approval.json', 'suggested_commit_message')) || '';
 
   if (!commitMessage) {
@@ -292,9 +319,13 @@ export async function extractCommitMessage(targetDir, promptText) {
       commitMessage = (matchCommit[2] !== void 0 ? matchCommit[2] : matchCommit[1]).trim();
     } else if (promptText && promptText.trim() !== '') {
       commitMessage = promptText.trim();
-    } else {
-      commitMessage = 'chore: automated development commit';
     }
+  }
+
+  if (!commitMessage || commitMessage.trim() === '') {
+    throw new Error(
+      "Commit Gate Validation Error: Approved 'commit-message' was not found in the ask_user payload, and no suggested message is present.",
+    );
   }
   return commitMessage;
 }
@@ -424,7 +455,7 @@ export async function handleReviewApproval(targetDir, signingKeyFile) {
 /**
  * Handles the Commit Gate 3 GPG/SSH signing challenge and automatic commit/push.
  */
-export async function handleCommitApproval(targetDir, signingKeyFile, promptText) {
+export async function handleCommitApproval(targetDir, signingKeyFile) {
   const activePlan = await findLatestActivePlan(targetDir);
   const planHash = activePlan ? await calculateFileHash(activePlan) : 'unknown';
   const diffHash = await calculateDiffHash();
@@ -441,10 +472,49 @@ export async function handleCommitApproval(targetDir, signingKeyFile, promptText
   };
 
   try {
+    // Read and parse commit-metadata.json asynchronously from disk (no fallback!)
+    const metadataPath = path.join(targetDir, 'commit-metadata.json');
+    let metadataContent;
+    try {
+      metadataContent = await fsPromises.readFile(metadataPath, 'utf8');
+    } catch (err) {
+      throw new Error(`Failed to read commit-metadata.json: ${err.message}`, { cause: err });
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(metadataContent);
+    } catch (err) {
+      core.debug(`Failed to parse commit-metadata.json in handleCommitApproval: ${err.message}`);
+      parsed = {}; // Fallback to fresh default state to satisfy standard
+    }
+
+    if (!parsed || Object.keys(parsed).length === 0) {
+      throw new Error('Commit Gate Validation Error: Malformed JSON or empty metadata file. Gating fails-closed.', {
+        cause: new Error('JSON parsing failed'),
+      });
+    }
+
+    const commitMessage = parsed['commit-message'] ? parsed['commit-message'].replace(/<br>/g, '\n').trim() : '';
+
+    if (!commitMessage || commitMessage.trim() === '') {
+      throw new Error(
+        "Commit Gate Validation Error: 'commit-message' inside commit-metadata.json is strictly required.",
+      );
+    }
+
+    const prTitle = parsed['pr-title'] || commitMessage.split('\n')[0].trim();
+    const prBody = parsed['pr-description'] || '';
+
+    if (!prBody || !prTitle) {
+      throw new Error(
+        "Commit Gate Validation Error: Both 'pr-description' and 'commit-message' (or 'pr-title') inside commit-metadata.json are strictly required for PR creation.",
+      );
+    }
+
     await generateAndSignApproval(targetDir, 'user-approval.json', signingKeyFile, envelope);
 
-    const commitMessage = await extractCommitMessage(targetDir, promptText);
-    const prUrl = await runAutomatedCommitAndPush(targetDir, commitMessage);
+    const prUrl = await runAutomatedCommitAndPush(targetDir, commitMessage, prTitle, prBody);
     return {
       status: 'approved',
       prUrl,

@@ -82,7 +82,7 @@ Once verified, present the unstaged diff and request approval via `ask_user` (fo
 Once changes are pushed and verified on GitHub, programmatically resolve all comment threads on GitHub:
 
 ```bash
-agent-scripts/resolve-pr-reviews.sh [PR_ID] --bypass-token --all
+node agent-scripts/manage-pr-comments.js [PR_ID] --all
 ```
 
 Verify that all threads are fully closed on GitHub, concluding the resolution session.

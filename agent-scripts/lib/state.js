@@ -122,7 +122,7 @@ const TRANSITION_STRATEGIES = {
         }
 
         const planName = path
-          .basename(activePlan, '.md')
+          .basename(activePlan, path.extname(activePlan))
           .toLowerCase()
           .replace(/[^a-z0-9_-]/g, '-');
         const branchName = `feature/${planName}`;
