@@ -20,6 +20,25 @@ async function inPlanPhase(targetDir) {
   return phaseResult && phaseResult.success && phaseResult.data === 'plan';
 }
 
+async function safeResolveRealPath(inputPath) {
+  let resolved = path.resolve(inputPath);
+  try {
+    resolved = await fs.promises.realpath(resolved);
+  } catch (err) {
+    let current = resolved;
+    while (current && current !== path.dirname(current)) {
+      try {
+        const realParent = await fs.promises.realpath(path.dirname(current));
+        resolved = path.join(realParent, path.basename(current));
+        break;
+      } catch (parentErr) {
+        current = path.dirname(current);
+      }
+    }
+  }
+  return resolved;
+}
+
 export async function beforeAskUserPlan(inputData, targetDir) {
   const { tool_name, tool_input } = inputData;
   const hookName = 'beforeAskUserPlan';
@@ -41,10 +60,10 @@ export async function beforeAskUserPlan(inputData, targetDir) {
     core.debug(`[Plan Gate] Extracted intent from ask_user question: ${matchedIntent}`);
   }
 
-  const metadataPath = (() => {
+  const metadataPath = await (async () => {
     if (matchedMetadataPath) {
-      const resolvedPath = path.resolve(matchedMetadataPath);
-      const resolvedTargetDir = path.resolve(targetDir);
+      const resolvedPath = await safeResolveRealPath(matchedMetadataPath);
+      const resolvedTargetDir = await safeResolveRealPath(targetDir);
       const relative = path.relative(resolvedTargetDir, resolvedPath);
       if (relative.startsWith('..') || path.isAbsolute(relative)) {
         deny(
@@ -62,13 +81,13 @@ export async function beforeAskUserPlan(inputData, targetDir) {
       }
       return resolvedPath;
     }
-    return path.join(targetDir, 'plan-metadata.json');
+    return await safeResolveRealPath(path.join(targetDir, 'plan-metadata.json'));
   })();
 
-  const planPath = (() => {
+  const planPath = await (async () => {
     if (matchedPath) {
-      const resolvedPath = path.resolve(matchedPath);
-      const resolvedTargetDir = path.resolve(targetDir);
+      const resolvedPath = await safeResolveRealPath(matchedPath);
+      const resolvedTargetDir = await safeResolveRealPath(targetDir);
       const relative = path.relative(resolvedTargetDir, resolvedPath);
       if (relative.startsWith('..') || path.isAbsolute(relative)) {
         deny(
@@ -100,10 +119,17 @@ export async function beforeAskUserPlan(inputData, targetDir) {
 
   if (metadataContent === null) {
     // Optional metadata file not present, meaning this is a standard clarification question!
+    if (matchedIntent && matchedIntent.trim().toLowerCase() === 'plan approval') {
+      deny(
+        'Gate 1 (Planning Gate) Pipeline Validation',
+        'You are attempting to request plan approval, but plan-metadata.json is missing!',
+        'You must write plan-metadata.json using write-plan.js before calling `ask_user` with plan approval intent.',
+      );
+    }
     allow(hookName, tool_name);
   }
 
-  if (metadataContent !== null) {
+  if (matchedIntent && matchedIntent.trim().toLowerCase() === 'plan approval') {
     let tomlData;
     try {
       tomlData = JSON.parse(metadataContent);
@@ -232,6 +258,8 @@ Do you cryptographically approve this plan?`;
       }),
     );
     process.exit(0);
+  } else {
+    allow(hookName, tool_name);
   }
 }
 
@@ -269,10 +297,10 @@ export async function afterAskUserPlan(inputData, targetDir) {
     core.debug(`[Plan Gate] Extracted intent from ask_user question: ${matchedIntent}`);
   }
 
-  const metadataPath = (() => {
+  const metadataPath = await (async () => {
     if (matchedMetadataPath) {
-      const resolvedPath = path.resolve(matchedMetadataPath);
-      const resolvedTargetDir = path.resolve(targetDir);
+      const resolvedPath = await safeResolveRealPath(matchedMetadataPath);
+      const resolvedTargetDir = await safeResolveRealPath(targetDir);
       const relative = path.relative(resolvedTargetDir, resolvedPath);
       if (relative.startsWith('..') || path.isAbsolute(relative)) {
         deny(
@@ -290,13 +318,13 @@ export async function afterAskUserPlan(inputData, targetDir) {
       }
       return resolvedPath;
     }
-    return path.join(targetDir, 'plan-metadata.json');
+    return await safeResolveRealPath(path.join(targetDir, 'plan-metadata.json'));
   })();
 
-  const planPath = (() => {
+  const planPath = await (async () => {
     if (matchedPath) {
-      const resolvedPath = path.resolve(matchedPath);
-      const resolvedTargetDir = path.resolve(targetDir);
+      const resolvedPath = await safeResolveRealPath(matchedPath);
+      const resolvedTargetDir = await safeResolveRealPath(targetDir);
       const relative = path.relative(resolvedTargetDir, resolvedPath);
       if (relative.startsWith('..') || path.isAbsolute(relative)) {
         deny(
@@ -332,10 +360,18 @@ export async function afterAskUserPlan(inputData, targetDir) {
 
   if (metadataContent === null) {
     // Optional metadata file not present, meaning this is a standard clarification question!
+    if (matchedIntent && matchedIntent.trim().toLowerCase() === 'plan approval') {
+      deny(
+        'Gate 1 (Planning Gate) Pipeline Validation',
+        'You are attempting to approve the plan, but plan-metadata.json is missing!',
+        'You must write plan-metadata.json using write-plan.js before requesting plan approval.',
+      );
+    }
     allow(hookName, tool_name);
   }
 
-  let tomlData;
+  if (matchedIntent && matchedIntent.trim().toLowerCase() === 'plan approval') {
+    let tomlData;
   try {
     tomlData = JSON.parse(metadataContent);
   } catch (err) {
@@ -402,12 +438,26 @@ export async function afterAskUserPlan(inputData, targetDir) {
   const planTasksLines = tasks.map((t) => `- [ ] ${t.trim()}`);
   const planContent = `# Plan\n\n${planTasksLines.join('\n')}`;
   try {
-    const result = await handlePlanApproval(targetDir, sshPubKeyFile, planContent);
-    try {
-      await deleteFileSafe(metadataPath);
-    } catch (cleanErr) {
-      core.debug(`[Plan Gate] Failed to clean up plan-metadata.json: ${cleanErr.message}`);
+    const activePlanFile = planPath || (await findLatestActivePlan(targetDir));
+    if (!activePlanFile) {
+      deny(
+        'Gate 1 (Planning Gate) Pipeline Verification',
+        'Active plan file not found in session directory!',
+        'Please write your plan file as a TOML document under plans/ first before requesting plan approval.',
+      );
     }
+    let existingPlanContent;
+    try {
+      existingPlanContent = await fs.promises.readFile(activePlanFile, 'utf8');
+    } catch (err) {
+      deny(
+        'Gate 1 (Planning Gate) File Read Error',
+        `Failed to read active plan file at ${activePlanFile}: ${err.message}`,
+        'Ensure active plan file exists and is readable.',
+      );
+    }
+    const result = await handlePlanApproval(targetDir, sshPubKeyFile, existingPlanContent);
+    core.debug(`[Plan Gate] Plan approved. Preserving plan-metadata.json until exit_plan_mode.`);
     allow(
       hookName,
       tool_name,
@@ -417,5 +467,8 @@ export async function afterAskUserPlan(inputData, targetDir) {
     );
   } catch (err) {
     deny('Gate 1 (Planning Gate) Execution', err.message, 'Please address the error and run ask_user again.');
+  }
+  } else {
+    allow(hookName, tool_name);
   }
 }

@@ -58,9 +58,11 @@ These goal-oriented, cross-cutting automation scripts execute sequences of Level
 
 - **`auto-remediate.js`**: Scalable, context-engineered execution engine that parses the remediation worklist, batches target files across a pool of up to 5 sandboxed subagents to apply surgical fixes, and verifies all modifications with an Adversarial Local Verifier.
 - **`cleanup-data.js`**: Dynamically detects the active session ID via `logs.json` and purges older, stale temporary directories securely.
+- **`code-review.js`**: Compatibility shim that forwards execution to `quality-assurance.js` for backward compatibility.
 - **`exercise-agents.js`**: Sequentially exercises requested Gemini models (pro, flash, lite) using isolated temporary sandboxes to manage quota reset times.
 - **`exercise-cron.sh`**: Helper wrapper to schedule and execute the agent-exercising process automatically inside a Mac cron job.
 - **`manage-pr-comments.js`**: Automates the parsing and resolution of GitHub PR comment threads based on implemented fixes.
+- **`quality-assurance.js`**: Fast, single-pass programmatic Quality Assurance script that runs tests, linters, and delegates code review audits to the sandboxed `@quality_assurance` agent.
 - **`run-in-nix.sh`**: Environment bootstrapper to securely run Javascript/Shell tasks in a hermetic, reproducible Nix environment.
 - **`sync-boilerplate.js`**: Lightweight utility to compare and synchronize repository configuration and boilerplate files against a central template.
 - **`update-action-versions.sh`**: Scans and upgrades outdated third-party GitHub Action dependencies within workflows.

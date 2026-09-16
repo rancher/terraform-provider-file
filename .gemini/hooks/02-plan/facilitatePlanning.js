@@ -112,6 +112,17 @@ export async function afterExitPlanMode(inputData, targetDir) {
 
   await setPhase(targetDir, 'implement');
 
+  // Clean up plan-metadata.json after exit_plan_mode succeeds
+  const metadataPath = path.join(targetDir, 'plan-metadata.json');
+  try {
+    const fs = await import('fs');
+    if (fs.existsSync(metadataPath)) {
+      await fs.promises.unlink(metadataPath);
+    }
+  } catch (cleanErr) {
+    console.error('Failed to clean up plan-metadata.json after exit_plan_mode:', cleanErr.message);
+  }
+
   allow(
     'afterExitPlanMode',
     '✅ Exited Plan Mode. Implementation phase successfully unlocked! 👉 ACTION REQUIRED: Proceed immediately to Implement your plan, then move to the Review Phase by running the code-review.js script.',

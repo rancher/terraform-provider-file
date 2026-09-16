@@ -495,6 +495,20 @@ export async function handleCommitApproval(targetDir, signingKeyFile) {
       });
     }
 
+    // Enforce Cryptographic Binding check and Intent check
+    if (parsed.intent !== 'commit approval') {
+      throw new Error("Commit Gate Validation Error: Metadata 'intent' must be 'commit approval'.");
+    }
+
+    if (parsed.hash !== diffHash) {
+      throw new Error(`Commit Gate Cryptographic Binding Violation: The hash inside commit-metadata.json ("${parsed.hash}") does not match the active staged diff hash ("${diffHash}")!`);
+    }
+
+    const reviewPassed = await verifyReviewGate(targetDir, diffHash, planHash);
+    if (!reviewPassed) {
+      throw new Error("Commit Gate Quality Verification: Your Gate 2 (Review) cryptographic signature is missing, invalid, or has been invalidated by recent file changes!");
+    }
+
     const commitMessage = parsed['commit-message'] ? parsed['commit-message'].replace(/<br>/g, '\n').trim() : '';
 
     if (!commitMessage || commitMessage.trim() === '') {

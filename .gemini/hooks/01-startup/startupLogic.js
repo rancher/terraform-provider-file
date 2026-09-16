@@ -54,9 +54,15 @@ Subagents (including codebase_investigator, cli_help, generalist, quality_assura
 export async function initializeWorkspaceFlags(targetDir) {
   try {
     const existing = await readState(targetDir);
-    if (!existing) {
+    const validPhases = ['plan', 'implement', 'review', 'commit'];
+    const isValidSchema = existing &&
+      typeof existing === 'object' &&
+      validPhases.includes(existing.currentPhase) &&
+      typeof existing.locked === 'boolean';
+
+    if (!isValidSchema) {
       await initializeState(targetDir);
-      console.error('phase-state.json initialized successfully to plan.');
+      console.error('phase-state.json initialized/reset successfully to plan.');
     } else {
       console.error(`phase-state.json loaded. Current phase: ${existing.currentPhase}`);
     }

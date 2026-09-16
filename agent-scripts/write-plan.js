@@ -2,7 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import * as core from '@actions/core';
-import { resolveTargetDir } from './tools/file.js';
+import { resolveTargetDir, savePlanContent } from './tools/file.js';
 import { findLatestActivePlan } from './tools/plan.js';
 
 async function main() {
@@ -64,26 +64,13 @@ async function main() {
   await fs.promises.writeFile(metadataPath, JSON.stringify(payload, null, 2), { mode: 0o600 });
   core.info(`Successfully wrote validated plan metadata to ${metadataPath}`);
 
-  // 2. Programmatically compile and overwrite the user-facing Markdown plan file
-  const activePlanPath = await findLatestActivePlan(targetDir);
+  // 2. Programmatically compile and overwrite the user-facing TOML plan file
+  const activePlanPath = await savePlanContent(targetDir, JSON.stringify(payload));
   if (activePlanPath) {
-    const markdownLines = [];
-    markdownLines.push(`# ${planTitle}`);
-    if (planDesc) {
-      markdownLines.push('');
-      markdownLines.push(planDesc);
-    }
-    markdownLines.push('');
-    markdownLines.push('### Tasks');
-    for (const task of tasks) {
-      markdownLines.push(`- [ ] ${task.trim()}`);
-    }
-    markdownLines.push('');
-
-    await fs.promises.writeFile(activePlanPath, markdownLines.join('\n'), 'utf8');
     core.info(`Programmatically compiled and synchronized plan file at: ${activePlanPath}`);
   } else {
-    core.warning('No active plan markdown file found to synchronize.');
+    core.error('Failed to programmatically compile and synchronize plan file.');
+    process.exit(1);
   }
 }
 

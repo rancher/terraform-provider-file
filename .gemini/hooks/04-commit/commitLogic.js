@@ -40,8 +40,11 @@ export async function preCommitPhaseInterruption(inputData, targetDir) {
 
   if (locked && keyTool === 'ask_user') {
     if (inputData.tool_name !== 'ask_user') {
-      // Lock permanently disabled to prevent deadlocks and allow tool usage
-      return;
+      deny(
+        'Gate 3 (Commit Gate) Phase Lock',
+        'The workspace is currently locked waiting for Commit Approval (Gate 3). Command execution and file modifications are prohibited during this stage.',
+        'To make further modifications, please reject the commit approval request first, or manually unlock by resetting the phase: node agent-scripts/tools/state.js set-phase implement',
+      );
     }
 
     // Present the suggested commit message from the review agent
@@ -95,10 +98,6 @@ export async function beforeAskUserCommit(inputData, targetDir) {
   const intentMatch = promptText.match(/(?:intent\s*=\s*["']([^"']+)["']|"intent"\s*:\s*["']([^"']+)["'])/i);
   const matchedIntent = intentMatch ? (intentMatch[1] || intentMatch[2]).trim().toLowerCase() : null;
 
-  if (matchedIntent !== 'commit approval') {
-    allow(hookName, tool_name);
-  }
-
   // Attempt to read commit-metadata.json asynchronously and fail-safe
   const metadataPath = path.join(targetDir, 'commit-metadata.json');
   let metadataContent = null;
@@ -114,6 +113,33 @@ export async function beforeAskUserCommit(inputData, targetDir) {
     } else {
       core.debug(`[Commit Gate] Optional commit-metadata.json not found: ${err.message}`);
     }
+  }
+
+  const isCommitApproval = (matchedIntent === 'commit approval') || (
+    metadataContent !== null &&
+    (() => {
+      try {
+        const meta = JSON.parse(metadataContent);
+        return meta.intent === 'commit approval' && (
+          promptText.includes(meta.request) || meta.request.includes(promptText) ||
+          promptText.trim().toLowerCase().includes('commit approval')
+        );
+      } catch (e) {
+        return false;
+      }
+    })()
+  );
+
+  if (!isCommitApproval) {
+    allow(hookName, tool_name);
+  }
+
+  if (metadataContent === null) {
+    deny(
+      'Gate 3 (Commit Gate) Pipeline Verification',
+      'You are attempting to request commit approval, but commit-metadata.json is missing!',
+      'You must write commit-metadata.json using write-commit.js before calling `ask_user` with commit approval intent.',
+    );
   }
 
   if (metadataContent !== null) {
@@ -198,12 +224,38 @@ export async function beforeAskUserCommit(inputData, targetDir) {
           'Please run the review script first to perform a code review and sign the branch: node agent-scripts/quality-assurance.js',
         );
       }
-    }
-  }
 
-  // All filters passed, allow the standard human-readable ask_user tool call
-  allow(hookName, tool_name);
-}
+      const modifiedInput = tool_input || {};
+      const reviewContext = `\n\n# ### 💬 DEVELOPER COMMIT & PR APPROVAL REQUEST 💬 ###\n# The agent is requesting cryptographic sign-off for commit and PR creation.\n# \n# **Staged Diff Hash:** \`${metadata.hash}\`\n# **Conventional Commit Message:**\n# \`\`\`\n# ${metadata['commit-message']}\n# \`\`\`\n# \n# **Proposed Pull Request Description:**\n# \`\`\`markdown\n# ${metadata['pr-description']}\n# \`\`\`\n# \n# Please review the staged changes in your IDE. Do you cryptographically approve this commit and PR? (Yes/No)`;
+
+      const replaceCommitMsg = (str) =>
+        typeof str === 'string' ? str.replace(/Commit Message/gi, 'Proposed Message') : str;
+
+      if (modifiedInput.questions && Array.isArray(modifiedInput.questions) && modifiedInput.questions.length > 0) {
+        modifiedInput.questions[0].question = replaceCommitMsg(modifiedInput.questions[0].question) + reviewContext;
+      } else if (modifiedInput.question !== void 0) {
+        modifiedInput.question = replaceCommitMsg(modifiedInput.question) + reviewContext;
+      } else if (modifiedInput.prompt !== void 0) {
+        modifiedInput.prompt = replaceCommitMsg(modifiedInput.prompt) + reviewContext;
+      } else {
+        modifiedInput.question = reviewContext;
+      }
+
+      console.log(
+        JSON.stringify({
+          decision: 'allow',
+          tool_input: modifiedInput,
+          systemMessage:
+            '🟢 Pre-Commit Phase: Programmatically reformatted the prompt to bind it strictly to the validated commit metadata.',
+        }),
+      );
+      process.exit(0);
+      }
+      }
+
+      // All filters passed, allow the standard human-readable ask_user tool call
+      allow(hookName, tool_name);
+      }
 
 export async function afterAskUserCommit(inputData, targetDir) {
   const { tool_name, tool_input, tool_response } = inputData;
@@ -230,12 +282,6 @@ export async function afterAskUserCommit(inputData, targetDir) {
   const intentMatch = promptText.match(/(?:intent\s*=\s*["']([^"']+)["']|"intent"\s*:\s*["']([^"']+)["'])/i);
   const matchedIntent = intentMatch ? (intentMatch[1] || intentMatch[2]).trim().toLowerCase() : null;
 
-  if (matchedIntent !== 'commit approval') {
-    allow(hookName, tool_name);
-  }
-
-  validateAskUser(hookName, tool_name, tool_input);
-
   // Attempt to read commit-metadata.json asynchronously and fail-safe
   const metadataPath = path.join(targetDir, 'commit-metadata.json');
   let metadataContent = null;
@@ -253,9 +299,33 @@ export async function afterAskUserCommit(inputData, targetDir) {
     }
   }
 
-  if (metadataContent === null) {
-    // Optional metadata file not present, meaning this is a standard clarification question!
+  const isCommitApproval = (matchedIntent === 'commit approval') || (
+    metadataContent !== null &&
+    (() => {
+      try {
+        const meta = JSON.parse(metadataContent);
+        return meta.intent === 'commit approval' && (
+          promptText.includes(meta.request) || meta.request.includes(promptText) ||
+          promptText.trim().toLowerCase().includes('commit approval')
+        );
+      } catch (e) {
+        return false;
+      }
+    })()
+  );
+
+  if (!isCommitApproval) {
     allow(hookName, tool_name);
+  }
+
+  validateAskUser(hookName, tool_name, tool_input);
+
+  if (metadataContent === null) {
+    deny(
+      'Gate 3 (Commit Gate) Pipeline Verification',
+      'You are attempting to approve the commit, but commit-metadata.json is missing!',
+      'You must write commit-metadata.json using write-commit.js before requesting commit approval.',
+    );
   }
 
   let tomlData;

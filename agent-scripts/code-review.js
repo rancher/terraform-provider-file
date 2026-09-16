@@ -1,6 +1,15 @@
 #!/usr/bin/env node
-/**
- * Compatibility Shim: code-review.js
- * Simply forwards execution to quality-assurance.js for backward compatibility.
- */
-import './quality-assurance.js';
+import { spawn } from 'child_process';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const qaScriptPath = path.join(__dirname, 'quality-assurance.js');
+
+const child = spawn(process.execPath, [qaScriptPath, ...process.argv.slice(2)], {
+  stdio: 'inherit',
+});
+
+child.on('exit', (code) => {
+  process.exit(code ?? 0);
+});

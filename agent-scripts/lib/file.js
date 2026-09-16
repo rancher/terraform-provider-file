@@ -105,19 +105,32 @@ export async function executeFileSafe(filePath, args = [], options = {}) {
 
 function convertJsonPlanToToml(parsed) {
   const lines = [];
+  const metadata = parsed.plan?.metadata || parsed.metadata || {};
+  const title = parsed.plan?.title || metadata.title || parsed.title || 'Plan';
+  const description = parsed.plan?.description || metadata.description || parsed.description || '';
+
   lines.push('[metadata]');
-  lines.push(`title = ${JSON.stringify(parsed.metadata?.title || 'Plan')}`);
-  lines.push(`description = ${JSON.stringify(parsed.metadata?.description || '')}`);
+  lines.push(`title = ${JSON.stringify(title)}`);
+  lines.push(`description = ${JSON.stringify(description)}`);
   lines.push('');
   lines.push('[tasks]');
   lines.push('');
-  const tasks = parsed.tasks?.items || parsed.tasks || [];
+
+  const tasks = parsed.plan?.tasks || parsed.tasks?.items || parsed.tasks || [];
   if (Array.isArray(tasks)) {
+    let index = 1;
     for (const task of tasks) {
       lines.push('  [[tasks.items]]');
-      lines.push(`  id = ${JSON.stringify(task.id || '')}`);
-      lines.push(`  status = ${JSON.stringify(task.status || 'pending')}`);
-      lines.push(`  description = ${JSON.stringify(task.description || '')}`);
+      if (typeof task === 'string') {
+        lines.push(`  id = "task-${index}"`);
+        lines.push(`  status = "pending"`);
+        lines.push(`  description = ${JSON.stringify(task)}`);
+        index++;
+      } else if (task && typeof task === 'object') {
+        lines.push(`  id = ${JSON.stringify(task.id || `task-${index++}`)}`);
+        lines.push(`  status = ${JSON.stringify(task.status || 'pending')}`);
+        lines.push(`  description = ${JSON.stringify(task.description || '')}`);
+      }
       lines.push('');
     }
   }
@@ -207,12 +220,11 @@ export async function savePlanContent(targetDir, planContent) {
   }
 
   if (finalPlanContent && activePlan) {
-    try {
-      await writeFileSafe(activePlan, finalPlanContent, { mode: 0o600 });
-      console.error(`🔒 Hook Info: Successfully bypassed write block to save plan to ${activePlan}`);
-    } catch (err) {
-      console.error(`::error::Hook Error: Failed to write plan to ${activePlan}: ${err.message}`);
+    const success = await writeFileSafe(activePlan, finalPlanContent, { mode: 0o600 });
+    if (!success) {
+      throw new Error(`Failed to write plan to ${activePlan}`);
     }
+    console.error(`🔒 Hook Info: Successfully bypassed write block to save plan to ${activePlan}`);
   }
   return activePlan || (await findLatestActivePlan(targetDir));
 }

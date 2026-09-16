@@ -60,7 +60,7 @@ async function main() {
       const stats = await statSafe(entryPath);
       const isDirectory = stats.isDirectory();
 
-      // Clear out all tool-outputs, signatures, approvals, reports, remediation steps, logs (excluding logs.json), phase state, and PDFs
+      // Clear out all tool-outputs, signatures, approvals, reports, remediation steps, logs (excluding logs.json), phase state
       if (
         entry.includes('approval.') ||
         entry.endsWith('.sig') ||
@@ -70,7 +70,7 @@ async function main() {
         entry.endsWith('-metadata.json') ||
         entry === 'logs' ||
         entry === 'tool-output' ||
-        entry === 'phase-state.json',
+        entry === 'phase-state.json' ||
         entry === 'phase.txt'
       ) {
         if (isDirectory) {

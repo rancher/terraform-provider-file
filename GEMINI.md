@@ -5,8 +5,8 @@ This file documents team-shared conventions, repository-wide workflows, and arch
 ## 1. 🚀 Plan Source of Truth & Gate 1 (Task Enforcer)
 
 - **Source of Truth:** `plan-metadata.json` (located in the session target directory) is the **sole, absolute source of truth** for plan implementation.
-- **User Consumption:** The Markdown plan file (located under `plans/`) is strictly for human-user consumption, status-tracking, and visualization.
-- **Workflow & Updates:** Any plan updates, additions, or task state changes **MUST** be written to `plan-metadata.json` first as a structured tasks JSON array (`"plan": { "tasks": ["task 1", "task 2"] }`). The pre-tool hooks and write utilities will then programmatically compile and update the Markdown plan file under `plans/` automatically. Implementation agents must strictly read tasks from `plan-metadata.json` for their execution loops.
+- **User Consumption:** The TOML plan file (located under `plans/`) is strictly for human-user consumption, status-tracking, and visualization.
+- **Workflow & Updates:** Any plan updates, additions, or task state changes **MUST** be written to `plan-metadata.json` first as a structured tasks JSON array (`"plan": { "tasks": ["task 1", "task 2"] }`). The pre-tool hooks and write utilities will then programmatically compile and update the TOML plan file under `plans/` automatically. Implementation agents must strictly read tasks from `plan-metadata.json` for their execution loops.
 - **Plan Requirements:** To pass Gate 1, the tasks array MUST explicitly mention:
   1. Running comprehensive tests.
   2. Satisfying quality gates.
@@ -15,8 +15,8 @@ This file documents team-shared conventions, repository-wide workflows, and arch
 
 ## 2. Session Initialization & Troubleshooting (Start Here)
 
-- **Active State:** Always start by reading `.gemini/tmp/terraform-provider-file/memory/remediation-state.md` and `MEMORY.md` to retrieve the active task, PR number, and current state.
-- **Phase Checking:** Check `.gemini/tmp/terraform-provider-file/phase-state.json` to verify the active gating phase (Plan, Implement, Review, Commit).
+- **Active State:** Always start by reading `.gemini/tmp/<repo-name>/memory/remediation-state.md` and `MEMORY.md` (where `<repo-name>` is the name of your repository, e.g. `terraform-provider-file`) to retrieve the active task, PR number, and current state.
+- **Phase Checking:** Check `.gemini/tmp/<repo-name>/phase-state.json` to verify the active gating phase (Plan, Implement, Review, Commit).
 
 ## 3. Pull Request Remediation Workflow
 

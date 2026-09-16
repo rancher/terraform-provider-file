@@ -572,9 +572,20 @@ function isBinaryOrGenerated(filePath) {
 async function getFilesRecursively(dir, workspaceRoot) {
   let results = [];
   const list = await fs.promises.readdir(dir);
+  const realWorkspaceRoot = await fs.promises.realpath(workspaceRoot);
   for (const file of list) {
-    const filePath = path.join(dir, file);
+    let filePath = path.join(dir, file);
     if (file === '.git' || file === 'node_modules' || file === 'bin' || file === 'test') {
+      continue;
+    }
+    try {
+      const realFilePath = await fs.promises.realpath(filePath);
+      const relative = path.relative(realWorkspaceRoot, realFilePath);
+      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        continue;
+      }
+      filePath = realFilePath;
+    } catch (err) {
       continue;
     }
     const stat = await statSafe(filePath);

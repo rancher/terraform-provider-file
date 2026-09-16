@@ -138,7 +138,7 @@ export function validateAskUser(hook_name, tool_name, tool_input) {
 
   // Parse TOML or JSON
   const isJson = promptText.startsWith('{') && promptText.endsWith('}');
-  const isToml = promptText.includes('intent =') || promptText.includes('intent=');
+  const isToml = /intent\s*=/.test(promptText);
 
   if (!isJson && !isToml) {
     // Standard human-readable Markdown prompt
