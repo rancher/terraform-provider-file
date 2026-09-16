@@ -4,7 +4,7 @@ import path from 'path';
 import * as core from '@actions/core';
 import { writeFileSafe, deleteFileSafe } from '../../../agent-scripts/tools/file.js';
 import { calculateDiffHash } from '../../../agent-scripts/tools/git.js';
-import { readState, setLock } from '../../../agent-scripts/tools/state.js';
+import { readState, setLock, setPhase } from '../../../agent-scripts/tools/state.js';
 import {
   checkAndRevokeStaleGates,
   handleCommitApproval,
@@ -13,7 +13,15 @@ import {
   verifyPlanGate,
   verifyReviewGate,
 } from '../../../agent-scripts/tools/approval.js';
-import { allow, deny, getPhase, hasValidSigningKey, parseToolResponse, validateAskUser } from '../shared.js';
+import {
+  allow,
+  deny,
+  getPhase,
+  hasValidSigningKey,
+  parseToolResponse,
+  validateAskUser,
+  getAskUserPromptText,
+} from '../shared.js';
 
 async function inPlanMode(targetDir) {
   const phaseResult = await getPhase(targetDir);
@@ -83,6 +91,14 @@ export async function beforeAskUserCommit(inputData, targetDir) {
   }
 
   if (await inPlanMode(targetDir)) {
+    allow(hookName, tool_name);
+  }
+
+  const promptText = getAskUserPromptText(tool_input);
+  const intentMatch = promptText.match(/(?:intent\s*=\s*["']([^"']+)["']|"intent"\s*:\s*["']([^"']+)["'])/i);
+  const matchedIntent = intentMatch ? (intentMatch[1] || intentMatch[2]).trim().toLowerCase() : null;
+
+  if (matchedIntent !== 'commit approval') {
     allow(hookName, tool_name);
   }
 
@@ -210,6 +226,14 @@ export async function afterAskUserCommit(inputData, targetDir) {
   }
 
   if (await inPlanMode(targetDir)) {
+    allow(hookName, tool_name);
+  }
+
+  const promptText = getAskUserPromptText(tool_input);
+  const intentMatch = promptText.match(/(?:intent\s*=\s*["']([^"']+)["']|"intent"\s*:\s*["']([^"']+)["'])/i);
+  const matchedIntent = intentMatch ? (intentMatch[1] || intentMatch[2]).trim().toLowerCase() : null;
+
+  if (matchedIntent !== 'commit approval') {
     allow(hookName, tool_name);
   }
 
@@ -371,6 +395,14 @@ export async function afterAskUserCommit(inputData, targetDir) {
       console.error(`🔒 Hook Error Message: ${err.message}`);
       if (err.stack) {
         console.error(`🔒 Hook Error Stack: ${err.stack}`);
+      }
+      try {
+        await setPhase(targetDir, 'implement');
+        console.error(
+          '🔒 Hook Info: Automatically rolled back phase to "implement" to allow for troubleshooting and fixes.',
+        );
+      } catch (phaseErr) {
+        console.error('🔒 Hook Error: Failed to rollback phase to "implement":', phaseErr.message);
       }
       deny('Gate 3 (Commit Gate) Execution', err.message, 'Please address the error and run ask_user again.');
     }

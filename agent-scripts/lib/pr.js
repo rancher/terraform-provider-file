@@ -205,7 +205,17 @@ export async function create(prData, cwd = process.cwd()) {
   if (formattedHead) {
     args.push('--head', formattedHead);
   }
-  return await runGh(args, { cwd });
+  try {
+    return await runGh(args, { cwd });
+  } catch (err) {
+    if (err.message && err.message.includes('already exists:')) {
+      const match = err.message.match(/(https:\/\/github\.com\/\S+\/pull\/\d+)/);
+      if (match && match[1]) {
+        return match[1].trim();
+      }
+    }
+    throw err;
+  }
 }
 
 export async function update(prNumber, prData, cwd = process.cwd()) {
