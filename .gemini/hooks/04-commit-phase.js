@@ -2,6 +2,8 @@
 
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import { Buffer } from 'node:buffer';
 import { resolveTargetDir } from '../../agent-scripts/tools/file.js';
 import { preCommitPhaseInterruption, beforeAskUserCommit, afterAskUserCommit } from './04-commit/commitLogic.js';
 
@@ -98,7 +100,12 @@ async function main() {
   restoreSshAgent();
   let inputData;
   try {
-    inputData = JSON.parse(fs.readFileSync(0, 'utf-8'));
+    const buffers = [];
+    for await (const chunk of process.stdin) {
+      buffers.push(chunk);
+    }
+    const rawData = Buffer.concat(buffers).toString('utf-8');
+    inputData = JSON.parse(rawData);
   } catch (err) {
     throw new Error(`Failed to read/parse STDIN in main: ${err.message || err}`, { cause: err });
   }
@@ -133,16 +140,18 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  const errMsg = `Fatal Commit Phase Hook Error: ${err.stack || err.message}`;
-  console.error('::error::' + errMsg);
-  hasLogged = true;
-  process.stdout.write(
-    JSON.stringify({
-      decision: 'deny',
-      reason: errMsg,
-      systemMessage: `🔒 Hook Crash: ${errMsg}`,
-    }) + '\n',
-  );
-  process.exit(0);
-});
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    const errMsg = `Fatal Commit Phase Hook Error: ${err.stack || err.message}`;
+    console.error('::error::' + errMsg);
+    hasLogged = true;
+    process.stdout.write(
+      JSON.stringify({
+        decision: 'deny',
+        reason: errMsg,
+        systemMessage: `🔒 Hook Crash: ${errMsg}`,
+      }) + '\n',
+    );
+    process.exit(0);
+  });
+}

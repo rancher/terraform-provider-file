@@ -121,3 +121,88 @@ description = "Requirements for gate artifact protection, immediate state revoca
   required = true
   type = "constraint"
   description = "Set workflow step outputs explicitly using core.setOutput('name', value) rather than relying on the function's implicit return value."
+
+[[items]]
+name = "Agentic Framework Security, Robustness & Integrity"
+type = "Standard"
+signature = "concurrency, paths, state, gates"
+description = "Strict security, state machine, and error recovery standards for the Agentic Framework scripts and tools."
+
+  [[items.parameters]]
+  name = "strict path containment"
+  required = true
+  type = "constraint"
+  description = "All file path lookups, custom reviews, or reducer matches must validate that the target path remains strictly within the workspace root. Use path.relative() and reject any paths that start with '..' or are absolute outside the root. Avoid using .startsWith(process.cwd()) as it is vulnerable to sibling path containment bypasses."
+
+  [[items.parameters]]
+  name = "fail-closed gate state"
+  required = true
+  type = "constraint"
+  description = "All state, signature, and file writing operations (such as writeFileSafe) must fail closed. Callers must either explicitly check the boolean return values or write operations must throw errors on failure to prevent proceeding with corrupt or missing gate artifacts."
+
+  [[items.parameters]]
+  name = "robust process signal handlers"
+  required = true
+  type = "constraint"
+  description = "All signal handlers (SIGINT, SIGTERM) must run complete cleanup/teardown hooks (e.g. releasing acquired file locks) before exiting the process to prevent stale locks."
+
+  [[items.parameters]]
+  name = "empty active ledger enforcement"
+  required = true
+  type = "constraint"
+  description = "Gate 2 (Review Phase) validation must require an empty active findings ledger before signing the review-approval.json file, preventing approval of reports with active findings."
+
+  [[items.parameters]]
+  name = "directory review exclusions"
+  required = true
+  type = "constraint"
+  description = "Recursive directory traversals for code reviews must explicitly exclude standard metadata, dependency, and build paths (.git, node_modules, bin, test) and binary/generated assets to prevent token bloat."
+
+  [[items.parameters]]
+  name = "safe github cli stdin parsing"
+  required = true
+  type = "constraint"
+  description = "When sending comment bodies via the GitHub CLI API (gh api), use --input - to read from stdin. Avoid passing raw hyphen placeholders as literals to fields."
+
+  [[items.parameters]]
+  name = "unbroken promise chains in queues"
+  required = true
+  type = "constraint"
+  description = "Ensure that queued asynchronous operations or mutex locks catch and handle promise rejections so that subsequent tasks in the chain are not permanently blocked."
+
+  [[items.parameters]]
+  name = "malformed output parse failures"
+  required = true
+  type = "constraint"
+  description = "All parsers handling external API, agent, or file payloads must fail-hard on invalid/malformed JSON or text. They must never fall back to an empty result (e.g., returning an empty array on malformed auditor text) which would satisfy a quality gate as having 0 findings."
+
+  [[items.parameters]]
+  name = "concurrency-safe remediation batching"
+  required = true
+  type = "constraint"
+  description = "Remediation scripts must implement bounded concurrent process pools to provide parallel execution throughput, rather than fully serializing batches with sleeps."
+
+  [[items.parameters]]
+  name = "no destructive task overwriting"
+  required = true
+  type = "constraint"
+  description = "Avoid replacing task mappings or dictionaries in a way that overwrites previous findings for the same file. Always accumulate findings into a list."
+
+  [[items.parameters]]
+  name = "preservation of compatibility exports"
+  required = true
+  type = "constraint"
+  description = "Do not remove legacy exported symbols from library APIs if they are imported by facades or other active tools, unless all importers are refactored together. Keep compatibility wrappers where necessary to prevent linking failures."
+
+  [[items.parameters]]
+  name = "robust phase state updates"
+  required = true
+  type = "constraint"
+  description = "State updates must use the state library's setPhase to ensure phase-state.json and lock fields are correctly updated. Do not shadow library helpers with local functions that only write raw phase.txt files. TYPO or parsing errors must not destroy or delete the existing phase-state.json."
+
+  [[items.parameters]]
+  name = "module load side-effect guards"
+  required = true
+  type = "constraint"
+  description = "All script entrypoints (especially hooks) must guard their main execution functions so they do not execute side-effects (such as reading stdin or calling process.exit) on module load. This ensures they can be safely imported and tested."
+

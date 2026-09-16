@@ -103,7 +103,58 @@ export async function executeFileSafe(filePath, args = [], options = {}) {
   }
 }
 
+function convertJsonPlanToToml(parsed) {
+  const lines = [];
+  const metadata = parsed.plan?.metadata || parsed.metadata || {};
+  const title = parsed.plan?.title || metadata.title || parsed.title || 'Plan';
+  const description = parsed.plan?.description || metadata.description || parsed.description || '';
+
+  lines.push('[metadata]');
+  lines.push(`title = ${JSON.stringify(title)}`);
+  lines.push(`description = ${JSON.stringify(description)}`);
+  lines.push('');
+  lines.push('[tasks]');
+  lines.push('');
+
+  const tasks = parsed.plan?.tasks || parsed.tasks?.items || parsed.tasks || [];
+  if (Array.isArray(tasks)) {
+    let index = 1;
+    for (const task of tasks) {
+      lines.push('  [[tasks.items]]');
+      if (typeof task === 'string') {
+        lines.push(`  id = "task-${index}"`);
+        lines.push(`  status = "pending"`);
+        lines.push(`  description = ${JSON.stringify(task)}`);
+        index++;
+      } else if (task && typeof task === 'object') {
+        lines.push(`  id = ${JSON.stringify(task.id || `task-${index++}`)}`);
+        lines.push(`  status = ${JSON.stringify(task.status || 'pending')}`);
+        lines.push(`  description = ${JSON.stringify(task.description || '')}`);
+      }
+      lines.push('');
+    }
+  }
+  return lines.join('\n');
+}
+
 export function extractPlanContent(promptText) {
+  const trimmed = (promptText || '').trim();
+  if (
+    trimmed.startsWith('[metadata]') ||
+    trimmed.startsWith('[tasks]') ||
+    (trimmed.startsWith('{') && trimmed.endsWith('}'))
+  ) {
+    return promptText;
+  }
+
+  const matchCodeBlockJson = promptText.match(/```json\n([\s\S]*?)\n```/);
+  if (matchCodeBlockJson) {
+    return matchCodeBlockJson[1];
+  }
+  const matchCodeBlockToml = promptText.match(/```toml\n([\s\S]*?)\n```/);
+  if (matchCodeBlockToml) {
+    return matchCodeBlockToml[1];
+  }
   const matchCodeBlock = promptText.match(/```markdown\n([\s\S]*?)\n```/);
   if (matchCodeBlock) {
     return matchCodeBlock[1];
@@ -117,8 +168,20 @@ export function extractPlanContent(promptText) {
 }
 
 export async function savePlanContent(targetDir, planContent) {
+  let finalPlanContent = planContent;
+  try {
+    const trimmed = planContent.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      const parsed = JSON.parse(trimmed);
+      finalPlanContent = convertJsonPlanToToml(parsed);
+    }
+  } catch (err) {
+    // Not valid JSON, fall back to raw planContent (normal operation for raw TOML/Markdown plans)
+    console.info(`::notice::[Plan Loader] Parsing as JSON failed, proceeding with raw format: ${err.message}`);
+  }
+
   let activePlan = await findLatestActivePlan(targetDir);
-  if (!activePlan && planContent) {
+  if (!activePlan && finalPlanContent) {
     let activeSessions = [];
     try {
       if (fs.existsSync(targetDir) && (await fsPromises.stat(targetDir)).isDirectory()) {
@@ -141,19 +204,27 @@ export async function savePlanContent(targetDir, planContent) {
       }
     }
     if (plansDir) {
-      const matchTitle = planContent.match(/^#\s+(.+)$/m);
-      const title = matchTitle ? matchTitle[1].trim().replace(/[^a-zA-Z0-9-_]/g, '') : 'Plan';
-      activePlan = path.join(plansDir, `${title}.md`);
+      let title = 'Plan';
+      const matchTitleToml =
+        finalPlanContent.match(/^\s*title\s*=\s*"([^"]+)"/m) || finalPlanContent.match(/^\s*title\s*=\s*'([^']+)'/m);
+      if (matchTitleToml) {
+        title = matchTitleToml[1].trim().replace(/[^a-zA-Z0-9-_]/g, '');
+      } else {
+        const matchTitleMd = finalPlanContent.match(/^#\s+(.+)$/m);
+        if (matchTitleMd) {
+          title = matchTitleMd[1].trim().replace(/[^a-zA-Z0-9-_]/g, '');
+        }
+      }
+      activePlan = path.join(plansDir, `${title}.toml`);
     }
   }
 
-  if (planContent && activePlan) {
-    try {
-      await writeFileSafe(activePlan, planContent, { mode: 0o600 });
-      console.error(`🔒 Hook Info: Successfully bypassed write block to save plan to ${activePlan}`);
-    } catch (err) {
-      console.error(`::error::Hook Error: Failed to write plan to ${activePlan}: ${err.message}`);
+  if (finalPlanContent && activePlan) {
+    const success = await writeFileSafe(activePlan, finalPlanContent, { mode: 0o600 });
+    if (!success) {
+      throw new Error(`Failed to write plan to ${activePlan}`);
     }
+    console.error(`🔒 Hook Info: Successfully bypassed write block to save plan to ${activePlan}`);
   }
   return activePlan || (await findLatestActivePlan(targetDir));
 }

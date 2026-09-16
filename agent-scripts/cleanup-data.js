@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
-import { fileExistsSafe, readdirSafe, statSafe, deleteFileSafe, readFileSafe } from './tools/file.js';
+import { deleteFileSafe, fileExistsSafe, readdirSafe, readFileSafe, resolveTargetDir, statSafe } from './tools/file.js';
 
-const tmpBaseDir = path.join(os.homedir(), '.gemini/tmp/terraform-provider-file');
+const tmpBaseDir = await resolveTargetDir();
 const logsFilePath = path.join(tmpBaseDir, 'logs.json');
 
 // Regex to extract UUID from file/directory names
@@ -61,17 +60,18 @@ async function main() {
       const stats = await statSafe(entryPath);
       const isDirectory = stats.isDirectory();
 
-      // Clear out all tool-outputs, signatures, approvals, reports, remediation steps, logs (excluding logs.json), phase state, and PDFs
+      // Clear out all tool-outputs, signatures, approvals, reports, remediation steps, logs (excluding logs.json), phase state
       if (
-        entry.includes('tool-output') ||
+        entry.includes('approval.') ||
         entry.endsWith('.sig') ||
         entry.endsWith('.bak') ||
-        entry.includes('approval.') ||
         entry.endsWith('-report.md') ||
-        entry === 'remediation-report.md' ||
+        entry.endsWith('-report.json') ||
+        entry.endsWith('-metadata.json') ||
         entry === 'logs' ||
+        entry === 'tool-output' ||
         entry === 'phase-state.json' ||
-        entry.endsWith('.pdf')
+        entry === 'phase.txt'
       ) {
         if (isDirectory) {
           console.log(`🧹 Removing temporary directory: ${entry}`);

@@ -302,5 +302,13 @@ When interfacing with GitHub via the GitHub CLI (`gh`), automation scripts run w
 
 - Fallback wrappers must actively detect and clear both `GITHUB_TOKEN` and `GH_TOKEN` environment variables.
 - Retry execution with explicit overrides (`GITHUB_TOKEN: '', GH_TOKEN: ''`) in the child environment, which forces the GitHub CLI to discard Actions-scoped tokens and cleanly fallback to native user session credentials.
+
+### 3. Fail-Closed and Self-Healing Phase State Initialization
+
+To guarantee continuous protection and correct development phase enforcement, the workspace startup hook (`startupLogic.js`) and the core phase state library (`state.js`) apply strict initialization and self-healing rules:
+
+- **Corrupt Phase State Recovery:** If `readState()` encounters a corrupt, invalid, or malformed `phase-state.json` file on disk, it unlinks (deletes) the file and returns `null` instead of a default fallback state. This informs the startup logic that the state has been removed, allowing the startup hook to safely and completely reinitialize `phase-state.json` to the default `plan` phase.
+- **Sensitive Exclude File Protection:** To prevent agents from tampering with project rules or inspecting secure gating internals, both `.claudeignore` and `.geminiignore` are strictly protected in `startupLogic.js` by unlinking them or locking their permissions to read-only (`0o400`) during workspace startup.
+- **Dynamic Metadata Path Extraction & Traversal Prevention:** The planning enforcer hooks (`beforeAskUserPlan` and `afterAskUserPlan`) dynamically extract the file path to `plan-metadata.json` directly from the `ask_user` tool prompt using robust regular expressions. To prevent path traversal attacks or gate-bypass attempts via arbitrary surrogate files, the hooks strictly resolve and validate that the extracted path resides within the session's secure temporary directory (`targetDir`), and that the target filename is exactly `plan-metadata.json`. Any violation immediately results in a hard deny.
 '''
 

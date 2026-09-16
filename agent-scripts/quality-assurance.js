@@ -6,27 +6,23 @@ import { fileURLToPath } from 'url';
 import { revokeSignature, verifyPlanGate } from './tools/approval.js';
 import { executeGit, gitAddAll, getActiveDiff, getActiveChangedFiles } from './tools/git.js';
 import { runGeminiWithValidation } from './tools/gemini.js';
-import { resolveTargetDir } from './tools/file.js';
+import { resolveTargetDir, writeFileSafe, readFileSafe } from './tools/file.js';
 import { runPreReviewTests } from './tools/test.js';
+import * as core from '@actions/core';
 import { readPlan } from './tools/plan.js';
+import { setPhase } from './tools/state.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let activeSandboxDir = null;
 let lockAcquired = false;
 
-process.on('unhandledRejection', async (reason) => {
-  console.error('::error::Unhandled Promise Rejection: ' + (reason.stack || reason));
-  await teardown();
-  process.exit(1);
-});
-
 async function teardown() {
   if (activeSandboxDir) {
     try {
       await fs.promises.rm(activeSandboxDir, { recursive: true, force: true });
     } catch (err) {
-      console.warn(`Failed to clean up sandbox: ${err.message}`);
+      core.warning(`Failed to clean up sandbox: ${err.message}`);
     }
     activeSandboxDir = null;
   }
@@ -36,11 +32,11 @@ async function teardown() {
       await fs.promises.unlink(lockPath);
     } catch (err) {
       if (err.code !== 'ENOENT') {
-        console.warn(`Failed to unlink lock file: ${err.message}`);
+        core.warning(`Failed to unlink lock file: ${err.message}`);
       }
     }
     lockAcquired = false;
-    console.info('::notice::[Teardown] Workspace lock (gemini-reset.lock) safely released.');
+    core.notice('[Teardown] Workspace lock (gemini-reset.lock) safely released.');
   }
 }
 
@@ -49,23 +45,10 @@ async function asyncExists(filePath) {
     await fs.promises.access(filePath);
     return true;
   } catch (err) {
-    console.debug(`Access failed for ${filePath}: ${err.message}`);
+    if (err.code !== 'ENOENT') {
+      console.debug(`Access failed for ${filePath}: ${err.message}`);
+    }
     return false;
-  }
-}
-
-async function writeFileSafe(filePath, content, options = {}) {
-  const dir = path.dirname(filePath);
-  await fs.promises.mkdir(dir, { recursive: true });
-  await fs.promises.writeFile(filePath, content, { encoding: 'utf8', ...options });
-}
-
-async function readFileSafe(filePath) {
-  try {
-    return await fs.promises.readFile(filePath, 'utf8');
-  } catch (err) {
-    console.debug(`Read failed for ${filePath}: ${err.message}`);
-    return null;
   }
 }
 
@@ -95,7 +78,7 @@ export function parseJSONFromText(text) {
   try {
     return JSON.parse(clean);
   } catch (err) {
-    console.error(`Invalid JSON: ${err.message}`);
+    core.error(`Invalid JSON: ${err.message}`);
     return clean.startsWith('[') ? [] : {};
   }
 }
@@ -138,7 +121,7 @@ async function writeSignatures(reportObj, planHash, activeDiff, targetDir) {
   const suggestedCommit = reportObj.suggested_commit || {};
   const suggestedCommitMessage = `${suggestedCommit.title || ''}\n\n${suggestedCommit.message || ''}`.trim();
 
-  await writeFileSafe(
+  const ok = await writeFileSafe(
     path.join(targetDir, 'review-approval.json'),
     JSON.stringify(
       {
@@ -154,9 +137,13 @@ async function writeSignatures(reportObj, planHash, activeDiff, targetDir) {
     { mode: 0o400 },
   );
 
-  await writeFileSafe(path.join(targetDir, 'phase.txt'), 'commit');
+  if (!ok) {
+    throw new Error(`Failed to write review-approval.json under targetDir: ${targetDir}`);
+  }
 
-  console.info('::notice::🟢 Gate 2 (Review) Cryptographically Signed successfully!');
+  await setPhase(targetDir, 'commit');
+  core.info('Workspace phase automatically transitioned to commit!');
+  core.info('Gate 2 (Review) Cryptographically Signed successfully!');
 }
 
 export function filterExcludedFiles(files, excludeRules) {
@@ -230,10 +217,29 @@ function showHelp() {
   console.info('Options:');
   console.info('  help, -h, --help  Show this help message');
   console.info('  --debug           Enable debug/verbose logging');
+  console.info('  --check-only      Dry-run review check without modifying state or signing approvals');
   process.exit(0);
 }
 
 async function main() {
+  process.on('unhandledRejection', async (reason) => {
+    core.error('Unhandled Promise Rejection: ' + (reason.stack || reason));
+    await teardown();
+    process.exit(1);
+  });
+
+  process.on('SIGINT', async () => {
+    core.warning('Process interrupted via SIGINT. Running teardown...');
+    await teardown();
+    process.exit(130);
+  });
+
+  process.on('SIGTERM', async () => {
+    core.warning('Process terminated via SIGTERM. Running teardown...');
+    await teardown();
+    process.exit(143);
+  });
+
   const currentDirName = path.basename(process.cwd());
   if (currentDirName === 'agent-scripts') {
     process.chdir(path.resolve(__dirname, '..'));
@@ -244,7 +250,11 @@ async function main() {
     showHelp();
   }
   const isDebug = args.includes('--debug');
-  console.info(`::notice::[QA] Debug mode: ${isDebug ? 'enabled' : 'disabled'}`);
+  const isCheckOnly = args.includes('--check-only');
+  core.info(`[QA] Debug mode: ${isDebug ? 'enabled' : 'disabled'}`);
+  if (isCheckOnly) {
+    core.notice('[QA] Check-only mode: enabled. Phase transitions and signatures are disabled.');
+  }
 
   // Acquire workspace lock
   const lockPath = path.join(process.cwd(), 'gemini-reset.lock');
@@ -252,7 +262,7 @@ async function main() {
   const start = Date.now();
   while (!lockAcquired) {
     if (Date.now() - start > 30000) {
-      console.error('::error::❌ Failed to acquire workspace lock (gemini-reset.lock is active).');
+      core.error('❌ Failed to acquire workspace lock (gemini-reset.lock is active).');
       process.exit(1);
     }
     let fh;
@@ -279,37 +289,37 @@ async function main() {
   try {
     sandboxDir = await fs.promises.mkdtemp(path.join(TARGET_DIR, 'gemini-qa-sandbox-'));
     activeSandboxDir = sandboxDir;
-    console.info(`::notice::📦 Created secure QA subagent sandbox: ${sandboxDir}`);
+    core.notice(`📦 Created secure QA subagent sandbox: ${sandboxDir}`);
   } catch (err) {
-    console.error('::error::❌ Failed to create temporary sandbox directory: ' + err.message);
+    core.error(`❌ Failed to create temporary sandbox directory: ${err.message}`);
     await teardown();
     process.exit(1);
   }
 
   // Step 1: Verify planning gate status
-  console.info('::notice::Verifying planning gate status...');
+  core.info('Verifying planning gate status...');
   const planHash = await verifyPlanGate(TARGET_DIR);
   if (!planHash) {
-    console.error('::error::❌ Error: Planning Gate (Gate 1) has not been approved yet. Run plan phase first.');
+    core.error('❌ Error: Planning Gate (Gate 1) has not been approved yet. Run plan phase first.');
     await teardown();
     process.exit(1);
   }
-  console.info('::notice::🟢 Planning Gate status verified successfully.');
+  core.info('🟢 Planning Gate status verified successfully.');
 
   // Step 2: Run pre-review tests and linter
-  console.info('::notice::Running workspace linters and tests...');
+  core.info('Running workspace linters and tests...');
   const testResults = await runPreReviewTests(TARGET_DIR);
   if (!testResults.success) {
-    console.error('::error::❌ Workspace testing or linting failed!');
-    console.error(testResults.failureOutput);
+    core.error('❌ Workspace testing or linting failed!');
+    core.error(testResults.failureOutput);
     await revokeSignature(TARGET_DIR, 'review-approval.json');
     await teardown();
     process.exit(1);
   }
-  console.info('::notice::🟢 All workspace linters and tests passed.');
+  core.info('🟢 All workspace linters and tests passed.');
 
   // Step 3: Stage all changes and gather the context diff
-  console.info('::notice::Staging all workspace changes (git add -A)...');
+  core.info('Staging all workspace changes (git add -A)...');
   await gitAddAll();
 
   // Load .aiexclude rules
@@ -324,7 +334,7 @@ async function main() {
         .filter((line) => line && !line.startsWith('#'));
     }
   } catch (err) {
-    console.warn(`Failed to read .aiexclude: ${err.message}`);
+    core.warning(`Failed to read .aiexclude: ${err.message}`);
   }
 
   if (excludeRules.length === 0) {
@@ -333,7 +343,7 @@ async function main() {
 
   let activeDiff;
 
-  console.info('::notice::[Unified Diff] Calculating active workspace difference...');
+  core.info('[Unified Diff] Calculating active workspace difference...');
   const unfilteredDiff = await getActiveDiff(process.cwd());
   const changedFilesOutput = await getActiveChangedFiles(process.cwd());
 
@@ -345,14 +355,14 @@ async function main() {
   const changedFiles = filterExcludedFiles(rawChangedFiles, excludeRules);
 
   if (unfilteredDiff && unfilteredDiff.trim() !== '' && changedFiles.length === 0) {
-    console.error('::error::❌ Security Gating Failure: Staged changes consist solely of protected/excluded files.');
+    core.error('❌ Security Gating Failure: Staged changes consist solely of protected/excluded files.');
     await revokeSignature(TARGET_DIR, 'review-approval.json');
     await teardown();
     process.exit(1);
   }
 
   if (!unfilteredDiff || unfilteredDiff.trim() === '') {
-    console.info('::notice::🟢 No changes detected. Automatically approving Review Gate.');
+    core.info('🟢 No changes detected. Automatically approving Review Gate.');
     const emptyReport = {
       approval_status: 'APPROVED',
       findings: [],
@@ -361,7 +371,11 @@ async function main() {
         message: 'No changes found in the workspace.',
       },
     };
-    await writeSignatures(emptyReport, planHash, '', TARGET_DIR);
+    if (isCheckOnly) {
+      core.notice('[Check-Only] Skipping signature and phase transition.');
+    } else {
+      await writeSignatures(emptyReport, planHash, '', TARGET_DIR);
+    }
     await teardown();
     process.exit(0);
   }
@@ -406,10 +420,10 @@ async function main() {
       const stateContent = await readFileSafe(stateFile);
       if (stateContent) {
         priorDecisions = JSON.parse(stateContent);
-        console.info('::notice::Loaded stateful project-report.json with prior tradeoff decisions.');
+        core.info('Loaded stateful project-report.json with prior tradeoff decisions.');
       }
     } catch (err) {
-      console.warn(`::warning::Failed to parse project-report.json: ${err.message}`);
+      core.warning(`Failed to parse project-report.json: ${err.message}`);
     }
   }
 
@@ -432,14 +446,14 @@ async function main() {
   ${activeDiff}
   </git_diff>`;
 
-  console.info('::notice::🔍 Performing single-pass QA Review via @quality_assurance...');
+  core.info('Performing single-pass QA Review via @quality_assurance...');
   const schemaPrompt = `{
   "approval_status": "APPROVED/UNAPPROVED",
   "findings": [
     {
       "file": "relative_filepath",
       "line_numbers": [12, 13],
-      "narrative": "Detailed narrative"
+      "narrative": "Detailed narrative of active/unresolved violations (this array MUST be empty if approval_status is APPROVED)"
     }
   ],
   "suggested_commit": {
@@ -463,41 +477,47 @@ async function main() {
     );
     qaReportObj = parseJSONFromText(output);
   } catch (err) {
-    console.error(`::error::❌ QA Review execution or validation failed: ${err.message}`);
+    core.error(`❌ QA Review execution or validation failed: ${err.message}`);
     await revokeSignature(TARGET_DIR, 'review-approval.json');
     await teardown();
     process.exit(1);
   }
 
   // Step 8: Evaluate results and sign off or exit
-  const isApproved = qaReportObj.approval_status === 'APPROVED';
+  const isApproved =
+    qaReportObj.approval_status === 'APPROVED' &&
+    (!Array.isArray(qaReportObj.findings) || qaReportObj.findings.length === 0);
 
   if (isApproved) {
-    console.info('::notice::🟢 QA Review Approved! No issues detected.');
+    core.notice('🟢 QA Review Approved! No issues detected.');
     // Remove stale remediation-report.json to prevent subsequent auto-remediation from running on stale data
     const remediationChecklistPath = path.join(TARGET_DIR, 'remediation-report.json');
     if (await asyncExists(remediationChecklistPath)) {
       try {
         await fs.promises.unlink(remediationChecklistPath);
-        console.info('::notice::Cleaned up stale remediation-report.json successfully.');
+        core.info('Cleaned up stale remediation-report.json successfully.');
       } catch (err) {
-        console.warn(`::warning::Failed to remove stale remediation report: ${err.message}`);
+        core.warning(`Failed to remove stale remediation report: ${err.message}`);
       }
     }
-    await writeSignatures(qaReportObj, planHash, unfilteredDiff, TARGET_DIR);
+    if (isCheckOnly) {
+      core.notice('[Check-Only] Skipping signature and phase transition.');
+    } else {
+      await writeSignatures(qaReportObj, planHash, unfilteredDiff, TARGET_DIR);
+    }
     await teardown();
     process.exit(0);
   } else {
-    console.error('::error::❌ QA Review Unapproved: Findings require manual remediation before commit.');
-    console.info(`::notice::💡 Actionable Findings:\n${JSON.stringify(qaReportObj.findings, null, 2)}`);
+    core.error('QA Review Unapproved: Findings require manual remediation before commit.');
+    core.info(`Actionable Findings:\n${JSON.stringify(qaReportObj.findings, null, 2)}`);
 
     // Write remediation-report.json to maintain compatibility with remediate tool
     const remediationChecklistPath = path.join(TARGET_DIR, 'remediation-report.json');
-    try {
-      await writeFileSafe(remediationChecklistPath, JSON.stringify(qaReportObj.findings, null, 2));
-      console.info(`::notice::✅ Remediation report successfully written to: ${remediationChecklistPath}`);
-    } catch (err) {
-      console.error(`::error::❌ Failed to write remediation report: ${err.message}`);
+    const okReport = await writeFileSafe(remediationChecklistPath, JSON.stringify(qaReportObj.findings, null, 2));
+    if (okReport) {
+      core.info(`Remediation report successfully written to: ${remediationChecklistPath}`);
+    } else {
+      core.error(`Failed to write remediation report under targetDir: ${TARGET_DIR}`);
     }
 
     await revokeSignature(TARGET_DIR, 'review-approval.json');
@@ -508,7 +528,7 @@ async function main() {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main().catch(async (err) => {
-    console.error('::error::❌ Fatal QA Review Orchestrator Error: ' + (err.stack || err.message));
+    core.error('Fatal QA Review Orchestrator Error: ' + (err.stack || err.message));
     await teardown();
     process.exit(1);
   });

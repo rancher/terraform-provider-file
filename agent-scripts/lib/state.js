@@ -60,11 +60,7 @@ export async function readState(targetDir) {
       } catch (unlinkErr) {
         console.log(`::error::Failed to unlink corrupt state file: ${unlinkErr.message}`);
       }
-      return {
-        currentPhase: 'plan',
-        locked: PHASE_CONFIG.plan.locked,
-        keyTool: PHASE_CONFIG.plan.keyTool,
-      };
+      return null;
     }
   }
   return null;
@@ -72,7 +68,7 @@ export async function readState(targetDir) {
 
 export async function writeState(targetDir, state) {
   const statePath = getStatePath(targetDir);
-  await writeFileSafe(statePath, JSON.stringify(state, null, 2));
+  return await writeFileSafe(statePath, JSON.stringify(state, null, 2));
 }
 
 export async function initializeState(targetDir) {
@@ -81,7 +77,10 @@ export async function initializeState(targetDir) {
     locked: PHASE_CONFIG.plan.locked,
     keyTool: PHASE_CONFIG.plan.keyTool,
   };
-  await writeState(targetDir, state);
+  const ok = await writeState(targetDir, state);
+  if (!ok) {
+    throw new Error(`Failed to initialize phase-state.json under ${targetDir}`);
+  }
   return state;
 }
 
@@ -122,7 +121,7 @@ const TRANSITION_STRATEGIES = {
         }
 
         const planName = path
-          .basename(activePlan, '.md')
+          .basename(activePlan, path.extname(activePlan))
           .toLowerCase()
           .replace(/[^a-z0-9_-]/g, '-');
         const branchName = `feature/${planName}`;
@@ -221,7 +220,14 @@ export async function setPhase(targetDir, phase) {
   state.currentPhase = phase;
   state.locked = PHASE_CONFIG[phase].locked;
   state.keyTool = PHASE_CONFIG[phase].keyTool;
-  await writeState(targetDir, state);
+  const okState = await writeState(targetDir, state);
+  if (!okState) {
+    throw new Error(`Failed to write phase-state.json under ${targetDir}`);
+  }
+  const ok = await writeFileSafe(path.join(targetDir, 'phase.txt'), phase);
+  if (!ok) {
+    throw new Error(`Failed to write phase.txt under ${targetDir}`);
+  }
   return state;
 }
 
@@ -229,14 +235,20 @@ export async function setLock(targetDir, locked, keyTool = '') {
   const state = (await readState(targetDir)) || { currentPhase: 'plan' };
   state.locked = locked;
   state.keyTool = locked ? keyTool : '';
-  await writeState(targetDir, state);
+  const ok = await writeState(targetDir, state);
+  if (!ok) {
+    throw new Error(`Failed to write phase-state.json during setLock under ${targetDir}`);
+  }
   return state;
 }
 
 export async function updateState(targetDir, updates) {
   let state = (await readState(targetDir)) || (await initializeState(targetDir));
   state = { ...state, ...updates };
-  await writeState(targetDir, state);
+  const ok = await writeState(targetDir, state);
+  if (!ok) {
+    throw new Error(`Failed to write phase-state.json during updateState under ${targetDir}`);
+  }
   return state;
 }
 

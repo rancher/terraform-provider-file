@@ -2,6 +2,8 @@
 
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import { Buffer } from 'node:buffer';
 import { resolveTargetDir } from '../../agent-scripts/tools/file.js';
 import { clearPrePlanFlag, beforeExitPlanMode, afterExitPlanMode } from './02-plan/facilitatePlanning.js';
 import { beforeAskUserPlan, afterAskUserPlan } from './02-plan/askUserLogic.js';
@@ -77,7 +79,12 @@ process.on('uncaughtException', (err) => {
 async function main() {
   let inputData;
   try {
-    inputData = JSON.parse(fs.readFileSync(0, 'utf-8'));
+    const buffers = [];
+    for await (const chunk of process.stdin) {
+      buffers.push(chunk);
+    }
+    const rawData = Buffer.concat(buffers).toString('utf-8');
+    inputData = JSON.parse(rawData);
   } catch (err) {
     throw new Error(`Failed to read/parse STDIN in main: ${err.message || err}`, { cause: err });
   }
@@ -117,16 +124,18 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  const errMsg = `Fatal Plan Phase Hook Error: ${err.stack || err.message}`;
-  console.error('::error::' + errMsg);
-  hasLogged = true;
-  process.stdout.write(
-    JSON.stringify({
-      decision: 'deny',
-      reason: errMsg,
-      systemMessage: `🔒 Hook Crash: ${errMsg}`,
-    }) + '\n',
-  );
-  process.exit(0);
-});
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    const errMsg = `Fatal Plan Phase Hook Error: ${err.stack || err.message}`;
+    console.error('::error::' + errMsg);
+    hasLogged = true;
+    process.stdout.write(
+      JSON.stringify({
+        decision: 'deny',
+        reason: errMsg,
+        systemMessage: `🔒 Hook Crash: ${errMsg}`,
+      }) + '\n',
+    );
+    process.exit(0);
+  });
+}

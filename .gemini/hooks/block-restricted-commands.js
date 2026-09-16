@@ -2,6 +2,8 @@
 
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import { Buffer } from 'node:buffer';
 import { verifySafeGitCommand, cleanCommandString } from '../../agent-scripts/tools/git.js';
 
 const hookName = path.basename(process.argv[1]);
@@ -90,16 +92,21 @@ process.on('unhandledRejection', (reason) => {
 async function main() {
   let inputData;
   try {
-    inputData = JSON.parse(fs.readFileSync(0, 'utf-8'));
+    const buffers = [];
+    for await (const chunk of process.stdin) {
+      buffers.push(chunk);
+    }
+    const rawData = Buffer.concat(buffers).toString('utf-8');
+    inputData = JSON.parse(rawData);
   } catch (err) {
     console.error('Failed to parse stdin JSON in block-restricted-commands:', err.message || err);
     console.log(
       JSON.stringify({
-        decision: 'allow',
-        systemMessage: '🔒 Hook Notification: Failed to parse input, allowing execution by default.',
+        decision: 'deny',
+        systemMessage: '🔒 Hook Notification: Failed to parse input, denying execution by default.',
       }),
     );
-    process.exit(0);
+    process.exit(1);
   }
 
   async function verifyShellCommand(command, cwd) {
@@ -272,7 +279,9 @@ async function main() {
   process.exit(0);
 }
 
-main().catch((err) => {
-  console.error('::error::Fatal Block Restricted Commands Hook Error:', err.stack || err.message);
-  process.exit(1);
-});
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error('::error::Fatal Block Restricted Commands Hook Error:', err.stack || err.message);
+    process.exit(1);
+  });
+}
