@@ -5,7 +5,15 @@ import * as core from '@actions/core';
 import { findLatestActivePlan, validatePlanContent } from '../../../agent-scripts/tools/plan.js';
 import { handlePlanApproval } from '../../../agent-scripts/tools/approval.js';
 import { deleteFileSafe } from '../../../agent-scripts/tools/file.js';
-import { allow, deny, getPhase, hasValidSigningKey, parseToolResponse, validateAskUser } from '../shared.js';
+import {
+  allow,
+  deny,
+  getPhase,
+  hasValidSigningKey,
+  parseToolResponse,
+  validateAskUser,
+  getAskUserPromptText,
+} from '../shared.js';
 
 async function inPlanPhase(targetDir) {
   const phaseResult = await getPhase(targetDir);
@@ -18,8 +26,63 @@ export async function beforeAskUserPlan(inputData, targetDir) {
 
   validateAskUser(hookName, tool_name, tool_input);
 
+  const promptText = getAskUserPromptText(tool_input);
+  const intentMatch = promptText.match(/(?:intent\s*=\s*["']([^"']+)["']|"intent"\s*:\s*["']([^"']+)["'])/i);
+  const pathMatch = promptText.match(/(?:path\s*=\s*["']([^"']+)["']|"path"\s*:\s*["']([^"']+)["'])/i);
+  const metadataPathMatch = promptText.match(
+    /(?:metadata-path\s*=\s*["']([^"']+)["']|"metadata-path"\s*:\s*["']([^"']+)["'])/i,
+  );
+
+  const matchedIntent = intentMatch ? intentMatch[1] || intentMatch[2] : null;
+  const matchedPath = pathMatch ? pathMatch[1] || pathMatch[2] : null;
+  const matchedMetadataPath = metadataPathMatch ? metadataPathMatch[1] || metadataPathMatch[2] : null;
+
+  if (matchedIntent) {
+    core.debug(`[Plan Gate] Extracted intent from ask_user question: ${matchedIntent}`);
+  }
+
+  const metadataPath = (() => {
+    if (matchedMetadataPath) {
+      const resolvedPath = path.resolve(matchedMetadataPath);
+      const resolvedTargetDir = path.resolve(targetDir);
+      const relative = path.relative(resolvedTargetDir, resolvedPath);
+      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        deny(
+          'Gate 1 (Planning Gate) Path Traversal Validation',
+          `The plan-metadata.json path '${matchedMetadataPath}' is outside the authorized target directory.`,
+          'The plan-metadata.json file must reside strictly within the session temporary directory.',
+        );
+      }
+      if (path.basename(resolvedPath) !== 'plan-metadata.json') {
+        deny(
+          'Gate 1 (Planning Gate) Path Traversal Validation',
+          `The file at path '${matchedMetadataPath}' is not plan-metadata.json.`,
+          'The approved file name must be exactly plan-metadata.json.',
+        );
+      }
+      return resolvedPath;
+    }
+    return path.join(targetDir, 'plan-metadata.json');
+  })();
+
+  const planPath = (() => {
+    if (matchedPath) {
+      const resolvedPath = path.resolve(matchedPath);
+      const resolvedTargetDir = path.resolve(targetDir);
+      const relative = path.relative(resolvedTargetDir, resolvedPath);
+      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        deny(
+          'Gate 1 (Planning Gate) Path Traversal Validation',
+          `The plan path '${matchedPath}' is outside the authorized target directory.`,
+          'The plan Markdown file must reside strictly within the session temporary directory.',
+        );
+      }
+      return resolvedPath;
+    }
+    return null;
+  })();
+
   // Attempt to read plan-metadata.json asynchronously and fail-safe
-  const metadataPath = path.join(targetDir, 'plan-metadata.json');
   let metadataContent = null;
   try {
     metadataContent = await fs.promises.readFile(metadataPath, 'utf8');
@@ -115,7 +178,7 @@ export async function beforeAskUserPlan(inputData, targetDir) {
     }
 
     // Verify the plan is valid before allowing ask_user to prompt the user
-    const activePlan = await findLatestActivePlan(targetDir);
+    const activePlan = planPath || (await findLatestActivePlan(targetDir));
     if (!activePlan) {
       deny(
         'Gate 1 (Planning Gate) Pipeline Verification',
@@ -191,8 +254,67 @@ export async function afterAskUserPlan(inputData, targetDir) {
 
   validateAskUser(hookName, tool_name, tool_input);
 
+  const promptText = getAskUserPromptText(tool_input);
+  const intentMatch = promptText.match(/(?:intent\s*=\s*["']([^"']+)["']|"intent"\s*:\s*["']([^"']+)["'])/i);
+  const pathMatch = promptText.match(/(?:path\s*=\s*["']([^"']+)["']|"path"\s*:\s*["']([^"']+)["'])/i);
+  const metadataPathMatch = promptText.match(
+    /(?:metadata-path\s*=\s*["']([^"']+)["']|"metadata-path"\s*:\s*["']([^"']+)["'])/i,
+  );
+
+  const matchedIntent = intentMatch ? intentMatch[1] || intentMatch[2] : null;
+  const matchedPath = pathMatch ? pathMatch[1] || pathMatch[2] : null;
+  const matchedMetadataPath = metadataPathMatch ? metadataPathMatch[1] || metadataPathMatch[2] : null;
+
+  if (matchedIntent) {
+    core.debug(`[Plan Gate] Extracted intent from ask_user question: ${matchedIntent}`);
+  }
+
+  const metadataPath = (() => {
+    if (matchedMetadataPath) {
+      const resolvedPath = path.resolve(matchedMetadataPath);
+      const resolvedTargetDir = path.resolve(targetDir);
+      const relative = path.relative(resolvedTargetDir, resolvedPath);
+      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        deny(
+          'Gate 1 (Planning Gate) Path Traversal Validation',
+          `The plan-metadata.json path '${matchedMetadataPath}' is outside the authorized target directory.`,
+          'The plan-metadata.json file must reside strictly within the session temporary directory.',
+        );
+      }
+      if (path.basename(resolvedPath) !== 'plan-metadata.json') {
+        deny(
+          'Gate 1 (Planning Gate) Path Traversal Validation',
+          `The file at path '${matchedMetadataPath}' is not plan-metadata.json.`,
+          'The approved file name must be exactly plan-metadata.json.',
+        );
+      }
+      return resolvedPath;
+    }
+    return path.join(targetDir, 'plan-metadata.json');
+  })();
+
+  const planPath = (() => {
+    if (matchedPath) {
+      const resolvedPath = path.resolve(matchedPath);
+      const resolvedTargetDir = path.resolve(targetDir);
+      const relative = path.relative(resolvedTargetDir, resolvedPath);
+      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        deny(
+          'Gate 1 (Planning Gate) Path Traversal Validation',
+          `The plan path '${matchedPath}' is outside the authorized target directory.`,
+          'The plan Markdown file must reside strictly within the session temporary directory.',
+        );
+      }
+      return resolvedPath;
+    }
+    return null;
+  })();
+
+  if (planPath) {
+    core.debug(`[Plan Gate] Extracted plan path from ask_user question: ${planPath}`);
+  }
+
   // Attempt to read plan-metadata.json asynchronously and fail-safe
-  const metadataPath = path.join(targetDir, 'plan-metadata.json');
   let metadataContent = null;
   try {
     metadataContent = await fs.promises.readFile(metadataPath, 'utf8');

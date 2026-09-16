@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { verifyPlanGate, healApprovalState } from '../../../agent-scripts/tools/approval.js';
 import { setLock, setPhase, getLock } from '../../../agent-scripts/tools/state.js';
 import { allow, deny } from '../shared.js';
@@ -24,6 +26,44 @@ export async function beforeExitPlanMode(inputData, targetDir) {
     allow(hookName, inputData.tool_name, inputData.tool_input);
   }
 
+  // 1. Validate that plan-metadata.json exists and is valid
+  const metadataPath = path.join(targetDir, 'plan-metadata.json');
+  let metadataContent = null;
+  try {
+    metadataContent = await fs.promises.readFile(metadataPath, 'utf8');
+  } catch (err) {
+    deny(
+      'Gate 1 (Planning Gate) Exit Validation',
+      `plan-metadata.json is missing or could not be read: ${err.message}`,
+      'You must write plan-metadata.json using write-plan.js before exiting Plan Mode.',
+    );
+  }
+
+  let jsonData;
+  try {
+    jsonData = JSON.parse(metadataContent);
+  } catch (err) {
+    deny(
+      'Gate 1 (Planning Gate) Exit Validation',
+      `plan-metadata.json is not valid JSON: ${err.message}`,
+      'Ensure plan-metadata.json contains a valid JSON payload.',
+    );
+  }
+
+  if (
+    !jsonData.plan ||
+    !jsonData.plan.tasks ||
+    !Array.isArray(jsonData.plan.tasks) ||
+    jsonData.plan.tasks.length === 0
+  ) {
+    deny(
+      'Gate 1 (Planning Gate) Exit Validation',
+      "The 'plan' object inside plan-metadata.json must strictly contain a non-empty 'tasks' array.",
+      'Ensure your plan contains at least one task before requesting approval.',
+    );
+  }
+
+  // 2. Validate that the plan was presented to and approved by the user (cryptographically verified)
   const planHash = await verifyPlanGate(targetDir);
   if (!planHash) {
     deny(

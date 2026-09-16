@@ -60,11 +60,7 @@ export async function readState(targetDir) {
       } catch (unlinkErr) {
         console.log(`::error::Failed to unlink corrupt state file: ${unlinkErr.message}`);
       }
-      return {
-        currentPhase: 'plan',
-        locked: PHASE_CONFIG.plan.locked,
-        keyTool: PHASE_CONFIG.plan.keyTool,
-      };
+      return null;
     }
   }
   return null;

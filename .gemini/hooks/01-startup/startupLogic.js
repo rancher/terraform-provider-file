@@ -81,7 +81,7 @@ export async function protectExcludeFiles() {
       console.error(`🔒 Hook Warning: Failed to determine git repo root: ${err.message}`);
     }
 
-    const excludeFiles = ['.claudeignore'];
+    const excludeFiles = ['.claudeignore', '.geminiignore'];
     for (const file of excludeFiles) {
       const filePath = path.join(repoRoot, file);
       try {

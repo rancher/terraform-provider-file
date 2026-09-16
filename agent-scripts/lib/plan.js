@@ -17,7 +17,7 @@ export async function findLatestActivePlan(targetDir) {
       if (fs.existsSync(plansPath) && (await fsPromises.stat(plansPath)).isDirectory()) {
         const files = await fsPromises.readdir(plansPath);
         for (const file of files) {
-          if (file.endsWith('.toml') || file.endsWith('.md')) {
+          if ((file.endsWith('.toml') || file.endsWith('.md')) && file !== 'commit.md' && file !== 'commit-plan.md') {
             const filePath = path.join(plansPath, file);
             const stat = await fsPromises.stat(filePath);
             planFiles.push({
