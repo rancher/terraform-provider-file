@@ -1,7 +1,8 @@
 {
   "allowed_scripts": [
     "agent-scripts/code-review.js",
-    "agent-scripts/write-metadata.js",
+    "agent-scripts/write-plan.js",
+    "agent-scripts/write-commit.js",
     "agent-scripts/manage-pr-comments.js",
     "agent-scripts/update-action-versions.sh",
     "agent-scripts/sync-boilerplate.js",
