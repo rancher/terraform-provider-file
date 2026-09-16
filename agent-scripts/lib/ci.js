@@ -20,7 +20,7 @@ async function getDefaultRepo() {
     try {
       const { stdout: gitStdout } = await execFileAsync('git', ['remote', 'get-url', 'origin']);
       if (gitStdout) {
-        const match = gitStdout.trim().match(/github\.com[/:](.+)\.git/);
+        const match = gitStdout.trim().match(/github\.com[/:](.+?)(?:\.git)?$/);
         if (match) {
           cachedDefaultRepo = match[1];
           return cachedDefaultRepo;

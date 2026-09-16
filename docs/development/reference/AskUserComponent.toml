@@ -47,11 +47,16 @@ Every `ask_user` request must format its question string as a valid, well-formed
 {
   "intent": "plan approval",
   "request": "The human-readable request string.",
-  "plan": "The complete TOML plan format string."
+  "plan": {
+    "tasks": [
+      "Task 1 description string",
+      "Task 2 description string"
+    ]
+  }
 }
 ```
 
-- **Programmatic Reformatting:** The pre-tool hook `plan-phase-before-ask-user` automatically intercepts this JSON, validates it, and translates the `plan` field into a beautifully formatted Markdown block shown to the user.
+- **Programmatic Reformatting:** The pre-tool hook `plan-phase-before-ask-user` automatically intercepts this JSON, validates the strict `tasks` array, and programmatically compiles it into a beautifully formatted Markdown TOML plan checklist block shown to the user.
 
 ### 2. JSON Schema for Commit Approval (intent = "commit approval")
 
@@ -110,7 +115,13 @@ Use this intent when asking for cryptographic plan approval at Gate 1. **You MUS
 {
   "intent": "plan approval",
   "request": "I have drafted the plan for implementing the JSON validation feature. Do you cryptographically approve this plan?",
-  "plan": "[metadata]\ntitle = \"Enforce JSON Format for ask_user Tool\"\ndescription = \"Update the Agentic Framework...\"\n\n[tasks]\n  [[tasks.items]]\n  id = \"install-toml\"\n  status = \"pending\"\n  description = \"Install @iarna/toml\""
+  "plan": {
+    "tasks": [
+      "Create .geminiignore.",
+      "Verify that all tests pass perfectly.",
+      "Verify plan-metadata.json structured tasks."
+    ]
+  }
 }
 ```
 

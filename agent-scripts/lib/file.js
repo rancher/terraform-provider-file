@@ -125,6 +125,15 @@ function convertJsonPlanToToml(parsed) {
 }
 
 export function extractPlanContent(promptText) {
+  const trimmed = (promptText || '').trim();
+  if (
+    trimmed.startsWith('[metadata]') ||
+    trimmed.startsWith('[tasks]') ||
+    (trimmed.startsWith('{') && trimmed.endsWith('}'))
+  ) {
+    return promptText;
+  }
+
   const matchCodeBlockJson = promptText.match(/```json\n([\s\S]*?)\n```/);
   if (matchCodeBlockJson) {
     return matchCodeBlockJson[1];

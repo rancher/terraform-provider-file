@@ -141,7 +141,22 @@ export function validateAskUser(hook_name, tool_name, tool_input) {
   const isToml = promptText.includes('intent =') || promptText.includes('intent=');
 
   if (!isJson && !isToml) {
-    // Standard human-readable Markdown prompt, bypass structured validation!
+    // Standard human-readable Markdown prompt
+    const isApprovalText =
+      promptText.includes('cryptographically approve') ||
+      promptText.includes('Developer Plan Approval') ||
+      promptText.includes('Developer Commit & PR Approval');
+    if (isApprovalText) {
+      const questions = tool_input && tool_input.questions;
+      const type = questions && questions[0] ? questions[0].type : tool_input && tool_input.type;
+      if (type !== 'yesno') {
+        deny(
+          `${hook_name}`,
+          `The ask_user tool was called with an approval prompt but question type is "${type}".`,
+          'For plan and commit approvals, the ask_user question type MUST strictly be set to "yesno" to guarantee binary yes/no response parsing.',
+        );
+      }
+    }
     return;
   }
 

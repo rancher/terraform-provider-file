@@ -2,7 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import * as core from '@actions/core';
-import { writeFileSafe } from '../../../agent-scripts/tools/file.js';
+import { writeFileSafe, deleteFileSafe } from '../../../agent-scripts/tools/file.js';
 import { calculateDiffHash } from '../../../agent-scripts/tools/git.js';
 import { readState, setLock } from '../../../agent-scripts/tools/state.js';
 import {
@@ -115,7 +115,22 @@ export async function beforeAskUserCommit(inputData, targetDir) {
       );
     }
 
-    const intent = metadata.intent ? metadata.intent.trim().toLowerCase() : '';
+    if (!metadata.intent || typeof metadata.intent !== 'string') {
+      deny(
+        'Gate 3 (Commit Gate) Schema Validation',
+        "The 'intent' field inside commit-metadata.json is required.",
+        "Include a valid 'intent' string (e.g. 'commit approval') inside commit-metadata.json.",
+      );
+    }
+    if (!metadata.request || typeof metadata.request !== 'string') {
+      deny(
+        'Gate 3 (Commit Gate) Schema Validation',
+        "The 'request' field inside commit-metadata.json is required.",
+        "Include a valid 'request' string inside commit-metadata.json.",
+      );
+    }
+
+    const intent = metadata.intent.trim().toLowerCase();
     if (intent === 'commit approval') {
       // Validate specific fields inside commit-metadata.json
       if (!metadata.hash || typeof metadata.hash !== 'string') {
@@ -150,6 +165,15 @@ export async function beforeAskUserCommit(inputData, targetDir) {
       }
 
       const diffHash = await calculateDiffHash();
+
+      // Enforce Cryptographic Binding check!
+      if (metadata.hash !== diffHash) {
+        deny(
+          'Gate 3 (Commit Gate) Cryptographic Binding Violation',
+          `The hash inside commit-metadata.json ("${metadata.hash}") does not match the active staged diff hash ("${diffHash}")!`,
+          'This means the approved metadata is not bound to your current staged changes. Please re-run our QA review to sign the latest diff first: node agent-scripts/quality-assurance.js',
+        );
+      }
 
       await checkAndRevokeStaleGates(targetDir, diffHash, planHash);
 
@@ -187,11 +211,6 @@ export async function afterAskUserCommit(inputData, targetDir) {
 
   if (await inPlanMode(targetDir)) {
     allow(hookName, tool_name);
-  }
-
-  const state = await readState(targetDir);
-  if (state && state.locked && state.keyTool === 'ask_user') {
-    await setLock(targetDir, false);
   }
 
   validateAskUser(hookName, tool_name, tool_input);
@@ -301,6 +320,16 @@ export async function afterAskUserCommit(inputData, targetDir) {
 
     const planHash = await verifyPlanGate(targetDir);
     const diffHash = await calculateDiffHash();
+
+    // Enforce Cryptographic Binding check!
+    if (tomlData.hash !== diffHash) {
+      deny(
+        'Gate 3 (Commit Gate) Cryptographic Binding Violation',
+        `The hash inside commit-metadata.json ("${tomlData.hash}") does not match the active staged diff hash ("${diffHash}")!`,
+        'This means the approved metadata is not bound to your current staged changes. Please re-run our QA review to sign the latest diff first: node agent-scripts/quality-assurance.js',
+      );
+    }
+
     await checkAndRevokeStaleGates(targetDir, diffHash, planHash);
 
     const reviewPassed = await verifyReviewGate(targetDir, diffHash, planHash);
@@ -322,6 +351,20 @@ export async function afterAskUserCommit(inputData, targetDir) {
       console.error(
         `🔒 Hook Info: Commit successfully signed and pushed. PR URL: ${result ? result.prUrl : 'unknown'}`,
       );
+      // Clean up metadata file on successful commit approval to prevent stale reuse!
+      try {
+        await deleteFileSafe(metadataPath);
+      } catch (cleanErr) {
+        console.error('🔒 Hook Error: Failed to clean up commit-metadata.json:', cleanErr.message);
+      }
+      try {
+        const state = await readState(targetDir);
+        if (state && state.locked && state.keyTool === 'ask_user') {
+          await setLock(targetDir, false);
+        }
+      } catch (lockErr) {
+        console.error('🔒 Hook Error: Failed to unlock workspace:', lockErr.message);
+      }
       allow(hookName, tool_name, tool_input, '', '\n\n' + (result ? result.systemMessage : ''));
     } catch (err) {
       console.error('🔒 Hook Error: Gate 3 commit/push pipeline failed!');

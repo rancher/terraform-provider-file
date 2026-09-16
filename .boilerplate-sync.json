@@ -1,6 +1,7 @@
 {
   "files": [
     { "local": ".gemini", "remote": ".gemini" },
+    { "local": ".geminiignore", "remote": ".geminiignore" },
     { "local": "docs/development", "remote": "docs/development" },
     { "local": "agent-scripts", "remote": "agent-scripts" },
     { "local": ".markdownlint.yaml", "remote": ".markdownlint.yaml" },

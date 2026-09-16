@@ -4,6 +4,7 @@ import path from 'path';
 import * as core from '@actions/core';
 import { findLatestActivePlan, validatePlanContent } from '../../../agent-scripts/tools/plan.js';
 import { handlePlanApproval } from '../../../agent-scripts/tools/approval.js';
+import { deleteFileSafe } from '../../../agent-scripts/tools/file.js';
 import { allow, deny, getPhase, hasValidSigningKey, parseToolResponse, validateAskUser } from '../shared.js';
 
 async function inPlanPhase(targetDir) {
@@ -51,7 +52,22 @@ export async function beforeAskUserPlan(inputData, targetDir) {
       );
     }
 
-    const intent = tomlData.intent ? tomlData.intent.trim().toLowerCase() : '';
+    if (!tomlData.intent || typeof tomlData.intent !== 'string') {
+      deny(
+        'Gate 1 (Planning Gate) Schema Validation',
+        "The 'intent' field inside plan-metadata.json is required.",
+        "Include a valid 'intent' string (e.g. 'plan approval') inside plan-metadata.json.",
+      );
+    }
+    if (!tomlData.request || typeof tomlData.request !== 'string') {
+      deny(
+        'Gate 1 (Planning Gate) Schema Validation',
+        "The 'request' field inside plan-metadata.json is required.",
+        "Include a valid 'request' string inside plan-metadata.json.",
+      );
+    }
+
+    const intent = tomlData.intent.trim().toLowerCase();
 
     // If the agent is trying to request plan approval but we aren't in the plan phase, explicitly deny and guide them
     if (intent === 'plan approval' && !(await inPlanPhase(targetDir))) {
@@ -71,12 +87,30 @@ export async function beforeAskUserPlan(inputData, targetDir) {
       allow(hookName, tool_name);
     }
 
-    // Validate specific fields inside plan-metadata.json
-    if (!tomlData.plan || typeof tomlData.plan !== 'string') {
+    // Validate specific fields inside plan-metadata.json (enforcing structured tasks schema!)
+    if (!tomlData.plan || typeof tomlData.plan !== 'object' || Array.isArray(tomlData.plan)) {
       deny(
         'Gate 1 (Planning Gate) Schema Validation',
-        "For plan approval intent, the string 'plan' field containing the plan is required inside plan-metadata.json.",
-        "Include the 'plan' field in your JSON, populated with the complete plan content.",
+        "For plan approval intent, the 'plan' field must strictly be a JSON object inside plan-metadata.json.",
+        'Ensure your JSON payload has the format: "plan": { "tasks": ["task 1", "task 2"] }',
+      );
+    }
+
+    const tasks = tomlData.plan.tasks;
+    if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
+      deny(
+        'Gate 1 (Planning Gate) Schema Validation',
+        "The 'plan' object must strictly contain a non-empty 'tasks' array inside plan-metadata.json.",
+        'Ensure your JSON payload has the format: "plan": { "tasks": ["task 1", "task 2"] }',
+      );
+    }
+
+    const allStrings = tasks.every((t) => typeof t === 'string' && t.trim() !== '');
+    if (!allStrings) {
+      deny(
+        'Gate 1 (Planning Gate) Schema Validation',
+        "All elements inside the 'tasks' array must be non-empty strings.",
+        "Ensure your 'tasks' array contains only valid, descriptive task strings.",
       );
     }
 
@@ -101,7 +135,8 @@ export async function beforeAskUserPlan(inputData, targetDir) {
     }
 
     // Programmatically reformat the JSON payload into a beautiful human-readable presentation!
-    const planContent = tomlData.plan || '';
+    const planTasksLines = tasks.map((t) => `- [ ] ${t.trim()}`);
+    const planContent = `# Plan\n\n${planTasksLines.join('\n')}`;
 
     const formattedQuestion = `### 🚀 Developer Plan Approval Request (Gate 1)
 
@@ -234,9 +269,23 @@ export async function afterAskUserPlan(inputData, targetDir) {
 
   const homeDir = os.homedir();
   const sshPubKeyFile = path.resolve(homeDir, '.gemini/ssh-key.pub');
-  const planContent = tomlData.plan;
+  const tasks = tomlData.plan && tomlData.plan.tasks;
+  if (!tasks || !Array.isArray(tasks)) {
+    deny(
+      'Gate 1 (Planning Gate) Schema Validation',
+      "The 'plan' object must strictly contain a 'tasks' array inside plan-metadata.json.",
+      'Ensure your JSON payload has the format: "plan": { "tasks": ["task 1", "task 2"] }',
+    );
+  }
+  const planTasksLines = tasks.map((t) => `- [ ] ${t.trim()}`);
+  const planContent = `# Plan\n\n${planTasksLines.join('\n')}`;
   try {
     const result = await handlePlanApproval(targetDir, sshPubKeyFile, planContent);
+    try {
+      await deleteFileSafe(metadataPath);
+    } catch (cleanErr) {
+      core.debug(`[Plan Gate] Failed to clean up plan-metadata.json: ${cleanErr.message}`);
+    }
     allow(
       hookName,
       tool_name,

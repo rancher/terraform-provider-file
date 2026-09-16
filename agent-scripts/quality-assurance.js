@@ -9,7 +9,7 @@ import { runGeminiWithValidation } from './tools/gemini.js';
 import { resolveTargetDir } from './tools/file.js';
 import { runPreReviewTests } from './tools/test.js';
 import { readPlan } from './tools/plan.js';
-import { setPhase, setLock } from './tools/state.js';
+import { setPhase } from './tools/state.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -163,8 +163,7 @@ async function writeSignatures(reportObj, planHash, activeDiff, targetDir) {
 
   try {
     await setPhase(targetDir, 'commit');
-    await setLock(targetDir, false);
-    console.info('::notice::🟢 Workspace phase automatically transitioned to commit and unlocked!');
+    console.info('::notice::🟢 Workspace phase automatically transitioned to commit!');
   } catch (err) {
     console.warn(`::warning::Failed to programmatically set phase to commit: ${err.message}`);
   }
@@ -428,8 +427,6 @@ async function main() {
 
   // Step 7: Construct QA Reviewer system & evaluation prompt
   const qaPrompt = `Please perform a single-pass quality assurance review of the staged code changes in <git_diff> by applying your system instructions to evaluate Plan congruence, security, concurrency, and style correctness.
-
-  NOTE: Git rename operations are shown in the diff as 'rename from/to'. Staged changes are perfectly clean, and agent-scripts/resolve-pr-reviews.js is indeed fully deleted and completely renamed to agent-scripts/manage-pr-comments.js on disk and in Git.
 
   <active_plan>
   ${activePlan}
