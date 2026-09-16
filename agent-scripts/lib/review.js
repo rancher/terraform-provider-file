@@ -532,6 +532,42 @@ export async function runMapPhase(
   return allFindings;
 }
 
+const BINARY_EXTENSIONS = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.pdf',
+  '.zip',
+  '.gz',
+  '.tgz',
+  '.tar',
+  '.exe',
+  '.dll',
+  '.so',
+  '.dylib',
+  '.db',
+  '.sqlite',
+  '.DS_Store',
+  '.lock',
+  '.sum',
+]);
+
+function isBinaryOrGenerated(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const base = path.basename(filePath);
+  if (
+    base === 'package-lock.json' ||
+    base === 'yarn.lock' ||
+    base === 'go.sum' ||
+    base === '.DS_Store' ||
+    base === 'flake.lock'
+  ) {
+    return true;
+  }
+  return BINARY_EXTENSIONS.has(ext);
+}
+
 // Helper to recursively list files with ignored filtering
 async function getFilesRecursively(dir, workspaceRoot) {
   let results = [];
@@ -545,7 +581,7 @@ async function getFilesRecursively(dir, workspaceRoot) {
     if (stat && stat.isDirectory()) {
       const nested = await getFilesRecursively(filePath, workspaceRoot);
       results = results.concat(nested);
-    } else {
+    } else if (!isBinaryOrGenerated(filePath)) {
       results.push(filePath);
     }
   }
@@ -578,6 +614,11 @@ async function buildTriageCodebaseContext(workerNotes, workspaceRoot) {
 
     // Check if it's a file
     const srcPath = path.resolve(workspaceRoot, matchedPath);
+    const relPath = path.relative(workspaceRoot, srcPath);
+    if (relPath.startsWith('..') || path.isAbsolute(relPath)) {
+      core.warning(`Path traversal blocked: ${matchedPath} escapes workspaceRoot.`);
+      continue;
+    }
     try {
       const stat = await statSafe(srcPath);
       if (stat && stat.isFile()) {

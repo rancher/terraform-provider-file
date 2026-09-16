@@ -218,6 +218,10 @@ export async function setPhase(targetDir, phase) {
   state.locked = PHASE_CONFIG[phase].locked;
   state.keyTool = PHASE_CONFIG[phase].keyTool;
   await writeState(targetDir, state);
+  const ok = await writeFileSafe(path.join(targetDir, 'phase.txt'), phase);
+  if (!ok) {
+    throw new Error(`Failed to write phase.txt under ${targetDir}`);
+  }
   return state;
 }
 
