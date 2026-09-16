@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'fs';
 import path from 'path';
-import { fileExistsSafe, readdirSafe, statSafe, deleteFileSafe, readFileSafe, resolveTargetDir } from './tools/file.js';
+import { deleteFileSafe, fileExistsSafe, readdirSafe, readFileSafe, resolveTargetDir, statSafe } from './tools/file.js';
 
 const tmpBaseDir = await resolveTargetDir();
 const logsFilePath = path.join(tmpBaseDir, 'logs.json');
@@ -62,15 +62,16 @@ async function main() {
 
       // Clear out all tool-outputs, signatures, approvals, reports, remediation steps, logs (excluding logs.json), phase state, and PDFs
       if (
-        entry.includes('tool-output') ||
+        entry.includes('approval.') ||
         entry.endsWith('.sig') ||
         entry.endsWith('.bak') ||
-        entry.includes('approval.') ||
         entry.endsWith('-report.md') ||
-        entry === 'remediation-report.md' ||
+        entry.endsWith('-report.json') ||
+        entry.endsWith('-metadata.json') ||
         entry === 'logs' ||
-        entry === 'phase-state.json' ||
-        entry.endsWith('.pdf')
+        entry === 'tool-output' ||
+        entry === 'phase-state.json',
+        entry === 'phase.txt'
       ) {
         if (isDirectory) {
           console.log(`🧹 Removing temporary directory: ${entry}`);
