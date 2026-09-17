@@ -187,13 +187,19 @@ async function main() {
     process.exit(0);
   }
 
+  const controller = new globalThis.AbortController();
+  const timeoutId = setTimeout(() => {
+    console.error(`🔒 Security audit timed out. Aborting real-time request...`);
+    controller.abort();
+  }, 5000); // 5-second timeout for the safety audit
+
   try {
     const auditor = new GeminiCliAgent({
-      model: 'gemini-3.5-flash',
-      instructions: AUDITOR_INSTRUCTIONS,
+      model: 'gemini-3.1-flash-lite',
+      max_turns: 2,
+      instructions: AUDITOR_INSTRUCTIONS + `\n\n⚠️ IMPORTANT TURN BUDGET: You are allowed a MAXIMUM of 2 turns for this security audit.`,
     });
 
-    const controller = new globalThis.AbortController();
     const prompt = `Evaluate this tool call:
 Tool Name: ${tool_name}
 Tool Input: ${JSON.stringify(tool_input, null, 2)}`;
@@ -207,6 +213,7 @@ Tool Input: ${JSON.stringify(tool_input, null, 2)}`;
         accumulatedText += chunk.value || '';
       }
     }
+    clearTimeout(timeoutId);
 
     const decision = parseJSONFromText(accumulatedText);
     if (!decision || decision.allowed !== true) {
@@ -220,8 +227,9 @@ Tool Input: ${JSON.stringify(tool_input, null, 2)}`;
       process.exit(0);
     }
   } catch (err) {
+    clearTimeout(timeoutId);
     console.error(
-      `⚠️ Real-time safety audit skipped or failed: ${err.message}. Falling back to standard regex safety checks.`,
+      `⚠️ Real-time safety audit skipped, timed out, or failed: ${err.message}. Falling back to standard regex safety checks.`,
     );
     const isViolated = runOfflineChecks(tool_name, tool_input);
     if (isViolated) {

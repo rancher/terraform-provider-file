@@ -100,82 +100,153 @@ const askUserTool = tool(
   },
 );
 
+const MODEL_PRO = 'gemini-3.1-pro-preview';
+const MODEL_FLASH = 'gemini-3.5-flash';
+const MODEL_FLASH_LITE = 'gemini-3.1-flash-lite';
+const MODEL_HIERARCHY = [MODEL_PRO, MODEL_FLASH, MODEL_FLASH_LITE];
+
+function getModelFallbackSequence(requestedModel) {
+  let modelName = requestedModel;
+  if (!modelName || modelName === 'auto-gemini-3') {
+    modelName = MODEL_PRO;
+  }
+  const index = MODEL_HIERARCHY.indexOf(modelName);
+  if (index === -1) {
+    return [requestedModel, ...MODEL_HIERARCHY];
+  }
+  return MODEL_HIERARCHY.slice(index);
+}
+
+function getMaxTurnsForModel(modelName) {
+  if (modelName === MODEL_PRO) {
+    return 10;
+  }
+  if (modelName === MODEL_FLASH) {
+    return 5;
+  }
+  if (modelName === MODEL_FLASH_LITE) {
+    return 2;
+  }
+  return 5;
+}
+
+function isQuotaError(err) {
+  if (!err) {
+    return false;
+  }
+  const message = String(err.message || err).toLowerCase();
+  const name = String(err.name || '').toLowerCase();
+  return (
+    name.includes('quota') ||
+    message.includes('quota') ||
+    message.includes('resource_exhausted') ||
+    message.includes('429') ||
+    message.includes('rate limit') ||
+    message.includes('capacity') ||
+    message.includes('exhausted') ||
+    message.includes('exceeded')
+  );
+}
+
 // 1. Helper to run Gemini CLI via the native SDK
-async function runGeminiSDK(initialPrompt, systemInstructions = '') {
-  console.log(`\n[Initializing Gemini SDK Agentic Session]...`);
+async function runGeminiSDK(initialPrompt, systemInstructions = '', requestedModel = MODEL_FLASH) {
+  const fallbackSequence = getModelFallbackSequence(requestedModel);
 
-  const agent = new GeminiCliAgent({
-    instructions: systemInstructions || 'You are a highly capable agentic assistant.',
-    tools: [askUserTool],
-  });
+  for (let i = 0; i < fallbackSequence.length; i++) {
+    const currentModel = fallbackSequence[i];
+    const maxTurns = getMaxTurnsForModel(currentModel);
+    console.log(`\n[Initializing Gemini SDK Agentic Session] (Model: ${currentModel}, Max Turns: ${maxTurns})...`);
 
-  const session = agent.session();
-  const projectTempDir = path.join(os.homedir(), '.gemini/tmp/terraform-provider-file');
-  session.config.getWorkspaceContext().addDirectory(projectTempDir);
-  await session.initialize();
+    const modelInstructions =
+      (systemInstructions || 'You are a highly capable agentic assistant.') +
+      `\n\n⚠️ IMPORTANT TURN BUDGET: You are allowed a MAXIMUM of ${maxTurns} turns/iterations for this entire run. Conduct yourself efficiently, use tools in parallel, avoid unnecessary turns, and complete your task before reaching this limit.`;
 
-  const controller = new globalThis.AbortController();
+    try {
+      const agent = new GeminiCliAgent({
+        model: currentModel,
+        max_turns: maxTurns,
+        instructions: modelInstructions,
+        tools: [askUserTool],
+      });
 
-  await promptIdContext.run(session.id, async () => {
-    const stream = session.sendStream(initialPrompt, controller.signal);
+      const session = agent.session();
+      const projectTempDir = path.join(os.homedir(), '.gemini/tmp/terraform-provider-file');
+      session.config.getWorkspaceContext().addDirectory(projectTempDir);
+      await session.initialize();
 
-    for await (const chunk of stream) {
-      if (chunk.type === 'error' || chunk.type === 'invalid_stream' || chunk.type === 'agent_execution_blocked') {
-        throw new Error(`Agent execution failed: ${chunk.type}`);
-      }
-      // Standard text responses from the primary agent
-      if (chunk.type === 'content') {
-        process.stdout.write(chunk.value || '');
-      } else if (chunk.type === 'tool_call_request') {
-        const toolCall = chunk.value;
-        const toolName = toolCall.name;
-        if (toolName === 'invoke_agent') {
-          let args = toolCall.args;
-          if (typeof args === 'string') {
-            args = JSON.parse(args);
+      const controller = new globalThis.AbortController();
+
+      await promptIdContext.run(session.id, async () => {
+        const stream = session.sendStream(initialPrompt, controller.signal);
+
+        for await (const chunk of stream) {
+          if (chunk.type === 'error' || chunk.type === 'invalid_stream' || chunk.type === 'agent_execution_blocked') {
+            throw new Error(`Agent execution failed: ${chunk.type}. Details: ${JSON.stringify(chunk.value || '')}`);
           }
-          console.log('\n\n--- [SUB-AGENT DELEGATION DETECTED] ---');
-          console.log(`Target Sub-Agent : ${args.agent_name}`);
-          console.log(`Prompt Passed    : ${args.prompt || args.request?.prompt}`);
-          console.log('---------------------------------------\n');
-        } else {
-          // Log other tool calls cleanly
-          let args = toolCall.args;
-          if (typeof args === 'string') {
+          // Standard text responses from the primary agent
+          if (chunk.type === 'content') {
+            process.stdout.write(chunk.value || '');
+          } else if (chunk.type === 'tool_call_request') {
+            const toolCall = chunk.value;
+            const toolName = toolCall.name;
+            if (toolName === 'invoke_agent') {
+              let args = toolCall.args;
+              if (typeof args === 'string') {
+                args = JSON.parse(args);
+              }
+              console.log('\n\n--- [SUB-AGENT DELEGATION DETECTED] ---');
+              console.log(`Target Sub-Agent : ${args.agent_name}`);
+              console.log(`Prompt Passed    : ${args.prompt || args.request?.prompt}`);
+              console.log('---------------------------------------\n');
+            } else {
+              // Log other tool calls cleanly
+              let args = toolCall.args;
+              if (typeof args === 'string') {
+                try {
+                  args = JSON.parse(args);
+                } catch {
+                  /* ignore */
+                }
+              }
+
+              let formattedArgs;
+              if (typeof args === 'object' && args !== null) {
+                const cleanArgs = {};
+                for (const [key, value] of Object.entries(args)) {
+                  if (typeof value === 'string' && value.length > 500) {
+                    cleanArgs[key] = value.substring(0, 500) + `... [Truncated, total length: ${value.length} characters]`;
+                  } else {
+                    cleanArgs[key] = value;
+                  }
+                }
+                formattedArgs = JSON.stringify(cleanArgs, null, 2);
+              } else {
+                formattedArgs = String(args);
+              }
+
+              console.log(`\n[Tool Call]: ${toolName}\nArguments:\n${formattedArgs}\n`);
+            }
+          } else if (chunk.type === 'tool_call_result') {
+            // Optionally log tool results to debug log
             try {
-              args = JSON.parse(args);
+              fsSync.appendFileSync(DEBUG_LOG_PATH, `\n[Tool Result]: ${JSON.stringify(chunk.value).substring(0, 500)}\n`);
             } catch {
               /* ignore */
             }
           }
-
-          let formattedArgs;
-          if (typeof args === 'object' && args !== null) {
-            const cleanArgs = {};
-            for (const [key, value] of Object.entries(args)) {
-              if (typeof value === 'string' && value.length > 500) {
-                cleanArgs[key] = value.substring(0, 500) + `... [Truncated, total length: ${value.length} characters]`;
-              } else {
-                cleanArgs[key] = value;
-              }
-            }
-            formattedArgs = JSON.stringify(cleanArgs, null, 2);
-          } else {
-            formattedArgs = String(args);
-          }
-
-          console.log(`\n[Tool Call]: ${toolName}\nArguments:\n${formattedArgs}\n`);
         }
-      } else if (chunk.type === 'tool_call_result') {
-        // Optionally log tool results to debug log
-        try {
-          fsSync.appendFileSync(DEBUG_LOG_PATH, `\n[Tool Result]: ${JSON.stringify(chunk.value).substring(0, 500)}\n`);
-        } catch {
-          /* ignore */
-        }
+      });
+
+      // Succeeded! Return control.
+      return;
+    } catch (err) {
+      if (isQuotaError(err) && i < fallbackSequence.length - 1) {
+        console.warn(`⚠️ Model ${currentModel} hit quota limit. Retrying with lesser model ${fallbackSequence[i + 1]}...`);
+        continue;
       }
+      throw err; // Hard error if not a quota error or we ran out of models
     }
-  });
+  }
 }
 
 // 2. Helper to run shell commands (for tests and Git review)
@@ -330,21 +401,116 @@ Research the codebase and construct a comprehensive development plan to satisfy 
 Your primary task is to write a detailed markdown plan under 'plans/current.md'.
 Important: Always use the installed skills ('git-readonly', 'github-ci', 'github-pr') for Git and GitHub operations instead of raw commands (e.g. 'git branch', 'gh pr view') or web fetching GitHub URLs.`;
 
-  // Initialize the stateful Gemini SDK session
-  console.log(`\n[Initializing Gemini SDK Agentic Session]...`);
-  const planAgent = new GeminiCliAgent({
-    instructions: planSystemInstructions,
-    tools: [askUserTool],
-  });
+  // Initialize the stateful Gemini SDK session with fallback
+  const planFallbackSequence = getModelFallbackSequence(MODEL_PRO);
+  let planSession = null;
+  let initialPlanRunSuccessful = false;
 
-  const planSession = planAgent.session();
-  planSession.config.getWorkspaceContext().addDirectory(projectTempDir);
-  await planSession.initialize();
+  for (let i = 0; i < planFallbackSequence.length; i++) {
+    const currentModel = planFallbackSequence[i];
+    const maxTurns = getMaxTurnsForModel(currentModel);
+    console.log(`\n[Initializing Gemini SDK Agentic Session] (Model: ${currentModel}, Max Turns: ${maxTurns})...`);
 
-  // Item 17: Read-Only Tool Area during Planning
-  const planReadonlyTools = ['write_file', 'replace', 'create_file', 'edit_file', 'run_shell_command'];
-  for (const toolName of planReadonlyTools) {
-    planSession.config.toolRegistry.unregisterTool(toolName);
+    const modelInstructions =
+      planSystemInstructions +
+      `\n\n⚠️ IMPORTANT TURN BUDGET: You are allowed a MAXIMUM of ${maxTurns} turns/iterations for this entire run. Conduct yourself efficiently, use tools in parallel, avoid unnecessary turns, and complete your task before reaching this limit.`;
+
+    try {
+      const agent = new GeminiCliAgent({
+        model: currentModel,
+        max_turns: maxTurns,
+        instructions: modelInstructions,
+        tools: [askUserTool],
+      });
+
+      planSession = agent.session();
+      planSession.config.getWorkspaceContext().addDirectory(projectTempDir);
+      await planSession.initialize();
+
+      // Item 17: Read-Only Tool Area during Planning
+      const planReadonlyTools = ['write_file', 'replace', 'create_file', 'edit_file', 'run_shell_command'];
+      for (const toolName of planReadonlyTools) {
+        planSession.config.toolRegistry.unregisterTool(toolName);
+      }
+
+      const planController = new globalThis.AbortController();
+      await promptIdContext.run(planSession.id, async () => {
+        const stream = planSession.sendStream(planPrompt, planController.signal);
+
+        for await (const chunk of stream) {
+          if (chunk.type === 'error' || chunk.type === 'invalid_stream' || chunk.type === 'agent_execution_blocked') {
+            throw new Error(`Agent execution failed: ${chunk.type}. Details: ${JSON.stringify(chunk.value || '')}`);
+          }
+          if (chunk.type === 'content') {
+            process.stdout.write(chunk.value || '');
+          } else if (chunk.type === 'tool_call_request') {
+            const toolCall = chunk.value;
+            const toolName = toolCall.name;
+            if (toolName === 'invoke_agent') {
+              let args = toolCall.args;
+              if (typeof args === 'string') {
+                args = JSON.parse(args);
+              }
+              console.log('\n\n--- [SUB-AGENT DELEGATION DETECTED] ---');
+              console.log(`Target Sub-Agent : ${args.agent_name}`);
+              console.log(`Prompt Passed    : ${args.prompt || args.request?.prompt}`);
+              console.log('---------------------------------------\n');
+            } else {
+              let args = toolCall.args;
+              if (typeof args === 'string') {
+                try {
+                  args = JSON.parse(args);
+                } catch {
+                  /* ignore */
+                }
+              }
+
+              let formattedArgs;
+              if (typeof args === 'object' && args !== null) {
+                const cleanArgs = {};
+                for (const [key, value] of Object.entries(args)) {
+                  if (typeof value === 'string' && value.length > 500) {
+                    cleanArgs[key] =
+                      value.substring(0, 500) + `... [Truncated, total length: ${value.length} characters]`;
+                  } else {
+                    cleanArgs[key] = value;
+                  }
+                }
+                formattedArgs = JSON.stringify(cleanArgs, null, 2);
+              } else {
+                formattedArgs = String(args);
+              }
+
+              console.log(`\n[Tool Call]: ${toolName}\nArguments:\n${formattedArgs}\n`);
+            }
+          } else if (chunk.type === 'tool_call_result') {
+            try {
+              fsSync.appendFileSync(
+                DEBUG_LOG_PATH,
+                `\n[Tool Result]: ${JSON.stringify(chunk.value).substring(0, 500)}\n`,
+              );
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+      });
+
+      initialPlanRunSuccessful = true;
+      break;
+    } catch (err) {
+      if (isQuotaError(err) && i < planFallbackSequence.length - 1) {
+        console.warn(`⚠️ Model ${currentModel} hit quota limit during initial planning. Retrying with lesser model ${planFallbackSequence[i + 1]}...`);
+        continue;
+      }
+      console.error(`❌ Plan generation failed: ${err.message}`);
+      process.exit(1);
+    }
+  }
+
+  if (!initialPlanRunSuccessful) {
+    console.error(`❌ Plan generation failed on all models in fallback sequence.`);
+    process.exit(1);
   }
 
   const planController = new globalThis.AbortController();
@@ -355,18 +521,17 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
   let planningIteration = 1;
 
   while (!planApproved) {
-    if (sessionHealthy) {
+    if (sessionHealthy && planningIteration > 1) {
       try {
-        if (planningIteration > 1) {
-          console.log(`\n--- 📂 Phase 1: Planning (Refinement Iteration ${planningIteration}) ---`);
-          console.log(`Relaying feedback to existing agent session...`);
-        }
+        console.log(`\n--- 📂 Phase 1: Planning (Refinement Iteration ${planningIteration}) ---`);
+        console.log(`Relaying feedback to existing agent session...`);
+
         await promptIdContext.run(planSession.id, async () => {
           const stream = planSession.sendStream(currentPrompt, planController.signal);
 
           for await (const chunk of stream) {
             if (chunk.type === 'error' || chunk.type === 'invalid_stream' || chunk.type === 'agent_execution_blocked') {
-              throw new Error(`Agent execution failed: ${chunk.type}`);
+              throw new Error(`Agent execution failed: ${chunk.type}. Details: ${JSON.stringify(chunk.value || '')}`);
             }
             if (chunk.type === 'content') {
               process.stdout.write(chunk.value || '');
@@ -458,7 +623,7 @@ User Feedback:
 Please revise and refine the development plan under 'plans/current.md' to incorporate the user's feedback. Ensure the final plan is complete and accurate.`;
 
       try {
-        await runGeminiSDK(refinedPrompt, planSystemInstructions);
+        await runGeminiSDK(refinedPrompt, planSystemInstructions, MODEL_FLASH);
       } catch (err) {
         console.error(`❌ Failed to run refined planning agent: ${err.message}`);
         process.exit(1);
@@ -532,7 +697,7 @@ Once you have fully finished your implementation, run the project's tests to ens
   const implementSystemInstructions = `You are in the IMPLEMENTATION phase (Phase 2). 
 Implement the approved plan documented in 'plans/current.md' meticulously and surgically.
 Important: Always use the installed skills ('git-readonly', 'github-ci', 'github-pr') for Git and GitHub operations instead of raw commands (e.g. 'git branch', 'gh pr view') or web fetching GitHub URLs.`;
-  await runGeminiSDK(implementPrompt, implementSystemInstructions);
+  await runGeminiSDK(implementPrompt, implementSystemInstructions, MODEL_PRO);
 
   console.log('\n✅ Implementation session closed. Moving to automated QA review...');
 
@@ -567,7 +732,7 @@ Please analyze these errors, fix the code surgically, and re-run tests.`;
 
       const qaSystemInstructions = `You are a QA/Self-Healing assistant. Resolve the test/linter failures reported by the QA pipeline.
 Important: Always use the installed skills ('git-readonly', 'github-ci', 'github-pr') for Git and GitHub operations instead of raw commands (e.g. 'git branch', 'gh pr view') or web fetching GitHub URLs.`;
-      await runGeminiSDK(qaPrompt, qaSystemInstructions);
+      await runGeminiSDK(qaPrompt, qaSystemInstructions, MODEL_FLASH);
       continue;
     }
 
@@ -657,12 +822,20 @@ ${activeDiff}
 
     console.log('\n--- 🛡️ Invoking @quality_assurance Subagent ---');
     const qaConfig = await loadAgentInstructions('quality_assurance');
+    const qaModel = qaConfig.model || MODEL_PRO;
+    const qaFallbackSequence = getModelFallbackSequence(qaModel);
 
-    // Instantiate agent for single-turn structured review
-    const qaAgent = new GeminiCliAgent({
-      model: qaConfig.model,
-      instructions:
+    let qaSuccessRun = false;
+    let accumulatedText = '';
+
+    for (let i = 0; i < qaFallbackSequence.length; i++) {
+      const currentModel = qaFallbackSequence[i];
+      const maxTurns = getMaxTurnsForModel(currentModel);
+      console.log(`\n[Initializing QA Agent Session] (Model: ${currentModel}, Max Turns: ${maxTurns})...`);
+
+      const modelInstructions =
         (qaConfig.instructions || '') +
+        `\n\n⚠️ IMPORTANT TURN BUDGET: You are allowed a MAXIMUM of ${maxTurns} turns/iterations for this entire run. Conduct yourself efficiently, use tools in parallel, avoid unnecessary turns, and complete your task before reaching this limit.` +
         `\n\nYou MUST format your entire response strictly as a single valid JSON object. Do not include any conversational preambles or additional explanations. Ensure the JSON conforms to this structure:
       {
         "approval_status": "APPROVED" or "UNAPPROVED",
@@ -673,36 +846,59 @@ ${activeDiff}
             "narrative": "Detailed narrative of active/unresolved violations (this array MUST be empty if approval_status is APPROVED)"
           }
         ]
-      }`,
-    });
+      }`;
 
-    const qaSession = qaAgent.session();
-    qaSession.config.getWorkspaceContext().addDirectory(projectTempDir);
-    await qaSession.initialize();
+      try {
+        const qaAgent = new GeminiCliAgent({
+          model: currentModel,
+          max_turns: maxTurns,
+          instructions: modelInstructions,
+        });
 
-    // Item 18: QA Review Read-Only Sandbox
-    const qaReadonlyTools = ['write_file', 'replace', 'create_file', 'edit_file', 'run_shell_command'];
-    for (const toolName of qaReadonlyTools) {
-      qaSession.config.toolRegistry.unregisterTool(toolName);
+        const qaSession = qaAgent.session();
+        qaSession.config.getWorkspaceContext().addDirectory(projectTempDir);
+        await qaSession.initialize();
+
+        // Item 18: QA Review Read-Only Sandbox
+        const qaReadonlyTools = ['write_file', 'replace', 'create_file', 'edit_file', 'run_shell_command'];
+        for (const toolName of qaReadonlyTools) {
+          qaSession.config.toolRegistry.unregisterTool(toolName);
+        }
+
+        const qaController = new globalThis.AbortController();
+        accumulatedText = '';
+
+        await promptIdContext.run(qaSession.id, async () => {
+          const stream = qaSession.sendStream(qaPrompt, qaController.signal);
+
+          for await (const chunk of stream) {
+            if (chunk.type === 'error' || chunk.type === 'invalid_stream' || chunk.type === 'agent_execution_blocked') {
+              throw new Error(`Agent execution failed: ${chunk.type}. Details: ${JSON.stringify(chunk.value || '')}`);
+            }
+            if (chunk.type === 'content') {
+              const text = chunk.value || '';
+              process.stdout.write(text);
+              accumulatedText += text;
+            }
+          }
+        });
+
+        qaSuccessRun = true;
+        break;
+      } catch (err) {
+        if (isQuotaError(err) && i < qaFallbackSequence.length - 1) {
+          console.warn(`⚠️ QA Agent model ${currentModel} hit quota limit. Retrying with lesser model ${qaFallbackSequence[i + 1]}...`);
+          continue;
+        }
+        console.error(`❌ QA Agent execution failed: ${err.message}`);
+        process.exit(1);
+      }
     }
 
-    const qaController = new globalThis.AbortController();
-    let accumulatedText = '';
-
-    await promptIdContext.run(qaSession.id, async () => {
-      const stream = qaSession.sendStream(qaPrompt, qaController.signal);
-
-      for await (const chunk of stream) {
-        if (chunk.type === 'error' || chunk.type === 'invalid_stream' || chunk.type === 'agent_execution_blocked') {
-          throw new Error(`Agent execution failed: ${chunk.type}`);
-        }
-        if (chunk.type === 'content') {
-          const text = chunk.value || '';
-          process.stdout.write(text);
-          accumulatedText += text;
-        }
-      }
-    });
+    if (!qaSuccessRun) {
+      console.error(`❌ QA Agent failed on all models in fallback sequence.`);
+      process.exit(1);
+    }
 
     const qaReportObj = parseJSONFromText(accumulatedText);
     if (!qaReportObj) {
@@ -730,7 +926,7 @@ Please analyze these findings, fix the code surgically, and re-run tests.`;
 
       const healInstructions = `You are an implementation assistant. Meticulously resolve all findings and errors flagged by the QA review.
 Important: Always use the installed skills ('git-readonly', 'github-ci', 'github-pr') for Git and GitHub operations instead of raw commands (e.g. 'git branch', 'gh pr view') or web fetching GitHub URLs.`;
-      await runGeminiSDK(healPrompt, healInstructions);
+      await runGeminiSDK(healPrompt, healInstructions, MODEL_FLASH);
     }
   }
 
@@ -769,33 +965,56 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
 
   console.log('Asking Gemini to generate a commit message based on your diff...');
   let defaultMsg = 'chore: overhaul hooks and phases with simplified orchestrator';
-  try {
-    const commitAgent = new GeminiCliAgent({
-      instructions:
-        'You are a professional software engineer. Generate a single-line, highly descriptive and concise git commit message conforming to Conventional Commits format (e.g., "feat: add feature X" or "fix: resolve bug Y") based strictly on the provided git diff. Do not include any preambles, explanations, quotes, or markdown wrappers.',
-    });
-    const commitSession = commitAgent.session();
-    commitSession.config.getWorkspaceContext().addDirectory(projectTempDir);
-    await commitSession.initialize();
-    const commitController = new globalThis.AbortController();
-    let accumulatedMsg = '';
-    await promptIdContext.run(commitSession.id, async () => {
-      const stream = commitSession.sendStream(`Here is the git diff:\n\n${diffResult.stdout}`, commitController.signal);
-      for await (const chunk of stream) {
-        if (chunk.type === 'error' || chunk.type === 'invalid_stream' || chunk.type === 'agent_execution_blocked') {
-          throw new Error(`Agent execution failed: ${chunk.type}`);
+  
+  const commitFallbackSequence = getModelFallbackSequence(MODEL_FLASH_LITE);
+
+  for (let i = 0; i < commitFallbackSequence.length; i++) {
+    const currentModel = commitFallbackSequence[i];
+    const maxTurns = getMaxTurnsForModel(currentModel);
+    console.log(`\n[Generating Commit Message] (Model: ${currentModel}, Max Turns: ${maxTurns})...`);
+
+    try {
+      const modelInstructions =
+        'You are a professional software engineer. Generate a single-line, highly descriptive and concise git commit message conforming to Conventional Commits format (e.g., "feat: add feature X" or "fix: resolve bug Y") based strictly on the provided git diff. Do not include any preambles, explanations, quotes, or markdown wrappers.' +
+        `\n\n⚠️ IMPORTANT TURN BUDGET: You are allowed a MAXIMUM of ${maxTurns} turns/iterations for this entire run. Conduct yourself efficiently, use tools in parallel, avoid unnecessary turns, and complete your task before reaching this limit.`;
+
+      const commitAgent = new GeminiCliAgent({
+        model: currentModel,
+        max_turns: maxTurns,
+        instructions: modelInstructions,
+      });
+
+      const commitSession = commitAgent.session();
+      commitSession.config.getWorkspaceContext().addDirectory(projectTempDir);
+      await commitSession.initialize();
+      const commitController = new globalThis.AbortController();
+      let accumulatedMsg = '';
+
+      await promptIdContext.run(commitSession.id, async () => {
+        const stream = commitSession.sendStream(`Here is the git diff:\n\n${diffResult.stdout}`, commitController.signal);
+        for await (const chunk of stream) {
+          if (chunk.type === 'error' || chunk.type === 'invalid_stream' || chunk.type === 'agent_execution_blocked') {
+            throw new Error(`Agent execution failed: ${chunk.type}. Details: ${JSON.stringify(chunk.value || '')}`);
+          }
+          if (chunk.type === 'content') {
+            accumulatedMsg += chunk.value || '';
+          }
         }
-        if (chunk.type === 'content') {
-          accumulatedMsg += chunk.value || '';
-        }
+      });
+
+      const cleanMsg = accumulatedMsg.trim().replace(/^['"`]+|['"`]+$/g, '');
+      if (cleanMsg) {
+        defaultMsg = cleanMsg;
       }
-    });
-    const cleanMsg = accumulatedMsg.trim().replace(/^['"`]+|['"`]+$/g, '');
-    if (cleanMsg) {
-      defaultMsg = cleanMsg;
+      break;
+    } catch (err) {
+      if (isQuotaError(err) && i < commitFallbackSequence.length - 1) {
+        console.warn(`⚠️ Commit generation model ${currentModel} hit quota limit. Retrying with lesser model ${commitFallbackSequence[i + 1]}...`);
+        continue;
+      }
+      console.warn(`⚠️ Failed to generate commit message with Gemini model ${currentModel}: ${err.message}.`);
+      break; // Exit loop if it's not a quota error or we hit the end
     }
-  } catch (err) {
-    console.warn(`⚠️ Failed to generate commit message with Gemini: ${err.message}. Falling back to default.`);
   }
 
   // Determine if the changes affect product files (inside internal/)
