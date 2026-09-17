@@ -5,8 +5,10 @@ import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import toml from '@iarna/toml';
 import { GeminiCliAgent, tool, z } from '@google/gemini-cli-sdk';
+import { promptIdContext } from '@google/gemini-cli-core';
 import { validateCommitTitle } from '../.github/workflows/scripts/validate-commit-message.js';
 
 const execAsync = promisify(exec);
@@ -38,33 +40,38 @@ async function runGeminiSDK(initialPrompt, systemInstructions = '') {
   });
 
   const session = agent.session();
+  const projectTempDir = path.join(os.homedir(), '.gemini/tmp/terraform-provider-file');
+  session.config.getWorkspaceContext().addDirectory(projectTempDir);
   await session.initialize();
 
   const controller = new globalThis.AbortController();
-  const stream = session.sendStream(initialPrompt, controller.signal);
 
-  for await (const chunk of stream) {
-    // Standard text responses from the primary agent
-    if (chunk.type === 'content') {
-      process.stdout.write(chunk.value || '');
-    }
+  await promptIdContext.run(session.id, async () => {
+    const stream = session.sendStream(initialPrompt, controller.signal);
 
-    // Intercept when Gemini delegates work via 'invoke_agent'
-    if (chunk.type === 'tool_call_request') {
-      const toolCall = chunk.value;
-      const toolName = toolCall.name;
-      if (toolName === 'invoke_agent') {
-        let args = toolCall.args;
-        if (typeof args === 'string') {
-          args = JSON.parse(args);
+    for await (const chunk of stream) {
+      // Standard text responses from the primary agent
+      if (chunk.type === 'content') {
+        process.stdout.write(chunk.value || '');
+      }
+
+      // Intercept when Gemini delegates work via 'invoke_agent'
+      if (chunk.type === 'tool_call_request') {
+        const toolCall = chunk.value;
+        const toolName = toolCall.name;
+        if (toolName === 'invoke_agent') {
+          let args = toolCall.args;
+          if (typeof args === 'string') {
+            args = JSON.parse(args);
+          }
+          console.log('\n\n--- [SUB-AGENT DELEGATION DETECTED] ---');
+          console.log(`Target Sub-Agent : ${args.agent_name}`);
+          console.log(`Prompt Passed    : ${args.prompt || args.request?.prompt}`);
+          console.log('---------------------------------------\n');
         }
-        console.log('\n\n--- [SUB-AGENT DELEGATION DETECTED] ---');
-        console.log(`Target Sub-Agent : ${args.agent_name}`);
-        console.log(`Prompt Passed    : ${args.prompt || args.request?.prompt}`);
-        console.log('---------------------------------------\n');
       }
     }
-  }
+  });
 }
 
 // 2. Helper to run shell commands (for tests and Git review)
@@ -373,19 +380,24 @@ ${activeDiff}
     });
 
     const qaSession = qaAgent.session();
+    const projectTempDir = path.join(os.homedir(), '.gemini/tmp/terraform-provider-file');
+    qaSession.config.getWorkspaceContext().addDirectory(projectTempDir);
     await qaSession.initialize();
 
     const qaController = new globalThis.AbortController();
-    const stream = qaSession.sendStream(qaPrompt, qaController.signal);
     let accumulatedText = '';
 
-    for await (const chunk of stream) {
-      if (chunk.type === 'content') {
-        const text = chunk.value || '';
-        process.stdout.write(text);
-        accumulatedText += text;
+    await promptIdContext.run(qaSession.id, async () => {
+      const stream = qaSession.sendStream(qaPrompt, qaController.signal);
+
+      for await (const chunk of stream) {
+        if (chunk.type === 'content') {
+          const text = chunk.value || '';
+          process.stdout.write(text);
+          accumulatedText += text;
+        }
       }
-    }
+    });
 
     const qaReportObj = parseJSONFromText(accumulatedText);
     if (!qaReportObj) {
@@ -457,15 +469,19 @@ Please analyze these findings, fix the code surgically, and re-run tests.`;
         'You are a professional software engineer. Generate a single-line, highly descriptive and concise git commit message conforming to Conventional Commits format (e.g., "feat: add feature X" or "fix: resolve bug Y") based strictly on the provided git diff. Do not include any preambles, explanations, quotes, or markdown wrappers.',
     });
     const commitSession = commitAgent.session();
+    const projectTempDir = path.join(os.homedir(), '.gemini/tmp/terraform-provider-file');
+    commitSession.config.getWorkspaceContext().addDirectory(projectTempDir);
     await commitSession.initialize();
     const controller = new globalThis.AbortController();
-    const stream = commitSession.sendStream(`Here is the git diff:\n\n${diffResult.stdout}`, controller.signal);
     let accumulatedMsg = '';
-    for await (const chunk of stream) {
-      if (chunk.type === 'content') {
-        accumulatedMsg += chunk.value || '';
+    await promptIdContext.run(commitSession.id, async () => {
+      const stream = commitSession.sendStream(`Here is the git diff:\n\n${diffResult.stdout}`, controller.signal);
+      for await (const chunk of stream) {
+        if (chunk.type === 'content') {
+          accumulatedMsg += chunk.value || '';
+        }
       }
-    }
+    });
     const cleanMsg = accumulatedMsg.trim().replace(/^['"`]+|['"`]+$/g, '');
     if (cleanMsg) {
       defaultMsg = cleanMsg;
