@@ -11,6 +11,71 @@ import { GeminiCliAgent, tool, z } from '@google/gemini-cli-sdk';
 import { promptIdContext } from '@google/gemini-cli-core';
 import { validateCommitTitle } from '../.github/workflows/scripts/validate-commit-message.js';
 
+import fsSync from 'node:fs';
+
+const DEBUG_LOG_PATH = path.join(process.cwd(), 'orchestrator-debug.log');
+
+// Clear the log on startup
+try {
+  fsSync.writeFileSync(DEBUG_LOG_PATH, `--- Orchestrator Debug Log Started at ${new Date().toISOString()} ---\n`);
+} catch (e) {
+  // Ignore logging initialization error if any
+}
+
+function shouldRedirectLog(msg) {
+  if (typeof msg !== 'string') return false;
+  return msg.includes('[DEBUG]') || 
+         msg.includes('[PolicyEngine.check]') || 
+         msg.includes('[Routing]') ||
+         msg.includes('[TopicTool]') ||
+         msg.includes('Experiments loaded') ||
+         msg.includes('Loading ignore patterns') ||
+         msg.includes('Ripgrep is not available') ||
+         msg.includes('Tool with name') ||
+         msg.includes('GrepLogic:') ||
+         msg.includes('Loaded cached credentials');
+}
+
+const originalLog = console.log;
+console.log = function(...args) {
+  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  if (shouldRedirectLog(msg)) {
+    fsSync.appendFileSync(DEBUG_LOG_PATH, msg + '\n');
+  } else {
+    originalLog.apply(console, args);
+  }
+};
+
+const originalDebug = console.debug;
+console.debug = function(...args) {
+  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  if (shouldRedirectLog(msg)) {
+    fsSync.appendFileSync(DEBUG_LOG_PATH, msg + '\n');
+  } else {
+    originalDebug.apply(console, args);
+  }
+};
+
+const originalInfo = console.info;
+console.info = function(...args) {
+  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  if (shouldRedirectLog(msg)) {
+    fsSync.appendFileSync(DEBUG_LOG_PATH, msg + '\n');
+  } else {
+    originalInfo.apply(console, args);
+  }
+};
+
+const originalWarn = console.warn;
+console.warn = function(...args) {
+  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  if (shouldRedirectLog(msg)) {
+    fsSync.appendFileSync(DEBUG_LOG_PATH, msg + '\n');
+  } else {
+    originalWarn.apply(console, args);
+  }
+};
+
 const execAsync = promisify(exec);
 const rl = readline.createInterface({ input, output });
 
@@ -53,10 +118,7 @@ async function runGeminiSDK(initialPrompt, systemInstructions = '') {
       // Standard text responses from the primary agent
       if (chunk.type === 'content') {
         process.stdout.write(chunk.value || '');
-      }
-
-      // Intercept when Gemini delegates work via 'invoke_agent'
-      if (chunk.type === 'tool_call_request') {
+      } else if (chunk.type === 'tool_call_request') {
         const toolCall = chunk.value;
         const toolName = toolCall.name;
         if (toolName === 'invoke_agent') {
@@ -68,7 +130,35 @@ async function runGeminiSDK(initialPrompt, systemInstructions = '') {
           console.log(`Target Sub-Agent : ${args.agent_name}`);
           console.log(`Prompt Passed    : ${args.prompt || args.request?.prompt}`);
           console.log('---------------------------------------\n');
+        } else {
+          // Log other tool calls cleanly
+          let args = toolCall.args;
+          if (typeof args === 'string') {
+            try { args = JSON.parse(args); } catch (e) {}
+          }
+          
+          let formattedArgs = '';
+          if (typeof args === 'object' && args !== null) {
+            const cleanArgs = {};
+            for (const [key, value] of Object.entries(args)) {
+              if (typeof value === 'string' && value.length > 500) {
+                cleanArgs[key] = value.substring(0, 500) + `... [Truncated, total length: ${value.length} characters]`;
+              } else {
+                cleanArgs[key] = value;
+              }
+            }
+            formattedArgs = JSON.stringify(cleanArgs, null, 2);
+          } else {
+            formattedArgs = String(args);
+          }
+          
+          console.log(`\n[Tool Call]: ${toolName}\nArguments:\n${formattedArgs}\n`);
         }
+      } else if (chunk.type === 'tool_call_result') {
+         // Optionally log tool results to debug log
+         try {
+           fsSync.appendFileSync(DEBUG_LOG_PATH, `\n[Tool Result]: ${JSON.stringify(chunk.value).substring(0, 500)}\n`);
+         } catch (e) {}
       }
     }
   });
