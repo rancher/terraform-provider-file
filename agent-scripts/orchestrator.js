@@ -80,27 +80,17 @@ const execAsync = promisify(exec);
 const rl = readline.createInterface({ input, output });
 
 // Define the ask_user tool using the SDK tool utility
-const askUserTool = {
-  declaration: {
-    name: 'ask_user',
-    description: 'Ask the human user a clarifying question when critical setup or context details are missing.',
-    parameters: {
-      type: 'OBJECT',
-      properties: {
-        question: {
-          type: 'STRING',
-          description: 'The exact clarifying question to prompt the user with.'
-        }
-      },
-      required: ['question']
-    }
-  },
-  action: async (params) => {
-    console.log(`\n\n🤖 [Agent requested input]: ${params.question}`);
-    const answer = await rl.question('👉 Your Answer: ');
-    return { answer };
-  }
-};
+const askUserTool = tool({
+  name: 'ask_user',
+  description: 'Ask the human user a clarifying question when critical setup or context details are missing.',
+  inputSchema: z.object({
+    question: z.string().describe('The exact clarifying question to prompt the user with.')
+  }),
+}, async (params) => {
+  console.log(`\n\n🤖 [Agent requested input]: ${params.question}`);
+  const answer = await rl.question('👉 Your Answer: ');
+  return { answer };
+});
 
 // 1. Helper to run Gemini CLI via the native SDK
 async function runGeminiSDK(initialPrompt, systemInstructions = '') {
