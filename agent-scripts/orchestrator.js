@@ -18,12 +18,14 @@ const DEBUG_LOG_PATH = path.join(process.cwd(), 'orchestrator-debug.log');
 // Clear the log on startup
 try {
   fsSync.writeFileSync(DEBUG_LOG_PATH, `--- Orchestrator Debug Log Started at ${new Date().toISOString()} ---\n`);
-} catch (e) {
+} catch {
   // Ignore logging initialization error if any
 }
 
 function shouldRedirectLog(msg) {
-  if (typeof msg !== 'string') return false;
+  if (typeof msg !== 'string') {
+    return false;
+  }
   return msg.includes('[DEBUG]') || 
          msg.includes('[PolicyEngine.check]') || 
          msg.includes('[Routing]') ||
@@ -134,10 +136,10 @@ async function runGeminiSDK(initialPrompt, systemInstructions = '') {
           // Log other tool calls cleanly
           let args = toolCall.args;
           if (typeof args === 'string') {
-            try { args = JSON.parse(args); } catch (e) {}
+            try { args = JSON.parse(args); } catch { /* ignore */ }
           }
           
-          let formattedArgs = '';
+          let formattedArgs;
           if (typeof args === 'object' && args !== null) {
             const cleanArgs = {};
             for (const [key, value] of Object.entries(args)) {
@@ -158,7 +160,7 @@ async function runGeminiSDK(initialPrompt, systemInstructions = '') {
          // Optionally log tool results to debug log
          try {
            fsSync.appendFileSync(DEBUG_LOG_PATH, `\n[Tool Result]: ${JSON.stringify(chunk.value).substring(0, 500)}\n`);
-         } catch (e) {}
+         } catch { /* ignore */ }
       }
     }
   });
@@ -279,6 +281,8 @@ async function main() {
     process.exit(1);
   }
 
+  const projectTempDir = path.join(os.homedir(), '.gemini/tmp/terraform-provider-file');
+
   console.log(`\n🚀 Starting Orchestrated Loop for Objective: "${objective}"`);
 
   // ==========================================
@@ -299,19 +303,177 @@ Your primary task is to write a detailed markdown plan under 'plans/current.md' 
 Research the codebase and construct a comprehensive development plan to satisfy the user's objective.
 Your primary task is to write a detailed markdown plan under 'plans/current.md'.
 Important: Always use the installed skills ('git-readonly', 'github-ci', 'github-pr') for Git and GitHub operations instead of raw commands (e.g. 'git branch', 'gh pr view') or web fetching GitHub URLs.`;
-  await runGeminiSDK(planPrompt, planSystemInstructions);
 
-  console.log('\n======================================');
-  console.log('📋 Gating: Plan Approval Required');
-  console.log('======================================');
-  const planApproval = await rl.question('👉 Do you approve the plan in plans/current.md? (yes/no): ');
-  if (planApproval.trim().toLowerCase() !== 'yes') {
-    console.log('❌ Plan rejected. Exiting orchestrator.');
-    rl.close();
-    process.exit(0);
+  // Initialize the stateful Gemini SDK session
+  console.log(`\n[Initializing Gemini SDK Agentic Session]...`);
+  const planAgent = new GeminiCliAgent({
+    instructions: planSystemInstructions,
+    tools: [askUserTool],
+  });
+
+  const planSession = planAgent.session();
+  planSession.config.getWorkspaceContext().addDirectory(projectTempDir);
+  await planSession.initialize();
+
+  const planController = new globalThis.AbortController();
+  
+  let currentPrompt = planPrompt;
+  let sessionHealthy = true;
+  let planApproved = false;
+  let planningIteration = 1;
+
+  while (!planApproved) {
+    if (sessionHealthy) {
+      try {
+        if (planningIteration > 1) {
+          console.log(`\n--- 📂 Phase 1: Planning (Refinement Iteration ${planningIteration}) ---`);
+          console.log(`Relaying feedback to existing agent session...`);
+        }
+        await promptIdContext.run(planSession.id, async () => {
+          const stream = planSession.sendStream(currentPrompt, planController.signal);
+
+          for await (const chunk of stream) {
+            if (chunk.type === 'error' || chunk.type === 'invalid_stream' || chunk.type === 'agent_execution_blocked') {
+              throw new Error(`Agent execution failed: ${chunk.type}`);
+            }
+            if (chunk.type === 'content') {
+              process.stdout.write(chunk.value.text || '');
+            } else if (chunk.type === 'tool_call_request') {
+              const toolCall = chunk.value;
+              const toolName = toolCall.name;
+              if (toolName === 'invoke_agent') {
+                let args = toolCall.args;
+                if (typeof args === 'string') {
+                  args = JSON.parse(args);
+                }
+                console.log('\n\n--- [SUB-AGENT DELEGATION DETECTED] ---');
+                console.log(`Target Sub-Agent : ${args.agent_name}`);
+                console.log(`Prompt Passed    : ${args.prompt || args.request?.prompt}`);
+                console.log('---------------------------------------\n');
+              } else {
+                let args = toolCall.args;
+                if (typeof args === 'string') {
+                  try { args = JSON.parse(args); } catch { /* ignore */ }
+                }
+                
+                let formattedArgs;
+                if (typeof args === 'object' && args !== null) {
+                  const cleanArgs = {};
+                  for (const [key, value] of Object.entries(args)) {
+                    if (typeof value === 'string' && value.length > 500) {
+                      cleanArgs[key] = value.substring(0, 500) + `... [Truncated, total length: ${value.length} characters]`;
+                    } else {
+                      cleanArgs[key] = value;
+                    }
+                  }
+                  formattedArgs = JSON.stringify(cleanArgs, null, 2);
+                } else {
+                  formattedArgs = String(args);
+                }
+                
+                console.log(`\n[Tool Call]: ${toolName}\nArguments:\n${formattedArgs}\n`);
+              }
+            } else if (chunk.type === 'tool_call_result') {
+               try {
+                 fsSync.appendFileSync(DEBUG_LOG_PATH, `\n[Tool Result]: ${JSON.stringify(chunk.value).substring(0, 500)}\n`);
+               } catch { /* ignore */ }
+            }
+          }
+        });
+      } catch (err) {
+        console.warn(`⚠️ Warning: Stateful session error: ${err.message}. Switching to new session fallback.`);
+        sessionHealthy = false;
+      }
+    }
+
+    if (!sessionHealthy) {
+      // Fallback: Start a new agent session with the objective, current plan, and user feedback
+      console.log(`\n[Starting a new planning agent session for refinement...]`);
+      const possiblePlanPaths = [
+        path.join(process.cwd(), 'plans/current.md'),
+        path.join(projectTempDir, 'plans/current.md')
+      ];
+      let currentPlanContent = '';
+      for (const p of possiblePlanPaths) {
+        if (await exists(p)) {
+          currentPlanContent = await fs.readFile(p, 'utf8');
+          break;
+        }
+      }
+
+      const refinedPrompt = `Objective: "${objective}".
+We are refining the existing development plan based on user feedback.
+Do NOT modify any source files.
+
+Current Plan:
+\`\`\`markdown
+${currentPlanContent}
+\`\`\`
+
+User Feedback:
+"${currentPrompt}"
+
+Please revise and refine the development plan under 'plans/current.md' to incorporate the user's feedback. Ensure the final plan is complete and accurate.`;
+
+      try {
+        await runGeminiSDK(refinedPrompt, planSystemInstructions);
+      } catch (err) {
+        console.error(`❌ Failed to run refined planning agent: ${err.message}`);
+        process.exit(1);
+      }
+    }
+
+    // Locate the plan file and print its contents to stdout
+    const possiblePlanPaths = [
+      path.join(process.cwd(), 'plans/current.md'),
+      path.join(projectTempDir, 'plans/current.md')
+    ];
+    let planFileFound = null;
+    for (const p of possiblePlanPaths) {
+      if (await exists(p)) {
+        planFileFound = p;
+        break;
+      }
+    }
+
+    if (planFileFound) {
+      console.log('\n======================================');
+      console.log(`📄 CURRENT PLAN (${path.relative(process.cwd(), planFileFound)}):`);
+      console.log('======================================');
+      const planContent = await fs.readFile(planFileFound, 'utf8');
+      console.log(planContent);
+      console.log('======================================\n');
+    } else {
+      console.warn('⚠️ Warning: plans/current.md not found after planning session.');
+    }
+
+    // Gating approval / refinement comment
+    console.log('\n======================================');
+    console.log('📋 Gating: Plan Approval Required');
+    console.log('======================================');
+
+    let validResponse = false;
+    while (!validResponse) {
+      const userInput = await rl.question('👉 Do you approve the plan? (yes / no / <comment> to refine): ');
+      const trimmedInput = userInput.trim();
+
+      if (trimmedInput.toLowerCase() === 'yes') {
+        planApproved = true;
+        validResponse = true;
+        console.log('\n✅ Plan successfully approved by user!');
+      } else if (trimmedInput.toLowerCase() === 'no') {
+        console.log('❌ Plan rejected. Exiting orchestrator.');
+        rl.close();
+        process.exit(0);
+      } else if (trimmedInput.length > 0) {
+        currentPrompt = trimmedInput;
+        validResponse = true;
+        planningIteration++;
+      } else {
+        console.log('⚠️ Empty response. Please type "yes", "no", or provide feedback comment.');
+      }
+    }
   }
-
-  console.log('\n✅ Plan successfully approved by user!');
 
   // ==========================================
   // PHASE 2: IMPLEMENTATION (Write Access)
@@ -473,7 +635,6 @@ ${activeDiff}
     });
 
     const qaSession = qaAgent.session();
-    const projectTempDir = path.join(os.homedir(), '.gemini/tmp/terraform-provider-file');
     qaSession.config.getWorkspaceContext().addDirectory(projectTempDir);
     await qaSession.initialize();
 
@@ -566,13 +727,12 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
         'You are a professional software engineer. Generate a single-line, highly descriptive and concise git commit message conforming to Conventional Commits format (e.g., "feat: add feature X" or "fix: resolve bug Y") based strictly on the provided git diff. Do not include any preambles, explanations, quotes, or markdown wrappers.',
     });
     const commitSession = commitAgent.session();
-    const projectTempDir = path.join(os.homedir(), '.gemini/tmp/terraform-provider-file');
     commitSession.config.getWorkspaceContext().addDirectory(projectTempDir);
     await commitSession.initialize();
-    const controller = new globalThis.AbortController();
+    const commitController = new globalThis.AbortController();
     let accumulatedMsg = '';
     await promptIdContext.run(commitSession.id, async () => {
-      const stream = commitSession.sendStream(`Here is the git diff:\n\n${diffResult.stdout}`, controller.signal);
+      const stream = commitSession.sendStream(`Here is the git diff:\n\n${diffResult.stdout}`, commitController.signal);
       for await (const chunk of stream) {
       if (chunk.type === 'error' || chunk.type === 'invalid_stream' || chunk.type === 'agent_execution_blocked') {
         throw new Error(`Agent execution failed: ${chunk.type}`);
