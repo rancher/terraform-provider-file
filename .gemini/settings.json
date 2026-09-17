@@ -3,23 +3,85 @@
     "compactToolOutputs": false
   },
   "tools": {
-    "allowed": [
-      "run_shell_command"
-    ]
+    "allowed": ["run_shell_command"]
   },
   "hooks": {
     "SessionStart": [],
     "BeforeTool": [
       {
-        "matcher": [
-          "run_shell_command",
-          "web_fetch",
-          "read_file",
-          "write_file",
-          "replace",
-          "edit_file",
-          "create_file"
-        ],
+        "matcher": "run_shell_command",
+        "hooks": [
+          {
+            "name": "block-restricted-commands",
+            "type": "command",
+            "command": "node .gemini/hooks/block-restricted-commands.js",
+            "timeout": 5000,
+            "description": "Prevents running direct git commit, push, and rancher remote operations"
+          }
+        ]
+      },
+      {
+        "matcher": "web_fetch",
+        "hooks": [
+          {
+            "name": "block-restricted-commands",
+            "type": "command",
+            "command": "node .gemini/hooks/block-restricted-commands.js",
+            "timeout": 5000,
+            "description": "Prevents running direct git commit, push, and rancher remote operations"
+          }
+        ]
+      },
+      {
+        "matcher": "read_file",
+        "hooks": [
+          {
+            "name": "block-restricted-commands",
+            "type": "command",
+            "command": "node .gemini/hooks/block-restricted-commands.js",
+            "timeout": 5000,
+            "description": "Prevents running direct git commit, push, and rancher remote operations"
+          }
+        ]
+      },
+      {
+        "matcher": "write_file",
+        "hooks": [
+          {
+            "name": "block-restricted-commands",
+            "type": "command",
+            "command": "node .gemini/hooks/block-restricted-commands.js",
+            "timeout": 5000,
+            "description": "Prevents running direct git commit, push, and rancher remote operations"
+          }
+        ]
+      },
+      {
+        "matcher": "replace",
+        "hooks": [
+          {
+            "name": "block-restricted-commands",
+            "type": "command",
+            "command": "node .gemini/hooks/block-restricted-commands.js",
+            "timeout": 5000,
+            "description": "Prevents running direct git commit, push, and rancher remote operations"
+          }
+        ]
+      },
+      {
+        "matcher": "edit_file",
+        "hooks": [
+          {
+            "name": "block-restricted-commands",
+            "type": "command",
+            "command": "node .gemini/hooks/block-restricted-commands.js",
+            "timeout": 5000,
+            "description": "Prevents running direct git commit, push, and rancher remote operations"
+          }
+        ]
+      },
+      {
+        "matcher": "create_file",
         "hooks": [
           {
             "name": "block-restricted-commands",
@@ -127,8 +189,6 @@
     ]
   },
   "skills": {
-    "disabled": [
-      "code-review-commons"
-    ]
+    "disabled": ["code-review-commons"]
   }
 }

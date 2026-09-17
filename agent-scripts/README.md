@@ -29,9 +29,7 @@ These higher-level automation scripts execute sequences of tools to accomplish c
 
 - **`cleanup-data.js`**: Dynamically detects the active session ID via `logs.json` and purges older, stale temporary directories securely.
 - **`run-in-nix.sh`**: Environment bootstrapper to securely run Javascript/Shell tasks in a hermetic, reproducible Nix environment.
-- **`sync-boilerplate.js`**: Lightweight utility to compare and synchronize repository configuration and boilerplate files against a central template.
 - **`update-action-versions.sh`**: Scans and upgrades outdated third-party GitHub Action dependencies within workflows.
 - **`update-modules.sh`**: Scans and upgrades Go dependency modules to keep the provider dependencies up-to-date.
 
 ---
-

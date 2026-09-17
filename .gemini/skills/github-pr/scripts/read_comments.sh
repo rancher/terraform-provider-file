@@ -26,6 +26,7 @@ gh pr view "$PR_TARGET" --json comments -q '.comments[] | "Author: @\(.author.lo
 
 echo ""
 echo "=== PR Inline Review Comment Threads (PR #$PR_TARGET) ==="
+# shellcheck disable=SC2016
 # Query GraphQL review threads
 gh api graphql -F owner="$OWNER" -F name="$REPO" -F number="$PR_TARGET" -f query='
 query($owner: String!, $name: String!, $number: Int!) {

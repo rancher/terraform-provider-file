@@ -10,6 +10,12 @@ if [ "$#" -lt 1 ]; then
 fi
 
 RUN_ID="$1"
+
+if [[ ! "$RUN_ID" =~ ^[0-9]+$ ]]; then
+  echo "Error: RUN_ID must be a numeric integer." >&2
+  exit 1
+fi
+
 OUT_DIR="${2:-/tmp/ci-logs-$RUN_ID}"
 
 echo "Downloading logs for run $RUN_ID to $OUT_DIR..."

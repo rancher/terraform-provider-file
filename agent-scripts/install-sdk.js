@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 async function cleanDir(dirPath) {
   try {
@@ -14,11 +14,11 @@ async function cleanDir(dirPath) {
   }
 }
 
-async function runCommand(command, cwd, extraEnv = {}) {
+async function runCommand(file, args, cwd, extraEnv = {}) {
   const cleanEnv = {
     PATH: process.env.PATH,
     HOME: process.env.HOME,
-    USER: process.env.USER
+    USER: process.env.USER,
   };
 
   const mergedEnv = {
@@ -27,10 +27,10 @@ async function runCommand(command, cwd, extraEnv = {}) {
   };
 
   try {
-    const { stdout, stderr } = await execAsync(command, { cwd, env: mergedEnv });
+    const { stdout, stderr } = await execFileAsync(file, args, { cwd, env: mergedEnv });
     return { stdout, stderr, success: true };
   } catch (err) {
-    console.error(`❌ Command failed: "${command}" in ${cwd || process.cwd()}`);
+    console.error(`❌ Command failed: "${file} ${args.join(' ')}" in ${cwd || process.cwd()}`);
     console.error(err.stderr || err.message);
     return { error: err, success: false };
   }
@@ -61,21 +61,25 @@ async function main() {
   try {
     // 2. Clone the repository single branch/tag
     console.log(`Cloning gemini-cli repository at commit ${tag}...`);
-    const cloneCmd = `git clone ${repoUrl} "${tmpDir}" --quiet && cd "${tmpDir}" && git reset --hard ${tag} --quiet`;
-    const cloneRes = await runCommand(cloneCmd, null, runEnv);
+    const cloneRes = await runCommand('git', ['clone', repoUrl, tmpDir, '--quiet'], null, runEnv);
     if (!cloneRes.success) {
       throw new Error('Failed to clone repository');
     }
 
+    const resetRes = await runCommand('git', ['reset', '--hard', tag, '--quiet'], tmpDir, runEnv);
+    if (!resetRes.success) {
+      throw new Error('Failed to reset repository to correct commit');
+    }
+
     // 3. Install repository dependencies and build SDK workspace
     console.log(`Installing repository workspace dependencies...`);
-    const installRes = await runCommand('npm install --silent', tmpDir, runEnv);
+    const installRes = await runCommand('npm', ['install', '--silent'], tmpDir, runEnv);
     if (!installRes.success) {
       throw new Error('Failed to install repo workspace dependencies');
     }
 
     console.log(`Compiling workspaces and building @google/gemini-cli-sdk...`);
-    const buildRes = await runCommand('npm run build --workspace=@google/gemini-cli-sdk', tmpDir, runEnv);
+    const buildRes = await runCommand('npm', ['run', 'build', '--workspace=@google/gemini-cli-sdk'], tmpDir, runEnv);
     if (!buildRes.success) {
       throw new Error('Failed to build gemini-cli-sdk');
     }
@@ -119,7 +123,11 @@ async function main() {
   } finally {
     // 6. Clean up temporary checkout directory
     console.log(`Cleaning up temporary files...`);
-    await cleanDir(tmpDir);
+    try {
+      await cleanDir(tmpDir);
+    } catch (cleanupError) {
+      console.error(`⚠️ Warning during cleanup: ${cleanupError.message}`);
+    }
   }
 }
 

@@ -39,7 +39,9 @@ function parseJSON(stdout) {
   let started = false;
   for (let i = parts.length - 1; i >= 0; i--) {
     const line = parts[i].trim();
-    if (!line) continue;
+    if (!line) {
+      continue;
+    }
     jsonStr = line + '\n' + jsonStr;
     if (line.includes('}')) {
       braceCount++;
@@ -55,7 +57,7 @@ function parseJSON(stdout) {
   try {
     return JSON.parse(jsonStr);
   } catch (err) {
-    throw new Error('Failed to parse JSON string: ' + jsonStr + '\nOriginal stdout: ' + stdout);
+    throw new Error('Failed to parse JSON string: ' + jsonStr + '\nOriginal stdout: ' + stdout, { cause: err });
   }
 }
 
@@ -64,7 +66,7 @@ test('block-restricted-commands.js offline fallback blacklist', async (t) => {
     const payload = {
       tool_name: 'write_file',
       tool_input: { file_path: '/usr/local/bin/some-script' },
-      is_offline: true
+      is_offline: true,
     };
     const res = await runHook(payload);
     const parsed = parseJSON(res.stdout);
@@ -75,7 +77,7 @@ test('block-restricted-commands.js offline fallback blacklist', async (t) => {
     const payload = {
       tool_name: 'read_file',
       tool_input: { file_path: '~/.ssh/id_rsa' },
-      is_offline: true
+      is_offline: true,
     };
     const res = await runHook(payload);
     const parsed = parseJSON(res.stdout);
@@ -86,7 +88,7 @@ test('block-restricted-commands.js offline fallback blacklist', async (t) => {
     const payload = {
       tool_name: 'run_shell_command',
       tool_input: { command: 'git status' },
-      is_offline: true
+      is_offline: true,
     };
     const res = await runHook(payload);
     const parsed = parseJSON(res.stdout);
@@ -97,7 +99,7 @@ test('block-restricted-commands.js offline fallback blacklist', async (t) => {
     const payload = {
       tool_name: 'run_shell_command',
       tool_input: { command: 'echo "hello"' },
-      is_offline: true
+      is_offline: true,
     };
     const res = await runHook(payload);
     const parsed = parseJSON(res.stdout);

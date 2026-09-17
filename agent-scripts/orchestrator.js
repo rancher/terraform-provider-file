@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import * as readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
-import { exec } from 'node:child_process';
+import { exec, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -26,21 +26,23 @@ function shouldRedirectLog(msg) {
   if (typeof msg !== 'string') {
     return false;
   }
-  return msg.includes('[DEBUG]') || 
-         msg.includes('[PolicyEngine.check]') || 
-         msg.includes('[Routing]') ||
-         msg.includes('[TopicTool]') ||
-         msg.includes('Experiments loaded') ||
-         msg.includes('Loading ignore patterns') ||
-         msg.includes('Ripgrep is not available') ||
-         msg.includes('Tool with name') ||
-         msg.includes('GrepLogic:') ||
-         msg.includes('Loaded cached credentials');
+  return (
+    msg.includes('[DEBUG]') ||
+    msg.includes('[PolicyEngine.check]') ||
+    msg.includes('[Routing]') ||
+    msg.includes('[TopicTool]') ||
+    msg.includes('Experiments loaded') ||
+    msg.includes('Loading ignore patterns') ||
+    msg.includes('Ripgrep is not available') ||
+    msg.includes('Tool with name') ||
+    msg.includes('GrepLogic:') ||
+    msg.includes('Loaded cached credentials')
+  );
 }
 
 const originalLog = console.log;
-console.log = function(...args) {
-  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+console.log = function (...args) {
+  const msg = args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
   if (shouldRedirectLog(msg)) {
     fsSync.appendFileSync(DEBUG_LOG_PATH, msg + '\n');
   } else {
@@ -49,8 +51,8 @@ console.log = function(...args) {
 };
 
 const originalDebug = console.debug;
-console.debug = function(...args) {
-  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+console.debug = function (...args) {
+  const msg = args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
   if (shouldRedirectLog(msg)) {
     fsSync.appendFileSync(DEBUG_LOG_PATH, msg + '\n');
   } else {
@@ -59,8 +61,8 @@ console.debug = function(...args) {
 };
 
 const originalInfo = console.info;
-console.info = function(...args) {
-  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+console.info = function (...args) {
+  const msg = args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
   if (shouldRedirectLog(msg)) {
     fsSync.appendFileSync(DEBUG_LOG_PATH, msg + '\n');
   } else {
@@ -69,8 +71,8 @@ console.info = function(...args) {
 };
 
 const originalWarn = console.warn;
-console.warn = function(...args) {
-  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+console.warn = function (...args) {
+  const msg = args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
   if (shouldRedirectLog(msg)) {
     fsSync.appendFileSync(DEBUG_LOG_PATH, msg + '\n');
   } else {
@@ -79,20 +81,24 @@ console.warn = function(...args) {
 };
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 const rl = readline.createInterface({ input, output });
 
 // Define the ask_user tool using the SDK tool utility
-const askUserTool = tool({
-  name: 'ask_user',
-  description: 'Ask the human user a clarifying question when critical setup or context details are missing.',
-  inputSchema: z.object({
-    question: z.string().describe('The exact clarifying question to prompt the user with.')
-  }),
-}, async (params) => {
-  console.log(`\n\n🤖 [Agent requested input]: ${params.question}`);
-  const answer = await rl.question('👉 Your Answer: ');
-  return { answer };
-});
+const askUserTool = tool(
+  {
+    name: 'ask_user',
+    description: 'Ask the human user a clarifying question when critical setup or context details are missing.',
+    inputSchema: z.object({
+      question: z.string().describe('The exact clarifying question to prompt the user with.'),
+    }),
+  },
+  async (params) => {
+    console.log(`\n\n🤖 [Agent requested input]: ${params.question}`);
+    const answer = await rl.question('👉 Your Answer: ');
+    return { answer };
+  },
+);
 
 // 1. Helper to run Gemini CLI via the native SDK
 async function runGeminiSDK(initialPrompt, systemInstructions = '') {
@@ -119,7 +125,7 @@ async function runGeminiSDK(initialPrompt, systemInstructions = '') {
       }
       // Standard text responses from the primary agent
       if (chunk.type === 'content') {
-        process.stdout.write(chunk.value.text || '');
+        process.stdout.write(chunk.value || '');
       } else if (chunk.type === 'tool_call_request') {
         const toolCall = chunk.value;
         const toolName = toolCall.name;
@@ -136,9 +142,13 @@ async function runGeminiSDK(initialPrompt, systemInstructions = '') {
           // Log other tool calls cleanly
           let args = toolCall.args;
           if (typeof args === 'string') {
-            try { args = JSON.parse(args); } catch { /* ignore */ }
+            try {
+              args = JSON.parse(args);
+            } catch {
+              /* ignore */
+            }
           }
-          
+
           let formattedArgs;
           if (typeof args === 'object' && args !== null) {
             const cleanArgs = {};
@@ -153,14 +163,16 @@ async function runGeminiSDK(initialPrompt, systemInstructions = '') {
           } else {
             formattedArgs = String(args);
           }
-          
+
           console.log(`\n[Tool Call]: ${toolName}\nArguments:\n${formattedArgs}\n`);
         }
       } else if (chunk.type === 'tool_call_result') {
-         // Optionally log tool results to debug log
-         try {
-           fsSync.appendFileSync(DEBUG_LOG_PATH, `\n[Tool Result]: ${JSON.stringify(chunk.value).substring(0, 500)}\n`);
-         } catch { /* ignore */ }
+        // Optionally log tool results to debug log
+        try {
+          fsSync.appendFileSync(DEBUG_LOG_PATH, `\n[Tool Result]: ${JSON.stringify(chunk.value).substring(0, 500)}\n`);
+        } catch {
+          /* ignore */
+        }
       }
     }
   });
@@ -239,8 +251,22 @@ function parseJSONFromText(text) {
   const clean = (match ? match[1] : text).trim();
   try {
     return JSON.parse(clean);
-  } catch {
-    return null;
+  } catch (err) {
+    console.warn(`⚠️ JSON parsing failed: ${err.message}. Attempting graceful fallback structure.`);
+    // Item 20: Fallback to standard strings / default structure when parsing fails
+    const containsApproved = text.toUpperCase().includes('APPROVED') && !text.toUpperCase().includes('UNAPPROVED');
+    return {
+      approval_status: containsApproved ? 'APPROVED' : 'UNAPPROVED',
+      findings: containsApproved
+        ? []
+        : [
+            {
+              file: 'unknown',
+              line_numbers: [],
+              narrative: text.trim() || 'No detail provided in raw text response.',
+            },
+          ],
+    };
   }
 }
 
@@ -315,8 +341,14 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
   planSession.config.getWorkspaceContext().addDirectory(projectTempDir);
   await planSession.initialize();
 
+  // Item 17: Read-Only Tool Area during Planning
+  const planReadonlyTools = ['write_file', 'replace', 'create_file', 'edit_file', 'run_shell_command'];
+  for (const toolName of planReadonlyTools) {
+    planSession.config.toolRegistry.unregisterTool(toolName);
+  }
+
   const planController = new globalThis.AbortController();
-  
+
   let currentPrompt = planPrompt;
   let sessionHealthy = true;
   let planApproved = false;
@@ -337,7 +369,7 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
               throw new Error(`Agent execution failed: ${chunk.type}`);
             }
             if (chunk.type === 'content') {
-              process.stdout.write(chunk.value.text || '');
+              process.stdout.write(chunk.value || '');
             } else if (chunk.type === 'tool_call_request') {
               const toolCall = chunk.value;
               const toolName = toolCall.name;
@@ -353,15 +385,20 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
               } else {
                 let args = toolCall.args;
                 if (typeof args === 'string') {
-                  try { args = JSON.parse(args); } catch { /* ignore */ }
+                  try {
+                    args = JSON.parse(args);
+                  } catch {
+                    /* ignore */
+                  }
                 }
-                
+
                 let formattedArgs;
                 if (typeof args === 'object' && args !== null) {
                   const cleanArgs = {};
                   for (const [key, value] of Object.entries(args)) {
                     if (typeof value === 'string' && value.length > 500) {
-                      cleanArgs[key] = value.substring(0, 500) + `... [Truncated, total length: ${value.length} characters]`;
+                      cleanArgs[key] =
+                        value.substring(0, 500) + `... [Truncated, total length: ${value.length} characters]`;
                     } else {
                       cleanArgs[key] = value;
                     }
@@ -370,13 +407,18 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
                 } else {
                   formattedArgs = String(args);
                 }
-                
+
                 console.log(`\n[Tool Call]: ${toolName}\nArguments:\n${formattedArgs}\n`);
               }
             } else if (chunk.type === 'tool_call_result') {
-               try {
-                 fsSync.appendFileSync(DEBUG_LOG_PATH, `\n[Tool Result]: ${JSON.stringify(chunk.value).substring(0, 500)}\n`);
-               } catch { /* ignore */ }
+              try {
+                fsSync.appendFileSync(
+                  DEBUG_LOG_PATH,
+                  `\n[Tool Result]: ${JSON.stringify(chunk.value).substring(0, 500)}\n`,
+                );
+              } catch {
+                /* ignore */
+              }
             }
           }
         });
@@ -391,7 +433,7 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
       console.log(`\n[Starting a new planning agent session for refinement...]`);
       const possiblePlanPaths = [
         path.join(process.cwd(), 'plans/current.md'),
-        path.join(projectTempDir, 'plans/current.md')
+        path.join(projectTempDir, 'plans/current.md'),
       ];
       let currentPlanContent = '';
       for (const p of possiblePlanPaths) {
@@ -426,7 +468,7 @@ Please revise and refine the development plan under 'plans/current.md' to incorp
     // Locate the plan file and print its contents to stdout
     const possiblePlanPaths = [
       path.join(process.cwd(), 'plans/current.md'),
-      path.join(projectTempDir, 'plans/current.md')
+      path.join(projectTempDir, 'plans/current.md'),
     ];
     let planFileFound = null;
     for (const p of possiblePlanPaths) {
@@ -638,6 +680,12 @@ ${activeDiff}
     qaSession.config.getWorkspaceContext().addDirectory(projectTempDir);
     await qaSession.initialize();
 
+    // Item 18: QA Review Read-Only Sandbox
+    const qaReadonlyTools = ['write_file', 'replace', 'create_file', 'edit_file', 'run_shell_command'];
+    for (const toolName of qaReadonlyTools) {
+      qaSession.config.toolRegistry.unregisterTool(toolName);
+    }
+
     const qaController = new globalThis.AbortController();
     let accumulatedText = '';
 
@@ -645,11 +693,11 @@ ${activeDiff}
       const stream = qaSession.sendStream(qaPrompt, qaController.signal);
 
       for await (const chunk of stream) {
-      if (chunk.type === 'error' || chunk.type === 'invalid_stream' || chunk.type === 'agent_execution_blocked') {
-        throw new Error(`Agent execution failed: ${chunk.type}`);
-      }
+        if (chunk.type === 'error' || chunk.type === 'invalid_stream' || chunk.type === 'agent_execution_blocked') {
+          throw new Error(`Agent execution failed: ${chunk.type}`);
+        }
         if (chunk.type === 'content') {
-          const text = chunk.value.text || '';
+          const text = chunk.value || '';
           process.stdout.write(text);
           accumulatedText += text;
         }
@@ -734,11 +782,11 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
     await promptIdContext.run(commitSession.id, async () => {
       const stream = commitSession.sendStream(`Here is the git diff:\n\n${diffResult.stdout}`, commitController.signal);
       for await (const chunk of stream) {
-      if (chunk.type === 'error' || chunk.type === 'invalid_stream' || chunk.type === 'agent_execution_blocked') {
-        throw new Error(`Agent execution failed: ${chunk.type}`);
-      }
+        if (chunk.type === 'error' || chunk.type === 'invalid_stream' || chunk.type === 'agent_execution_blocked') {
+          throw new Error(`Agent execution failed: ${chunk.type}`);
+        }
         if (chunk.type === 'content') {
-          accumulatedMsg += chunk.value.text || '';
+          accumulatedMsg += chunk.value || '';
         }
       }
     });
@@ -793,7 +841,13 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
   }
 
   console.log(`Committing: ${finalMsg}`);
-  const commitStatus = await handleRunShellCommand(`git commit -m "${finalMsg.replace(/"/g, '\\"')}"`);
+  let commitStatus;
+  try {
+    const { stdout, stderr } = await execFileAsync('git', ['commit', '-m', finalMsg], { maxBuffer: 10 * 1024 * 1024 });
+    commitStatus = { stdout, stderr, exit_code: 0 };
+  } catch (err) {
+    commitStatus = { stdout: err.stdout || '', stderr: err.stderr || err.message, exit_code: err.code || 1 };
+  }
 
   if (commitStatus.exit_code === 0) {
     console.log('🟢 Changes committed successfully!');

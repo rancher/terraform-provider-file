@@ -68,7 +68,19 @@ function parseJSONFromText(text) {
 }
 
 function runOfflineChecks(tool_name, tool_input) {
-  const blacklist = ['.githooks/', '.gemini/hooks/', '.gemini/settings.json', '.env', '.ssh/', '/etc/', '/private/', '/var/', '/usr/', 'id_rsa', 'id_ed25519'];
+  const blacklist = [
+    '.githooks/',
+    '.gemini/hooks/',
+    '.gemini/settings.json',
+    '.env',
+    '.ssh/',
+    '/etc/',
+    '/private/',
+    '/var/',
+    '/usr/',
+    'id_rsa',
+    'id_ed25519',
+  ];
 
   if (tool_name === 'run_shell_command' && tool_input && tool_input.command) {
     const cmdStr = tool_input.command.trim().toLowerCase();
@@ -149,9 +161,31 @@ async function main() {
     process.exit(1);
   }
 
-  const { tool_name, tool_input } = inputData;
+  const { tool_name, tool_input, is_offline } = inputData;
 
   console.error(`🔒 Auditing tool call: ${tool_name} with real-time safety agent...`);
+
+  if (is_offline === true) {
+    console.error(`🔒 Offline audit requested. Falling back to standard regex safety checks.`);
+    const isViolated = runOfflineChecks(tool_name, tool_input);
+    if (isViolated) {
+      console.log(
+        JSON.stringify({
+          decision: 'deny',
+          reason: `🔒 Security Policy Violation: This action is restricted.\n\nPlease STOP what you are doing and call the 'ask_user' tool to request that the human developer perform this action manually on your behalf.`,
+          systemMessage: '🔒 Security Block: Action denied by fallback safety check.',
+        }),
+      );
+      process.exit(0);
+    }
+    console.log(
+      JSON.stringify({
+        decision: 'allow',
+        systemMessage: '🔒 Hook Notification: Execution approved (offline fallback checks passed).',
+      }),
+    );
+    process.exit(0);
+  }
 
   try {
     const auditor = new GeminiCliAgent({
@@ -164,11 +198,13 @@ async function main() {
 Tool Name: ${tool_name}
 Tool Input: ${JSON.stringify(tool_input, null, 2)}`;
 
-    const stream = auditor.session().sendStream(prompt, controller.signal);
+    const session = auditor.session();
+    await session.initialize();
+    const stream = session.sendStream(prompt, controller.signal);
     let accumulatedText = '';
     for await (const chunk of stream) {
       if (chunk.type === 'content') {
-        accumulatedText += chunk.value.text || '';
+        accumulatedText += chunk.value || '';
       }
     }
 

@@ -78,6 +78,7 @@ async function main() {
         entry.endsWith('-report.json') ||
         entry.endsWith('-metadata.json') ||
         entry === 'logs' ||
+        entry === 'chats' ||
         entry === 'tool-output' ||
         entry === 'phase-state.json' ||
         entry === 'phase.txt'

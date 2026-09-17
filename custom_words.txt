@@ -85,6 +85,7 @@ pathspec
 peskyID
 pinentry
 pipefail
+PRRT
 pkgs
 planmodifier
 popd
@@ -138,6 +139,7 @@ tostring
 TOTP
 trachier
 unparseable
+unredacted
 unreviewed
 unvetted
 updatecli

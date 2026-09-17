@@ -9,8 +9,8 @@
     "test": "test"
   },
   "scripts": {
-    "test": "node agent-scripts/compile-docs.js && node --test \".github/workflows/scripts/tests/**/*.test.js\"",
-    "postinstall": "node agent-scripts/install-sdk.js"
+    "test": "node agent-scripts/compile-docs.js && node --test \".github/workflows/scripts/tests/**/*.test.js\" \"agent-scripts/tests/hook.test.js\"",
+    "setup": "node agent-scripts/install-sdk.js"
   },
   "repository": {
     "type": "git",

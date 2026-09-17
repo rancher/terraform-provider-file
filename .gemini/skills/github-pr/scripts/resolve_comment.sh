@@ -13,6 +13,7 @@ THREAD_ID="$1"
 
 echo "Resolving review thread $THREAD_ID..."
 
+# shellcheck disable=SC2016
 gh api graphql -f query='
 mutation($threadId: ID!) {
   resolveReviewThread(input: {threadId: $threadId}) {
