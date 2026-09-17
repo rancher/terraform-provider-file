@@ -73,34 +73,21 @@ function runOfflineChecks(tool_name, tool_input) {
   if (tool_name === 'run_shell_command' && tool_input && tool_input.command) {
     const cmdStr = tool_input.command.trim().toLowerCase();
 
-    // Check forbidden Git commands (any that write/modify/destroy)
-    const forbiddenGit = [
-      'commit',
-      'push',
-      'checkout',
-      'branch',
-      'add',
-      'rm',
-      'restore',
-      'reset',
-      'revert',
-      'merge',
-      'rebase',
-      'stash',
-      'init',
-      'tag',
-    ];
-
-    if (cmdStr.startsWith('git')) {
-      const parts = cmdStr.split(/\s+/);
-      const subCommand = parts[1];
-      if (forbiddenGit.includes(subCommand)) {
-        return true;
-      }
+    // Strictly forbid all raw Git and GitHub CLI commands
+    if (cmdStr === 'git' || cmdStr.startsWith('git ') || cmdStr === 'gh' || cmdStr.startsWith('gh ')) {
+      return true;
     }
 
     // Check blacklist files access in shell command
     if (blacklist.some((file) => cmdStr.includes(file))) {
+      return true;
+    }
+  }
+
+  // Strictly forbid scraping GitHub issues or pull requests
+  if (tool_name === 'web_fetch' && tool_input && tool_input.prompt) {
+    const promptStr = tool_input.prompt.toLowerCase();
+    if (promptStr.includes('github.com') && (promptStr.includes('/pull') || promptStr.includes('/issues'))) {
       return true;
     }
   }
@@ -119,10 +106,9 @@ function runOfflineChecks(tool_name, tool_input) {
 const AUDITOR_INSTRUCTIONS = `You are a strict security auditor. Evaluate the proposed tool call and determine if it violates our safety policies.
 
 SAFETY POLICIES:
-1. NO WRITING GIT COMMANDS: All Git shell commands that modify, write, or alter repository state are strictly FORBIDDEN.
-   - FORBIDDEN commands/actions: "git commit", "git push", "git checkout" (changing branches), "git branch" (creating, deleting, or modifying branches), "git add", "git rm", "git restore", "git reset", "git revert", "git merge", "git rebase", "git stash", "git init", "git tag".
-   - ALLOWED Git commands: Strictly read-only operations, such as "git diff", "git log", "git status", "git show", "git blame", "git rev-parse", and "git branch --list" (strictly listing branches, but not creating or editing them).
-2. NO BLACKLIST FILE ACCESS: Any tool call (including reading/writing via read_file, write_file, replace, or shell commands like cat, echo, grep, redirection) that attempts to alter, read, list, delete, or use any files on the Blacklist is strictly FORBIDDEN.
+1. NO RAW GIT OR GH COMMANDS: All direct Git and GitHub CLI shell commands are strictly FORBIDDEN. Sub-agents must use the installed skills ('git-readonly', 'github-ci', 'github-pr') instead of executing raw "git" or "gh" commands.
+2. NO SCRAPING GITHUB PRs/ISSUES: Web fetching (web_fetch) any github.com URLs that contain "/pull" or "/issues" is strictly FORBIDDEN. Sub-agents must use the "github-pr" skill.
+3. NO BLACKLIST FILE ACCESS: Any tool call (including reading/writing via read_file, write_file, replace, or shell commands like cat, echo, grep, redirection) that attempts to alter, read, list, delete, or use any files on the Blacklist is strictly FORBIDDEN.
    - BLACKLIST FILES:
      - .gemini/hooks/
      - .gemini/settings.json
@@ -138,7 +124,7 @@ If the request is ALLOWED, return a JSON object with:
 If the request is FORBIDDEN, return a JSON object with:
 {
   "allowed": false,
-  "reason": "A professional explanation of the policy violation, clearly instructing the agent to STOP what it is doing and call the 'ask_user' tool to request that the human developer perform this specific action manually on its behalf."
+  "reason": "A professional explanation of the policy violation, instructing the agent to use the installed custom skills (git-readonly, github-pr, github-ci) for the desired operation instead of direct raw commands or web fetching."
 }
 
 You MUST return ONLY a raw JSON block. Do not include markdown code block formatting, conversational text, or preambles.`;

@@ -207,7 +207,8 @@ Your primary task is to write a detailed markdown plan under 'plans/current.md' 
 
   const planSystemInstructions = `You are strictly in PLANNING phase (Phase 1). Do NOT modify any source files. 
 Research the codebase and construct a comprehensive development plan to satisfy the user's objective.
-Your primary task is to write a detailed markdown plan under 'plans/current.md'.`;
+Your primary task is to write a detailed markdown plan under 'plans/current.md'.
+Important: Always use the installed skills ('git-readonly', 'github-ci', 'github-pr') for Git and GitHub operations instead of raw commands (e.g. 'git branch', 'gh pr view') or web fetching GitHub URLs.`;
   await runGeminiSDK(planPrompt, planSystemInstructions);
 
   console.log('\n======================================');
@@ -235,7 +236,8 @@ Modify the files surgically. Maintain the agentic framework, respect project sta
 Once you have fully finished your implementation, run the project's tests to ensure they are clean.`;
 
   const implementSystemInstructions = `You are in the IMPLEMENTATION phase (Phase 2). 
-Implement the approved plan documented in 'plans/current.md' meticulously and surgically.`;
+Implement the approved plan documented in 'plans/current.md' meticulously and surgically.
+Important: Always use the installed skills ('git-readonly', 'github-ci', 'github-pr') for Git and GitHub operations instead of raw commands (e.g. 'git branch', 'gh pr view') or web fetching GitHub URLs.`;
   await runGeminiSDK(implementPrompt, implementSystemInstructions);
 
   console.log('\n✅ Implementation session closed. Moving to automated QA review...');
@@ -269,7 +271,8 @@ ${buildResult.stderr}
 
 Please analyze these errors, fix the code surgically, and re-run tests.`;
 
-      const qaSystemInstructions = `You are a QA/Self-Healing assistant. Resolve the test/linter failures reported by the QA pipeline.`;
+      const qaSystemInstructions = `You are a QA/Self-Healing assistant. Resolve the test/linter failures reported by the QA pipeline.
+Important: Always use the installed skills ('git-readonly', 'github-ci', 'github-pr') for Git and GitHub operations instead of raw commands (e.g. 'git branch', 'gh pr view') or web fetching GitHub URLs.`;
       await runGeminiSDK(qaPrompt, qaSystemInstructions);
       continue;
     }
@@ -423,7 +426,8 @@ ${JSON.stringify(qaReportObj.findings, null, 2)}
 
 Please analyze these findings, fix the code surgically, and re-run tests.`;
 
-      const healInstructions = `You are an implementation assistant. Meticulously resolve all findings and errors flagged by the QA review.`;
+      const healInstructions = `You are an implementation assistant. Meticulously resolve all findings and errors flagged by the QA review.
+Important: Always use the installed skills ('git-readonly', 'github-ci', 'github-pr') for Git and GitHub operations instead of raw commands (e.g. 'git branch', 'gh pr view') or web fetching GitHub URLs.`;
       await runGeminiSDK(healPrompt, healInstructions);
     }
   }
