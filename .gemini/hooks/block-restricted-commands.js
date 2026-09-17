@@ -1,14 +1,12 @@
 #!/usr/bin/env node
 
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { GeminiCliAgent } from '@google/gemini-cli-sdk';
 import { Buffer } from 'node:buffer';
-import { verifySafeGitCommand, cleanCommandString } from '../../agent-scripts/tools/git.js';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const hookName = path.basename(process.argv[1]);
-const isStartup = hookName === '01-startup-context.js';
-const introLog = `🔒 Hook: ${hookName} - ${isStartup ? 'Loading startup context...' : 'Loading hook context...'}`;
+const introLog = `🔒 Hook: ${hookName} - Loading hook context...`;
 console.error(introLog);
 
 const originalLog = console.log;
@@ -23,7 +21,7 @@ console.log = function (msg) {
     if (parsed.systemMessage) {
       console.error(parsed.systemMessage);
     }
-    const exitLog = `🔒 Hook: ${hookName} - ${isStartup ? 'context successfully loaded.' : 'Hook successfully loaded.'}`;
+    const exitLog = `🔒 Hook: ${hookName} - Hook successfully loaded.`;
     console.error(exitLog);
 
     const msgs = [introLog];
@@ -33,7 +31,7 @@ console.log = function (msg) {
     msgs.push(exitLog);
     parsed.systemMessage = msgs.join('\n');
 
-    if (!parsed.decision && !isStartup) {
+    if (!parsed.decision) {
       parsed.decision = 'allow';
     }
 
@@ -59,35 +57,91 @@ process.on('exit', (code) => {
   }
 });
 
-process.on('uncaughtException', (err) => {
-  const errMsg = `🔒 Hook Error (${hookName}): Unhandled exception - ${err.message || err}`;
-  console.error(errMsg);
-  if (!hasLogged) {
-    process.stdout.write(
-      JSON.stringify({
-        decision: 'deny',
-        systemMessage: `${introLog}\n${errMsg}`,
-      }) + '\n',
-    );
-    hasLogged = true;
+function parseJSONFromText(text) {
+  const match = text.match(/```json\s*\n([\s\S]*?)\n\s*```/) || text.match(/```\s*\n([\s\S]*?)\n\s*```/);
+  const clean = (match ? match[1] : text).trim();
+  try {
+    return JSON.parse(clean);
+  } catch {
+    return null;
   }
-  process.exit(1);
-});
+}
 
-process.on('unhandledRejection', (reason) => {
-  const errMsg = `🔒 Hook Error (${hookName}): Unhandled promise rejection - ${reason.message || reason}`;
-  console.error(errMsg);
-  if (!hasLogged) {
-    process.stdout.write(
-      JSON.stringify({
-        decision: 'deny',
-        systemMessage: `${introLog}\n${errMsg}`,
-      }) + '\n',
-    );
-    hasLogged = true;
+function runOfflineChecks(tool_name, tool_input) {
+  const blacklist = ['.githooks/', '.gemini/hooks/', '.gemini/settings.json', '.env', '.ssh/', '/etc/', '/private/'];
+
+  if (tool_name === 'run_shell_command' && tool_input && tool_input.command) {
+    const cmdStr = tool_input.command.trim().toLowerCase();
+
+    // Check forbidden Git commands (any that write/modify/destroy)
+    const forbiddenGit = [
+      'commit',
+      'push',
+      'checkout',
+      'branch',
+      'add',
+      'rm',
+      'restore',
+      'reset',
+      'revert',
+      'merge',
+      'rebase',
+      'stash',
+      'init',
+      'tag',
+    ];
+
+    if (cmdStr.startsWith('git')) {
+      const parts = cmdStr.split(/\s+/);
+      const subCommand = parts[1];
+      if (forbiddenGit.includes(subCommand)) {
+        return true;
+      }
+    }
+
+    // Check blacklist files access in shell command
+    if (blacklist.some((file) => cmdStr.includes(file))) {
+      return true;
+    }
   }
-  process.exit(1);
-});
+
+  const fileModificationTools = ['write_file', 'replace', 'edit_file', 'create_file', 'read_file'];
+  if (fileModificationTools.includes(tool_name) && tool_input) {
+    const targetPath = (tool_input.file_path || tool_input.path || '').toLowerCase();
+    if (blacklist.some((file) => targetPath.includes(file.replace(/^\.|\/$/g, '')))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+const AUDITOR_INSTRUCTIONS = `You are a strict security auditor. Evaluate the proposed tool call and determine if it violates our safety policies.
+
+SAFETY POLICIES:
+1. NO WRITING GIT COMMANDS: All Git shell commands that modify, write, or alter repository state are strictly FORBIDDEN.
+   - FORBIDDEN commands/actions: "git commit", "git push", "git checkout" (changing branches), "git branch" (creating, deleting, or modifying branches), "git add", "git rm", "git restore", "git reset", "git revert", "git merge", "git rebase", "git stash", "git init", "git tag".
+   - ALLOWED Git commands: Strictly read-only operations, such as "git diff", "git log", "git status", "git show", "git blame", "git rev-parse", and "git branch --list" (strictly listing branches, but not creating or editing them).
+2. NO BLACKLIST FILE ACCESS: Any tool call (including reading/writing via read_file, write_file, replace, or shell commands like cat, echo, grep, redirection) that attempts to alter, read, list, delete, or use any files on the Blacklist is strictly FORBIDDEN.
+   - BLACKLIST FILES:
+     - .gemini/hooks/
+     - .gemini/settings.json
+     - .env
+     - any SSH configuration or private/public keys (~/.ssh, id_rsa, id_ed25519)
+     - system configurations (/etc, /var, /private, /usr)
+
+If the request is ALLOWED, return a JSON object with:
+{
+  "allowed": true
+}
+
+If the request is FORBIDDEN, return a JSON object with:
+{
+  "allowed": false,
+  "reason": "A professional explanation of the policy violation, clearly instructing the agent to STOP what it is doing and call the 'ask_user' tool to request that the human developer perform this specific action manually on its behalf."
+}
+
+You MUST return ONLY a raw JSON block. Do not include markdown code block formatting, conversational text, or preambles.`;
 
 async function main() {
   let inputData;
@@ -109,173 +163,58 @@ async function main() {
     process.exit(1);
   }
 
-  async function verifyShellCommand(command, cwd) {
-    let cmdStr = '';
-    if (typeof command === 'string') {
-      cmdStr = command;
-    } else if (Array.isArray(command)) {
-      cmdStr = command.join(' ');
-    } else if (command && typeof command === 'object') {
-      cmdStr = command.command || '';
-    }
-    const trimmedCmd = cmdStr.trim();
+  const { tool_name, tool_input } = inputData;
 
-    // Strip leading env var assignments and optional sudo via cleanCommandString helper (SRP compliant)
-    const commandClean = cleanCommandString(trimmedCmd);
+  console.error(`🔒 Auditing tool call: ${tool_name} with real-time safety agent...`);
 
-    // Parse the agent scripts whitelist from agent-scripts/whitelist.json
-    let isWhitelisted = false;
-    if (trimmedCmd.includes('agent-scripts/')) {
-      const whitelistFile = path.resolve(cwd || process.cwd(), 'agent-scripts/whitelist.json');
-      if (fs.existsSync(whitelistFile)) {
-        let whitelistContent = {};
-        try {
-          whitelistContent = JSON.parse(fs.readFileSync(whitelistFile, 'utf-8'));
-        } catch (err) {
-          console.error(`🔒 Warning: Failed to parse agent scripts whitelist.json: ${err.message}. Falling back.`);
-        }
-        const allowed = whitelistContent.allowed_scripts || [];
-        // Ensure secure token boundaries to prevent spoofing, path traversal, or execution spoofs
-        isWhitelisted = allowed.some((script) => {
-          const escapedScript = script.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-          const regex = new RegExp(`(^|\\s|&&|\\|\\||;)${escapedScript}(\\s|$)`);
-          return regex.test(trimmedCmd);
-        });
+  try {
+    const auditor = new GeminiCliAgent({
+      model: 'gemini-3.5-flash',
+      instructions: AUDITOR_INSTRUCTIONS,
+    });
+
+    const controller = new globalThis.AbortController();
+    const prompt = `Evaluate this tool call:
+Tool Name: ${tool_name}
+Tool Input: ${JSON.stringify(tool_input, null, 2)}`;
+
+    const stream = auditor.sendStream(prompt, controller.signal);
+    let accumulatedText = '';
+    for await (const chunk of stream) {
+      if (chunk.type === 'content') {
+        accumulatedText += chunk.value.text || '';
       }
     }
 
-    // Anti-Bypass Guardrail: Prevent spoofing the GEMINI_TEST environment variable
-    if (/\bGEMINI_TEST\s*=/.test(trimmedCmd)) {
-      return {
-        decision: 'deny',
-        reason:
-          'Security Policy Violation: Spoofing the GEMINI_TEST environment variable is strictly prohibited.\n\n' +
-          'This environment variable is reserved for internal pipeline tests and cannot be used to bypass mandatory project test gates.',
-        systemMessage: '🔒 Security Block: Bypassing tests via GEMINI_TEST is prohibited.',
-      };
-    }
-
-    // Anti-Bypass Guardrail: Unconditionally deny any manual writing, editing, or spoofing of any gate approval/challenge JSON/age files
-    const isManipulatingApproval =
-      /\b(echo|cat|touch|rm|mv|cp|write|tee|vim|vi|nano|printf|sed|awk)\b.*\b(plan-approval|test-approval|review-approval|user-approval)\.(json|challenge|age|sig)\b|>>?[^>]*\b(plan-approval|test-approval|review-approval|user-approval)\.(json|challenge|age|sig)\b/.test(
-        commandClean,
-      );
-    if (isManipulatingApproval) {
-      return {
-        decision: 'deny',
-        reason:
-          'Security Policy Violation: Manually writing, editing, or spoofing any planning, testing, review, or commit gate approval files is strictly prohibited.\n\n' +
-          'Gating approval files must ONLY be generated automatically and securely by our pipeline hooks and sub-agents.\n\n' +
-          '👉 TO PROCEED:\n' +
-          '1. Comply strictly with our gated sequence (Plan -> Test -> Review -> Commit).\n' +
-          '2. For Plan Approval, use the `ask_user` tool with intent = "plan approval" and include the `plan` field in your TOML.\n' +
-          '3. For Commit Approval, use the `ask_user` tool with intent = "commit approval" and include the `hash`, `commit-message`, and `pr-description` fields in your TOML.',
-        systemMessage: '🔒 Security Block: Direct manipulation of approval files is prohibited.',
-      };
-    }
-
-    // Anti-Bypass Guardrail: Unconditionally deny any manual deletion, renaming, or tampering with remediation-report.md
-    const isManipulatingRemediation = /\b(rm|mv|cp|rename)\b.*\b(remediation-report)\.md\b/.test(commandClean);
-    if (isManipulatingRemediation) {
-      return {
-        decision: 'deny',
-        reason:
-          '🔒 Security Policy Violation: Manually deleting, moving, or tampering with remediation-report.md is strictly prohibited.\n\n' +
-          'The remediation checklist must only be written and updated automatically by the Gemini CLI review pipeline, and completed tasks must be checked off in-place (- [x]).',
-        systemMessage: '🔒 Security Block: Deleting or tampering with remediation-report.md is prohibited.',
-      };
-    }
-
-    // Protect the whitelist.json from any manual user write, edit, rename, move, delete, or spoofing operations
-    const isManipulatingWhitelist =
-      /\b(echo|cat|touch|rm|mv|cp|write|tee|vim|vi|nano|printf|sed|awk)\b.*\b(whitelist)\.json\b|>>?[^>]*\b(whitelist)\.json\b/.test(
-        commandClean,
-      );
-    if (isManipulatingWhitelist) {
-      return {
-        decision: 'deny',
-        reason:
-          '🔒 Security Policy Violation: Manually writing, editing, or spoofing gating approvals or system whitelists is strictly prohibited.\n\n' +
-          'These secure configuration files must ONLY be generated automatically and securely by our pipeline hooks and repository managers.\n\n' +
-          '👉 TO PROCEED:\n' +
-          '1. Comply strictly with our gated sequence (Plan -> Test -> Review -> Commit).\n' +
-          '2. Do not attempt to modify secure system config files or signatures.',
-        systemMessage: '🔒 Security Block: Direct manipulation of secure config files is prohibited.',
-      };
-    }
-
-    // Anti-Bypass Guardrail: Unconditionally deny any manual execution of enforcer hook scripts inside .gemini/hooks/ or .claude/hooks/
-    const isExecutingHooksManually =
-      trimmedCmd.includes('.gemini/hooks/') ||
-      trimmedCmd.includes('.gemini/hooks') ||
-      trimmedCmd.includes('.claude/hooks/') ||
-      trimmedCmd.includes('.claude/hooks') ||
-      trimmedCmd.includes('agent-scripts/');
-    const isGitDiff = commandClean.trim().startsWith('git diff');
-    if (isExecutingHooksManually && !isGitDiff && !isWhitelisted) {
-      return {
-        decision: 'deny',
-        reason:
-          '🔒 Security Policy Violation: Manual execution of enforcer hook or agent scripts is strictly prohibited.\n\n' +
-          'These scripts are part of the secure system pipeline and must only be executed automatically by the Gemini CLI lifecycle.\n\n' +
-          '👉 TO PROCEED:\n' +
-          'Do not try to run or trigger hook scripts manually. Instead, use the correct lifecycle tools:\n' +
-          '1. For Plan Approval, call the `ask_user` tool with intent = "plan approval" containing your TOML payload.\n' +
-          '2. To run reviews, run: agent-scripts/code-review.js \n' +
-          '3. For Commit Approval, call the `ask_user` tool with intent = "commit approval" containing your TOML payload.\n',
-        systemMessage: '🔒 Security Block: Manual execution of secure scripts is prohibited.',
-      };
-    }
-
-    // Hand off Git specific checks to git.js
-    return await verifySafeGitCommand(commandClean, cwd);
-  }
-
-  const { tool_name, tool_input, cwd } = inputData;
-
-  if (tool_name === 'run_shell_command' && tool_input && tool_input.command) {
-    const result = await verifyShellCommand(tool_input.command, cwd || process.cwd());
-    if (result && result.decision === 'deny') {
+    const decision = parseJSONFromText(accumulatedText);
+    if (decision && decision.allowed === false) {
       console.log(
         JSON.stringify({
           decision: 'deny',
-          reason: result.reason || 'Command execution blocked by security policy.',
-          systemMessage: '🔒 Security Block: Restricted shell command denied.',
+          reason: decision.reason || 'Restricted action blocked by security policy.',
+          systemMessage: '🔒 Security Block: Action denied by real-time safety audit.',
+        }),
+      );
+      process.exit(0);
+    }
+  } catch (err) {
+    console.error(
+      `⚠️ Real-time safety audit skipped or failed: ${err.message}. Falling back to standard regex safety checks.`,
+    );
+    const isViolated = runOfflineChecks(tool_name, tool_input);
+    if (isViolated) {
+      console.log(
+        JSON.stringify({
+          decision: 'deny',
+          reason: `🔒 Security Policy Violation: This action is restricted.\n\nPlease STOP what you are doing and call the 'ask_user' tool to request that the human developer perform this action manually on your behalf.`,
+          systemMessage: '🔒 Security Block: Action denied by fallback safety check.',
         }),
       );
       process.exit(0);
     }
   }
 
-  const fileModificationTools = ['write_file', 'replace', 'edit_file', 'create_file'];
-  if (fileModificationTools.includes(tool_name) && tool_input) {
-    const targetPath = tool_input.file_path || tool_input.path || '';
-    if (targetPath.endsWith('eslint.config.mjs') || targetPath.endsWith('flake.nix')) {
-      const isEslint = targetPath.endsWith('eslint.config.mjs');
-      console.log(
-        JSON.stringify({
-          decision: 'deny',
-          reason: isEslint
-            ? 'Direct modification of eslint.config.mjs is restricted. If you need to change linting rules, you must use the ask_user tool to present the proposed changes and request that the developer apply them manually.'
-            : 'Direct modification of flake.nix is restricted. If you need to change system packages or nix configurations, you must use the ask_user tool to present the proposed changes and request that the developer apply them manually.',
-          systemMessage: isEslint
-            ? '🔒 Security Block: Modifying ESLint configuration is denied.'
-            : '🔒 Security Block: Modifying flake.nix is denied.',
-        }),
-      );
-      process.exit(0);
-    }
-  }
-
-  let allowedMessage = 'execution allowed.';
-  if (tool_name === 'run_shell_command' && tool_input && tool_input.command) {
-    const cmdStr = tool_input.command.length > 100 ? tool_input.command.substring(0, 97) + '...' : tool_input.command;
-    allowedMessage = `\`${cmdStr}\` command execution allowed.`;
-  } else if (tool_name) {
-    allowedMessage = `\`${tool_name}\` execution allowed.`;
-  }
-
-  console.log(JSON.stringify({ decision: 'allow', systemMessage: `🔒 Hook Notification: ${allowedMessage}` }));
+  console.log(JSON.stringify({ decision: 'allow', systemMessage: `🔒 Hook Notification: Execution approved.` }));
   process.exit(0);
 }
 

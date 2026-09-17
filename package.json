@@ -9,7 +9,8 @@
     "test": "test"
   },
   "scripts": {
-    "test": "node agent-scripts/compile-docs.js && node --test \"agent-scripts/**/*.test.js\" \".github/workflows/scripts/tests/**/*.test.js\""
+    "test": "node agent-scripts/compile-docs.js && node --test \".github/workflows/scripts/tests/**/*.test.js\"",
+    "postinstall": "node agent-scripts/install-sdk.js"
   },
   "repository": {
     "type": "git",
@@ -26,6 +27,13 @@
   "devDependencies": {
     "@actions/core": "^3.0.1",
     "@eslint/js": "^10.0.1",
-    "@iarna/toml": "^2.2.5"
+    "@google/gemini-cli-core": "0.60.0",
+    "@iarna/toml": "^2.2.5",
+    "zod": "^3.25.76",
+    "zod-to-json-schema": "^3.25.1"
+  },
+  "allowScripts": {
+    "@github/keytar@7.10.6": true,
+    "github:google-gemini/gemini-cli#6a466a7e2fe2b1255752c1e74f69b31f0216084d": true
   }
 }

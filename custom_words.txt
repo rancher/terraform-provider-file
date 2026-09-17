@@ -39,6 +39,7 @@ façade
 façades
 fetchurl
 genproto
+genai
 getline
 gofmt
 goimports

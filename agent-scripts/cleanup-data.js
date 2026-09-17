@@ -1,18 +1,27 @@
 #!/usr/bin/env node
-import fs from 'fs';
-import path from 'path';
-import { deleteFileSafe, fileExistsSafe, readdirSafe, readFileSafe, resolveTargetDir, statSafe } from './tools/file.js';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
 
-const tmpBaseDir = await resolveTargetDir();
+const tmpBaseDir = path.resolve(os.homedir(), '.gemini/tmp/terraform-provider-file');
 const logsFilePath = path.join(tmpBaseDir, 'logs.json');
 
 // Regex to extract UUID from file/directory names
 const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
 
+async function exists(filePath) {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function getActiveSessionId() {
   try {
-    if (fileExistsSafe(logsFilePath)) {
-      const logsContent = await readFileSafe(logsFilePath, 'utf-8');
+    if (await exists(logsFilePath)) {
+      const logsContent = await fs.readFile(logsFilePath, 'utf-8');
       if (logsContent) {
         const logs = JSON.parse(logsContent);
         if (Array.isArray(logs) && logs.length > 0) {
@@ -40,14 +49,14 @@ async function main() {
 
   console.log(`ℹ️ Detected active session: ${activeSession}`);
 
-  if (!fileExistsSafe(tmpBaseDir)) {
+  if (!(await exists(tmpBaseDir))) {
     console.log('ℹ️ Temp base directory does not exist. Nothing to clean up.');
     return;
   }
 
   let entries = [];
   try {
-    entries = await readdirSafe(tmpBaseDir);
+    entries = await fs.readdir(tmpBaseDir);
   } catch (err) {
     console.error(`❌ Failed to read temp directory: ${err.message}`);
     process.exit(1);
@@ -57,7 +66,7 @@ async function main() {
     const entryPath = path.join(tmpBaseDir, entry);
 
     try {
-      const stats = await statSafe(entryPath);
+      const stats = await fs.stat(entryPath);
       const isDirectory = stats.isDirectory();
 
       // Clear out all tool-outputs, signatures, approvals, reports, remediation steps, logs (excluding logs.json), phase state
@@ -75,10 +84,16 @@ async function main() {
       ) {
         if (isDirectory) {
           console.log(`🧹 Removing temporary directory: ${entry}`);
-          fs.rmSync(entryPath, { recursive: true, force: true });
+          await fs.rm(entryPath, { recursive: true, force: true });
         } else {
           console.log(`🧹 Removing temporary file: ${entry}`);
-          await deleteFileSafe(entryPath);
+          try {
+            await fs.unlink(entryPath);
+          } catch (err) {
+            if (err.code !== 'ENOENT') {
+              throw err;
+            }
+          }
         }
         continue;
       }
@@ -91,10 +106,16 @@ async function main() {
         if (sessionId !== activeSession) {
           if (isDirectory) {
             console.log(`🧹 Removing stale session directory: ${entry}`);
-            fs.rmSync(entryPath, { recursive: true, force: true });
+            await fs.rm(entryPath, { recursive: true, force: true });
           } else {
             console.log(`🧹 Removing stale session chat/file: ${entry}`);
-            await deleteFileSafe(entryPath);
+            try {
+              await fs.unlink(entryPath);
+            } catch (err) {
+              if (err.code !== 'ENOENT') {
+                throw err;
+              }
+            }
           }
         }
       }
