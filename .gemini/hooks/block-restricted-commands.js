@@ -68,13 +68,13 @@ function parseJSONFromText(text) {
 }
 
 function runOfflineChecks(tool_name, tool_input) {
-  const blacklist = ['.githooks/', '.gemini/hooks/', '.gemini/settings.json', '.env', '.ssh/', '/etc/', '/private/'];
+  const blacklist = ['.githooks/', '.gemini/hooks/', '.gemini/settings.json', '.env', '.ssh/', '/etc/', '/private/', '/var/', '/usr/', 'id_rsa', 'id_ed25519'];
 
   if (tool_name === 'run_shell_command' && tool_input && tool_input.command) {
     const cmdStr = tool_input.command.trim().toLowerCase();
 
     // Strictly forbid all raw Git and GitHub CLI commands
-    if (cmdStr === 'git' || cmdStr.startsWith('git ') || cmdStr === 'gh' || cmdStr.startsWith('gh ')) {
+    if (cmdStr.match(/(^|\s)(git|gh)(\s|$)/)) {
       return true;
     }
 
@@ -164,7 +164,7 @@ async function main() {
 Tool Name: ${tool_name}
 Tool Input: ${JSON.stringify(tool_input, null, 2)}`;
 
-    const stream = auditor.sendStream(prompt, controller.signal);
+    const stream = auditor.session().sendStream(prompt, controller.signal);
     let accumulatedText = '';
     for await (const chunk of stream) {
       if (chunk.type === 'content') {
@@ -173,7 +173,7 @@ Tool Input: ${JSON.stringify(tool_input, null, 2)}`;
     }
 
     const decision = parseJSONFromText(accumulatedText);
-    if (decision && decision.allowed === false) {
+    if (!decision || decision.allowed !== true) {
       console.log(
         JSON.stringify({
           decision: 'deny',

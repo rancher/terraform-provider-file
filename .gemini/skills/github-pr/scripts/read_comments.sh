@@ -51,9 +51,6 @@ query($owner: String!, $name: String!, $number: Int!) {
       }
     }
   }
-}' > /tmp/graphql_threads.json
+}' | jq -r '.data.repository.pullRequest.reviewThreads.nodes[] | "Thread ID: \(.id)\nPath: \(.path)\nLine: \(.line)\nIs Resolved: \(.isResolved)\nComments:\n" + ([.comments.nodes[] | "  - @\(.author?.login // "ghost") (\(.createdAt)): \(.body)"] | join("\n")) + "\n----------------------------------------"' || echo "No inline review threads found."
 
-# Parse and format the threads
-jq -r '.data.repository.pullRequest.reviewThreads.nodes[] | "Thread ID: \(.id)\nPath: \(.path)\nLine: \(.line)\nIs Resolved: \(.isResolved)\nComments:\n" + ([.comments.nodes[] | "  - @\(.author?.login // "ghost") (\(.createdAt)): \(.body)"] | join("\n")) + "\n----------------------------------------"' /tmp/graphql_threads.json || echo "No inline review threads found."
 
-rm -f /tmp/graphql_threads.json

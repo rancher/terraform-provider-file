@@ -15,12 +15,11 @@ async function cleanDir(dirPath) {
 }
 
 async function runCommand(command, cwd, extraEnv = {}) {
-  const cleanEnv = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    if (!key.startsWith('npm_') && !key.startsWith('INIT_CWD') && !key.startsWith('NODE_')) {
-      cleanEnv[key] = value;
-    }
-  }
+  const cleanEnv = {
+    PATH: process.env.PATH,
+    HOME: process.env.HOME,
+    USER: process.env.USER
+  };
 
   const mergedEnv = {
     ...cleanEnv,
@@ -39,7 +38,7 @@ async function runCommand(command, cwd, extraEnv = {}) {
 
 async function main() {
   const repoUrl = 'https://github.com/google-gemini/gemini-cli.git';
-  const tag = 'v0.60.0';
+  const tag = '6a466a7e2fe2b1255752c1e74f69b31f0216084d';
   const tmpDir = path.join(process.cwd(), '.tmp-gemini-sdk');
 
   const destSdk = path.join(process.cwd(), 'node_modules', '@google', 'gemini-cli-sdk');
@@ -61,8 +60,8 @@ async function main() {
 
   try {
     // 2. Clone the repository single branch/tag
-    console.log(`Cloning gemini-cli repository at tag ${tag}...`);
-    const cloneCmd = `git clone --depth 1 --branch ${tag} ${repoUrl} "${tmpDir}" --quiet`;
+    console.log(`Cloning gemini-cli repository at commit ${tag}...`);
+    const cloneCmd = `git clone ${repoUrl} "${tmpDir}" --quiet && cd "${tmpDir}" && git reset --hard ${tag} --quiet`;
     const cloneRes = await runCommand(cloneCmd, null, runEnv);
     if (!cloneRes.success) {
       throw new Error('Failed to clone repository');
@@ -116,7 +115,7 @@ async function main() {
     console.log(`✅ Programs successfully installed!`);
   } catch (error) {
     console.error(`❌ Setup failed: ${error.message}`);
-    process.exit(1);
+    process.exitCode = 1;
   } finally {
     // 6. Clean up temporary checkout directory
     console.log(`Cleaning up temporary files...`);

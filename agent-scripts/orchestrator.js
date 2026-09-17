@@ -80,20 +80,27 @@ const execAsync = promisify(exec);
 const rl = readline.createInterface({ input, output });
 
 // Define the ask_user tool using the SDK tool utility
-const askUserTool = tool(
-  {
+const askUserTool = {
+  declaration: {
     name: 'ask_user',
     description: 'Ask the human user a clarifying question when critical setup or context details are missing.',
-    inputSchema: z.object({
-      question: z.string().describe('The exact clarifying question to prompt the user with.'),
-    }),
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        question: {
+          type: 'STRING',
+          description: 'The exact clarifying question to prompt the user with.'
+        }
+      },
+      required: ['question']
+    }
   },
-  async (params) => {
+  action: async (params) => {
     console.log(`\n\n🤖 [Agent requested input]: ${params.question}`);
-    const userResponse = await rl.question('👉 Your Answer: ');
-    return { answer: userResponse };
-  },
-);
+    const answer = await rl.question('👉 Your Answer: ');
+    return { answer };
+  }
+};
 
 // 1. Helper to run Gemini CLI via the native SDK
 async function runGeminiSDK(initialPrompt, systemInstructions = '') {
@@ -115,9 +122,12 @@ async function runGeminiSDK(initialPrompt, systemInstructions = '') {
     const stream = session.sendStream(initialPrompt, controller.signal);
 
     for await (const chunk of stream) {
+      if (chunk.type === 'error' || chunk.type === 'invalid_stream' || chunk.type === 'agent_execution_blocked') {
+        throw new Error(`Agent execution failed: ${chunk.type}`);
+      }
       // Standard text responses from the primary agent
       if (chunk.type === 'content') {
-        process.stdout.write(chunk.value || '');
+        process.stdout.write(chunk.value.text || '');
       } else if (chunk.type === 'tool_call_request') {
         const toolCall = chunk.value;
         const toolName = toolCall.name;
@@ -347,7 +357,7 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
     // 1. Run local tests and linters
     console.log('Running tests and workspace linters...');
     const buildResult = await handleRunShellCommand(
-      'node agent-scripts/compile-docs.js && bash .github/workflows/scripts/lint.sh all --fix && go test ./...',
+      'npm run test && bash .github/workflows/scripts/lint.sh all --fix && go test ./...',
     );
     if (buildResult.exit_code !== 0) {
       console.error('❌ Tests or linters failed. Initiating self-healing...');
@@ -377,7 +387,7 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
       .split('\n')
       .map((f) => f.trim())
       .filter(Boolean);
-    const exclusions = ['go.sum', 'package-lock.json', '.png', '.jpg', '.svg', '.gif', '.lock'];
+    const exclusions = ['.png', '.jpg', '.svg', '.gif']; // PR 431: Do not auto-approve lockfiles
     const filteredFiles = changedFiles.filter((f) => !exclusions.some((ext) => f.endsWith(ext) || f.includes(ext)));
 
     if (filteredFiles.length === 0) {
@@ -484,8 +494,11 @@ ${activeDiff}
       const stream = qaSession.sendStream(qaPrompt, qaController.signal);
 
       for await (const chunk of stream) {
+      if (chunk.type === 'error' || chunk.type === 'invalid_stream' || chunk.type === 'agent_execution_blocked') {
+        throw new Error(`Agent execution failed: ${chunk.type}`);
+      }
         if (chunk.type === 'content') {
-          const text = chunk.value || '';
+          const text = chunk.value.text || '';
           process.stdout.write(text);
           accumulatedText += text;
         }
@@ -571,8 +584,11 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
     await promptIdContext.run(commitSession.id, async () => {
       const stream = commitSession.sendStream(`Here is the git diff:\n\n${diffResult.stdout}`, controller.signal);
       for await (const chunk of stream) {
+      if (chunk.type === 'error' || chunk.type === 'invalid_stream' || chunk.type === 'agent_execution_blocked') {
+        throw new Error(`Agent execution failed: ${chunk.type}`);
+      }
         if (chunk.type === 'content') {
-          accumulatedMsg += chunk.value || '';
+          accumulatedMsg += chunk.value.text || '';
         }
       }
     });

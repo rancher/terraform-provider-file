@@ -47,7 +47,7 @@ async function main() {
       const controller = new globalThis.AbortController();
       const greetingPrompt = `Good morning! It is 8:00 AM. Just saying a quick hello to confirm you are awake and ready for the day!`;
 
-      const stream = agent.sendStream(greetingPrompt, controller.signal);
+      const stream = agent.session().sendStream(greetingPrompt, controller.signal);
       let responseText = '';
 
       for await (const chunk of stream) {
@@ -55,6 +55,7 @@ async function main() {
           const text = chunk.value.text || '';
           process.stdout.write(text);
           responseText += text;
+          logContent += text;
         }
       }
 

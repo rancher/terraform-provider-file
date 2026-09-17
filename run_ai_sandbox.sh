@@ -149,7 +149,7 @@ run_container() {
 
 main() {
   local container_user="suse"
-  local agent_command="node agent-scripts/orchestrator.js"
+  local agent_command="npm install && npm run setup && node agent-scripts/orchestrator.js"
 
   while [[ "${#}" -gt 0 ]]; do
     case "${1}" in
@@ -166,7 +166,7 @@ main() {
         shift
         ;;
       --gemini)
-        agent_command="node agent-scripts/orchestrator.js"
+        agent_command="npm install && npm run setup && node agent-scripts/orchestrator.js"
         shift
         ;;
       --claude)

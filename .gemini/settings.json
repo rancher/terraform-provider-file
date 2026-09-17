@@ -11,7 +11,15 @@
     "SessionStart": [],
     "BeforeTool": [
       {
-        "matcher": "run_shell_command",
+        "matcher": [
+          "run_shell_command",
+          "web_fetch",
+          "read_file",
+          "write_file",
+          "replace",
+          "edit_file",
+          "create_file"
+        ],
         "hooks": [
           {
             "name": "block-restricted-commands",
