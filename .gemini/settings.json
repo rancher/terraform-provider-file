@@ -2,105 +2,18 @@
   "ui": {
     "compactToolOutputs": false
   },
-  "tools": {
-    "allowed": ["run_shell_command"]
-  },
   "hooks": {
     "SessionStart": [],
     "BeforeTool": [
       {
-        "matcher": "run_shell_command",
+        "matcher": "*",
         "hooks": [
           {
             "name": "block-restricted-commands",
             "type": "command",
             "command": "node .gemini/hooks/block-restricted-commands.js",
             "timeout": 5000,
-            "description": "Prevents running direct git commit, push, and rancher remote operations"
-          }
-        ]
-      },
-      {
-        "matcher": "web_fetch",
-        "hooks": [
-          {
-            "name": "block-restricted-commands",
-            "type": "command",
-            "command": "node .gemini/hooks/block-restricted-commands.js",
-            "timeout": 5000,
-            "description": "Prevents running direct git commit, push, and rancher remote operations"
-          }
-        ]
-      },
-      {
-        "matcher": "read_file",
-        "hooks": [
-          {
-            "name": "block-restricted-commands",
-            "type": "command",
-            "command": "node .gemini/hooks/block-restricted-commands.js",
-            "timeout": 5000,
-            "description": "Prevents running direct git commit, push, and rancher remote operations"
-          }
-        ]
-      },
-      {
-        "matcher": "write_file",
-        "hooks": [
-          {
-            "name": "block-restricted-commands",
-            "type": "command",
-            "command": "node .gemini/hooks/block-restricted-commands.js",
-            "timeout": 5000,
-            "description": "Prevents running direct git commit, push, and rancher remote operations"
-          }
-        ]
-      },
-      {
-        "matcher": "replace",
-        "hooks": [
-          {
-            "name": "block-restricted-commands",
-            "type": "command",
-            "command": "node .gemini/hooks/block-restricted-commands.js",
-            "timeout": 5000,
-            "description": "Prevents running direct git commit, push, and rancher remote operations"
-          }
-        ]
-      },
-      {
-        "matcher": "edit_file",
-        "hooks": [
-          {
-            "name": "block-restricted-commands",
-            "type": "command",
-            "command": "node .gemini/hooks/block-restricted-commands.js",
-            "timeout": 5000,
-            "description": "Prevents running direct git commit, push, and rancher remote operations"
-          }
-        ]
-      },
-      {
-        "matcher": "create_file",
-        "hooks": [
-          {
-            "name": "block-restricted-commands",
-            "type": "command",
-            "command": "node .gemini/hooks/block-restricted-commands.js",
-            "timeout": 5000,
-            "description": "Prevents running direct git commit, push, and rancher remote operations"
-          }
-        ]
-      },
-      {
-        "matcher": "invoke_agent",
-        "hooks": [
-          {
-            "name": "block-restricted-commands",
-            "type": "command",
-            "command": "node .gemini/hooks/block-restricted-commands.js",
-            "timeout": 5000,
-            "description": "Prevents running direct git commit, push, and rancher remote operations"
+            "description": "Prevents running destructive commands."
           }
         ]
       }
@@ -110,97 +23,5 @@
   "hooksConfig": {
     "disabled": [],
     "enabled": true
-  },
-  "modelConfigs": {
-    "modelChains": {
-      "pro-review-chain": [
-        {
-          "model": "gemini-3.1-pro-preview",
-          "maxAttempts": 3
-        },
-        {
-          "model": "gemini-3.5-flash",
-          "isLastResort": true,
-          "maxAttempts": 3
-        },
-        {
-          "model": "gemini-3.1-flash-lite",
-          "isLastResort": true,
-          "maxAttempts": 5
-        }
-      ],
-      "flash-review-chain": [
-        {
-          "model": "gemini-3.1-flash-lite",
-          "maxAttempts": 3
-        },
-        {
-          "model": "gemini-3.5-flash",
-          "isLastResort": true,
-          "maxAttempts": 3
-        }
-      ]
-    },
-    "overrides": [
-      {
-        "match": {
-          "subagentName": "lead_architect"
-        },
-        "modelConfig": {
-          "model": "pro-review-chain"
-        }
-      },
-      {
-        "match": {
-          "subagentName": "project_manager"
-        },
-        "modelConfig": {
-          "model": "pro-review-chain"
-        }
-      },
-      {
-        "match": {
-          "subagentName": "heads_down_coder"
-        },
-        "modelConfig": {
-          "model": "flash-review-chain"
-        }
-      },
-      {
-        "match": {
-          "subagentName": "concurrency_auditor"
-        },
-        "modelConfig": {
-          "model": "flash-review-chain"
-        }
-      },
-      {
-        "match": {
-          "subagentName": "security_auditor"
-        },
-        "modelConfig": {
-          "model": "flash-review-chain"
-        }
-      },
-      {
-        "match": {
-          "subagentName": "data_scientist"
-        },
-        "modelConfig": {
-          "model": "flash-review-chain"
-        }
-      },
-      {
-        "match": {
-          "subagentName": "surgical_coder"
-        },
-        "modelConfig": {
-          "model": "gemini-3.5-flash"
-        }
-      }
-    ]
-  },
-  "skills": {
-    "disabled": ["code-review-commons"]
   }
 }
