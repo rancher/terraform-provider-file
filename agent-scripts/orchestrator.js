@@ -8,10 +8,63 @@ import path from 'node:path';
 import os from 'node:os';
 import toml from '@iarna/toml';
 import { GeminiCliAgent, tool, z } from '@google/gemini-cli-sdk';
-import { promptIdContext } from '@google/gemini-cli-core';
+import { promptIdContext, TerminalQuotaError } from '@google/gemini-cli-core';
 import { validateCommitTitle } from '../.github/workflows/scripts/validate-commit-message.js';
 
 import fsSync from 'node:fs';
+
+// Intercept retryDelayMs of TerminalQuotaError to prevent massive retry hangs (> 5 minutes)
+const MAX_SILENT_RETRY_DELAY_MS = 300000; // 5 minutes
+
+if (TerminalQuotaError && TerminalQuotaError.prototype) {
+  Object.defineProperty(TerminalQuotaError.prototype, 'name', {
+    get() {
+      return this._name;
+    },
+    set(val) {
+      this._name = val;
+      // Redefine retryDelayMs and reason on the instance itself to bypass the native field definitions
+      Object.defineProperty(this, 'retryDelayMs', {
+        get() {
+          return this._retryDelayMs;
+        },
+        set(delayVal) {
+          this._retryDelayMs = delayVal;
+          if (delayVal !== undefined && delayVal > MAX_SILENT_RETRY_DELAY_MS) {
+            // Censor the message/reason so that isCapacityExceeded evaluates to false in retry.js.
+            // This ensures retryWithBackoff immediately throws and bubbles up the quota error,
+            // allowing the orchestrator's outer fallback loop to retry with a lesser model instantly.
+            if (typeof this.message === 'string') {
+              this.message = this.message.replace(/exhausted your capacity|capacity exceeded|MODEL_CAPACITY_EXHAUSTED/gi, 'exhausted capacity (immediate fallback)');
+            }
+            if (typeof this._reason === 'string') {
+              this._reason = this._reason.replace(/MODEL_CAPACITY_EXHAUSTED|MODEL_CAPACITY_EXCEEDED/g, 'MODEL_CAPACITY_EXHAUSTED_IMMEDIATE_FALLBACK');
+            }
+          }
+        },
+        configurable: true,
+        enumerable: true,
+      });
+
+      Object.defineProperty(this, 'reason', {
+        get() {
+          return this._reason;
+        },
+        set(reasonVal) {
+          if (reasonVal !== undefined && this.retryDelayMs > MAX_SILENT_RETRY_DELAY_MS) {
+            this._reason = reasonVal.replace(/MODEL_CAPACITY_EXHAUSTED|MODEL_CAPACITY_EXCEEDED/g, 'MODEL_CAPACITY_EXHAUSTED_IMMEDIATE_FALLBACK');
+          } else {
+            this._reason = reasonVal;
+          }
+        },
+        configurable: true,
+        enumerable: true,
+      });
+    },
+    configurable: true,
+    enumerable: true,
+  });
+}
 
 const DEBUG_LOG_PATH = path.join(process.cwd(), 'orchestrator-debug.log');
 
