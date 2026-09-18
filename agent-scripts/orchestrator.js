@@ -12,6 +12,7 @@ import { promisify } from 'node:util';
 import { validateCommitTitle } from '../.github/workflows/scripts/validate-commit-message.js';
 
 import fsSync from 'node:fs';
+import crypto from 'node:crypto';
 
 // Intercept retryDelayMs of TerminalQuotaError to prevent massive retry hangs (> 5 minutes)
 const MAX_SILENT_RETRY_DELAY_MS = 300000; // 5 minutes
@@ -751,7 +752,9 @@ Please revise and refine the development plan, outputting the final plan as a st
       console.log(planContent);
       console.log('======================================\n');
     } else {
-      console.warn('⚠️ Warning: plans/current.md not found after planning session.');
+      console.error('❌ Error: plans/current.md not found after planning session. Gating fails-closed.');
+      rl.close();
+      process.exit(1);
     }
 
     // Gating approval / refinement comment
@@ -1017,7 +1020,8 @@ ${activeDiff}
 
     const isApproved =
       qaReportObj.approval_status === 'APPROVED' &&
-      (!Array.isArray(qaReportObj.findings) || qaReportObj.findings.length === 0);
+      Array.isArray(qaReportObj.findings) &&
+      qaReportObj.findings.length === 0;
 
     if (isApproved) {
       console.log('\n🟢 QA Review Approved! No issues detected.');
@@ -1056,11 +1060,15 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
     process.exit(0);
   }
 
+  const diffText = diffResult.stdout;
+  const initialDiffHash = crypto.createHash('sha256').update(diffText).digest('hex');
+
   console.log('\n======================================');
   console.log('🔍 PROPOSED CHANGES (git diff):');
   console.log('======================================');
-  console.log(diffResult.stdout);
+  console.log(diffText);
   console.log('======================================\n');
+  console.log(`🔐 Cryptographic Diff Hash (SHA-256): ${initialDiffHash}\n`);
 
   const finalApproval = await rl.question('👉 Do you approve these changes for commit? (yes/no): ');
   if (finalApproval.trim().toLowerCase() !== 'yes') {
@@ -1068,6 +1076,20 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
     rl.close();
     process.exit(0);
   }
+
+  // Cryptographic Verification: Calculate the hash again right before staging
+  const preStagingDiffResult = await handleRunShellCommand('git diff HEAD');
+  const preStagingDiffHash = crypto
+    .createHash('sha256')
+    .update(preStagingDiffResult.stdout || '')
+    .digest('hex');
+
+  if (preStagingDiffHash !== initialDiffHash) {
+    console.error('❌ Cryptographic Verification Error: Active diff hash changed after user approval!');
+    rl.close();
+    process.exit(1);
+  }
+  console.log('🔒 Cryptographic diff hash successfully verified!');
 
   console.log('Staging changes and preparing commit...');
   await handleRunShellCommand('git add -A');
@@ -1187,6 +1209,8 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
     console.log('🟢 Changes committed successfully!');
   } else {
     console.error(`❌ Commit failed:\n${commitStatus.stderr || commitStatus.stdout}`);
+    rl.close();
+    process.exit(1);
   }
 
   rl.close();
