@@ -11,8 +11,8 @@ import * as readline from 'node:readline/promises';
 import { promisify } from 'node:util';
 import { validateCommitTitle } from '../.github/workflows/scripts/validate-commit-message.js';
 
-import fsSync from 'node:fs';
 import crypto from 'node:crypto';
+import fsSync from 'node:fs';
 
 // Intercept retryDelayMs of TerminalQuotaError to prevent massive retry hangs (> 5 minutes)
 const MAX_SILENT_RETRY_DELAY_MS = 300000; // 5 minutes
@@ -1199,7 +1199,7 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
   console.log(`Committing: ${finalMsg}`);
   let commitStatus;
   try {
-    const { stdout, stderr } = await execFileAsync('git', ['commit', '-m', finalMsg], { maxBuffer: 10 * 1024 * 1024 });
+    const { stdout, stderr } = await execFileAsync('git', ['commit', '-s', '-S', '-m', finalMsg], { maxBuffer: 10 * 1024 * 1024 });
     commitStatus = { stdout, stderr, exit_code: 0 };
   } catch (err) {
     commitStatus = { stdout: err.stdout || '', stderr: err.stderr || err.message, exit_code: err.code || 1 };
