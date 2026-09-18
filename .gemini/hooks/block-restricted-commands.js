@@ -101,6 +101,17 @@ async function main() {
 
   const { tool_name, tool_input, is_offline } = inputData;
 
+  // Block any attempt to invoke other agents
+  if (tool_name === 'invoke_agent') {
+    console.log(
+      JSON.stringify({
+        decision: 'deny',
+        reason: 'Subagent invocation is disabled. Agents are not permitted to invoke other agents.',
+      }),
+    );
+    process.exit(0);
+  }
+
   // 1. Run ultra-fast local checks first
   const isViolated = runOfflineChecks(tool_name, tool_input);
   if (isViolated) {

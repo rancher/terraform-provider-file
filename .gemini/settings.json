@@ -93,6 +93,18 @@
             "description": "Prevents running direct git commit, push, and rancher remote operations"
           }
         ]
+      },
+      {
+        "matcher": "invoke_agent",
+        "hooks": [
+          {
+            "name": "block-restricted-commands",
+            "type": "command",
+            "command": "node .gemini/hooks/block-restricted-commands.js",
+            "timeout": 5000,
+            "description": "Prevents running direct git commit, push, and rancher remote operations"
+          }
+        ]
       }
     ],
     "AfterTool": []

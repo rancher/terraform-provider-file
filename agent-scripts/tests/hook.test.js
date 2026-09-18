@@ -105,6 +105,18 @@ test('block-restricted-commands.js offline fallback blacklist', async (t) => {
     const parsed = parseJSON(res.stdout);
     assert.strictEqual(parsed.decision, 'allow');
   });
+
+  await t.test('blocks invoke_agent tool calls', async () => {
+    const payload = {
+      tool_name: 'invoke_agent',
+      tool_input: { agent_name: 'quality_assurance', prompt: 'test' },
+      is_offline: true,
+    };
+    const res = await runHook(payload);
+    const parsed = parseJSON(res.stdout);
+    assert.strictEqual(parsed.decision, 'deny');
+    assert.match(parsed.reason, /Subagent invocation is disabled/);
+  });
 });
 
 import { TerminalQuotaError } from '@google/gemini-cli-core';
