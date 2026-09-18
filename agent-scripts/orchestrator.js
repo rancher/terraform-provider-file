@@ -35,10 +35,16 @@ if (TerminalQuotaError && TerminalQuotaError.prototype) {
             // This ensures retryWithBackoff immediately throws and bubbles up the quota error,
             // allowing the orchestrator's outer fallback loop to retry with a lesser model instantly.
             if (typeof this.message === 'string') {
-              this.message = this.message.replace(/exhausted your capacity|capacity exceeded|MODEL_CAPACITY_EXHAUSTED/gi, 'exhausted capacity (immediate fallback)');
+              this.message = this.message.replace(
+                /exhausted your capacity|capacity exceeded|MODEL_CAPACITY_EXHAUSTED/gi,
+                'exhausted capacity (immediate fallback)',
+              );
             }
             if (typeof this._reason === 'string') {
-              this._reason = this._reason.replace(/MODEL_CAPACITY_EXHAUSTED|MODEL_CAPACITY_EXCEEDED/g, 'MODEL_CAPACITY_EXHAUSTED_IMMEDIATE_FALLBACK');
+              this._reason = this._reason.replace(
+                /MODEL_CAPACITY_EXHAUSTED|MODEL_CAPACITY_EXCEEDED/g,
+                'MODEL_CAPACITY_EXHAUSTED_IMMEDIATE_FALLBACK',
+              );
             }
           }
         },
@@ -52,7 +58,10 @@ if (TerminalQuotaError && TerminalQuotaError.prototype) {
         },
         set(reasonVal) {
           if (reasonVal !== undefined && this.retryDelayMs > MAX_SILENT_RETRY_DELAY_MS) {
-            this._reason = reasonVal.replace(/MODEL_CAPACITY_EXHAUSTED|MODEL_CAPACITY_EXCEEDED/g, 'MODEL_CAPACITY_EXHAUSTED_IMMEDIATE_FALLBACK');
+            this._reason = reasonVal.replace(
+              /MODEL_CAPACITY_EXHAUSTED|MODEL_CAPACITY_EXCEEDED/g,
+              'MODEL_CAPACITY_EXHAUSTED_IMMEDIATE_FALLBACK',
+            );
           } else {
             this._reason = reasonVal;
           }
@@ -264,7 +273,8 @@ async function runGeminiSDK(initialPrompt, systemInstructions = '', requestedMod
                 const cleanArgs = {};
                 for (const [key, value] of Object.entries(args)) {
                   if (typeof value === 'string' && value.length > 500) {
-                    cleanArgs[key] = value.substring(0, 500) + `... [Truncated, total length: ${value.length} characters]`;
+                    cleanArgs[key] =
+                      value.substring(0, 500) + `... [Truncated, total length: ${value.length} characters]`;
                   } else {
                     cleanArgs[key] = value;
                   }
@@ -279,7 +289,10 @@ async function runGeminiSDK(initialPrompt, systemInstructions = '', requestedMod
           } else if (chunk.type === 'tool_call_result') {
             // Optionally log tool results to debug log
             try {
-              fsSync.appendFileSync(DEBUG_LOG_PATH, `\n[Tool Result]: ${JSON.stringify(chunk.value).substring(0, 500)}\n`);
+              fsSync.appendFileSync(
+                DEBUG_LOG_PATH,
+                `\n[Tool Result]: ${JSON.stringify(chunk.value).substring(0, 500)}\n`,
+              );
             } catch {
               /* ignore */
             }
@@ -290,6 +303,12 @@ async function runGeminiSDK(initialPrompt, systemInstructions = '', requestedMod
       // Succeeded! Return control.
       return accumulatedText;
     } catch (err) {
+      if (isQuotaError(err) && i < fallbackSequence.length - 1) {
+        console.warn(
+          `⚠️ Model ${currentModel} hit quota limit. Retrying with lesser model ${fallbackSequence[i + 1]}...`,
+        );
+        continue;
+      }
       throw err; // Hard error if not a quota error or we ran out of models
     }
   }
@@ -433,7 +452,7 @@ async function savePlanFromJSON(text) {
       '',
       `## 🛠️ IMPLEMENTATION TASKS`,
       ...(planJSON.implementation_tasks || []).map((i) => `- [ ] ${i}`),
-      ''
+      '',
     ].join('\n');
     await fs.mkdir(path.join(process.cwd(), 'plans'), { recursive: true });
     await fs.writeFile(path.join(process.cwd(), 'plans/current.md'), mdPlan, 'utf8');
@@ -472,7 +491,9 @@ async function main() {
 
   const planPrompt = `Objective: "${objective}".\nPlease conduct your user interview using the \`ask_user\` tool (intent = "clarification"). Once you have all the context you need, generate the implementation plan as a strict JSON block according to your system instructions. Do not write any files to disk yourself.`;
 
-  const planSystemInstructions = planConfig.instructions || `You are strictly in PLANNING phase (Phase 1). Do NOT modify any source files.\nImportant: Always use the installed skills ('git-readonly', 'github-ci', 'github-pr') for Git and GitHub operations instead of raw commands (e.g. 'git branch', 'gh pr view') or web fetching GitHub URLs.`;
+  const planSystemInstructions =
+    planConfig.instructions ||
+    `You are strictly in PLANNING phase (Phase 1). Do NOT modify any source files.\nImportant: Always use the installed skills ('git-readonly', 'github-ci', 'github-pr') for Git and GitHub operations instead of raw commands (e.g. 'git branch', 'gh pr view') or web fetching GitHub URLs.`;
 
   // Initialize the stateful Gemini SDK session with fallback
   const planFallbackSequence = getModelFallbackSequence(planModel);
@@ -502,7 +523,14 @@ async function main() {
       await planSession.initialize();
 
       // Item 17: Read-Only Tool Area during Planning
-      const planReadonlyTools = ['write_file', 'replace', 'create_file', 'edit_file', 'run_shell_command', 'invoke_agent'];
+      const planReadonlyTools = [
+        'write_file',
+        'replace',
+        'create_file',
+        'edit_file',
+        'run_shell_command',
+        'invoke_agent',
+      ];
       for (const toolName of planReadonlyTools) {
         planSession.config.toolRegistry.unregisterTool(toolName);
       }
@@ -570,7 +598,9 @@ async function main() {
       break;
     } catch (err) {
       if (isQuotaError(err) && i < planFallbackSequence.length - 1) {
-        console.warn(`⚠️ Model ${currentModel} hit quota limit during initial planning. Retrying with lesser model ${planFallbackSequence[i + 1]}...`);
+        console.warn(
+          `⚠️ Model ${currentModel} hit quota limit during initial planning. Retrying with lesser model ${planFallbackSequence[i + 1]}...`,
+        );
         continue;
       }
       console.error(`❌ Plan generation failed: ${err.message}`);
@@ -930,7 +960,14 @@ ${activeDiff}
         await qaSession.initialize();
 
         // Item 18: QA Review Read-Only Sandbox
-        const qaReadonlyTools = ['write_file', 'replace', 'create_file', 'edit_file', 'run_shell_command', 'invoke_agent'];
+        const qaReadonlyTools = [
+          'write_file',
+          'replace',
+          'create_file',
+          'edit_file',
+          'run_shell_command',
+          'invoke_agent',
+        ];
         for (const toolName of qaReadonlyTools) {
           qaSession.config.toolRegistry.unregisterTool(toolName);
         }
@@ -957,7 +994,9 @@ ${activeDiff}
         break;
       } catch (err) {
         if (isQuotaError(err) && i < qaFallbackSequence.length - 1) {
-          console.warn(`⚠️ QA Agent model ${currentModel} hit quota limit. Retrying with lesser model ${qaFallbackSequence[i + 1]}...`);
+          console.warn(
+            `⚠️ QA Agent model ${currentModel} hit quota limit. Retrying with lesser model ${qaFallbackSequence[i + 1]}...`,
+          );
           continue;
         }
         console.error(`❌ QA Agent execution failed: ${err.message}`);
@@ -1035,7 +1074,7 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
 
   console.log('Asking Gemini to generate a commit message based on your diff...');
   let defaultMsg = 'chore: overhaul hooks and phases with simplified orchestrator';
-  
+
   const commitFallbackSequence = getModelFallbackSequence(MODEL_FLASH_LITE);
 
   for (let i = 0; i < commitFallbackSequence.length; i++) {
@@ -1062,7 +1101,10 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
       let accumulatedMsg = '';
 
       await promptIdContext.run(commitSession.id, async () => {
-        const stream = commitSession.sendStream(`Here is the git diff:\n\n${diffResult.stdout}`, commitController.signal);
+        const stream = commitSession.sendStream(
+          `Here is the git diff:\n\n${diffResult.stdout}`,
+          commitController.signal,
+        );
         for await (const chunk of stream) {
           if (chunk.type === 'error' || chunk.type === 'invalid_stream' || chunk.type === 'agent_execution_blocked') {
             throw new Error(`Agent execution failed: ${chunk.type}. Details: ${JSON.stringify(chunk.value || '')}`);
@@ -1080,7 +1122,9 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
       break;
     } catch (err) {
       if (isQuotaError(err) && i < commitFallbackSequence.length - 1) {
-        console.warn(`⚠️ Commit generation model ${currentModel} hit quota limit. Retrying with lesser model ${commitFallbackSequence[i + 1]}...`);
+        console.warn(
+          `⚠️ Commit generation model ${currentModel} hit quota limit. Retrying with lesser model ${commitFallbackSequence[i + 1]}...`,
+        );
         continue;
       }
       console.warn(`⚠️ Failed to generate commit message with Gemini model ${currentModel}: ${err.message}.`);

@@ -124,7 +124,11 @@ import { TerminalQuotaError } from '@google/gemini-cli-core';
 test('TerminalQuotaError massive delay interceptor patch', async (t) => {
   // Ensure the prototype monkeypatch is active using the prototype 'name' setter strategy
   const MAX_SILENT_RETRY_DELAY_MS = 300000;
-  if (TerminalQuotaError && TerminalQuotaError.prototype && !Object.getOwnPropertyDescriptor(TerminalQuotaError.prototype, 'name')?.set) {
+  if (
+    TerminalQuotaError &&
+    TerminalQuotaError.prototype &&
+    !Object.getOwnPropertyDescriptor(TerminalQuotaError.prototype, 'name')?.set
+  ) {
     Object.defineProperty(TerminalQuotaError.prototype, 'name', {
       get() {
         return this._name;
@@ -140,10 +144,16 @@ test('TerminalQuotaError massive delay interceptor patch', async (t) => {
             this._retryDelayMs = delayVal;
             if (delayVal !== undefined && delayVal > MAX_SILENT_RETRY_DELAY_MS) {
               if (typeof this.message === 'string') {
-                this.message = this.message.replace(/exhausted your capacity|capacity exceeded|MODEL_CAPACITY_EXHAUSTED/gi, 'exhausted capacity (immediate fallback)');
+                this.message = this.message.replace(
+                  /exhausted your capacity|capacity exceeded|MODEL_CAPACITY_EXHAUSTED/gi,
+                  'exhausted capacity (immediate fallback)',
+                );
               }
               if (typeof this._reason === 'string') {
-                this._reason = this._reason.replace(/MODEL_CAPACITY_EXHAUSTED|MODEL_CAPACITY_EXCEEDED/g, 'MODEL_CAPACITY_EXHAUSTED_IMMEDIATE_FALLBACK');
+                this._reason = this._reason.replace(
+                  /MODEL_CAPACITY_EXHAUSTED|MODEL_CAPACITY_EXCEEDED/g,
+                  'MODEL_CAPACITY_EXHAUSTED_IMMEDIATE_FALLBACK',
+                );
               }
             }
           },
@@ -157,7 +167,10 @@ test('TerminalQuotaError massive delay interceptor patch', async (t) => {
           },
           set(reasonVal) {
             if (reasonVal !== undefined && this.retryDelayMs > MAX_SILENT_RETRY_DELAY_MS) {
-              this._reason = reasonVal.replace(/MODEL_CAPACITY_EXHAUSTED|MODEL_CAPACITY_EXCEEDED/g, 'MODEL_CAPACITY_EXHAUSTED_IMMEDIATE_FALLBACK');
+              this._reason = reasonVal.replace(
+                /MODEL_CAPACITY_EXHAUSTED|MODEL_CAPACITY_EXCEEDED/g,
+                'MODEL_CAPACITY_EXHAUSTED_IMMEDIATE_FALLBACK',
+              );
             } else {
               this._reason = reasonVal;
             }
@@ -174,7 +187,7 @@ test('TerminalQuotaError massive delay interceptor patch', async (t) => {
   await t.test('keeps small retry delay and original message untouched', () => {
     const rawMsg = 'You have exhausted your capacity on this model. Your quota will reset after 5s.';
     const err = new TerminalQuotaError(rawMsg, { code: 429 }, 5, 'MODEL_CAPACITY_EXHAUSTED');
-    
+
     assert.strictEqual(err.retryDelayMs, 5000);
     assert.strictEqual(err.message, rawMsg);
     assert.strictEqual(err.reason, 'MODEL_CAPACITY_EXHAUSTED');
@@ -183,7 +196,7 @@ test('TerminalQuotaError massive delay interceptor patch', async (t) => {
   await t.test('censors message and reason when retry delay is massive (> 5 minutes)', () => {
     const rawMsg = 'You have exhausted your capacity on this model. Your quota will reset after 12h53m47s.';
     const err = new TerminalQuotaError(rawMsg, { code: 429 }, 46427, 'MODEL_CAPACITY_EXHAUSTED');
-    
+
     assert.strictEqual(err.retryDelayMs, 46427000);
     assert.match(err.message, /exhausted capacity \(immediate fallback\)/);
     assert.doesNotMatch(err.message, /exhausted your capacity/);

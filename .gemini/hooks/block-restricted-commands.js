@@ -2,7 +2,6 @@
 
 import { GeminiCliAgent } from '@google/gemini-cli-sdk';
 import { Buffer } from 'node:buffer';
-import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 function parseJSONFromText(text) {
@@ -96,6 +95,7 @@ async function main() {
         reason: 'Failed to parse input parameters.',
       }),
     );
+    console.error(`Failed to parse input parameters: ${err.message}`);
     process.exit(0);
   }
 
@@ -118,7 +118,8 @@ async function main() {
     console.log(
       JSON.stringify({
         decision: 'deny',
-        reason: 'Attempting to use a destructive command, instead use the appropriate skill for what you are attempting to do.',
+        reason:
+          'Attempting to use a destructive command, instead use the appropriate skill for what you are attempting to do.',
       }),
     );
     process.exit(0);
@@ -144,9 +145,9 @@ async function main() {
     const auditor = new GeminiCliAgent({
       model: 'gemini-3.1-flash-lite',
       instructions: AUDITOR_INSTRUCTIONS,
-      tools: [],    // Explicitly registers 0 tools to prevent overhead
-      skills: [],   // Explicitly registers 0 skills to prevent scan overhead
-      maxTurns: 1,  // Hard lock of 1 turn (strictly 1-shot)
+      tools: [], // Explicitly registers 0 tools to prevent overhead
+      skills: [], // Explicitly registers 0 skills to prevent scan overhead
+      maxTurns: 1, // Hard lock of 1 turn (strictly 1-shot)
       debug: false, // Ensure verbose logs are disabled
     });
 
@@ -170,12 +171,14 @@ Tool Input: ${JSON.stringify(tool_input, null, 2)}`;
       console.log(
         JSON.stringify({
           decision: 'deny',
-          reason: 'Attempting to use a destructive command, instead use the appropriate skill for what you are attempting to do.',
+          reason:
+            'Attempting to use a destructive command, instead use the appropriate skill for what you are attempting to do.',
         }),
       );
       process.exit(0);
     }
   } catch (err) {
+    console.error(`error: ${err.message}`);
     clearTimeout(timeoutId);
     // On any timeout or LLM error, fail-safe to allow (since offline checks already passed)
   }
@@ -191,6 +194,7 @@ Tool Input: ${JSON.stringify(tool_input, null, 2)}`;
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main().catch((err) => {
+    console.error(`error: ${err.message}`);
     // Fail safe
     console.log(
       JSON.stringify({
