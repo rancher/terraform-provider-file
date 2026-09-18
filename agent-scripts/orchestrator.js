@@ -1,14 +1,14 @@
 #!/usr/bin/env node
-import * as readline from 'node:readline/promises';
-import { stdin as input, stdout as output } from 'node:process';
-import { exec, execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import os from 'node:os';
-import toml from '@iarna/toml';
-import { GeminiCliAgent, tool, z } from '@google/gemini-cli-sdk';
 import { promptIdContext, TerminalQuotaError } from '@google/gemini-cli-core';
+import { GeminiCliAgent, tool, z } from '@google/gemini-cli-sdk';
+import toml from '@iarna/toml';
+import { exec, execFile } from 'node:child_process';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { stdin as input, stdout as output } from 'node:process';
+import * as readline from 'node:readline/promises';
+import { promisify } from 'node:util';
 import { validateCommitTitle } from '../.github/workflows/scripts/validate-commit-message.js';
 
 import fsSync from 'node:fs';
@@ -226,8 +226,10 @@ async function runGeminiSDK(initialPrompt, systemInstructions = '', requestedMod
       const projectTempDir = path.join(os.homedir(), '.gemini/tmp/terraform-provider-file');
       session.config.getWorkspaceContext().addDirectory(projectTempDir);
       await session.initialize();
+      session.config.toolRegistry.unregisterTool('invoke_agent');
 
       const controller = new globalThis.AbortController();
+      let accumulatedText = '';
 
       await promptIdContext.run(session.id, async () => {
         const stream = session.sendStream(initialPrompt, controller.signal);
@@ -238,19 +240,14 @@ async function runGeminiSDK(initialPrompt, systemInstructions = '', requestedMod
           }
           // Standard text responses from the primary agent
           if (chunk.type === 'content') {
-            process.stdout.write(chunk.value || '');
+            const text = chunk.value || '';
+            process.stdout.write(text);
+            accumulatedText += text;
           } else if (chunk.type === 'tool_call_request') {
             const toolCall = chunk.value;
             const toolName = toolCall.name;
             if (toolName === 'invoke_agent') {
-              let args = toolCall.args;
-              if (typeof args === 'string') {
-                args = JSON.parse(args);
-              }
-              console.log('\n\n--- [SUB-AGENT DELEGATION DETECTED] ---');
-              console.log(`Target Sub-Agent : ${args.agent_name}`);
-              console.log(`Prompt Passed    : ${args.prompt || args.request?.prompt}`);
-              console.log('---------------------------------------\n');
+              throw new Error('Sub-agent delegation is blocked.');
             } else {
               // Log other tool calls cleanly
               let args = toolCall.args;
@@ -291,12 +288,8 @@ async function runGeminiSDK(initialPrompt, systemInstructions = '', requestedMod
       });
 
       // Succeeded! Return control.
-      return;
+      return accumulatedText;
     } catch (err) {
-      if (isQuotaError(err) && i < fallbackSequence.length - 1) {
-        console.warn(`⚠️ Model ${currentModel} hit quota limit. Retrying with lesser model ${fallbackSequence[i + 1]}...`);
-        continue;
-      }
       throw err; // Hard error if not a quota error or we ran out of models
     }
   }
@@ -370,7 +363,7 @@ function getStandardsFile(filePath) {
   return mappings[ext] || mappings['default'];
 }
 
-function parseJSONFromText(text) {
+function parseJSONFromText(text, fallbackType = 'qa') {
   const match = text.match(/```json\s*\n([\s\S]*?)\n\s*```/) || text.match(/```\s*\n([\s\S]*?)\n\s*```/);
   const clean = (match ? match[1] : text).trim();
   try {
@@ -378,19 +371,22 @@ function parseJSONFromText(text) {
   } catch (err) {
     console.warn(`⚠️ JSON parsing failed: ${err.message}. Attempting graceful fallback structure.`);
     // Item 20: Fallback to standard strings / default structure when parsing fails
-    const containsApproved = text.toUpperCase().includes('APPROVED') && !text.toUpperCase().includes('UNAPPROVED');
-    return {
-      approval_status: containsApproved ? 'APPROVED' : 'UNAPPROVED',
-      findings: containsApproved
-        ? []
-        : [
-            {
-              file: 'unknown',
-              line_numbers: [],
-              narrative: text.trim() || 'No detail provided in raw text response.',
-            },
-          ],
-    };
+    if (fallbackType === 'qa') {
+      const containsApproved = text.toUpperCase().includes('APPROVED') && !text.toUpperCase().includes('UNAPPROVED');
+      return {
+        approval_status: containsApproved ? 'APPROVED' : 'UNAPPROVED',
+        findings: containsApproved
+          ? []
+          : [
+              {
+                file: 'unknown',
+                line_numbers: [],
+                narrative: text.trim() || 'No detail provided in raw text response.',
+              },
+            ],
+      };
+    }
+    return null;
   }
 }
 
@@ -414,6 +410,36 @@ Examples:
   node agent-scripts/orchestrator.js "Fix the cache timeout bug in file_client.go"
   node agent-scripts/orchestrator.js "Add a new local_snapshot directory resource test"
 `);
+}
+
+async function savePlanFromJSON(text) {
+  const planJSON = parseJSONFromText(text, 'plan');
+  if (planJSON && planJSON.title) {
+    const mdPlan = [
+      `# IMPLEMENTATION PLAN: ${planJSON.title}`,
+      '',
+      `## 🎯 OBJECTIVE`,
+      planJSON.objective || '',
+      '',
+      `## 🚧 SCOPE BOUNDARIES`,
+      `**IN SCOPE:**`,
+      ...(planJSON.scope_boundaries?.in_scope || []).map((i) => `- ${i}`),
+      '',
+      `**OUT OF SCOPE (Do NOT attempt):**`,
+      ...(planJSON.scope_boundaries?.out_of_scope || []).map((i) => `- ${i}`),
+      '',
+      `## ✅ EXIT CRITERIA (Definition of Done)`,
+      ...(planJSON.exit_criteria || []).map((i) => `- [ ] ${i}`),
+      '',
+      `## 🛠️ IMPLEMENTATION TASKS`,
+      ...(planJSON.implementation_tasks || []).map((i) => `- [ ] ${i}`),
+      ''
+    ].join('\n');
+    await fs.mkdir(path.join(process.cwd(), 'plans'), { recursive: true });
+    await fs.writeFile(path.join(process.cwd(), 'plans/current.md'), mdPlan, 'utf8');
+    return true;
+  }
+  return false;
 }
 
 // 4. MAIN SYSTEM FLOW
@@ -441,23 +467,18 @@ async function main() {
   console.log('\n--- 📂 Phase 1: Planning ---');
   console.log('Initiating research and planning session with read-only tools...');
 
-  const planPrompt = `Objective: "${objective}".
-You are strictly in PLANNING phase (Phase 1). Do NOT modify any source files. 
-Research the codebase and construct a comprehensive development plan to satisfy the user's objective.
-Your primary task is to write a detailed markdown plan under 'plans/current.md' describing:
-1. Architectural direction.
-2. Step-by-step implementation changes.
-3. Verification/testing strategy (must explicitly mention tests and quality gates).`;
+  const planConfig = await loadAgentInstructions('planner');
+  const planModel = planConfig.model || MODEL_PRO;
 
-  const planSystemInstructions = `You are strictly in PLANNING phase (Phase 1). Do NOT modify any source files. 
-Research the codebase and construct a comprehensive development plan to satisfy the user's objective.
-Your primary task is to write a detailed markdown plan under 'plans/current.md'.
-Important: Always use the installed skills ('git-readonly', 'github-ci', 'github-pr') for Git and GitHub operations instead of raw commands (e.g. 'git branch', 'gh pr view') or web fetching GitHub URLs.`;
+  const planPrompt = `Objective: "${objective}".\nPlease conduct your user interview using the \`ask_user\` tool (intent = "clarification"). Once you have all the context you need, generate the implementation plan as a strict JSON block according to your system instructions. Do not write any files to disk yourself.`;
+
+  const planSystemInstructions = planConfig.instructions || `You are strictly in PLANNING phase (Phase 1). Do NOT modify any source files.\nImportant: Always use the installed skills ('git-readonly', 'github-ci', 'github-pr') for Git and GitHub operations instead of raw commands (e.g. 'git branch', 'gh pr view') or web fetching GitHub URLs.`;
 
   // Initialize the stateful Gemini SDK session with fallback
-  const planFallbackSequence = getModelFallbackSequence(MODEL_PRO);
+  const planFallbackSequence = getModelFallbackSequence(planModel);
   let planSession = null;
   let initialPlanRunSuccessful = false;
+  let accumulatedPlanText = '';
 
   for (let i = 0; i < planFallbackSequence.length; i++) {
     const currentModel = planFallbackSequence[i];
@@ -481,12 +502,13 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
       await planSession.initialize();
 
       // Item 17: Read-Only Tool Area during Planning
-      const planReadonlyTools = ['write_file', 'replace', 'create_file', 'edit_file', 'run_shell_command'];
+      const planReadonlyTools = ['write_file', 'replace', 'create_file', 'edit_file', 'run_shell_command', 'invoke_agent'];
       for (const toolName of planReadonlyTools) {
         planSession.config.toolRegistry.unregisterTool(toolName);
       }
 
       const planController = new globalThis.AbortController();
+      accumulatedPlanText = '';
       await promptIdContext.run(planSession.id, async () => {
         const stream = planSession.sendStream(planPrompt, planController.signal);
 
@@ -495,19 +517,14 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
             throw new Error(`Agent execution failed: ${chunk.type}. Details: ${JSON.stringify(chunk.value || '')}`);
           }
           if (chunk.type === 'content') {
-            process.stdout.write(chunk.value || '');
+            const text = chunk.value || '';
+            process.stdout.write(text);
+            accumulatedPlanText += text;
           } else if (chunk.type === 'tool_call_request') {
             const toolCall = chunk.value;
             const toolName = toolCall.name;
             if (toolName === 'invoke_agent') {
-              let args = toolCall.args;
-              if (typeof args === 'string') {
-                args = JSON.parse(args);
-              }
-              console.log('\n\n--- [SUB-AGENT DELEGATION DETECTED] ---');
-              console.log(`Target Sub-Agent : ${args.agent_name}`);
-              console.log(`Prompt Passed    : ${args.prompt || args.request?.prompt}`);
-              console.log('---------------------------------------\n');
+              throw new Error('Sub-agent delegation is blocked.');
             } else {
               let args = toolCall.args;
               if (typeof args === 'string') {
@@ -566,6 +583,8 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
     process.exit(1);
   }
 
+  await savePlanFromJSON(accumulatedPlanText);
+
   const planController = new globalThis.AbortController();
 
   let currentPrompt = planPrompt;
@@ -580,6 +599,7 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
         console.log(`Relaying feedback to existing agent session...`);
 
         await promptIdContext.run(planSession.id, async () => {
+          accumulatedPlanText = '';
           const stream = planSession.sendStream(currentPrompt, planController.signal);
 
           for await (const chunk of stream) {
@@ -587,19 +607,14 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
               throw new Error(`Agent execution failed: ${chunk.type}. Details: ${JSON.stringify(chunk.value || '')}`);
             }
             if (chunk.type === 'content') {
-              process.stdout.write(chunk.value || '');
+              const text = chunk.value || '';
+              process.stdout.write(text);
+              accumulatedPlanText += text;
             } else if (chunk.type === 'tool_call_request') {
               const toolCall = chunk.value;
               const toolName = toolCall.name;
               if (toolName === 'invoke_agent') {
-                let args = toolCall.args;
-                if (typeof args === 'string') {
-                  args = JSON.parse(args);
-                }
-                console.log('\n\n--- [SUB-AGENT DELEGATION DETECTED] ---');
-                console.log(`Target Sub-Agent : ${args.agent_name}`);
-                console.log(`Prompt Passed    : ${args.prompt || args.request?.prompt}`);
-                console.log('---------------------------------------\n');
+                throw new Error('Sub-agent delegation is blocked.');
               } else {
                 let args = toolCall.args;
                 if (typeof args === 'string') {
@@ -640,6 +655,7 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
             }
           }
         });
+        await savePlanFromJSON(accumulatedPlanText);
       } catch (err) {
         console.warn(`⚠️ Warning: Stateful session error: ${err.message}. Switching to new session fallback.`);
         sessionHealthy = false;
@@ -673,10 +689,11 @@ ${currentPlanContent}
 User Feedback:
 "${currentPrompt}"
 
-Please revise and refine the development plan under 'plans/current.md' to incorporate the user's feedback. Ensure the final plan is complete and accurate.`;
+Please revise and refine the development plan, outputting the final plan as a strict JSON block to incorporate the user's feedback. Do not write any files to disk yourself.`;
 
       try {
-        await runGeminiSDK(refinedPrompt, planSystemInstructions, MODEL_FLASH);
+        accumulatedPlanText = await runGeminiSDK(refinedPrompt, planSystemInstructions, MODEL_FLASH);
+        await savePlanFromJSON(accumulatedPlanText);
       } catch (err) {
         console.error(`❌ Failed to run refined planning agent: ${err.message}`);
         process.exit(1);
@@ -913,7 +930,7 @@ ${activeDiff}
         await qaSession.initialize();
 
         // Item 18: QA Review Read-Only Sandbox
-        const qaReadonlyTools = ['write_file', 'replace', 'create_file', 'edit_file', 'run_shell_command'];
+        const qaReadonlyTools = ['write_file', 'replace', 'create_file', 'edit_file', 'run_shell_command', 'invoke_agent'];
         for (const toolName of qaReadonlyTools) {
           qaSession.config.toolRegistry.unregisterTool(toolName);
         }
@@ -1040,6 +1057,7 @@ Important: Always use the installed skills ('git-readonly', 'github-ci', 'github
       const commitSession = commitAgent.session();
       commitSession.config.getWorkspaceContext().addDirectory(projectTempDir);
       await commitSession.initialize();
+      commitSession.config.toolRegistry.unregisterTool('invoke_agent');
       const commitController = new globalThis.AbortController();
       let accumulatedMsg = '';
 
