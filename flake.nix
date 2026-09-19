@@ -149,7 +149,7 @@
           kubernetes-helm
           less
           markdownlint-cli
-          nodejs_26
+          nodejs_24
           openssh
           openssl
           prettier
