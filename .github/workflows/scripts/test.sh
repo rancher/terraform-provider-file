@@ -65,7 +65,7 @@ run_workflow_script_tests() {
 run_agent_script_tests() {
   ensure_node_dependencies
   echo "==> Running agent script unit tests..."
-  node --test "agent-scripts/lib/tests/**/*.test.js" "agent-scripts/tools/tests/**/*.test.js"
+  node --test "agent-scripts/tests/**/*.test.js"
 }
 
 run_all_tests() {
