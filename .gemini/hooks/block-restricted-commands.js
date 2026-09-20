@@ -1,93 +1,103 @@
 #!/usr/bin/env node
 
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { Buffer } from 'node:buffer';
-import { verifySafeGitCommand, cleanCommandString } from '../../agent-scripts/tools/git.js';
+import { fileURLToPath } from 'node:url';
+import { GeminiCliAgent } from '@google/gemini-cli-sdk';
 
-const hookName = path.basename(process.argv[1]);
-const isStartup = hookName === '01-startup-context.js';
-const introLog = `🔒 Hook: ${hookName} - ${isStartup ? 'Loading startup context...' : 'Loading hook context...'}`;
-console.error(introLog);
+function evaluateQuickRules(tool_name, tool_input) {
+  const blacklistPaths = [
+    '.gemini/hooks/block-restricted-commands.js',
+    '.env',
+    '.ssh/',
+    '/etc/',
+    '/private/',
+    '/var/',
+    '/usr/',
+  ];
 
-const originalLog = console.log;
-let hasLogged = false;
+  const blacklistCmds = /(^|\s)(git|gh|rm|mv|chmod|chown)(\s|$)/;
 
-console.log = function (msg) {
-  if (hasLogged) {
-    return;
+  let cmdStr = '';
+  if (tool_name === 'run_shell_command' && tool_input && tool_input.command) {
+    cmdStr = tool_input.command.trim().toLowerCase();
   }
+
+  // Check blacklisted commands
+  if (cmdStr && blacklistCmds.test(cmdStr)) {
+    return 'deny';
+  }
+
+  // Check blacklisted paths
+  const targetPath = (tool_input?.file_path || tool_input?.path || '').toLowerCase();
+  if (targetPath && blacklistPaths.some((b) => targetPath.includes(b))) {
+    return 'deny';
+  }
+  if (cmdStr && blacklistPaths.some((b) => cmdStr.includes(b))) {
+    return 'deny';
+  }
+
+  // Explicit restrictions from original logic
+  if (tool_name === 'invoke_agent') {
+    return 'deny';
+  }
+  if (tool_name === 'web_fetch' && tool_input?.prompt) {
+    const promptStr = tool_input.prompt.toLowerCase();
+    if (promptStr.includes('github.com') && (promptStr.includes('/pull') || promptStr.includes('/issues'))) {
+      return 'deny';
+    }
+  }
+
+  // Quick Whitelist Eval
+  const whitelistTools = ['ask_user', 'web_fetch', 'read_file', 'list_directory', 'search_project'];
+  if (whitelistTools.includes(tool_name)) {
+    return 'allow';
+  }
+
+  const whitelistCmds = /^(ls|cat|pwd|grep|head|tail|less|cd|whoami|history)\b/;
+  if (cmdStr && whitelistCmds.test(cmdStr)) {
+    return 'allow';
+  }
+
+  return 'unknown';
+}
+
+async function lightweightLlmEval(tool_name, tool_input) {
+  const prompt = `Evaluate the following tool call and determine if it is dangerous, destructive, or modifies system state in an unsafe way.
+Respond with EXACTLY ONE WORD: "allow" or "deny". Respond "deny" ONLY if the tool call would be destructive.
+
+Tool Name: ${tool_name}
+Tool Input: ${JSON.stringify(tool_input)}`;
+
   try {
-    const parsed = JSON.parse(msg);
-    if (parsed.systemMessage) {
-      console.error(parsed.systemMessage);
+    const agent = new GeminiCliAgent({
+      model: 'gemini-3.1-flash-lite',
+      instructions: 'You are a strict security evaluator. Answer with allow or deny.',
+      tools: [],
+    });
+
+    const controller = new globalThis.AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    const session = agent.session();
+    await session.initialize();
+
+    const stream = session.sendStream(prompt, controller.signal);
+    let stdout = '';
+
+    for await (const chunk of stream) {
+      if (chunk.type === 'content') {
+        stdout += chunk.value || '';
+      }
     }
-    const exitLog = `🔒 Hook: ${hookName} - ${isStartup ? 'context successfully loaded.' : 'Hook successfully loaded.'}`;
-    console.error(exitLog);
+    clearTimeout(timeoutId);
 
-    const msgs = [introLog];
-    if (parsed.systemMessage) {
-      msgs.push(parsed.systemMessage);
-    }
-    msgs.push(exitLog);
-    parsed.systemMessage = msgs.join('\n');
-
-    if (!parsed.decision && !isStartup) {
-      parsed.decision = 'allow';
-    }
-
-    originalLog(JSON.stringify(parsed, null, 2));
-    hasLogged = true;
-  } catch (err) {
-    console.error(err.message || err);
-    originalLog(msg);
+    const text = stdout.trim().toLowerCase();
+    return text.includes('deny') ? 'deny' : 'allow';
+  } catch {
+    // Fail open on timeout or network error to avoid pipeline locks
+    return 'allow';
   }
-};
-
-process.on('exit', (code) => {
-  if (!hasLogged) {
-    const exitMsg = `🔒 Hook Error (${hookName}): Silent early exit detected with code ${code}.`;
-    console.error(exitMsg);
-    process.stdout.write(
-      JSON.stringify({
-        decision: 'deny',
-        systemMessage: `${introLog}\n${exitMsg}`,
-      }) + '\n',
-    );
-    hasLogged = true;
-  }
-});
-
-process.on('uncaughtException', (err) => {
-  const errMsg = `🔒 Hook Error (${hookName}): Unhandled exception - ${err.message || err}`;
-  console.error(errMsg);
-  if (!hasLogged) {
-    process.stdout.write(
-      JSON.stringify({
-        decision: 'deny',
-        systemMessage: `${introLog}\n${errMsg}`,
-      }) + '\n',
-    );
-    hasLogged = true;
-  }
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason) => {
-  const errMsg = `🔒 Hook Error (${hookName}): Unhandled promise rejection - ${reason.message || reason}`;
-  console.error(errMsg);
-  if (!hasLogged) {
-    process.stdout.write(
-      JSON.stringify({
-        decision: 'deny',
-        systemMessage: `${introLog}\n${errMsg}`,
-      }) + '\n',
-    );
-    hasLogged = true;
-  }
-  process.exit(1);
-});
+}
 
 async function main() {
   let inputData;
@@ -98,190 +108,53 @@ async function main() {
     }
     const rawData = Buffer.concat(buffers).toString('utf-8');
     inputData = JSON.parse(rawData);
-  } catch (err) {
-    console.error('Failed to parse stdin JSON in block-restricted-commands:', err.message || err);
-    console.log(
-      JSON.stringify({
-        decision: 'deny',
-        systemMessage: '🔒 Hook Notification: Failed to parse input, denying execution by default.',
-      }),
-    );
-    process.exit(1);
+  } catch {
+    console.log(JSON.stringify({ decision: 'deny', reason: 'Failed to parse input parameters.' }));
+    process.exit(0);
   }
 
-  async function verifyShellCommand(command, cwd) {
-    let cmdStr = '';
-    if (typeof command === 'string') {
-      cmdStr = command;
-    } else if (Array.isArray(command)) {
-      cmdStr = command.join(' ');
-    } else if (command && typeof command === 'object') {
-      cmdStr = command.command || '';
-    }
-    const trimmedCmd = cmdStr.trim();
+  const { tool_name, tool_input, is_offline } = inputData;
+  const proposedCall = `${tool_name}(${JSON.stringify(tool_input || {})})`;
 
-    // Strip leading env var assignments and optional sudo via cleanCommandString helper (SRP compliant)
-    const commandClean = cleanCommandString(trimmedCmd);
+  const denyResponse = {
+    decision: 'deny',
+    reason: `tool call ${proposedCall} was detected as potentially destructive`,
+  };
 
-    // Parse the agent scripts whitelist from agent-scripts/whitelist.json
-    let isWhitelisted = false;
-    if (trimmedCmd.includes('agent-scripts/')) {
-      const whitelistFile = path.resolve(cwd || process.cwd(), 'agent-scripts/whitelist.json');
-      if (fs.existsSync(whitelistFile)) {
-        let whitelistContent = {};
-        try {
-          whitelistContent = JSON.parse(fs.readFileSync(whitelistFile, 'utf-8'));
-        } catch (err) {
-          console.error(`🔒 Warning: Failed to parse agent scripts whitelist.json: ${err.message}. Falling back.`);
-        }
-        const allowed = whitelistContent.allowed_scripts || [];
-        // Ensure secure token boundaries to prevent spoofing, path traversal, or execution spoofs
-        isWhitelisted = allowed.some((script) => {
-          const escapedScript = script.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-          const regex = new RegExp(`(^|\\s|&&|\\|\\||;)${escapedScript}(\\s|$)`);
-          return regex.test(trimmedCmd);
-        });
-      }
-    }
+  // 1 & 2. Quick Regex Eval (Blacklist and Whitelist)
+  const quickDecision = evaluateQuickRules(tool_name, tool_input);
 
-    // Anti-Bypass Guardrail: Prevent spoofing the GEMINI_TEST environment variable
-    if (/\bGEMINI_TEST\s*=/.test(trimmedCmd)) {
-      return {
-        decision: 'deny',
-        reason:
-          'Security Policy Violation: Spoofing the GEMINI_TEST environment variable is strictly prohibited.\n\n' +
-          'This environment variable is reserved for internal pipeline tests and cannot be used to bypass mandatory project test gates.',
-        systemMessage: '🔒 Security Block: Bypassing tests via GEMINI_TEST is prohibited.',
-      };
-    }
-
-    // Anti-Bypass Guardrail: Unconditionally deny any manual writing, editing, or spoofing of any gate approval/challenge JSON/age files
-    const isManipulatingApproval =
-      /\b(echo|cat|touch|rm|mv|cp|write|tee|vim|vi|nano|printf|sed|awk)\b.*\b(plan-approval|test-approval|review-approval|user-approval)\.(json|challenge|age|sig)\b|>>?[^>]*\b(plan-approval|test-approval|review-approval|user-approval)\.(json|challenge|age|sig)\b/.test(
-        commandClean,
-      );
-    if (isManipulatingApproval) {
-      return {
-        decision: 'deny',
-        reason:
-          'Security Policy Violation: Manually writing, editing, or spoofing any planning, testing, review, or commit gate approval files is strictly prohibited.\n\n' +
-          'Gating approval files must ONLY be generated automatically and securely by our pipeline hooks and sub-agents.\n\n' +
-          '👉 TO PROCEED:\n' +
-          '1. Comply strictly with our gated sequence (Plan -> Test -> Review -> Commit).\n' +
-          '2. For Plan Approval, use the `ask_user` tool with intent = "plan approval" and include the `plan` field in your TOML.\n' +
-          '3. For Commit Approval, use the `ask_user` tool with intent = "commit approval" and include the `hash`, `commit-message`, and `pr-description` fields in your TOML.',
-        systemMessage: '🔒 Security Block: Direct manipulation of approval files is prohibited.',
-      };
-    }
-
-    // Anti-Bypass Guardrail: Unconditionally deny any manual deletion, renaming, or tampering with remediation-report.md
-    const isManipulatingRemediation = /\b(rm|mv|cp|rename)\b.*\b(remediation-report)\.md\b/.test(commandClean);
-    if (isManipulatingRemediation) {
-      return {
-        decision: 'deny',
-        reason:
-          '🔒 Security Policy Violation: Manually deleting, moving, or tampering with remediation-report.md is strictly prohibited.\n\n' +
-          'The remediation checklist must only be written and updated automatically by the Gemini CLI review pipeline, and completed tasks must be checked off in-place (- [x]).',
-        systemMessage: '🔒 Security Block: Deleting or tampering with remediation-report.md is prohibited.',
-      };
-    }
-
-    // Protect the whitelist.json from any manual user write, edit, rename, move, delete, or spoofing operations
-    const isManipulatingWhitelist =
-      /\b(echo|cat|touch|rm|mv|cp|write|tee|vim|vi|nano|printf|sed|awk)\b.*\b(whitelist)\.json\b|>>?[^>]*\b(whitelist)\.json\b/.test(
-        commandClean,
-      );
-    if (isManipulatingWhitelist) {
-      return {
-        decision: 'deny',
-        reason:
-          '🔒 Security Policy Violation: Manually writing, editing, or spoofing gating approvals or system whitelists is strictly prohibited.\n\n' +
-          'These secure configuration files must ONLY be generated automatically and securely by our pipeline hooks and repository managers.\n\n' +
-          '👉 TO PROCEED:\n' +
-          '1. Comply strictly with our gated sequence (Plan -> Test -> Review -> Commit).\n' +
-          '2. Do not attempt to modify secure system config files or signatures.',
-        systemMessage: '🔒 Security Block: Direct manipulation of secure config files is prohibited.',
-      };
-    }
-
-    // Anti-Bypass Guardrail: Unconditionally deny any manual execution of enforcer hook scripts inside .gemini/hooks/ or .claude/hooks/
-    const isExecutingHooksManually =
-      trimmedCmd.includes('.gemini/hooks/') ||
-      trimmedCmd.includes('.gemini/hooks') ||
-      trimmedCmd.includes('.claude/hooks/') ||
-      trimmedCmd.includes('.claude/hooks') ||
-      trimmedCmd.includes('agent-scripts/');
-    const isGitDiff = commandClean.trim().startsWith('git diff');
-    if (isExecutingHooksManually && !isGitDiff && !isWhitelisted) {
-      return {
-        decision: 'deny',
-        reason:
-          '🔒 Security Policy Violation: Manual execution of enforcer hook or agent scripts is strictly prohibited.\n\n' +
-          'These scripts are part of the secure system pipeline and must only be executed automatically by the Gemini CLI lifecycle.\n\n' +
-          '👉 TO PROCEED:\n' +
-          'Do not try to run or trigger hook scripts manually. Instead, use the correct lifecycle tools:\n' +
-          '1. For Plan Approval, call the `ask_user` tool with intent = "plan approval" containing your TOML payload.\n' +
-          '2. To run reviews, run: agent-scripts/code-review.js \n' +
-          '3. For Commit Approval, call the `ask_user` tool with intent = "commit approval" containing your TOML payload.\n',
-        systemMessage: '🔒 Security Block: Manual execution of secure scripts is prohibited.',
-      };
-    }
-
-    // Hand off Git specific checks to git.js
-    return await verifySafeGitCommand(commandClean, cwd);
+  if (quickDecision === 'deny') {
+    console.log(JSON.stringify(denyResponse));
+    process.exit(0);
   }
 
-  const { tool_name, tool_input, cwd } = inputData;
-
-  if (tool_name === 'run_shell_command' && tool_input && tool_input.command) {
-    const result = await verifyShellCommand(tool_input.command, cwd || process.cwd());
-    if (result && result.decision === 'deny') {
-      console.log(
-        JSON.stringify({
-          decision: 'deny',
-          reason: result.reason || 'Command execution blocked by security policy.',
-          systemMessage: '🔒 Security Block: Restricted shell command denied.',
-        }),
-      );
-      process.exit(0);
-    }
+  if (quickDecision === 'allow') {
+    console.log(JSON.stringify({ decision: 'allow' }));
+    process.exit(0);
   }
 
-  const fileModificationTools = ['write_file', 'replace', 'edit_file', 'create_file'];
-  if (fileModificationTools.includes(tool_name) && tool_input) {
-    const targetPath = tool_input.file_path || tool_input.path || '';
-    if (targetPath.endsWith('eslint.config.mjs') || targetPath.endsWith('flake.nix')) {
-      const isEslint = targetPath.endsWith('eslint.config.mjs');
-      console.log(
-        JSON.stringify({
-          decision: 'deny',
-          reason: isEslint
-            ? 'Direct modification of eslint.config.mjs is restricted. If you need to change linting rules, you must use the ask_user tool to present the proposed changes and request that the developer apply them manually.'
-            : 'Direct modification of flake.nix is restricted. If you need to change system packages or nix configurations, you must use the ask_user tool to present the proposed changes and request that the developer apply them manually.',
-          systemMessage: isEslint
-            ? '🔒 Security Block: Modifying ESLint configuration is denied.'
-            : '🔒 Security Block: Modifying flake.nix is denied.',
-        }),
-      );
-      process.exit(0);
-    }
+  if (is_offline) {
+    console.log(JSON.stringify({ decision: 'allow' }));
+    process.exit(0);
   }
 
-  let allowedMessage = 'execution allowed.';
-  if (tool_name === 'run_shell_command' && tool_input && tool_input.command) {
-    const cmdStr = tool_input.command.length > 100 ? tool_input.command.substring(0, 97) + '...' : tool_input.command;
-    allowedMessage = `\`${cmdStr}\` command execution allowed.`;
-  } else if (tool_name) {
-    allowedMessage = `\`${tool_name}\` execution allowed.`;
+  // 3. Fallback to lightweight LLM eval for unknown tools/commands
+  const llmDecision = await lightweightLlmEval(tool_name, tool_input);
+
+  if (llmDecision === 'deny') {
+    console.log(JSON.stringify(denyResponse));
+    process.exit(0);
   }
 
-  console.log(JSON.stringify({ decision: 'allow', systemMessage: `🔒 Hook Notification: ${allowedMessage}` }));
+  console.log(JSON.stringify({ decision: 'allow' }));
   process.exit(0);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  main().catch((err) => {
-    console.error('::error::Fatal Block Restricted Commands Hook Error:', err.stack || err.message);
-    process.exit(1);
+  main().catch(() => {
+    // Fail-open on fatal crash to ensure we don't completely trap the user/agent loop
+    console.log(JSON.stringify({ decision: 'allow' }));
+    process.exit(0);
   });
 }

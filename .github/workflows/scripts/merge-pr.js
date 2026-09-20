@@ -2,7 +2,7 @@
 // Conforms to github-script.instructions.md guidelines.
 
 import { execFileSync } from 'child_process';
-import { deleteFileSafe, readFileSafe, writeFileSafe } from '../../../agent-scripts/tools/file.js';
+import fs from 'node:fs/promises';
 
 const COMMENT_SIGNATURE = '<!-- auto-merge-verification-signature -->';
 
@@ -239,10 +239,10 @@ ${commitsList}
 
   try {
     const promptFile = '.copilot-prompt.txt';
-    await writeFileSafe(promptFile, prompt);
+    await fs.writeFile(promptFile, prompt);
 
     const nixRunScript = `${process.env.GITHUB_WORKSPACE}/.github/workflows/scripts/nix-run.sh`;
-    const promptContent = (await readFileSafe(promptFile)) || '';
+    const promptContent = (await fs.readFile(promptFile, 'utf8')) || '';
     const args = ['copilot', '-s', '--yolo', '-p', promptContent];
     const output = execFileSync(nixRunScript, args, {
       env: {
@@ -254,7 +254,7 @@ ${commitsList}
       .toString()
       .trim();
 
-    await deleteFileSafe(promptFile);
+    await fs.rm(promptFile, { force: true });
 
     if (!output) {
       throw new Error('Copilot returned an empty response');

@@ -74,7 +74,7 @@ run_shellcheck() {
     find . -type f -name "*.sh"
     grep -Rl -E '^#![[:space:]]*.*(/bash|/sh|[[:space:]]bash|[[:space:]]sh)([[:space:]]|$)' .
   ) 2>/dev/null \
-    | grep -v -E "^\./(\.git|\.terraform|bin)/" \
+    | grep -v -E "^\./(\.git|\.terraform|bin|node_modules)/" \
     | grep -v -E "\.(md|js|mjs)$" \
     | sort -u || true)
 
@@ -101,7 +101,7 @@ run_shfmt() {
 
   local files
   files=$(grep -Rl -e '^#!' . \
-    | grep -v -E "^\./(\.git|\.terraform|\.gemini|bin|agent-scripts)/" \
+    | grep -v -E "^\./(\.git|\.terraform|\.gemini|bin|agent-scripts|node_modules)/" \
     | grep -v -E "\.(md|js|mjs)$" || true)
 
   if [[ -z "${files}" ]]; then

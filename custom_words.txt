@@ -7,13 +7,13 @@ authconfig
 autorelease
 awscli
 backreferenced
-bigram
-bigrams
 bashism
 bashisms
+bigram
+bigrams
+bool_validator
 booldefault
 boolplanmodifier
-bool_validator
 boolvalidator
 bootstrapper
 buildrace
@@ -38,6 +38,7 @@ eslintignore
 façade
 façades
 fetchurl
+genai
 genproto
 getline
 gofmt
@@ -69,6 +70,7 @@ mapfile
 metacharacter
 mktemp
 modularly
+monkeypatch
 mtimes
 nixpkgs
 noloop
@@ -88,6 +90,7 @@ pkgs
 planmodifier
 popd
 providerserver
+PRRT
 pushd
 rancherlabs
 rancherremote
@@ -95,9 +98,9 @@ redactions
 remediation
 remediations
 renovatebot
-rewordings
 respawn
 respawning
+rewordings
 sandbox
 sandboxed
 sandboxing
@@ -115,8 +118,8 @@ subkey
 svchost
 tagparser
 templatefile
-terraformrc
 terminalquotaerror
+terraformrc
 testacc
 testaccrelay
 testracc
@@ -137,6 +140,7 @@ tostring
 TOTP
 trachier
 unparseable
+unredacted
 unreviewed
 unvetted
 updatecli

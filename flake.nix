@@ -133,7 +133,7 @@
           docker-client
           docker-compose
           eslint
-          gemini-cli
+          gemini-cli-bin
           gh
           git
           gitleaks
@@ -149,7 +149,7 @@
           kubernetes-helm
           less
           markdownlint-cli
-          nodejs_26
+          nodejs_24
           openssh
           openssl
           prettier

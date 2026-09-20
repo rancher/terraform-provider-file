@@ -28,3 +28,5 @@ report.json
 
 node_modules
 gemini-reset.lock
+plans/*
+plans/current.md
