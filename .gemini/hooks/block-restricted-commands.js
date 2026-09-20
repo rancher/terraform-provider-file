@@ -1,14 +1,8 @@
 #!/usr/bin/env node
 
 import { Buffer } from 'node:buffer';
-import { execFile } from 'node:child_process';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
-
-const execFileAsync = promisify(execFile);
+import { GeminiCliAgent } from '@google/gemini-cli-sdk';
 
 function evaluateQuickRules(tool_name, tool_input) {
   const blacklistPaths = [
@@ -74,24 +68,34 @@ Respond with EXACTLY ONE WORD: "allow" or "deny". Respond "deny" ONLY if the too
 Tool Name: ${tool_name}
 Tool Input: ${JSON.stringify(tool_input)}`;
 
-  let tmpDir;
   try {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'gemini-eval-'));
-    // Pass arguments directly to execFile to avoid shell injection vulnerabilities
-    const { stdout } = await execFileAsync('gemini', ['ask', prompt, '--model', 'gemini-3.1-flash-lite'], {
-      timeout: 5000,
-      cwd: tmpDir,
+    const agent = new GeminiCliAgent({
+      model: 'gemini-3.1-flash-lite',
+      instructions: 'You are a strict security evaluator. Answer with allow or deny.',
+      tools: [],
     });
+
+    const controller = new globalThis.AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    const session = agent.session();
+    await session.initialize();
+
+    const stream = session.sendStream(prompt, controller.signal);
+    let stdout = '';
+
+    for await (const chunk of stream) {
+      if (chunk.type === 'content') {
+        stdout += chunk.value || '';
+      }
+    }
+    clearTimeout(timeoutId);
 
     const text = stdout.trim().toLowerCase();
     return text.includes('deny') ? 'deny' : 'allow';
   } catch {
     // Fail open on timeout or network error to avoid pipeline locks
     return 'allow';
-  } finally {
-    if (tmpDir) {
-      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-    }
   }
 }
 
@@ -109,7 +113,7 @@ async function main() {
     process.exit(0);
   }
 
-  const { tool_name, tool_input } = inputData;
+  const { tool_name, tool_input, is_offline } = inputData;
   const proposedCall = `${tool_name}(${JSON.stringify(tool_input || {})})`;
 
   const denyResponse = {
@@ -126,6 +130,11 @@ async function main() {
   }
 
   if (quickDecision === 'allow') {
+    console.log(JSON.stringify({ decision: 'allow' }));
+    process.exit(0);
+  }
+
+  if (is_offline) {
     console.log(JSON.stringify({ decision: 'allow' }));
     process.exit(0);
   }

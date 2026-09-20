@@ -306,8 +306,45 @@ Please analyze these errors and fix the code surgically.`;
       continue;
     }
 
-    console.log('🟢 All tests and linters passed!');
-    qaSuccess = true;
+    console.log('🟢 All tests and linters passed! Invoking QA Agent for safety review...');
+
+    const qaConfig = await loadAgentInstructions('quality_assurance');
+    const qaPrompt = `Please review the proposed changes for code quality, strict adherence to the project conventions, and security. Output a strict JSON object containing a 'findings' array detailing any issues, or an empty array if approved.`;
+
+    try {
+      const qaResultText = await runAgentSession({
+        initialPrompt: qaPrompt,
+        systemInstructions: qaConfig.instructions || 'You are a strict QA Review Agent. Output JSON.',
+        requestedModel: qaConfig.model || 'gemini-3.5-flash',
+        blockTools: ['write_file', 'replace', 'create_file', 'edit_file', 'run_shell_command'],
+      });
+
+      let qaReportObj;
+      try {
+        const jsonMatch = qaResultText.match(/\{[\s\S]*\}/);
+        qaReportObj = JSON.parse(jsonMatch ? jsonMatch[0] : qaResultText);
+      } catch {
+        console.error('❌ Failed to parse QA Agent JSON report.');
+        continue;
+      }
+
+      if (Array.isArray(qaReportObj.findings) && qaReportObj.findings.length === 0) {
+        console.log('🟢 QA Agent approved the changes!');
+        qaSuccess = true;
+      } else {
+        console.error('❌ QA Agent found issues:', JSON.stringify(qaReportObj.findings, null, 2));
+        const healPrompt = `The QA Agent rejected the changes with these findings:\n${JSON.stringify(qaReportObj.findings, null, 2)}\nPlease analyze and fix the code surgically.`;
+
+        await runAgentSession({
+          initialPrompt: healPrompt,
+          systemInstructions: 'You are a QA/Self-Healing assistant. Resolve the issues reported by QA.',
+          requestedModel: 'gemini-3.5-flash',
+        });
+      }
+    } catch (err) {
+      console.error(`❌ QA Agent execution failed: ${err.message}`);
+      continue;
+    }
   }
 
   if (!qaSuccess) {

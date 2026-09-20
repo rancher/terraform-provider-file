@@ -6,7 +6,55 @@
     "SessionStart": [],
     "BeforeTool": [
       {
-        "matcher": "*",
+        "matcher": "run_shell_command",
+        "hooks": [
+          {
+            "name": "block-restricted-commands",
+            "type": "command",
+            "command": "node .gemini/hooks/block-restricted-commands.js",
+            "timeout": 5000,
+            "description": "Prevents running destructive commands."
+          }
+        ]
+      },
+      {
+        "matcher": "write_file",
+        "hooks": [
+          {
+            "name": "block-restricted-commands",
+            "type": "command",
+            "command": "node .gemini/hooks/block-restricted-commands.js",
+            "timeout": 5000,
+            "description": "Prevents running destructive commands."
+          }
+        ]
+      },
+      {
+        "matcher": "replace",
+        "hooks": [
+          {
+            "name": "block-restricted-commands",
+            "type": "command",
+            "command": "node .gemini/hooks/block-restricted-commands.js",
+            "timeout": 5000,
+            "description": "Prevents running destructive commands."
+          }
+        ]
+      },
+      {
+        "matcher": "read_file",
+        "hooks": [
+          {
+            "name": "block-restricted-commands",
+            "type": "command",
+            "command": "node .gemini/hooks/block-restricted-commands.js",
+            "timeout": 5000,
+            "description": "Prevents running destructive commands."
+          }
+        ]
+      },
+      {
+        "matcher": "web_fetch",
         "hooks": [
           {
             "name": "block-restricted-commands",
@@ -21,7 +69,7 @@
     "AfterTool": []
   },
   "hooksConfig": {
-    "disabled": ["block-restricted-commands"],
+    "disabled": [],
     "enabled": true
   }
 }
