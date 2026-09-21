@@ -44,9 +44,10 @@ run_exercise() {
   if [[ -f ".variables" ]]; then
     # shellcheck disable=SC1090
     source .variables
-    # shellcheck disable=SC1090
-    source ~/.config/gemini/default
-  fi
+    if [[ -f "${HOME}/.config/gemini/default" ]]; then
+      # shellcheck disable=SC1090
+      source "${HOME}/.config/gemini/default"
+    fi
 
   # Execute via run-in-nix.sh
   ./agent-scripts/run-in-nix.sh ./agent-scripts/exercise-agents.js
