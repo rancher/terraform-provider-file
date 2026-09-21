@@ -42,8 +42,10 @@ run_exercise() {
 
   # Source environment variables for headless cron execution
   if [[ -f ".variables" ]]; then
-    # shellcheck source=/dev/null
+    # shellcheck disable=SC1090
     source .variables
+    # shellcheck disable=SC1090
+    source ~/.config/gemini/default
   fi
 
   # Execute via run-in-nix.sh

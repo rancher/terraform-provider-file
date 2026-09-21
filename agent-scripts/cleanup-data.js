@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
-import path from 'node:path';
 import os from 'node:os';
+import path from 'node:path';
 
 const tmpBaseDir = path.resolve(os.homedir(), '.gemini/tmp/terraform-provider-file');
 const logsFilePath = path.join(tmpBaseDir, 'logs.json');
@@ -71,6 +71,8 @@ async function main() {
 
       // Clear out all tool-outputs, signatures, approvals, reports, remediation steps, logs (excluding logs.json), phase state
       if (
+        entry.startsWith('gemini-qa-sandbox-') ||
+        entry.startsWith('gemini-review-sandbox-') ||
         entry.includes('approval.') ||
         entry.endsWith('.sig') ||
         entry.endsWith('.bak') ||
