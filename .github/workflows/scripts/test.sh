@@ -34,8 +34,8 @@ run_unit_tests() {
 run_acc_tests() {
   echo "==> Running acceptance tests..."
   if [[ ! -f "Makefile" ]]; then
-    echo "No Makefile found, skipping acceptance tests."
-    return 0
+    echo "No Makefile found"
+    return 1
   fi
   make testacc
 }
@@ -43,8 +43,8 @@ run_acc_tests() {
 run_relay_acc_tests() {
   echo "==> Running AWS Test Relay acceptance tests..."
   if [[ ! -f "Makefile" ]]; then
-    echo "No Makefile found, skipping AWS Test Relay acceptance tests."
-    return 0
+    echo "No Makefile found"
+    return 1
   fi
   make testaccrelay
 }
@@ -60,8 +60,8 @@ ensure_node_dependencies() {
 
 run_workflow_script_tests() {
   if [[ ! -d ".github/workflows/scripts/tests" ]]; then
-    echo "No workflow script tests directory found, skipping."
-    return 0
+    echo "No workflow script tests directory found."
+    return 1
   fi
   ensure_node_dependencies
   echo "==> Running workflow script unit tests..."
@@ -70,8 +70,8 @@ run_workflow_script_tests() {
 
 run_agent_script_tests() {
   if [[ ! -d "agent-scripts/tests" ]]; then
-    echo "No agent script tests directory found, skipping."
-    return 0
+    echo "No agent script tests directory found"
+    return 1
   fi
   ensure_node_dependencies
   echo "==> Running agent script unit tests..."
