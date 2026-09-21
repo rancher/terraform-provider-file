@@ -33,7 +33,7 @@ run_unit_tests() {
 
 run_acc_tests() {
   echo "==> Running acceptance tests..."
-  if [[ ! -f "Makefile" ]]; then
+  if [[ ! -f "GNUmakefile" ]]; then
     echo "No Makefile found"
     return 1
   fi
@@ -42,7 +42,7 @@ run_acc_tests() {
 
 run_relay_acc_tests() {
   echo "==> Running AWS Test Relay acceptance tests..."
-  if [[ ! -f "Makefile" ]]; then
+  if [[ ! -f "GNUmakefile" ]]; then
     echo "No Makefile found"
     return 1
   fi
