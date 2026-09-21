@@ -51,8 +51,12 @@ run_relay_acc_tests() {
 
 ensure_node_dependencies() {
   echo "==> Running project setup..."
-  npm ci --silent || npm install --silent
-  npm run setup
+  if [[ ! -d "node_modules" ]]; then
+    npm ci --silent || npm install --silent
+  fi
+  if [[ ! -d "node_modules/@google/gemini-cli-sdk" ]]; then
+    npm run setup
+  fi
 }
 
 run_workflow_script_tests() {
