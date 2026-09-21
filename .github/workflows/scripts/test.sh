@@ -53,19 +53,29 @@ ensure_node_dependencies() {
   if [[ ! -d node_modules ]]; then
     echo "==> Installing Node dependencies..."
     npm ci --silent || npm install --silent
+    echo "==> Running project setup..."
+    npm run setup
   fi
 }
 
 run_workflow_script_tests() {
+  if [[ ! -d ".github/workflows/scripts/tests" ]]; then
+    echo "No workflow script tests directory found, skipping."
+    return 0
+  fi
   ensure_node_dependencies
   echo "==> Running workflow script unit tests..."
-  node --test ".github/workflows/scripts/tests/**/*.test.js"
+  node --test ".github/workflows/scripts/tests"
 }
 
 run_agent_script_tests() {
+  if [[ ! -d "agent-scripts/tests" ]]; then
+    echo "No agent script tests directory found, skipping."
+    return 0
+  fi
   ensure_node_dependencies
   echo "==> Running agent script unit tests..."
-  node --test "agent-scripts/tests/**/*.test.js"
+  node --test "agent-scripts/tests"
 }
 
 run_all_tests() {
