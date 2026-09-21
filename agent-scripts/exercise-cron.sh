@@ -48,6 +48,7 @@ run_exercise() {
       # shellcheck disable=SC1090
       source "${HOME}/.config/gemini/default"
     fi
+  fi
 
   # Execute via run-in-nix.sh
   ./agent-scripts/run-in-nix.sh ./agent-scripts/exercise-agents.js
