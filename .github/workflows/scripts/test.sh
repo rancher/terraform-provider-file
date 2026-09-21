@@ -50,12 +50,9 @@ run_relay_acc_tests() {
 }
 
 ensure_node_dependencies() {
-  if [[ ! -d node_modules ]]; then
-    echo "==> Installing Node dependencies..."
-    npm ci --silent || npm install --silent
-    echo "==> Running project setup..."
-    npm run setup
-  fi
+  echo "==> Running project setup..."
+  npm ci --silent || npm install --silent
+  npm run setup
 }
 
 run_workflow_script_tests() {
