@@ -75,6 +75,7 @@ run_workflow_script_tests() {
     node --test "${test_files[@]}"
   else
     echo "No test files found in .github/workflows/scripts/tests"
+    exit 1
   fi
 }
 
