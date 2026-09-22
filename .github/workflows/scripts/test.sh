@@ -18,9 +18,9 @@ run_compile_check() {
 
 run_unit_tests() {
   echo "==> Running unit tests..."
-  if [[ ! -f "Makefile" ]]; then
-    echo "No Makefile found, skipping unit tests."
-    return 0
+  if [[ ! -f "GNUmakefile" ]]; then
+    echo "No Makefile found."
+    return 1
   fi
   if [[ ! -f "go.mod" ]]; then
     echo "No go.mod found in root directory, skipping unit tests."
@@ -33,39 +33,69 @@ run_unit_tests() {
 
 run_acc_tests() {
   echo "==> Running acceptance tests..."
-  if [[ ! -f "Makefile" ]]; then
-    echo "No Makefile found, skipping acceptance tests."
-    return 0
+  if [[ ! -f "GNUmakefile" ]]; then
+    echo "No Makefile found"
+    return 1
   fi
   make testacc
 }
 
 run_relay_acc_tests() {
   echo "==> Running AWS Test Relay acceptance tests..."
-  if [[ ! -f "Makefile" ]]; then
-    echo "No Makefile found, skipping AWS Test Relay acceptance tests."
-    return 0
+  if [[ ! -f "GNUmakefile" ]]; then
+    echo "No Makefile found"
+    return 1
   fi
   make testaccrelay
 }
 
 ensure_node_dependencies() {
-  if [[ ! -d node_modules ]]; then
-    echo "==> Installing Node dependencies..."
+  echo "==> Running project setup..."
+  if [[ ! -d "node_modules" ]]; then
     npm ci --silent || npm install --silent
+  fi
+  if [[ ! -d "node_modules/@google/gemini-cli-sdk" ]]; then
+    npm run setup
   fi
 }
 
 run_workflow_script_tests() {
+  if [[ ! -d ".github/workflows/scripts/tests" ]]; then
+    echo "No workflow script tests directory found."
+    return 1
+  fi
   ensure_node_dependencies
   echo "==> Running workflow script unit tests..."
-  node --test ".github/workflows/scripts/tests/**/*.test.js"
+
+  local test_files=()
+  while IFS= read -r -d '' file; do
+    test_files+=("$file")
+  done < <(find ".github/workflows/scripts/tests" -type f \( -name "*.js" -o -name "*.ts" \) -print0 2>/dev/null)
+  if [[ ${#test_files[@]} -gt 0 ]]; then
+    node --test "${test_files[@]}"
+  else
+    echo "No test files found in .github/workflows/scripts/tests"
+    exit 1
+  fi
 }
 
 run_agent_script_tests() {
+  if [[ ! -d "agent-scripts/tests" ]]; then
+    echo "No agent script tests directory found"
+    return 1
+  fi
   ensure_node_dependencies
   echo "==> Running agent script unit tests..."
-  node --test "agent-scripts/tests/**/*.test.js"
+
+  local test_files=()
+  while IFS= read -r -d '' file; do
+    test_files+=("$file")
+  done < <(find "agent-scripts/tests" -type f \( -name "*.js" -o -name "*.ts" \) -print0 2>/dev/null)
+  if [[ ${#test_files[@]} -gt 0 ]]; then
+    node --test "${test_files[@]}"
+  else
+    echo "No test files found in agent-scripts/tests"
+  fi
 }
 
 run_all_tests() {

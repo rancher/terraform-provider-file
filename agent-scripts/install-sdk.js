@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
@@ -20,6 +20,13 @@ async function runCommand(file, args, cwd, extraEnv = {}) {
     HOME: process.env.HOME,
     USER: process.env.USER,
   };
+
+  const passthroughEnv = ['SSL_CERT_FILE', 'SSL_CERT_DIR', 'NIX_SSL_CERT_FILE', 'GIT_SSL_CAINFO', 'HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'no_proxy'];
+  for (const key of passthroughEnv) {
+    if (process.env[key] !== undefined) {
+      cleanEnv[key] = process.env[key];
+    }
+  }
 
   const mergedEnv = {
     ...cleanEnv,
