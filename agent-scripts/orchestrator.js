@@ -237,15 +237,15 @@ async function main() {
       const prefixMap = { '1': 'bugfix', '2': 'feature', '3': 'refactor', '4': 'test', '5': 'pr-comments' };
       const prefix = prefixMap[selection] || 'task';
       const sanitizedObjective = objective.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').substring(0, 50) || 'working-branch';
-      const newBranch = `${prefix}/${sanitizedObjective}`;
+      let newBranch = `${prefix}/${sanitizedObjective}`;
 
-      // Check for and delete the branch if it already exists
+      // If the branch already exists, append a random ID
       try {
         await execAsync(`git show-ref --verify --quiet refs/heads/${newBranch}`);
-        console.log(`🗑️ Branch "${newBranch}" already exists. Deleting it...`);
-        await execAsync(`git branch -D ${newBranch}`);
-      } catch (err) {
-        // Branch does not exist, which is fine
+        const randomId = crypto.randomBytes(4).toString('hex');
+        newBranch = `${newBranch}-${randomId}`;
+      } catch {
+        // Branch does not exist, safe to use as is
       }
 
       await execAsync(`git checkout -b ${newBranch}`);
