@@ -1,8 +1,11 @@
 import { promptIdContext, TerminalQuotaError } from '@google/gemini-cli-core';
 import { GeminiCliAgent, tool, z } from '@google/gemini-cli-sdk';
+import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import fsSync from 'node:fs';
+import util from 'node:util';
+import { getRepoRoot } from './utils.js';
 
 const MAX_SILENT_RETRY_DELAY_MS = 300000; // 5 minutes
 
@@ -62,7 +65,52 @@ if (TerminalQuotaError && TerminalQuotaError.prototype) {
   });
 }
 
-const DEBUG_LOG_PATH = path.join(process.cwd(), 'orchestrator-debug.log');
+let initPromise = null;
+let repoRoot = null;
+let logStream = null;
+let isConsoleIntercepted = false;
+let originalLog = null;
+
+let MODEL_PRO = 'gemini-3.1-pro-preview';
+let MODEL_FLASH = 'gemini-3.5-flash';
+let MODEL_FLASH_LITE = 'gemini-3.1-flash-lite';
+let MODEL_HIERARCHY = [MODEL_PRO, MODEL_FLASH, MODEL_FLASH_LITE];
+
+function writeLogAsync(msg) {
+  if (logStream && logStream.writable && !logStream.writableEnded && !logStream.destroyed && !logStream.errored) {
+    logStream.write(msg + '\n');
+  }
+}
+
+/**
+ * Flushes and closes the active debug log stream if open.
+ * @returns {Promise<void>}
+ */
+export async function flushLogs() {
+  if (isConsoleIntercepted && originalLog) {
+    console.log = originalLog;
+    originalLog = null;
+    isConsoleIntercepted = false;
+  }
+  if (!logStream) {
+    return;
+  }
+  const stream = logStream;
+  logStream = null;
+  initPromise = null;
+
+  if (stream.destroyed || stream.errored || stream.writableEnded) {
+    return;
+  }
+
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, 1000);
+    stream.end(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
 
 function shouldRedirectLog(msg) {
   if (typeof msg !== 'string') {
@@ -82,21 +130,67 @@ function shouldRedirectLog(msg) {
   );
 }
 
-// Set up console intercepts
-const originalLog = console.log;
-console.log = function (...args) {
-  const msg = args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
-  if (shouldRedirectLog(msg)) {
-    fsSync.appendFileSync(DEBUG_LOG_PATH, msg + '\n');
-  } else {
-    originalLog.apply(console, args);
+function setupConsoleIntercept() {
+  if (isConsoleIntercepted) {
+    return;
   }
-};
+  isConsoleIntercepted = true;
+  originalLog = console.log;
+  console.log = function (...args) {
+    const msg = util.formatWithOptions({ colors: false }, ...args);
+    if (shouldRedirectLog(msg)) {
+      if (logStream && !logStream.writableEnded && !logStream.destroyed && !logStream.errored) {
+        writeLogAsync(msg);
+      } else {
+        originalLog.apply(console, args);
+      }
+    } else {
+      originalLog.apply(console, args);
+    }
+  };
+}
 
-const MODEL_PRO = 'gemini-3.1-pro-preview';
-const MODEL_FLASH = 'gemini-3.5-flash';
-const MODEL_FLASH_LITE = 'gemini-3.1-flash-lite';
-const MODEL_HIERARCHY = [MODEL_PRO, MODEL_FLASH, MODEL_FLASH_LITE];
+/**
+ * Initializes configuration state and logging streams asynchronously.
+ * Can be called explicitly or lazily when runAgentSession executes.
+ * @returns {Promise<{repoRoot: string, models: {pro: string, flash: string, flash_lite: string}}>}
+ */
+export async function initializeAgentRunner() {
+  if (initPromise) {
+    return initPromise;
+  }
+  initPromise = (async () => {
+    repoRoot = await getRepoRoot();
+    const debugLogPath = path.join(repoRoot, 'orchestrator-debug.log');
+    logStream = fs.createWriteStream(debugLogPath, { flags: 'a' });
+    logStream.on('error', (err) => {
+      console.debug(`[DEBUG] Debug log stream error encountered: ${err.message}`);
+    });
+    setupConsoleIntercept();
+
+    let modelConfig;
+    try {
+      const settingsStr = await fsPromises.readFile(path.join(repoRoot, '.gemini/settings.json'), 'utf8');
+      const settingsObj = JSON.parse(settingsStr);
+      modelConfig = settingsObj.models || {};
+    } catch (err) {
+      console.debug(`[DEBUG] Could not load .gemini/settings.json models: ${err.message}. Using defaults.`);
+      modelConfig = {};
+    }
+
+    MODEL_PRO = modelConfig.pro || 'gemini-3.1-pro-preview';
+    MODEL_FLASH = modelConfig.flash || 'gemini-3.5-flash';
+    MODEL_FLASH_LITE = modelConfig.flash_lite || 'gemini-3.1-flash-lite';
+    MODEL_HIERARCHY = [MODEL_PRO, MODEL_FLASH, MODEL_FLASH_LITE];
+
+    return {
+      repoRoot,
+      models: { pro: MODEL_PRO, flash: MODEL_FLASH, flash_lite: MODEL_FLASH_LITE },
+    };
+  })();
+
+  return initPromise;
+}
 
 function getModelFallbackSequence(requestedModel) {
   let modelName = requestedModel;
@@ -151,19 +245,26 @@ function isQuotaError(err) {
  * @param {string} [options.requestedModel] - Model to start with
  * @param {Array<string>} [options.blockTools] - List of tools to unregister/block
  * @param {Array<Object>} [options.customTools] - Array of custom SDK tools to register
+ * @param {boolean} [options.isolate] - Whether to isolate the agent session
+ * @param {boolean} [options.standalone] - Whether to auto-flush logs upon session completion
  * @returns {Promise<string>} Accumulated text output from the agent
  */
 export async function runAgentSession({
   initialPrompt,
   systemInstructions = '',
-  requestedModel = MODEL_FLASH,
+  requestedModel,
   blockTools = [],
   customTools = [],
   isolate = false,
+  standalone = false,
 }) {
-  const fallbackSequence = getModelFallbackSequence(requestedModel);
+  await initializeAgentRunner();
 
-  for (let i = 0; i < fallbackSequence.length; i++) {
+  try {
+    const startingModel = requestedModel || MODEL_FLASH;
+    const fallbackSequence = getModelFallbackSequence(startingModel);
+
+    for (let i = 0; i < fallbackSequence.length; i++) {
     const currentModel = fallbackSequence[i];
     const maxTurns = getMaxTurnsForModel(currentModel);
     console.log(`\n[Initializing Gemini SDK Agentic Session] (Model: ${currentModel}, Max Turns: ${maxTurns})...`);
@@ -236,8 +337,8 @@ export async function runAgentSession({
               if (typeof args === 'string') {
                 try {
                   args = JSON.parse(args);
-                } catch {
-                  /* ignore */
+                } catch (err) {
+                  console.debug(`[DEBUG] Failed to parse tool arguments string as JSON: ${err.message}`);
                 }
               }
 
@@ -261,12 +362,9 @@ export async function runAgentSession({
             }
           } else if (chunk.type === 'tool_call_result') {
             try {
-              fsSync.appendFileSync(
-                DEBUG_LOG_PATH,
-                `\n[Tool Result]: ${JSON.stringify(chunk.value).substring(0, 500)}\n`,
-              );
-            } catch {
-              /* ignore */
+              writeLogAsync(`\n[Tool Result]: ${JSON.stringify(chunk.value).substring(0, 500)}`);
+            } catch (err) {
+              console.debug(`[DEBUG] Failed to log tool call result: ${err.message}`);
             }
           }
         }
@@ -284,4 +382,9 @@ export async function runAgentSession({
     }
   }
   throw new Error('All models in fallback sequence failed.');
+} finally {
+  if (standalone) {
+    await flushLogs();
+  }
+}
 }

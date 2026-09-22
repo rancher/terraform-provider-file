@@ -1,4 +1,4 @@
-import { runAgentSession } from './agent-runner.js';
+import { flushLogs, runAgentSession } from './agent-runner.js';
 
 async function testIsolate() {
   console.log('Testing isolated mode...');
@@ -7,12 +7,15 @@ async function testIsolate() {
       initialPrompt: 'Respond with exactly the word "Hello". Do not use any tools.',
       requestedModel: 'gemini-3.5-flash',
       isolate: true,
+      standalone: true,
     });
     console.log('\nOutput from isolated agent:', text);
     console.log('\nIsolate test passed (agent ran without crashing).');
   } catch (err) {
     console.error('\nIsolate test failed:', err);
-    process.exit(1);
+    process.exitCode = 1;
+  } finally {
+    await flushLogs();
   }
 }
 

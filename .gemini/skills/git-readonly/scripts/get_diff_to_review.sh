@@ -5,8 +5,8 @@ set -euo pipefail
 # It is designed to be read-only and LLM-friendly.
 
 echo "=== Staged Changes (to be committed) ==="
-git diff --staged
+git diff --no-ext-diff --staged
 
 echo ""
 echo "=== Unstaged Changes (working tree) ==="
-git diff
+git diff --no-ext-diff
