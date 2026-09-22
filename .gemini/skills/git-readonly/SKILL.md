@@ -21,6 +21,12 @@ To view current uncommitted changes (both staged and unstaged) and list files ch
 ./scripts/get_files_changed.sh
 ```
 
+To get a clean list of explicit file paths that have been modified or are untracked (useful for iterating and staging specific files), use `get_modified_paths.sh`.
+
+```bash
+./scripts/get_modified_paths.sh
+```
+
 ### 2. Review Detailed Diffs
 
 - **Uncommitted Changes (Staged & Unstaged)**: To get a full diff of local changes in the working directory and staging area, use `get_diff_to_review.sh`.

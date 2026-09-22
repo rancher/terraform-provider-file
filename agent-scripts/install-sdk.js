@@ -21,7 +21,18 @@ async function runCommand(file, args, cwd, extraEnv = {}) {
     USER: process.env.USER,
   };
 
-  const passthroughEnv = ['SSL_CERT_FILE', 'SSL_CERT_DIR', 'NIX_SSL_CERT_FILE', 'GIT_SSL_CAINFO', 'HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'no_proxy'];
+  const passthroughEnv = [
+    'SSL_CERT_FILE',
+    'SSL_CERT_DIR',
+    'NIX_SSL_CERT_FILE',
+    'GIT_SSL_CAINFO',
+    'HTTP_PROXY',
+    'HTTPS_PROXY',
+    'NO_PROXY',
+    'http_proxy',
+    'https_proxy',
+    'no_proxy',
+  ];
   for (const key of passthroughEnv) {
     if (process.env[key] !== undefined) {
       cleanEnv[key] = process.env[key];
