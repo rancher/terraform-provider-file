@@ -18,9 +18,9 @@ run_compile_check() {
 
 run_unit_tests() {
   echo "==> Running unit tests..."
-  if [[ ! -f "Makefile" ]]; then
-    echo "No Makefile found, skipping unit tests."
-    return 0
+  if [[ ! -f "GNUmakefile" ]]; then
+    echo "No Makefile found."
+    return 1
   fi
   if [[ ! -f "go.mod" ]]; then
     echo "No go.mod found in root directory, skipping unit tests."
