@@ -245,6 +245,8 @@ function isQuotaError(err) {
  * @param {string} [options.requestedModel] - Model to start with
  * @param {Array<string>} [options.blockTools] - List of tools to unregister/block
  * @param {Array<Object>} [options.customTools] - Array of custom SDK tools to register
+ * @param {boolean} [options.isolate] - Whether to isolate the agent session
+ * @param {boolean} [options.standalone] - Whether to auto-flush logs upon session completion
  * @returns {Promise<string>} Accumulated text output from the agent
  */
 export async function runAgentSession({
@@ -254,13 +256,15 @@ export async function runAgentSession({
   blockTools = [],
   customTools = [],
   isolate = false,
+  standalone = false,
 }) {
   await initializeAgentRunner();
 
-  const startingModel = requestedModel || MODEL_FLASH;
-  const fallbackSequence = getModelFallbackSequence(startingModel);
+  try {
+    const startingModel = requestedModel || MODEL_FLASH;
+    const fallbackSequence = getModelFallbackSequence(startingModel);
 
-  for (let i = 0; i < fallbackSequence.length; i++) {
+    for (let i = 0; i < fallbackSequence.length; i++) {
     const currentModel = fallbackSequence[i];
     const maxTurns = getMaxTurnsForModel(currentModel);
     console.log(`\n[Initializing Gemini SDK Agentic Session] (Model: ${currentModel}, Max Turns: ${maxTurns})...`);
@@ -378,4 +382,9 @@ export async function runAgentSession({
     }
   }
   throw new Error('All models in fallback sequence failed.');
+} finally {
+  if (standalone) {
+    await flushLogs();
+  }
+}
 }

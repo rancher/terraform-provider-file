@@ -149,10 +149,8 @@ function extractTopLevelJSONObjects(str) {
  * @returns {Object|null}
  */
 export function parseJSONFromText(text, fallbackType = 'qa') {
-  if (!text || typeof text !== 'string') {
-    return null;
-  }
-  const matches = [...text.matchAll(/```(?:[a-zA-Z0-9_-]+)?\s*?\n?([\s\S]*?)\n?\s*```/gi)];
+  const safeText = typeof text === 'string' ? text : '';
+  const matches = [...safeText.matchAll(/```(?:[a-zA-Z0-9_-]+)?\s*?\n?([\s\S]*?)\n?\s*```/gi)];
   for (let i = matches.length - 1; i >= 0; i--) {
     const candidate = matches[i][1].trim();
     try {
@@ -165,16 +163,18 @@ export function parseJSONFromText(text, fallbackType = 'qa') {
     }
   }
   try {
-    const clean = text.trim();
-    const parsed = JSON.parse(clean);
-    if (parsed && typeof parsed === 'object') {
-      return parsed;
+    const clean = safeText.trim();
+    if (clean) {
+      const parsed = JSON.parse(clean);
+      if (parsed && typeof parsed === 'object') {
+        return parsed;
+      }
     }
   } catch (err) {
     console.debug(`[DEBUG] Raw text was not pure JSON: ${err.message}`);
   }
 
-  const unadorned = extractTopLevelJSONObjects(text);
+  const unadorned = extractTopLevelJSONObjects(safeText);
   if (unadorned.length > 0) {
     return unadorned[unadorned.length - 1];
   }
@@ -187,7 +187,7 @@ export function parseJSONFromText(text, fallbackType = 'qa') {
         {
           file: 'unknown',
           line_numbers: [],
-          narrative: `Malformed output: agent did not produce valid JSON findings.\nRaw response: ${text.trim()}`,
+          narrative: `Malformed output: agent did not produce valid JSON findings.\nRaw response: ${safeText.trim()}`,
         },
       ],
     };

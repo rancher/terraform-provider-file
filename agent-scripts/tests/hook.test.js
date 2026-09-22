@@ -236,7 +236,71 @@ test('stripDiffMetadata', async (t) => {
 
     assert.strictEqual(stripped1, stripped2);
     assert.doesNotMatch(stripped1, /^index /m);
-    assert.doesNotMatch(stripped1, /^@@/m);
+    assert.match(stripped1, /^@@ @@$/m);
+  });
+
+  await t.test('retains hunk location context while ignoring line number shifts', () => {
+    const diffFoo1 = [
+      'diff --git a/file.txt b/file.txt',
+      '--- a/file.txt',
+      '+++ b/file.txt',
+      '@@ -10,3 +10,4 @@ func Foo()',
+      ' context line',
+      '+added line',
+      ' context line 2',
+    ].join('\n');
+
+    const diffFoo2 = [
+      'diff --git a/file.txt b/file.txt',
+      '--- a/file.txt',
+      '+++ b/file.txt',
+      '@@ -80,3 +80,4 @@ func Foo()',
+      ' context line',
+      '+added line',
+      ' context line 2',
+    ].join('\n');
+
+    const diffBar = [
+      'diff --git a/file.txt b/file.txt',
+      '--- a/file.txt',
+      '+++ b/file.txt',
+      '@@ -10,3 +10,4 @@ func Bar()',
+      ' context line',
+      '+added line',
+      ' context line 2',
+    ].join('\n');
+
+    assert.strictEqual(stripDiffMetadata(diffFoo1), stripDiffMetadata(diffFoo2));
+    assert.notStrictEqual(stripDiffMetadata(diffFoo1), stripDiffMetadata(diffBar));
+  });
+
+  await t.test('preserves whitespace in diff content lines and trailing newlines', () => {
+    const diffWithTrailingSpace = [
+      'diff --git a/file.txt b/file.txt',
+      '--- a/file.txt',
+      '+++ b/file.txt',
+      '@@ -1,2 +1,2 @@',
+      '+added line with spaces   ',
+      ' context line',
+      '',
+    ].join('\n');
+
+    const diffWithoutTrailingSpace = [
+      'diff --git a/file.txt b/file.txt',
+      '--- a/file.txt',
+      '+++ b/file.txt',
+      '@@ -1,2 +1,2 @@',
+      '+added line with spaces',
+      ' context line',
+      '',
+    ].join('\n');
+
+    const strippedWith = stripDiffMetadata(diffWithTrailingSpace);
+    const strippedWithout = stripDiffMetadata(diffWithoutTrailingSpace);
+
+    assert.match(strippedWith, /\+added line with spaces {3}\n/);
+    assert.notStrictEqual(strippedWith, strippedWithout);
+    assert.ok(strippedWith.endsWith('\n'));
   });
 });
 
@@ -248,6 +312,8 @@ test('agent-runner initialization', async (t) => {
     assert.ok(config.models.pro);
     assert.ok(config.models.flash);
     assert.ok(config.models.flash_lite);
+    await flushLogs();
+    // Verify flushLogs is idempotent and safe to call when stream is already flushed
     await flushLogs();
   });
 });
@@ -277,6 +343,25 @@ test('parseJSONFromText resilient extraction', async (t) => {
     assert.ok(parsed);
     assert.strictEqual(parsed.approval_status, 'UNAPPROVED');
     assert.strictEqual(parsed.findings.length, 1);
+
+    // Empty string fallback
+    const emptyParsed = parseJSONFromText('', 'qa');
+    assert.ok(emptyParsed);
+    assert.strictEqual(emptyParsed.approval_status, 'UNAPPROVED');
+    assert.strictEqual(emptyParsed.findings[0].file, 'unknown');
+
+    // Non-string inputs (null, undefined, number) fallback
+    const nullParsed = parseJSONFromText(null, 'qa');
+    assert.ok(nullParsed);
+    assert.strictEqual(nullParsed.approval_status, 'UNAPPROVED');
+
+    const undefParsed = parseJSONFromText(undefined, 'qa');
+    assert.ok(undefParsed);
+    assert.strictEqual(undefParsed.approval_status, 'UNAPPROVED');
+
+    // Non-qa fallbackType returns null for invalid input
+    assert.strictEqual(parseJSONFromText('', 'plan'), null);
+    assert.strictEqual(parseJSONFromText(null, 'plan'), null);
   });
 
   await t.test('extracts raw JSON when unadorned by code blocks but surrounded by commentary', () => {

@@ -403,7 +403,7 @@ ${diffText}
           continue;
         }
 
-        if (Array.isArray(qaReportObj.findings) && qaReportObj.findings.length === 0) {
+        if (qaReportObj.approval_status === 'APPROVED' && Array.isArray(qaReportObj.findings) && qaReportObj.findings.length === 0) {
           console.log('🟢 QA Agent approved the changes!');
           qaSuccess = true;
         } else {
@@ -525,15 +525,11 @@ ${diffText}
   }
 }
 
-main()
-  .then(() => {
-    process.exit(process.exitCode ?? 0);
-  })
-  .catch(async (err) => {
+main().catch(async (err) => {
   console.error('❌ Fatal Orchestrator Error:', err.stack || err.message);
   if (rl) {
     rl.close();
   }
   await flushLogs();
-  process.exit(1);
+  process.exitCode = 1;
 });
