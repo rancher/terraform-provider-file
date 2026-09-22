@@ -1,18 +1,22 @@
 #!/usr/bin/env node
+import { exec } from 'node:child_process';
+import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { stdin as input, stdout as output } from 'node:process';
 import * as readline from 'node:readline/promises';
-import path from 'node:path';
-import fs from 'node:fs/promises';
-import crypto from 'node:crypto';
+import { promisify } from 'node:util';
 
 import { tool, z } from '@google/gemini-cli-sdk';
 
 // Import our deterministic modular libraries
 import { runAgentSession } from './lib/agent-runner.js';
-import { getGitDiff, validateMessage, stageAndCommit } from './lib/git-release.js';
-import { runQAPipeline } from './lib/qa-runner.js';
+import { getGitDiff, stageAndCommit, validateMessage } from './lib/git-release.js';
 import { getPRComments } from './lib/github-context.js';
+import { runQAPipeline } from './lib/qa-runner.js';
 import { exists, loadAgentInstructions, savePlanFromJSON } from './lib/utils.js';
+
+const execAsync = promisify(exec);
 
 const rl = readline.createInterface({ input, output });
 
@@ -222,6 +226,37 @@ async function main() {
     }
   }
 
+  // Check if on main, sync, and branch out
+  try {
+    const { stdout: branchOutput } = await execAsync('git rev-parse --abbrev-ref HEAD');
+    if (branchOutput.trim() === 'main') {
+      console.log('\n🌿 Currently on "main" branch. Syncing and creating a new working branch...');
+      console.log('Fetching latest from origin main...');
+      await execAsync('git pull origin main');
+
+      const prefixMap = { '1': 'bugfix', '2': 'feature', '3': 'refactor', '4': 'test', '5': 'pr-comments' };
+      const prefix = prefixMap[selection] || 'task';
+      const sanitizedObjective = objective.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').substring(0, 50) || 'working-branch';
+      let newBranch = `${prefix}/${sanitizedObjective}`;
+
+      // If the branch already exists, append a random ID
+      try {
+        await execAsync(`git show-ref --verify --quiet refs/heads/${newBranch}`);
+        const randomId = crypto.randomBytes(4).toString('hex');
+        newBranch = `${newBranch}-${randomId}`;
+      } catch {
+        // Branch does not exist, safe to use as is
+      }
+
+      await execAsync(`git checkout -b ${newBranch}`);
+      console.log(`✅ Checked out new branch: ${newBranch}`);
+    }
+  } catch (err) {
+    console.error(`❌ Branch creation failed: ${err.message}`);
+    rl.close();
+    process.exit(1);
+  }
+
   // ==========================================
   // PHASE 2: IMPLEMENTATION (Write Access)
   // ==========================================
@@ -255,14 +290,31 @@ Once you have fully finished your implementation, stop.`;
 
   // Programmatic verification of scope boundaries
   if (selection === '4') {
-    // Check if any product files were altered using git status
+    // Check if any product files were altered using git diff
     const modifiedList = await getGitDiff();
-    const modifiedFiles = modifiedList
-      .split('\n')
-      .filter((line) => line.startsWith('+++ b/'))
-      .map((line) => line.substring(6));
+    const modifiedFiles = new Set();
 
-    const invalidChanges = modifiedFiles.filter((f) => !f.includes('test') && !f.endsWith('_test.go'));
+    modifiedList.split('\n').forEach((line) => {
+      if (line.startsWith('+++ b/')) {
+        modifiedFiles.add(line.substring(6));
+      }
+      if (line.startsWith('--- a/')) {
+        modifiedFiles.add(line.substring(6));
+      }
+    });
+
+    const invalidChanges = Array.from(modifiedFiles).filter((f) => {
+      if (f === 'dev/null') {
+        return false;
+      }
+      const parts = f.split('/');
+      const isInTestDir = parts.slice(0, -1).some((p) => p === 'test' || p === 'tests');
+      const isGoTest = f.endsWith('_test.go');
+      const isJsTest = (f.endsWith('.test.js') || f.endsWith('.spec.js')) && (f.startsWith('agent-scripts/') || f.startsWith('.github/workflows/scripts/'));
+
+      return !isInTestDir && !isGoTest && !isJsTest;
+    });
+
     if (invalidChanges.length > 0) {
       console.error(
         `❌ Safety violation: Product files were modified during a Test-only task: ${invalidChanges.join(', ')}`,
@@ -302,6 +354,7 @@ Please analyze these errors and fix the code surgically.`;
         systemInstructions:
           'You are a QA/Self-Healing assistant. Resolve the test/linter failures reported by the QA pipeline.',
         requestedModel: 'gemini-3.5-flash',
+        blockTools: ['run_shell_command'],
       });
       continue;
     }
@@ -309,7 +362,22 @@ Please analyze these errors and fix the code surgically.`;
     console.log('🟢 All tests and linters passed! Invoking QA Agent for safety review...');
 
     const qaConfig = await loadAgentInstructions('quality_assurance');
-    const qaPrompt = `Please review the proposed changes for code quality, strict adherence to the project conventions, and security. Output a strict JSON object containing a 'findings' array detailing any issues, or an empty array if approved.`;
+    const diffText = await getGitDiff();
+    const planPath = planFileFound || path.join(process.cwd(), 'plans/current.md');
+    let activePlan = '';
+    if (await exists(planPath)) {
+      activePlan = await fs.readFile(planPath, 'utf8');
+    }
+
+    const qaPrompt = `Please review the proposed changes for code quality, strict adherence to the project conventions, and security. Output a strict JSON object containing a 'findings' array detailing any issues, or an empty array if approved.
+
+<active_plan>
+${activePlan}
+</active_plan>
+
+<git_diff>
+${diffText}
+</git_diff>`;
 
     try {
       const qaResultText = await runAgentSession({
@@ -339,6 +407,7 @@ Please analyze these errors and fix the code surgically.`;
           initialPrompt: healPrompt,
           systemInstructions: 'You are a QA/Self-Healing assistant. Resolve the issues reported by QA.',
           requestedModel: 'gemini-3.5-flash',
+          blockTools: ['run_shell_command'],
         });
       }
     } catch (err) {

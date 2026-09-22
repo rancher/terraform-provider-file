@@ -151,3 +151,4 @@ worklist
 worktree
 yamux
 yubi
+CAINFO

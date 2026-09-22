@@ -44,8 +44,27 @@ export async function validateMessage(message) {
  * @returns {Promise<{stdout: string, stderr: string}>} The commit result
  */
 export async function stageAndCommit(commitMessage) {
-  // First stage all changes
-  await execAsync('git add -A');
+  // Prevent commits directly to the main branch
+  const { stdout: branchOutput } = await execAsync('git rev-parse --abbrev-ref HEAD');
+  if (branchOutput.trim() === 'main') {
+    throw new Error('Commits directly to the "main" branch are not allowed.');
+  }
+
+  // Get explicitly modified and untracked files
+  const { stdout: pathsOutput } = await execAsync('.gemini/skills/git-readonly/scripts/get_modified_paths.sh');
+  const modifiedPaths = pathsOutput
+    .split('\n')
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  if (modifiedPaths.length > 0) {
+    // Stage files in chunks to prevent E2BIG (Argument list too long) OS errors
+    const chunkSize = 100;
+    for (let i = 0; i < modifiedPaths.length; i += chunkSize) {
+      const chunk = modifiedPaths.slice(i, i + chunkSize);
+      await execFileAsync('git', ['add', ...chunk], { maxBuffer: 10 * 1024 * 1024 });
+    }
+  }
 
   // Verify the message before committing
   const validation = await validateMessage(commitMessage);
