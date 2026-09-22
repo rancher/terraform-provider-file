@@ -66,7 +66,16 @@ run_workflow_script_tests() {
   fi
   ensure_node_dependencies
   echo "==> Running workflow script unit tests..."
-  node --test ".github/workflows/scripts/tests"
+
+  local test_files=()
+  while IFS= read -r -d '' file; do
+    test_files+=("$file")
+  done < <(find ".github/workflows/scripts/tests" -type f \( -name "*.js" -o -name "*.ts" \) -print0 2>/dev/null)
+  if [[ ${#test_files[@]} -gt 0 ]]; then
+    node --test "${test_files[@]}"
+  else
+    echo "No test files found in .github/workflows/scripts/tests"
+  fi
 }
 
 run_agent_script_tests() {
@@ -76,7 +85,16 @@ run_agent_script_tests() {
   fi
   ensure_node_dependencies
   echo "==> Running agent script unit tests..."
-  node --test "agent-scripts/tests"
+
+  local test_files=()
+  while IFS= read -r -d '' file; do
+    test_files+=("$file")
+  done < <(find "agent-scripts/tests" -type f \( -name "*.js" -o -name "*.ts" \) -print0 2>/dev/null)
+  if [[ ${#test_files[@]} -gt 0 ]]; then
+    node --test "${test_files[@]}"
+  else
+    echo "No test files found in agent-scripts/tests"
+  fi
 }
 
 run_all_tests() {
