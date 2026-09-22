@@ -78,3 +78,21 @@ export async function stageAndCommit(commitMessage) {
   });
   return { stdout, stderr };
 }
+
+/**
+ * Strips volatile diff metadata (index hashes and chunk header line numbers)
+ * so that cryptographic diff hashing is resilient to line number shifts.
+ * @param {string} diff - The unified git diff string
+ * @returns {string} The sanitized diff string
+ */
+export function stripDiffMetadata(diff) {
+  if (!diff) {
+    return '';
+  }
+  return diff
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => !line.startsWith('index ') && !/^@@\s+-\d+(?:,\d+)?\s+\+\d+(?:,\d+)?\s+@@/.test(line))
+    .join('\n')
+    .trim();
+}

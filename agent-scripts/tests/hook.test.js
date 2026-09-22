@@ -1,7 +1,10 @@
-import test from 'node:test';
 import assert from 'node:assert';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
+import test from 'node:test';
+import { flushLogs, initializeAgentRunner } from '../lib/agent-runner.js';
+import { stripDiffMetadata } from '../lib/git-release.js';
+import { parseJSONFromText } from '../lib/utils.js';
 
 function runHook(inputPayload) {
   return new Promise((resolve, reject) => {
@@ -201,5 +204,103 @@ test('TerminalQuotaError massive delay interceptor patch', async (t) => {
     assert.match(err.message, /exhausted capacity \(immediate fallback\)/);
     assert.doesNotMatch(err.message, /exhausted your capacity/);
     assert.strictEqual(err.reason, 'MODEL_CAPACITY_EXHAUSTED_IMMEDIATE_FALLBACK');
+  });
+});
+
+test('stripDiffMetadata', async (t) => {
+  await t.test('filters index lines and chunk header @@ lines with line number shifts', () => {
+    const diff1 = [
+      'diff --git a/file.txt b/file.txt',
+      'index 1234567..89abcdef 100644',
+      '--- a/file.txt',
+      '+++ b/file.txt',
+      '@@ -10,3 +10,4 @@',
+      ' context line',
+      '+added line',
+      ' context line 2',
+    ].join('\n');
+
+    const diff2 = [
+      'diff --git a/file.txt b/file.txt',
+      'index fedcba9..7654321 100644',
+      '--- a/file.txt',
+      '+++ b/file.txt',
+      '@@ -45,3 +45,4 @@',
+      ' context line',
+      '+added line',
+      ' context line 2',
+    ].join('\n');
+
+    const stripped1 = stripDiffMetadata(diff1);
+    const stripped2 = stripDiffMetadata(diff2);
+
+    assert.strictEqual(stripped1, stripped2);
+    assert.doesNotMatch(stripped1, /^index /m);
+    assert.doesNotMatch(stripped1, /^@@/m);
+  });
+});
+
+test('agent-runner initialization', async (t) => {
+  await t.test('initializeAgentRunner loads configuration without errors and returns models', async () => {
+    const config = await initializeAgentRunner();
+    assert.ok(config.repoRoot);
+    assert.ok(config.models);
+    assert.ok(config.models.pro);
+    assert.ok(config.models.flash);
+    assert.ok(config.models.flash_lite);
+    await flushLogs();
+  });
+});
+
+test('parseJSONFromText resilient extraction', async (t) => {
+  await t.test('extracts the last valid JSON block when followed by non-JSON code blocks', () => {
+    const sample = [
+      'Initial explanation.',
+      '```json',
+      '{"approval_status": "APPROVED", "findings": []}',
+      '```',
+      'Here is a command to verify:',
+      '```',
+      'go test ./...',
+      '```',
+    ].join('\n');
+
+    const parsed = parseJSONFromText(sample, 'qa');
+    assert.ok(parsed);
+    assert.strictEqual(parsed.approval_status, 'APPROVED');
+    assert.deepStrictEqual(parsed.findings, []);
+  });
+
+  await t.test('fails closed to UNAPPROVED when no valid JSON is present in QA output', () => {
+    const text = 'The changes are APPROVED and ready to ship.';
+    const parsed = parseJSONFromText(text, 'qa');
+    assert.ok(parsed);
+    assert.strictEqual(parsed.approval_status, 'UNAPPROVED');
+    assert.strictEqual(parsed.findings.length, 1);
+  });
+
+  await t.test('extracts raw JSON when unadorned by code blocks but surrounded by commentary', () => {
+    const text = 'Here is the QA review result: {"approval_status": "APPROVED", "findings": []} and additional notes.';
+    const parsed = parseJSONFromText(text, 'qa');
+    assert.ok(parsed);
+    assert.strictEqual(parsed.approval_status, 'APPROVED');
+    assert.deepStrictEqual(parsed.findings, []);
+  });
+
+  await t.test('extracts latest JSON when multiple raw objects exist without code blocks', () => {
+    const text = 'Draft: {"draft": true}. Final QA review: {"approval_status": "APPROVED", "findings": []}';
+    const parsed = parseJSONFromText(text, 'qa');
+    assert.ok(parsed);
+    assert.strictEqual(parsed.approval_status, 'APPROVED');
+    assert.deepStrictEqual(parsed.findings, []);
+  });
+
+  await t.test('extracts unadorned JSON containing nested objects and arrays', () => {
+    const text = 'Draft: {"draft": {"a": 1}}. Final: {"approval_status": "UNAPPROVED", "findings": [{"file": "foo.go", "line_numbers": [12]}]}';
+    const parsed = parseJSONFromText(text, 'qa');
+    assert.ok(parsed);
+    assert.strictEqual(parsed.approval_status, 'UNAPPROVED');
+    assert.strictEqual(parsed.findings.length, 1);
+    assert.strictEqual(parsed.findings[0].file, 'foo.go');
   });
 });
