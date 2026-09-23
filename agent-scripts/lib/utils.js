@@ -150,6 +150,14 @@ function extractTopLevelJSONObjects(str) {
  */
 export function parseJSONFromText(text, fallbackType = 'qa') {
   const safeText = typeof text === 'string' ? text : '';
+  const normalizeResult = (obj) => {
+    if (fallbackType === 'qa' && obj && typeof obj === 'object') {
+      if (Array.isArray(obj.findings) && !obj.approval_status) {
+        obj.approval_status = obj.findings.length === 0 ? 'APPROVED' : 'UNAPPROVED';
+      }
+    }
+    return obj;
+  };
 
   const matches = [...safeText.matchAll(/```(?:[a-zA-Z0-9_-]+)?\s*?\n?([\s\S]*?)\n?\s*```/gi)];
   for (let i = matches.length - 1; i >= 0; i--) {
@@ -157,7 +165,7 @@ export function parseJSONFromText(text, fallbackType = 'qa') {
     try {
       const parsed = JSON.parse(candidate);
       if (parsed && typeof parsed === 'object') {
-        return parsed;
+        return normalizeResult(parsed);
       }
     } catch (err) {
       console.debug(`[DEBUG] Code block candidate did not contain valid JSON: ${err.message}`);
@@ -168,7 +176,7 @@ export function parseJSONFromText(text, fallbackType = 'qa') {
     if (clean) {
       const parsed = JSON.parse(clean);
       if (parsed && typeof parsed === 'object') {
-        return parsed;
+        return normalizeResult(parsed);
       }
     }
   } catch (err) {
@@ -177,7 +185,7 @@ export function parseJSONFromText(text, fallbackType = 'qa') {
 
   const unadorned = extractTopLevelJSONObjects(safeText);
   if (unadorned.length > 0) {
-    return unadorned[unadorned.length - 1];
+    return normalizeResult(unadorned[unadorned.length - 1]);
   }
 
   console.warn(`⚠️ JSON parsing failed: no valid JSON block found. Failing closed.`);

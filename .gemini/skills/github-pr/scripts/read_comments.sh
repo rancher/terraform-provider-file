@@ -25,6 +25,15 @@ echo "=== PR Conversation Comments (PR #$PR_TARGET) ==="
 gh pr view "$PR_TARGET" --json comments -q '.comments[] | "Author: @\(.author.login)\nDate: \(.createdAt)\nBody:\n\(.body)\n----------------------------------------"' || echo "No conversation comments found."
 
 echo ""
+echo "=== PR Reviews (PR #$PR_TARGET) ==="
+REVIEWS_OUTPUT=$(gh pr view "$PR_TARGET" --json reviews -q '.reviews[] | select(.body != "") | "Author: @\(.author.login)\nState: \(.state)\nSubmittedAt: \(.submittedAt)\nBody:\n\(.body)\n----------------------------------------"' 2>/dev/null || true)
+if [ -z "$REVIEWS_OUTPUT" ]; then
+  echo "No reviews found."
+else
+  echo "$REVIEWS_OUTPUT"
+fi
+
+echo ""
 echo "=== PR Inline Review Comment Threads (PR #$PR_TARGET) ==="
 # shellcheck disable=SC2016
 # Query GraphQL review threads

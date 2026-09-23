@@ -236,3 +236,55 @@ test('requestHandoffSummary restores tools after summary generation completes', 
   assert.strictEqual(Object.keys(fakeRegistry.tools).length, 2);
   assert.ok(fakeRegistry.tools.toolA && fakeRegistry.tools.toolB);
 });
+
+test('TurnTracker hooks into session.config.toolRegistry and resets latch on execution', async () => {
+  let executed = false;
+  const mockTool = {
+    name: 'test_tool',
+    createInvocation() {
+      return {
+        async execute() {
+          executed = true;
+          return 'done';
+        },
+      };
+    },
+  };
+
+  const fakeRegistry = {
+    tools: { test_tool: mockTool },
+    getAllToolNames() {
+      return Object.keys(this.tools);
+    },
+    getTool(name) {
+      return this.tools[name];
+    },
+  };
+
+  const fakeSession = {
+    config: { toolRegistry: fakeRegistry },
+  };
+
+  const tracker = new TurnTracker({
+    maxTurns: 5,
+    controller: { abort() {} },
+    session: fakeSession,
+  });
+
+  // Turn 1 tool call sets latch
+  tracker.onToolCall('test_tool');
+  assert.strictEqual(tracker.count, 1);
+  assert.strictEqual(tracker.turnCountedForModelStep, true);
+
+  // Executing the tool resets the latch
+  const inv = fakeRegistry.getTool('test_tool').createInvocation();
+  await inv.execute();
+  assert.strictEqual(executed, true);
+  assert.strictEqual(tracker.turnCountedForModelStep, false);
+
+  // Next turn can now be counted
+  tracker.onToolCall('test_tool');
+  assert.strictEqual(tracker.count, 2);
+
+  tracker.dispose();
+});

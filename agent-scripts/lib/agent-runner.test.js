@@ -2,7 +2,8 @@ import { TerminalQuotaError } from '@google/gemini-cli-core';
 import assert from 'node:assert';
 import path from 'node:path';
 import test from 'node:test';
-import { flushLogs, initializeAgentRunner } from './agent-runner.js';
+import { flushLogs, initializeAgentRunner, isMaxTurnsError } from './agent-runner.js';
+import { promptTurnBudgetExhaustion } from './turn-accounting.js';
 
 test('TerminalQuotaError massive delay interceptor patch', async (t) => {
   await t.test('keeps small retry delay and original message untouched', () => {
@@ -22,6 +23,57 @@ test('TerminalQuotaError massive delay interceptor patch', async (t) => {
     assert.match(err.message, /exhausted capacity \(immediate fallback\)/);
     assert.doesNotMatch(err.message, /exhausted your capacity/);
     assert.strictEqual(err.reason, 'MODEL_CAPACITY_EXHAUSTED_IMMEDIATE_FALLBACK');
+  });
+});
+
+test('isMaxTurnsError detection', async (t) => {
+  await t.test('identifies max_turns errors in objects and strings', () => {
+    assert.strictEqual(isMaxTurnsError({ error: 'max_turns_exceeded' }), true);
+    assert.strictEqual(isMaxTurnsError(new Error('Agent exceeded maximum turns limit')), true);
+    assert.strictEqual(isMaxTurnsError('turn limit reached'), true);
+    assert.strictEqual(isMaxTurnsError(null), false);
+    assert.strictEqual(isMaxTurnsError(undefined), false);
+    assert.strictEqual(isMaxTurnsError(new Error('Connection reset')), false);
+  });
+});
+
+test('promptTurnBudgetExhaustion caller readline reuse', async (t) => {
+  await t.test('reuses caller readline interface without closing it', async () => {
+    let closed = false;
+    const fakeRl = {
+      async question() {
+        return 'continue';
+      },
+      close() {
+        closed = true;
+      },
+    };
+    const decision = await promptTurnBudgetExhaustion(5, 5, 5, null, { rl: fakeRl });
+    assert.strictEqual(decision.shouldContinue, true);
+    assert.strictEqual(decision.newBudget, 10);
+    assert.strictEqual(closed, false, 'Caller readline interface must not be closed');
+  });
+
+  await t.test('aborts session when user responds stop via reused interface', async () => {
+    let closed = false;
+    let aborted = false;
+    const fakeRl = {
+      async question() {
+        return 'stop';
+      },
+      close() {
+        closed = true;
+      },
+    };
+    const controller = {
+      abort() {
+        aborted = true;
+      },
+    };
+    const decision = await promptTurnBudgetExhaustion(5, 5, 5, controller, { rl: fakeRl });
+    assert.strictEqual(decision.shouldContinue, false);
+    assert.strictEqual(aborted, true);
+    assert.strictEqual(closed, false);
   });
 });
 

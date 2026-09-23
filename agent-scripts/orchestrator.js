@@ -179,6 +179,7 @@ async function main() {
           requestedModel: planConfig.model,
           blockTools: ['write_file', 'replace', 'create_file', 'edit_file', 'run_shell_command'],
           customTools: [askUserTool],
+          rl,
         });
 
         const success = await savePlanFromJSON(planResult);
@@ -288,6 +289,7 @@ Once you have fully finished your implementation, stop.`;
         initialPrompt: implementPrompt,
         systemInstructions: implementInstructions,
         requestedModel: models.pro,
+        rl,
       });
       console.log('\n✅ Implementation session completed.');
     } catch (err) {
@@ -365,6 +367,7 @@ Please analyze these errors and fix the code surgically.`;
             'You are a QA/Self-Healing assistant. Resolve the test/linter failures reported by the QA pipeline.',
           requestedModel: models.flash,
           blockTools: ['run_shell_command'],
+          rl,
         });
         continue;
       }
@@ -395,6 +398,7 @@ ${diffText}
           systemInstructions: qaConfig.instructions || 'You are a strict QA Review Agent. Output JSON.',
           requestedModel: qaConfig.model || models.flash,
           blockTools: ['write_file', 'replace', 'create_file', 'edit_file', 'run_shell_command'],
+          rl,
         });
 
         const qaReportObj = parseJSONFromText(qaResultText, 'qa');
@@ -420,6 +424,7 @@ ${diffText}
             systemInstructions: 'You are a QA/Self-Healing assistant. Resolve the issues reported by QA.',
             requestedModel: models.flash,
             blockTools: ['run_shell_command'],
+            rl,
           });
         }
       } catch (err) {
@@ -481,6 +486,7 @@ ${diffText}
         'You are a professional software engineer. Generate a single-line conventional commit message with NO quotes, markdown, or preambles.',
       requestedModel: models.flash_lite,
       blockTools: ['write_file', 'replace', 'create_file', 'edit_file'],
+      rl,
     });
 
     const defaultMsg = defaultMsgRaw.trim().replace(/^['"`]+|['"`]+$/g, '');

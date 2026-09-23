@@ -32,3 +32,5 @@ plans/*
 plans/current.md
 *.pdf
 agent-scripts/*.log
+PR_DESCRIPTION.md
+REVIEW_FINDINGS.md

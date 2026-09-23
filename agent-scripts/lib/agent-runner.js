@@ -214,7 +214,7 @@ function getModelFallbackSequence(requestedModel) {
   return MODEL_HIERARCHY.slice(index);
 }
 
-function isMaxTurnsError(err) {
+export function isMaxTurnsError(err) {
   if (!err) {
     return false;
   }
@@ -293,6 +293,8 @@ export async function runAgentSession({
   customTools = [],
   isolate = false,
   standalone = false,
+  rl = null,
+  ioOptions = {},
 }) {
   await initializeAgentRunner();
 
@@ -468,7 +470,7 @@ export async function runAgentSession({
                 turnTracker.currentTurnBudget,
                 maxTurns,
                 controller,
-                {},
+                { rl, ...ioOptions },
                 writeLogAsync,
               );
               if (!decision.shouldContinue) {

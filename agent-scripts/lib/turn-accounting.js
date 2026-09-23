@@ -93,14 +93,16 @@ export async function promptTurnBudgetExhaustion(
   const rlInput = ioOptions.input || input;
   const rlOutput = ioOptions.output || output;
 
-  if (!rlInput.isTTY && !ioOptions.input) {
+  const isInteractive = Boolean(ioOptions.rl || ioOptions.input || rlInput.isTTY);
+  if (!isInteractive) {
     logger(`[DEBUG] Non-interactive environment detected before turn limit prompt. Defaulting to stop.`);
     console.log('\n🛑 Non-interactive environment detected. Gracefully aborting agent session.\n');
     controller?.abort();
     return { shouldContinue: false, newBudget: currentTurnBudget };
   }
 
-  const rl = readline.createInterface({ input: rlInput, output: rlOutput });
+  const ownsRl = !ioOptions.rl;
+  const rl = ioOptions.rl || readline.createInterface({ input: rlInput, output: rlOutput });
   try {
     let answer = '';
     let attempts = 0;
@@ -120,7 +122,7 @@ export async function promptTurnBudgetExhaustion(
       }
       answer = response.trim().toLowerCase();
       if (answer !== 'continue' && answer !== 'stop') {
-        if (!rlInput.isTTY && !ioOptions.input) {
+        if (!rlInput.isTTY && !ioOptions.input && !ioOptions.rl) {
           logger(`[DEBUG] Non-interactive environment detected at turn limit prompt. Defaulting to stop.`);
           answer = 'stop';
           break;
@@ -142,7 +144,9 @@ export async function promptTurnBudgetExhaustion(
       return { shouldContinue: false, newBudget: currentTurnBudget };
     }
   } finally {
-    rl.close();
+    if (ownsRl) {
+      rl.close();
+    }
     // Do not call input.resume() to prevent leaving stdin in flowing mode without listeners
   }
 }
@@ -231,10 +235,14 @@ export class TurnTracker {
     this.controller = controller;
     this.session = session;
     this.logger = logger;
+    this._hasSessionEvents = false;
     this._cleanupFns = [];
 
     if (this.session?.events && typeof this.session.events.on === 'function') {
       this._attachSessionHooks(this.session.events);
+    }
+    if (this.session?.config?.toolRegistry) {
+      this._attachToolRegistryHooks(this.session.config.toolRegistry);
     }
   }
 
@@ -243,6 +251,7 @@ export class TurnTracker {
    * @private
    */
   _attachSessionHooks(events) {
+    this._hasSessionEvents = true;
     const onToolCall = (call) => {
       const name = call?.name || 'unknown_tool';
       this.onToolCall(name);
@@ -257,7 +266,60 @@ export class TurnTracker {
     this._cleanupFns.push(() => {
       events.removeListener?.('tool_call', onToolCall);
       events.removeListener?.('tool_result', onToolResult);
+      this._hasSessionEvents = false;
     });
+  }
+
+  /**
+   * Wraps tool executions in the SDK tool registry to reliably reset the step latch upon completion.
+   * @private
+   */
+  _attachToolRegistryHooks(registry) {
+    if (!registry || typeof registry.getAllToolNames !== 'function') {
+      return;
+    }
+    const wrapTool = (tool) => {
+      if (tool && typeof tool.createInvocation === 'function' && !tool._turnAccountingWrapped) {
+        const origCreate = tool.createInvocation;
+        const tracker = this;
+        tool.createInvocation = function (...args) {
+          const invocation = origCreate.apply(this, args);
+          if (invocation && typeof invocation.execute === 'function') {
+            const origExec = invocation.execute;
+            invocation.execute = async function (...execArgs) {
+              try {
+                return await origExec.apply(this, execArgs);
+              } finally {
+                tracker.onToolResult();
+              }
+            };
+          }
+          return invocation;
+        };
+        tool._turnAccountingWrapped = true;
+        this._cleanupFns.push(() => {
+          tool.createInvocation = origCreate;
+          delete tool._turnAccountingWrapped;
+        });
+      }
+    };
+
+    for (const name of registry.getAllToolNames()) {
+      wrapTool(registry.getTool(name));
+    }
+
+    if (typeof registry.registerTool === 'function') {
+      const origRegister = registry.registerTool;
+      registry.registerTool = function (...args) {
+        for (const arg of args) {
+          wrapTool(arg);
+        }
+        return origRegister.apply(this, args);
+      };
+      this._cleanupFns.push(() => {
+        registry.registerTool = origRegister;
+      });
+    }
   }
 
   /**
@@ -278,7 +340,7 @@ export class TurnTracker {
    * Whether native session event hooks are currently active.
    */
   get hasSessionHooks() {
-    return this._cleanupFns.length > 0;
+    return Boolean(this._hasSessionEvents);
   }
 
   /**

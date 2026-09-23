@@ -74,11 +74,18 @@ test('parseJSONFromText resilient extraction', async (t) => {
     assert.strictEqual(parsed.findings[0].file, 'foo.go');
   });
 
-  await t.test('does not infer approval_status when omitted, remaining fail-closed', () => {
-    const unapprovedText = '{"findings": []}';
-    const parsed = parseJSONFromText(unapprovedText, 'qa');
-    assert.ok(parsed);
-    assert.strictEqual(parsed.approval_status, undefined);
-    assert.deepStrictEqual(parsed.findings, []);
+  await t.test('normalizes missing approval_status when findings array is provided in qa mode', () => {
+    const approvedText = '{"findings": []}';
+    const parsedApproved = parseJSONFromText(approvedText, 'qa');
+    assert.ok(parsedApproved);
+    assert.strictEqual(parsedApproved.approval_status, 'APPROVED');
+    assert.deepStrictEqual(parsedApproved.findings, []);
+
+    const unapprovedText = '{"findings": [{"file": "foo.go", "line_numbers": [12]}]}';
+    const parsedUnapproved = parseJSONFromText(unapprovedText, 'qa');
+    assert.ok(parsedUnapproved);
+    assert.strictEqual(parsedUnapproved.approval_status, 'UNAPPROVED');
+    assert.strictEqual(parsedUnapproved.findings.length, 1);
+    assert.strictEqual(parsedUnapproved.findings[0].file, 'foo.go');
   });
 });
