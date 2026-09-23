@@ -80,21 +80,32 @@ run_workflow_script_tests() {
 }
 
 run_agent_script_tests() {
-  if [[ ! -d "agent-scripts/tests" ]]; then
-    echo "No agent script tests directory found"
-    return 1
-  fi
   ensure_node_dependencies
   echo "==> Running agent script unit tests..."
+
+  local test_dirs=()
+  if [[ -d "agent-scripts" ]]; then
+    test_dirs+=("agent-scripts")
+  fi
+  if [[ -d ".gemini/hooks" ]]; then
+    test_dirs+=(".gemini/hooks")
+  fi
+
+  if [[ ${#test_dirs[@]} -eq 0 ]]; then
+    echo "No agent script or hook directories found"
+    return 1
+  fi
 
   local test_files=()
   while IFS= read -r -d '' file; do
     test_files+=("$file")
-  done < <(find "agent-scripts/tests" -type f \( -name "*.js" -o -name "*.ts" \) -print0 2>/dev/null)
+  done < <(find "${test_dirs[@]}" -type f \( -name "*.test.js" -o -name "*.test.ts" -o -name "*.test.mjs" \) -print0 2>/dev/null)
+
   if [[ ${#test_files[@]} -gt 0 ]]; then
     node --test "${test_files[@]}"
   else
-    echo "No test files found in agent-scripts/tests"
+    echo "No test files found in ${test_dirs[*]}"
+    return 1
   fi
 }
 

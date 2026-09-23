@@ -7,6 +7,40 @@
   "ui": {
     "compactToolOutputs": false
   },
+  "agents": {
+    "overrides": {
+      "codebase_investigator": {
+        "runConfig": {
+          "maxTurns": 10
+        }
+      },
+      "generic_subagent": {
+        "runConfig": {
+          "maxTurns": 10
+        }
+      },
+      "quality_assurance": {
+        "runConfig": {
+          "maxTurns": 5
+        }
+      },
+      "developer": {
+        "runConfig": {
+          "maxTurns": 10
+        }
+      },
+      "architect": {
+        "runConfig": {
+          "maxTurns": 10
+        }
+      },
+      "test_runner": {
+        "runConfig": {
+          "maxTurns": 5
+        }
+      }
+    }
+  },
   "hooks": {
     "SessionStart": [],
     "BeforeTool": [

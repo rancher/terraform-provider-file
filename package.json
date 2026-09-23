@@ -9,7 +9,7 @@
     "test": "test"
   },
   "scripts": {
-    "test": "node agent-scripts/compile-docs.js && node --test \".github/workflows/scripts/tests/**/*.test.js\" \"agent-scripts/tests/hook.test.js\"",
+    "test": "node agent-scripts/compile-docs.js && node --test \".github/workflows/scripts/tests/**/*.test.js\" \"agent-scripts/lib/**/*.test.js\" \".gemini/hooks/**/*.test.js\"",
     "setup": "node agent-scripts/install-sdk.js"
   },
   "repository": {
