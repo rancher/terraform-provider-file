@@ -30,3 +30,5 @@ node_modules
 gemini-reset.lock
 plans/*
 plans/current.md
+*.pdf
+agent-scripts/*.log

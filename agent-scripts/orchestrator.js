@@ -379,7 +379,7 @@ Please analyze these errors and fix the code surgically.`;
         activePlan = await fs.readFile(planPath, 'utf8');
       }
 
-      const qaPrompt = `Please review the proposed changes for code quality, strict adherence to the project conventions, and security. Output a strict JSON object containing a 'findings' array detailing any issues, or an empty array if approved.
+      const qaPrompt = `Please review the proposed changes for code quality, strict adherence to the project conventions, and security. Output a strict JSON object with 'approval_status': 'APPROVED' | 'UNAPPROVED' and a 'findings' array detailing any issues, or an empty array if approved.
 
 <active_plan>
 ${activePlan}
@@ -403,7 +403,12 @@ ${diffText}
           continue;
         }
 
-        if (qaReportObj.approval_status === 'APPROVED' && Array.isArray(qaReportObj.findings) && qaReportObj.findings.length === 0) {
+        const isApproved =
+          qaReportObj.approval_status === 'APPROVED' &&
+          Array.isArray(qaReportObj.findings) &&
+          qaReportObj.findings.length === 0;
+
+        if (isApproved) {
           console.log('🟢 QA Agent approved the changes!');
           qaSuccess = true;
         } else {
@@ -494,7 +499,9 @@ ${diffText}
       }
 
       if (candidateMsg.length > 100) {
-        console.error(`❌ Error: Commit message should be less than 100 characters (currently ${candidateMsg.length}).`);
+        console.error(
+          `❌ Error: Commit message should be less than 100 characters (currently ${candidateMsg.length}).`,
+        );
         continue;
       }
 
