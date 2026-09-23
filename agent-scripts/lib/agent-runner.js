@@ -340,7 +340,14 @@ export async function runAgentSession({
         session.config.getWorkspaceContext().addDirectory(projectTempDir);
         await session.initialize();
 
-        if (!isolate) {
+        if (isolate) {
+          const registeredTools = session.config.toolRegistry.getAllToolNames();
+          for (const toolName of registeredTools) {
+            if (toolName !== 'no_op') {
+              session.config.toolRegistry.unregisterTool(toolName);
+            }
+          }
+        } else {
           // Enforce custom sandboxing by unregistering specified tools
           for (const toolName of blockTools) {
             session.config.toolRegistry.unregisterTool(toolName);
