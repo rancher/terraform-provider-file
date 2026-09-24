@@ -1,5 +1,6 @@
 import { promptIdContext, TerminalQuotaError } from '@google/gemini-cli-core';
 import { GeminiCliAgent, tool, z } from '@google/gemini-cli-sdk';
+import { Buffer } from 'node:buffer';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
@@ -214,20 +215,161 @@ function getModelFallbackSequence(requestedModel) {
   return MODEL_HIERARCHY.slice(index);
 }
 
+const STANDARD_STRING_PROPS = ['message', 'name', 'reason', 'code', 'status'];
+const NESTED_KEYS = ['error', 'cause', 'details', 'errors'];
+const IGNORED_KEYS = new Set([
+  'config',
+  'request',
+  'response',
+  'socket',
+  'req',
+  'res',
+  'stack',
+  'options',
+  'params',
+  'agent',
+  'session',
+  'runner',
+  'client',
+  ...STANDARD_STRING_PROPS,
+  ...NESTED_KEYS,
+]);
+
+const MAX_TURNS_REGEX =
+  /\b(?:(?:maximum|max)[\s_-]+turns?|turn[\s_-]+limits?|(?:max[-_]?turns?|turn[-_]?limits?)\w*)\b/i;
+
+function safeGet(obj, prop) {
+  try {
+    return obj[prop];
+  } catch (err) {
+    void err;
+    return undefined;
+  }
+}
+
+function extractErrorStrings(target, depth = 0, seen = new Set()) {
+  if (!target || depth > 4) {
+    return [];
+  }
+  if (typeof target === 'string') {
+    return [target];
+  }
+  if (typeof target !== 'object') {
+    return [String(target)];
+  }
+  if (seen.has(target)) {
+    return [];
+  }
+  seen.add(target);
+
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(target)) {
+    if (target.length <= 64 * 1024) {
+      const text = target.toString('utf8');
+      try {
+        const parsed = JSON.parse(text);
+        if (typeof parsed === 'object' && parsed !== null) {
+          return extractErrorStrings(parsed, depth + 1, seen);
+        }
+      } catch (parseErr) {
+        void parseErr;
+      }
+      return [text];
+    }
+    return [];
+  }
+
+  if (typeof ArrayBuffer !== 'undefined' && (target instanceof ArrayBuffer || ArrayBuffer.isView(target))) {
+    return [];
+  }
+
+  const parts = [];
+
+  if (Array.isArray(target)) {
+    for (const item of target) {
+      parts.push(...extractErrorStrings(item, depth + 1, seen));
+    }
+    return parts;
+  }
+
+  for (const prop of STANDARD_STRING_PROPS) {
+    const val = safeGet(target, prop);
+    if (typeof val === 'string') {
+      parts.push(val);
+    } else if (typeof val === 'object' && val !== null) {
+      parts.push(...extractErrorStrings(val, depth + 1, seen));
+    }
+  }
+
+  for (const key of NESTED_KEYS) {
+    const val = safeGet(target, key);
+    if (val !== null && val !== undefined) {
+      parts.push(...extractErrorStrings(val, depth + 1, seen));
+    }
+  }
+
+  const responseObj = safeGet(target, 'response');
+  if (responseObj && typeof responseObj === 'object') {
+    const data = safeGet(responseObj, 'data');
+    if (data !== null && data !== undefined) {
+      parts.push(...extractErrorStrings(data, depth + 1, seen));
+    }
+    const body = safeGet(responseObj, 'body');
+    if (body !== null && body !== undefined && body !== data) {
+      parts.push(...extractErrorStrings(body, depth + 1, seen));
+    }
+    const statusText = safeGet(responseObj, 'statusText');
+    if (typeof statusText === 'string') {
+      parts.push(statusText);
+    }
+  } else if (typeof responseObj === 'string') {
+    parts.push(responseObj);
+  }
+
+  let keys = [];
+  try {
+    keys = Object.keys(target);
+  } catch (err) {
+    void err;
+  }
+
+  for (const key of keys) {
+    if (IGNORED_KEYS.has(key)) {
+      continue;
+    }
+    const val = safeGet(target, key);
+    if (val !== false && val !== null && val !== undefined && val !== 0 && val !== '' && MAX_TURNS_REGEX.test(key)) {
+      parts.push(key);
+    }
+    if (typeof val === 'string') {
+      parts.push(val);
+    } else if (typeof val === 'object' && val !== null) {
+      parts.push(...extractErrorStrings(val, depth + 1, seen));
+    }
+  }
+
+  return parts;
+}
+
 export function isMaxTurnsError(err) {
   if (!err) {
     return false;
   }
-  const msg =
-    typeof err === 'object'
-      ? (err.message || err.error || JSON.stringify(err)).toLowerCase()
-      : String(err).toLowerCase();
-  return (
-    msg.includes('max_turns') ||
-    msg.includes('max turns') ||
-    msg.includes('turn limit') ||
-    msg.includes('maximum turns')
-  );
+  if (typeof err === 'string') {
+    return MAX_TURNS_REGEX.test(err);
+  }
+  if (typeof err === 'object') {
+    const directMessage = safeGet(err, 'message');
+    if (typeof directMessage === 'string' && MAX_TURNS_REGEX.test(directMessage)) {
+      return true;
+    }
+  }
+  try {
+    const parts = extractErrorStrings(err);
+    return parts.some((part) => MAX_TURNS_REGEX.test(part));
+  } catch (extractErr) {
+    void extractErr;
+    return false;
+  }
 }
 
 // Re-export turn accounting helpers for backward compatibility

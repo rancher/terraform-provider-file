@@ -67,6 +67,7 @@ lifecycles
 lockfiles
 makefiles
 mapfile
+maxturn
 metacharacter
 mktemp
 modularly
