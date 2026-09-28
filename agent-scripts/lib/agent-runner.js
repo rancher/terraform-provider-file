@@ -5,12 +5,12 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import util from 'node:util';
 import {
   bumpTurnCapacity,
   getMaxTurnsForModel,
   promptTurnBudgetExhaustion,
   requestHandoffSummary,
+  syncSessionTools,
   TurnTracker,
 } from './turn-accounting.js';
 import { getRepoRoot } from './utils.js';
@@ -77,7 +77,8 @@ let initPromise = null;
 let repoRoot = null;
 let logStream = null;
 let isConsoleIntercepted = false;
-let originalLog = null;
+let originalStdoutWrite = null;
+let originalStderrWrite = null;
 
 let MODEL_PRO = 'gemini-3.1-pro-preview';
 let MODEL_FLASH = 'gemini-3.5-flash';
@@ -95,9 +96,15 @@ function writeLogAsync(msg) {
  * @returns {Promise<void>}
  */
 export async function flushLogs() {
-  if (isConsoleIntercepted && originalLog) {
-    console.log = originalLog;
-    originalLog = null;
+  if (isConsoleIntercepted) {
+    if (originalStdoutWrite) {
+      process.stdout.write = originalStdoutWrite;
+    }
+    if (originalStderrWrite) {
+      process.stderr.write = originalStderrWrite;
+    }
+    originalStdoutWrite = null;
+    originalStderrWrite = null;
     isConsoleIntercepted = false;
   }
   if (!logStream) {
@@ -132,7 +139,7 @@ function shouldRedirectLog(msg) {
     msg.includes('Experiments loaded') ||
     msg.includes('Loading ignore patterns') ||
     msg.includes('Ripgrep is not available') ||
-    msg.includes('Tool with name') ||
+    /Tool with name ['"].*?['"] (?:already registered|has already been)/i.test(msg) ||
     msg.includes('GrepLogic:') ||
     msg.includes('Loaded cached credentials')
   );
@@ -143,19 +150,36 @@ function setupConsoleIntercept() {
     return;
   }
   isConsoleIntercepted = true;
-  originalLog = console.log;
-  console.log = function (...args) {
-    const msg = util.formatWithOptions({ colors: false }, ...args);
-    if (shouldRedirectLog(msg)) {
-      if (logStream && !logStream.writableEnded && !logStream.destroyed && !logStream.errored) {
-        writeLogAsync(msg);
-      } else {
-        originalLog.apply(console, args);
+  originalStdoutWrite = process.stdout.write;
+  originalStderrWrite = process.stderr.write;
+
+  function createInterceptor(originalWrite) {
+    return function (chunk, encoding, callback) {
+      const str = chunk ? chunk.toString() : '';
+      
+      if (logStream && logStream.writable && !logStream.writableEnded && !logStream.destroyed && !logStream.errored) {
+        if (typeof encoding === 'string') {
+          logStream.write(chunk, encoding);
+        } else {
+          logStream.write(chunk);
+        }
       }
-    } else {
-      originalLog.apply(console, args);
-    }
-  };
+
+      if (shouldRedirectLog(str)) {
+        if (typeof encoding === 'function') {
+          encoding();
+        } else if (typeof callback === 'function') {
+          callback();
+        }
+        return true;
+      } else {
+        return originalWrite.call(this, chunk, encoding, callback);
+      }
+    };
+  }
+
+  process.stdout.write = createInterceptor(originalStdoutWrite);
+  process.stderr.write = createInterceptor(originalStderrWrite);
 }
 
 /**
@@ -373,7 +397,14 @@ export function isMaxTurnsError(err) {
 }
 
 // Re-export turn accounting helpers for backward compatibility
-export { bumpTurnCapacity, getMaxTurnsForModel, promptTurnBudgetExhaustion, requestHandoffSummary, TurnTracker };
+export {
+  bumpTurnCapacity,
+  getMaxTurnsForModel,
+  promptTurnBudgetExhaustion,
+  requestHandoffSummary,
+  syncSessionTools,
+  TurnTracker,
+};
 
 function isQuotaError(err) {
   if (!err) {
@@ -621,6 +652,7 @@ export async function runAgentSession({
 
               turnTracker.currentTurnBudget = decision.newBudget;
               bumpTurnCapacity(agent, session, maxTurns);
+              syncSessionTools(session);
               turnTracker.resetStepLatch();
               currentPrompt = 'Please continue working to complete the task based on your handoff checkpoint summary.';
               continue;

@@ -7,6 +7,7 @@ import {
   getMaxTurnsForModel,
   promptTurnBudgetExhaustion,
   requestHandoffSummary,
+  syncSessionTools,
   TurnTracker,
 } from './turn-accounting.js';
 
@@ -200,41 +201,148 @@ test('requestHandoffSummary handles stream errors gracefully without throwing', 
   assert.strictEqual(summary, '');
 });
 
-test('requestHandoffSummary restores tools after summary generation completes', async () => {
-  const tools = { toolA: { name: 'toolA', fn: () => {} }, toolB: { name: 'toolB', fn: () => {} } };
+test('requestHandoffSummary disarms tools during summary generation and restores original invocations', async () => {
+  let executedOriginalA = false;
+  let executedOriginalB = false;
+
+  const mockToolA = {
+    name: 'toolA',
+    createInvocation() {
+      return {
+        execute: async () => {
+          executedOriginalA = true;
+          return { llmContent: 'resultA' };
+        },
+      };
+    },
+  };
+
+  const mockToolB = {
+    name: 'toolB',
+    execute: async () => {
+      executedOriginalB = true;
+      return { llmContent: 'resultB' };
+    },
+  };
+
   const fakeRegistry = {
-    tools: { ...tools },
+    tools: { toolA: mockToolA, toolB: mockToolB },
     getAllToolNames() {
       return Object.keys(this.tools);
     },
     getTool(name) {
       return this.tools[name];
     },
-    unregisterAllTools() {
-      this.tools = {};
-    },
-    unregisterTool(name) {
-      delete this.tools[name];
-    },
-    registerTool(tool) {
-      this.tools[tool.name] = tool;
+    getFunctionDeclarations() {
+      return [{ name: 'toolA' }, { name: 'toolB' }];
     },
   };
+
+  let disarmedOutputA = null;
+  let disarmedOutputB = null;
 
   const fakeSession = {
     config: { toolRegistry: fakeRegistry },
     async *sendStream() {
-      // During summary, tools must be disarmed
-      assert.strictEqual(Object.keys(fakeRegistry.tools).length, 0);
+      // Declarations must remain present in the registry so API request schemas remain valid
+      assert.strictEqual(fakeRegistry.getAllToolNames().length, 2);
+      assert.strictEqual(fakeRegistry.getFunctionDeclarations().length, 2);
+
+      // But invocations must be disarmed
+      const invA = fakeRegistry.getTool('toolA').createInvocation();
+      disarmedOutputA = await invA.execute();
+
+      disarmedOutputB = await fakeRegistry.getTool('toolB').execute();
+
       yield { type: 'content', value: 'summary output' };
     },
   };
 
   const summary = await requestHandoffSummary({ maxTurns: 5 }, fakeSession);
   assert.strictEqual(summary, 'summary output');
-  // Tools must be fully restored upon exiting requestHandoffSummary
-  assert.strictEqual(Object.keys(fakeRegistry.tools).length, 2);
-  assert.ok(fakeRegistry.tools.toolA && fakeRegistry.tools.toolB);
+  assert.strictEqual(executedOriginalA, false);
+  assert.strictEqual(executedOriginalB, false);
+  assert.match(disarmedOutputA.llmContent, /Tool execution is disabled/);
+  assert.match(disarmedOutputB.llmContent, /Tool execution is disabled/);
+
+  // Invocations must be fully restored upon exiting requestHandoffSummary
+  const restoredInvA = fakeRegistry.getTool('toolA').createInvocation();
+  const resA = await restoredInvA.execute();
+  assert.strictEqual(executedOriginalA, true);
+  assert.strictEqual(resA.llmContent, 'resultA');
+
+  const resB = await fakeRegistry.getTool('toolB').execute();
+  assert.strictEqual(executedOriginalB, true);
+  assert.strictEqual(resB.llmContent, 'resultB');
+});
+
+test('syncSessionTools synchronizes chat tools and resets lastUsedModelId', () => {
+  let updatedTools = null;
+  const mockChat = {
+    setTools(tools) {
+      updatedTools = tools;
+    },
+  };
+
+  const mockClient = {
+    lastUsedModelId: 'gemini-2.5-pro',
+    getChat() {
+      return mockChat;
+    },
+  };
+
+  const mockRegistry = {
+    getFunctionDeclarations() {
+      return [{ name: 'readFile' }, { name: 'replace' }];
+    },
+  };
+
+  const mockSession = {
+    client: mockClient,
+    config: {
+      toolRegistry: mockRegistry,
+      getModel() {
+        return 'gemini-2.5-pro';
+      },
+    },
+  };
+
+  syncSessionTools(mockSession);
+
+  assert.strictEqual(mockClient.lastUsedModelId, undefined);
+  assert.deepStrictEqual(updatedTools, [
+    { functionDeclarations: [{ name: 'readFile' }, { name: 'replace' }] },
+  ]);
+});
+
+test('syncSessionTools passes empty tools array when declarations is empty', () => {
+  let updatedTools = null;
+  const mockChat = {
+    setTools(tools) {
+      updatedTools = tools;
+    },
+  };
+
+  const mockClient = {
+    lastUsedModelId: 'gemini-2.5-pro',
+    getChat() {
+      return mockChat;
+    },
+  };
+
+  const mockRegistry = {
+    getFunctionDeclarations() {
+      return [];
+    },
+  };
+
+  const mockSession = {
+    client: mockClient,
+    config: { toolRegistry: mockRegistry },
+  };
+
+  syncSessionTools(mockSession);
+  assert.deepStrictEqual(updatedTools, []);
 });
 
 test('TurnTracker hooks into session.config.toolRegistry and resets latch on execution', async () => {
