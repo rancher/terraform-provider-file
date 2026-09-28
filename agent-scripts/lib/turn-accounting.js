@@ -152,6 +152,39 @@ export async function promptTurnBudgetExhaustion(
 }
 
 /**
+ * Ensures session client and chat tool configurations are synchronized with toolRegistry.
+ * Resets cached model ID to prevent stale tool state on resume.
+ *
+ * @param {Object} session - The active agent session
+ */
+export function syncSessionTools(session) {
+  if (!session) {
+    return;
+  }
+  try {
+    const client = session.client || session.config?.geminiClient;
+    const registry = session.config?.toolRegistry;
+    if (client) {
+      client.lastUsedModelId = undefined;
+      if (registry && typeof registry.getFunctionDeclarations === 'function') {
+        const modelId = typeof session.config?.getModel === 'function' ? session.config.getModel() : undefined;
+        const declarations = registry.getFunctionDeclarations(modelId);
+        const tools =
+          Array.isArray(declarations) && declarations.length > 0 ? [{ functionDeclarations: declarations }] : [];
+        if (typeof client.getChat === 'function') {
+          const chat = client.getChat();
+          if (chat && typeof chat.setTools === 'function') {
+            chat.setTools(tools);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.debug(`[DEBUG] syncSessionTools defensive sync encountered error: ${err.message}`);
+  }
+}
+
+/**
  * Bumps the agent session turn limit and requests a structured handoff summary.
  *
  * @param {Object} agent - The GeminiCliAgent instance
@@ -170,22 +203,43 @@ export async function requestHandoffSummary(agent, session, logger = () => {}, c
   const handoffPrompt =
     '⚠️ TURN LIMIT REACHED. Do not invoke any further tools. Output a structured markdown checkpoint summary with: 1) What has been completed so far, 2) Current state of modified files, and 3) The exact remaining steps to complete the task.';
 
-  // Disarm tool calling for the handoff turn if registry is available
+  // Disarm tool execution non-destructively for the handoff turn so tool declarations stay intact
   const registry = session?.config?.toolRegistry;
-  const savedTools = [];
+  const restoreFns = [];
   if (registry?.getAllToolNames && registry?.getTool) {
     for (const name of registry.getAllToolNames()) {
       const tool = registry.getTool(name);
-      if (tool) {
-        savedTools.push({ name, tool });
+      if (tool && typeof tool.createInvocation === 'function') {
+        const origCreate = tool._originalCreateInvocation || tool.createInvocation;
+        tool._originalCreateInvocation = origCreate;
+        tool.createInvocation = function () {
+          return {
+            execute: async () => ({
+              llmContent:
+                'Tool execution is disabled during handoff checkpoint summary generation. Please output the requested markdown checkpoint summary.',
+              returnDisplay: 'Tool execution disabled during handoff summary.',
+            }),
+            getDescription: () => `Disarmed: ${name}`,
+            getDisplayTitle: () => `Disarmed: ${name}`,
+          };
+        };
+        restoreFns.push(() => {
+          tool.createInvocation = origCreate;
+          delete tool._originalCreateInvocation;
+        });
+      } else if (tool && typeof tool.execute === 'function') {
+        const origExec = tool._originalExecute || tool.execute;
+        tool._originalExecute = origExec;
+        tool.execute = async () => ({
+          llmContent:
+            'Tool execution is disabled during handoff checkpoint summary generation. Please output the requested markdown checkpoint summary.',
+          returnDisplay: 'Tool execution disabled during handoff summary.',
+        });
+        restoreFns.push(() => {
+          tool.execute = origExec;
+          delete tool._originalExecute;
+        });
       }
-    }
-  }
-  if (typeof registry?.unregisterAllTools === 'function') {
-    registry.unregisterAllTools();
-  } else if (typeof registry?.unregisterTool === 'function') {
-    for (const { name } of savedTools) {
-      registry.unregisterTool(name);
     }
   }
 
@@ -202,14 +256,14 @@ export async function requestHandoffSummary(agent, session, logger = () => {}, c
   } catch (err) {
     logger(`[DEBUG] Failed to obtain handoff summary: ${err.message}`);
   } finally {
-    if (registry?.registerTool) {
-      for (const { name, tool } of savedTools) {
-        if (tool && !tool.name) {
-          tool.name = name;
-        }
-        registry.registerTool(tool);
+    for (const restore of restoreFns) {
+      try {
+        restore();
+      } catch (err) {
+        console.debug(`[DEBUG] Failed to restore disarmed tool: ${err.message}`);
       }
     }
+    syncSessionTools(session);
   }
 
   return summary.trim();

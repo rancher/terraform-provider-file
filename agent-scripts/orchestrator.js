@@ -166,7 +166,21 @@ async function main() {
       // BUGFIX & FEATURE: Run standard agent planning with user-interview capabilities
       console.log('Bugfix/Feature workflow selected. Invoking @planner agent...');
       const planConfig = await loadAgentInstructions('planner');
-      const planPrompt = `Objective: "${objective}".\nPlease conduct your user interview using the \`ask_user\` tool (intent = "clarification"). Once you have all the context you need, generate the implementation plan as a strict JSON block according to your system instructions. Do not write any files to disk yourself.`;
+      const planPrompt = `Objective: "${objective}".\nPlease conduct your user interview using the \`ask_user\` tool (intent = "clarification"). Once you have all the context you need, generate the implementation plan as a strict JSON block according to your system instructions. Do not write any files to disk yourself.
+
+Your final JSON response must strictly conform to this schema:
+\`\`\`json
+{
+  "title": "Clear implementation plan title",
+  "objective": ${JSON.stringify(objective)},
+  "scope_boundaries": {
+    "in_scope": ["Specific files or components to touch"],
+    "out_of_scope": ["Things not to touch or refactor"]
+  },
+  "exit_criteria": ["Testable definition of done criteria"],
+  "implementation_tasks": ["Actionable step 1", "Actionable step 2"]
+}
+\`\`\``;
 
       const planSystemInstructions =
         planConfig.instructions ||
@@ -182,7 +196,7 @@ async function main() {
           rl,
         });
 
-        const success = await savePlanFromJSON(planResult);
+        const success = await savePlanFromJSON(planResult, objective);
         if (!success) {
           console.error('❌ Failed to parse plan JSON output from planner agent.');
           process.exitCode = 1;
