@@ -223,8 +223,6 @@ test('savePlanFromJSON resilient saving', async (t) => {
     const saved = await savePlanFromJSON(crashPayload, 'Fallback Title');
     assert.strictEqual(saved, true);
 
-    const repoRoot = await getRepoRoot();
-    const planFile = path.join(repoRoot, 'plans/current.md');
     const content = await fs.readFile(planFile, 'utf8');
 
     assert.ok(content.includes('# IMPLEMENTATION PLAN: Enhance tool execution logging'));
