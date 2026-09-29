@@ -476,12 +476,14 @@ export async function runAgentSession({
   try {
     const startingModel = requestedModel || MODEL_FLASH;
     const fallbackSequence = getModelFallbackSequence(startingModel);
+    const parsedTurnsOverride = Number(maxTurnsOverride);
+    const hasTurnOverride = Number.isInteger(parsedTurnsOverride) && parsedTurnsOverride > 0;
 
     for (let i = 0; i < fallbackSequence.length; i++) {
       const currentModel = fallbackSequence[i];
       const maxTurns =
-        maxTurnsOverride !== undefined
-          ? maxTurnsOverride
+        hasTurnOverride
+          ? parsedTurnsOverride
           : getMaxTurnsForModel(currentModel, {
               pro: MODEL_PRO,
               flash: MODEL_FLASH,
@@ -570,6 +572,7 @@ export async function runAgentSession({
                 if (chunk.type === 'content') {
                   const shouldContinue = turnTracker.onContent();
                   if (!shouldContinue) {
+                    streamHaltedByBudget = true;
                     break;
                   }
                   const text = chunk.value || '';
@@ -638,6 +641,12 @@ export async function runAgentSession({
               writeLogAsync(
                 `[Turn Limit Reached] Tracker detected budget limit (${turnTracker.count}/${turnTracker.currentTurnBudget}).`,
               );
+              if (hasTurnOverride) {
+                writeLogAsync(`[Turn Limit Reached] Override limit enforced as a hard stop.`);
+                controller.abort();
+                return accumulatedText;
+              }
+
               const summary = await requestHandoffSummary(agent, session, writeLogAsync, controller);
               if (summary) {
                 accumulatedText += '\n\n' + summary;

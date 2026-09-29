@@ -364,7 +364,7 @@ export function parseJSONFromText(text, fallbackType = 'qa') {
 
 /**
  * Formats and saves an implementation plan to plans/current.md
- * @param {string} text - Raw JSON plan string
+ * @param {string|Object} textOrObj - Raw JSON plan string or parsed plan object
  * @param {string} [fallbackObjective] - Fallback objective if plan has no explicit objective
  * @returns {Promise<boolean>}
  */
@@ -416,8 +416,12 @@ export async function savePlanFromJSON(textOrObj, fallbackObjective = '') {
  * @returns {import('zod').ZodTypeAny}
  */
 function unwrapZodSchema(s) {
-  if (s?._def?.schema) return unwrapZodSchema(s._def.schema);
-  if (s?._def?.innerType) return unwrapZodSchema(s._def.innerType);
+  if (s?._def?.schema) {
+    return unwrapZodSchema(s._def.schema);
+  }
+  if (s?._def?.innerType) {
+    return unwrapZodSchema(s._def.innerType);
+  }
   return s;
 }
 
@@ -427,7 +431,9 @@ function unwrapZodSchema(s) {
  * @returns {Object|Array|string}
  */
 function describeZodType(zodType) {
-  if (!zodType) return 'unknown';
+  if (!zodType) {
+    return 'unknown';
+  }
   const inner = unwrapZodSchema(zodType);
   if (inner.shape) {
     const shapeObj = typeof inner.shape === 'function' ? inner.shape() : inner.shape;

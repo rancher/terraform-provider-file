@@ -161,6 +161,19 @@ test('TurnTracker flags budget exhaustion when reaching max turns', async () => 
   assert.strictEqual(tracker.isBudgetExhausted, true);
 });
 
+test('TurnTracker onContent halts stream and flags budget exhaustion when exceeding max turns', async () => {
+  const controller = { abort() {} };
+  const tracker = new TurnTracker({
+    maxTurns: 1,
+    controller,
+  });
+
+  assert.strictEqual(tracker.onContent(), true);
+  tracker.onToolResult();
+  assert.strictEqual(tracker.onContent(), false);
+  assert.strictEqual(tracker.isBudgetExhausted, true);
+});
+
 test('requestHandoffSummary bumps agent turn limits and collects handoff markdown', async () => {
   const fakeAgent = {
     maxTurns: 5,
