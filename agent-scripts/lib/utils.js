@@ -240,9 +240,7 @@ export function normalizePlanObject(raw, fallbackObjective = '') {
     if (Array.isArray(obj.in_scope)) {
       inScope = obj.in_scope.map(String);
     } else if (Array.isArray(obj.plan)) {
-      const files = obj.plan
-        .map((p) => (p && typeof p === 'object' ? p.file : null))
-        .filter(Boolean);
+      const files = obj.plan.map((p) => (p && typeof p === 'object' ? p.file : null)).filter(Boolean);
       if (files.length > 0) {
         inScope = files.map((f) => `Modify ${f}`);
       }

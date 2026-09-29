@@ -156,7 +156,7 @@ function setupConsoleIntercept() {
   function createInterceptor(originalWrite) {
     return function (chunk, encoding, callback) {
       const str = chunk ? chunk.toString() : '';
-      
+
       if (logStream && logStream.writable && !logStream.writableEnded && !logStream.destroyed && !logStream.errored) {
         if (typeof encoding === 'string') {
           logStream.write(chunk, encoding);

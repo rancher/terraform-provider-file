@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck disable=SC1091
+source "$(dirname "${BASH_SOURCE[0]}")/auth_fallback.sh"
 
 # This script reads and formats comments from a GitHub PR (conversation & review comments).
 # It can take an optional PR number or branch name. If omitted, it views the current branch's PR.
@@ -7,7 +9,7 @@ set -euo pipefail
 PR_TARGET="${1:-}"
 
 # If PR_TARGET is empty or current, find the current PR number
-if [ -z "$PR_TARGET" ] || [ "$PR_TARGET" = "current" ]; then
+if [[ -z "$PR_TARGET" || "$PR_TARGET" == "current" ]]; then
   # Check if there is an active PR
   if ! PR_TARGET=$(gh pr view --json number -q .number 2>/dev/null); then
     echo "Error: No active pull request found for the current branch." >&2
@@ -27,7 +29,7 @@ gh pr view "$PR_TARGET" --json comments -q '.comments[] | "Author: @\(.author.lo
 echo ""
 echo "=== PR Reviews (PR #$PR_TARGET) ==="
 REVIEWS_OUTPUT=$(gh pr view "$PR_TARGET" --json reviews -q '.reviews[] | select(.body != "") | "Author: @\(.author.login)\nState: \(.state)\nSubmittedAt: \(.submittedAt)\nBody:\n\(.body)\n----------------------------------------"' 2>/dev/null || true)
-if [ -z "$REVIEWS_OUTPUT" ]; then
+if [[ -z "$REVIEWS_OUTPUT" ]]; then
   echo "No reviews found."
 else
   echo "$REVIEWS_OUTPUT"
@@ -62,5 +64,3 @@ query($owner: String!, $name: String!, $number: Int!) {
     }
   }
 }' | jq -r '.data.repository.pullRequest.reviewThreads.nodes[] | "Thread ID: \(.id)\nPath: \(.path)\nLine: \(.line)\nIs Resolved: \(.isResolved)\nComments:\n" + ([.comments.nodes[] | "  - @\(.author?.login // "ghost") (\(.createdAt)): \(.body)"] | join("\n")) + "\n----------------------------------------"' || echo "No inline review threads found."
-
-

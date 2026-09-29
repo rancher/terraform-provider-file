@@ -310,9 +310,7 @@ test('syncSessionTools synchronizes chat tools and resets lastUsedModelId', () =
   syncSessionTools(mockSession);
 
   assert.strictEqual(mockClient.lastUsedModelId, undefined);
-  assert.deepStrictEqual(updatedTools, [
-    { functionDeclarations: [{ name: 'readFile' }, { name: 'replace' }] },
-  ]);
+  assert.deepStrictEqual(updatedTools, [{ functionDeclarations: [{ name: 'readFile' }, { name: 'replace' }] }]);
 });
 
 test('syncSessionTools passes empty tools array when declarations is empty', () => {
