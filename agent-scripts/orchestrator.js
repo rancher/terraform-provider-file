@@ -14,7 +14,7 @@ import { flushLogs, initializeAgentRunner, runAgentSession } from './lib/agent-r
 import { getGitDiff, stageAndCommit, stripDiffMetadata, validateMessage } from './lib/git-release.js';
 import { getPRComments } from './lib/github-context.js';
 import { runQAPipeline } from './lib/qa-runner.js';
-import { exists, getRepoRoot, loadAgentInstructions, parseJSONFromText, savePlanFromJSON } from './lib/utils.js';
+import { exists, getRepoRoot, loadAgentInstructions, savePlanFromJSON, validateAgentOutput } from './lib/utils.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -79,6 +79,31 @@ async function main() {
       return;
     }
 
+    const planSchema = z.object({
+      title: z.string(),
+      objective: z.string(),
+      scope_boundaries: z.object({
+        in_scope: z.array(z.string()),
+        out_of_scope: z.array(z.string()),
+      }),
+      exit_criteria: z.array(z.string()),
+      implementation_tasks: z.array(z.string()),
+    });
+
+    const qaSchema = z.object({
+      approval_status: z.preprocess(
+        (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+        z.enum(['APPROVED', 'UNAPPROVED', 'REJECTED']).transform((val) => (val === 'REJECTED' ? 'UNAPPROVED' : val)),
+      ),
+      findings: z.array(
+        z.object({
+          file: z.string(),
+          line_numbers: z.array(z.number()),
+          narrative: z.string(),
+        }),
+      ),
+    });
+
     // ==========================================
     // PHASE 1: PLANNING (Read-Only)
     // ==========================================
@@ -106,7 +131,7 @@ async function main() {
           exit_criteria: ['All identified issues in the comments are resolved.', 'Tests and linters pass cleanly.'],
           implementation_tasks: ['Analyze review feedback.', 'Surgically update corresponding source files.'],
         };
-        await savePlanFromJSON(JSON.stringify(autoPlan));
+        await savePlanFromJSON(autoPlan);
         planApproved = true;
         console.log('✅ Generated deterministic implementation plan from PR Comments context.');
       } catch (err) {
@@ -136,7 +161,7 @@ async function main() {
           'Apply clean architecture and DRY principles surgically.',
         ],
       };
-      await savePlanFromJSON(JSON.stringify(autoPlan));
+      await savePlanFromJSON(autoPlan);
       planApproved = true;
       console.log('✅ Generated deterministic Refactor implementation plan.');
     } else if (selection === '4') {
@@ -159,7 +184,7 @@ async function main() {
           'Write or expand unit / integration tests.',
         ],
       };
-      await savePlanFromJSON(JSON.stringify(autoPlan));
+      await savePlanFromJSON(autoPlan);
       planApproved = true;
       console.log('✅ Generated deterministic Testing implementation plan.');
     } else {
@@ -196,9 +221,19 @@ Your final JSON response must strictly conform to this schema:
           rl,
         });
 
-        const success = await savePlanFromJSON(planResult, objective);
-        if (!success) {
+        const validatedPlan = await validateAgentOutput(
+          planResult,
+          planSchema,
+          planConfig?.model || models?.flash,
+        );
+        if (!validatedPlan) {
           console.error('❌ Failed to parse plan JSON output from planner agent.');
+          process.exitCode = 1;
+          return;
+        }
+        const success = await savePlanFromJSON(validatedPlan, objective);
+        if (!success) {
+          console.error('❌ Failed to save plan file to disk.');
           process.exitCode = 1;
           return;
         }
@@ -415,7 +450,11 @@ ${diffText}
           rl,
         });
 
-        const qaReportObj = parseJSONFromText(qaResultText, 'qa');
+        const qaReportObj = await validateAgentOutput(
+          qaResultText,
+          qaSchema,
+          qaConfig?.model || models?.flash,
+        );
         if (!qaReportObj) {
           console.error('❌ Failed to parse QA Agent JSON report.');
           continue;

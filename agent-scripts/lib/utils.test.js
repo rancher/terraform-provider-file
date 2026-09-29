@@ -1,8 +1,9 @@
+import { z } from '@google/gemini-cli-sdk';
 import assert from 'node:assert';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
-import { getRepoRoot, normalizePlanObject, parseJSONFromText, savePlanFromJSON } from './utils.js';
+import { getRepoRoot, normalizePlanObject, parseJSONFromText, savePlanFromJSON, validateAgentOutput } from './utils.js';
 
 test('parseJSONFromText resilient extraction', async (t) => {
   await t.test('extracts the last valid JSON block when followed by non-JSON code blocks', () => {
@@ -231,5 +232,118 @@ test('savePlanFromJSON resilient saving', async (t) => {
   await t.test('returns false when text contains no valid JSON', async () => {
     const saved = await savePlanFromJSON('This is not JSON at all.');
     assert.strictEqual(saved, false);
+  });
+
+  await t.test('successfully saves when passed a plan object directly', async () => {
+    const planObj = { title: 'Direct Object Plan', implementation_tasks: ['Task 1'] };
+    const saved = await savePlanFromJSON(planObj);
+    assert.strictEqual(saved, true);
+  });
+});
+
+test('validateAgentOutput schema validation and error handling', async (t) => {
+  const schema = z.object({
+    name: z.string(),
+    count: z.number(),
+  });
+
+  await t.test('successfully validates and returns parsed object matching schema', async () => {
+    const raw = '```json\n{"name": "test-agent", "count": 42}\n```';
+    const result = await validateAgentOutput(raw, schema);
+    assert.deepStrictEqual(result, { name: 'test-agent', count: 42 });
+  });
+
+  await t.test('successfully validates when passed a JavaScript object directly', async () => {
+    const obj = { name: 'direct-object', count: 7 };
+    const result = await validateAgentOutput(obj, schema);
+    assert.deepStrictEqual(result, { name: 'direct-object', count: 7 });
+  });
+
+  await t.test('re-formats and recovers successfully when session runner returns valid schema JSON', async () => {
+    const invalidRaw = 'This is invalid text';
+    let calls = 0;
+    const mockRunner = async () => {
+      calls++;
+      return '```json\n{"name": "recovered-agent", "count": 99}\n```';
+    };
+    const result = await validateAgentOutput(invalidRaw, schema, mockRunner);
+    assert.strictEqual(calls, 1);
+    assert.deepStrictEqual(result, { name: 'recovered-agent', count: 99 });
+  });
+
+  await t.test('gracefully returns null when validation fails and session errors', async () => {
+    const invalidRaw = 'This is completely invalid and not JSON';
+    const mockRunner = async () => {
+      throw new Error('SDK session failed');
+    };
+    const result = await validateAgentOutput(invalidRaw, schema, mockRunner);
+    assert.strictEqual(result, null);
+  });
+
+  await t.test('gracefully returns null after initial parse and 4 validator agent retries fail', async () => {
+    const invalidRaw = 'This is completely invalid and not JSON';
+    let calls = 0;
+    const mockRunner = async () => {
+      calls++;
+      return 'Still invalid';
+    };
+    const result = await validateAgentOutput(invalidRaw, schema, mockRunner);
+    assert.strictEqual(calls, 4); // Initial try failed, then 4 retries via validator agent
+    assert.strictEqual(result, null);
+  });
+
+  await t.test('passes isolate: true and maxTurns: 5 options to the validator session runner', async () => {
+    let receivedOptions = null;
+    const mockRunner = async (opts) => {
+      receivedOptions = opts;
+      return '```json\n{"name": "isolated-agent", "count": 10}\n```';
+    };
+    const result = await validateAgentOutput('invalid text', schema, mockRunner);
+    assert.strictEqual(receivedOptions.isolate, true);
+    assert.strictEqual(receivedOptions.maxTurns, 5);
+    assert.deepStrictEqual(result, { name: 'isolated-agent', count: 10 });
+  });
+
+  await t.test('handles nested schemas and unwraps optional inner types during retry', async () => {
+    const nestedSchema = z.object({
+      meta: z.object({
+        tag: z.string().optional(),
+      }),
+    });
+    const mockRunner = async (opts) => {
+      assert.ok(opts.initialPrompt.includes('Expected Schema Structure:'));
+      return '```json\n{"meta": {"tag": "beta"}}\n```';
+    };
+    const result = await validateAgentOutput('not json', nestedSchema, mockRunner);
+    assert.deepStrictEqual(result, { meta: { tag: "beta" } });
+  });
+
+  await t.test('generates expected schema structure for top-level array schemas during retry', async () => {
+    const arraySchema = z.array(z.string());
+    const mockRunner = async (opts) => {
+      assert.ok(opts.initialPrompt.includes('Expected Schema Structure:'));
+      return '```json\n["item1", "item2"]\n```';
+    };
+    const result = await validateAgentOutput('invalid', arraySchema, mockRunner);
+    assert.deepStrictEqual(result, ['item1', 'item2']);
+  });
+
+  await t.test('throws TypeError when schema is missing or invalid', async () => {
+    await assert.rejects(
+      async () => validateAgentOutput('data', null),
+      { name: 'TypeError', message: /valid Zod schema/ },
+    );
+  });
+
+  await t.test('introspects ZodLiteral and ZodUnion schemas in retry prompts', async () => {
+    const unionSchema = z.object({
+      status: z.union([z.literal('APPROVED'), z.literal('REJECTED')]),
+    });
+    const mockRunner = async (opts) => {
+      assert.ok(opts.initialPrompt.includes('"APPROVED" | "REJECTED"'));
+      return '```json\n{"status": "APPROVED"}\n```';
+    };
+    const result = await validateAgentOutput('invalid', unionSchema, mockRunner);
+    assert.deepStrictEqual(result, { status: 'APPROVED' });
   });
 });

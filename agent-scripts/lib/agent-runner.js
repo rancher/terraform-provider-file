@@ -403,7 +403,7 @@ export {
   promptTurnBudgetExhaustion,
   requestHandoffSummary,
   syncSessionTools,
-  TurnTracker,
+  TurnTracker
 };
 
 function isQuotaError(err) {
@@ -456,6 +456,7 @@ function truncateDeep(val, maxLen = 2000) {
  * @param {Array<Object>} [options.customTools] - Array of custom SDK tools to register
  * @param {boolean} [options.isolate] - Whether to isolate the agent session
  * @param {boolean} [options.standalone] - Whether to auto-flush logs upon session completion
+ * @param {number} [options.maxTurns] - Maximum turn capacity override for the session
  * @returns {Promise<string>} Accumulated text output from the agent
  */
 export async function runAgentSession({
@@ -468,6 +469,7 @@ export async function runAgentSession({
   standalone = false,
   rl = null,
   ioOptions = {},
+  maxTurns: maxTurnsOverride,
 }) {
   await initializeAgentRunner();
 
@@ -477,11 +479,14 @@ export async function runAgentSession({
 
     for (let i = 0; i < fallbackSequence.length; i++) {
       const currentModel = fallbackSequence[i];
-      const maxTurns = getMaxTurnsForModel(currentModel, {
-        pro: MODEL_PRO,
-        flash: MODEL_FLASH,
-        flash_lite: MODEL_FLASH_LITE,
-      });
+      const maxTurns =
+        maxTurnsOverride !== undefined
+          ? maxTurnsOverride
+          : getMaxTurnsForModel(currentModel, {
+              pro: MODEL_PRO,
+              flash: MODEL_FLASH,
+              flash_lite: MODEL_FLASH_LITE,
+            });
       console.log(`\n[Initializing Gemini SDK Agentic Session] (Model: ${currentModel}, Max Turns: ${maxTurns})...`);
 
       const modelInstructions =
