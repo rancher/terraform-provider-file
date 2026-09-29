@@ -133,9 +133,7 @@ test('parseJSONFromText resilient extraction', async (t) => {
       parsed.objective,
       'Enhance the tool execution logging to include key argument details for better visibility.',
     );
-    assert.deepStrictEqual(parsed.scope_boundaries.in_scope, [
-      'Modify agent-scripts/lib/agent-runner.js',
-    ]);
+    assert.deepStrictEqual(parsed.scope_boundaries.in_scope, ['Modify agent-scripts/lib/agent-runner.js']);
     assert.ok(parsed.exit_criteria.length > 0);
     assert.strictEqual(parsed.implementation_tasks.length, 3);
     assert.strictEqual(
@@ -153,10 +151,7 @@ test('parseJSONFromText resilient extraction', async (t) => {
     const parsed = parseJSONFromText(rawArray, 'plan');
     assert.ok(parsed);
     assert.strictEqual(parsed.title, 'Update main entrypoint');
-    assert.deepStrictEqual(parsed.scope_boundaries.in_scope, [
-      'Modify main.go',
-      'Modify main_test.go',
-    ]);
+    assert.deepStrictEqual(parsed.scope_boundaries.in_scope, ['Modify main.go', 'Modify main_test.go']);
     assert.strictEqual(parsed.implementation_tasks.length, 2);
     assert.strictEqual(parsed.implementation_tasks[0], '[main.go] Update main entrypoint');
   });

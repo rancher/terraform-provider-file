@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck disable=SC1091
+source "$(dirname "${BASH_SOURCE[0]}")/auth_fallback.sh"
 
 # This script updates a pull request's title and/or description.
 # Usage: ./update_pr.sh <pr_number_or_empty> <title_or_empty> <body_or_empty>
@@ -9,19 +11,19 @@ TITLE="${2:-}"
 BODY="${3:-}"
 
 ARGS=()
-if [ -n "$TITLE" ]; then
+if [[ -n "$TITLE" ]]; then
   ARGS+=("--title" "$TITLE")
 fi
-if [ -n "$BODY" ]; then
+if [[ -n "$BODY" ]]; then
   ARGS+=("--body" "$BODY")
 fi
 
-if [ "${#ARGS[@]}" -eq 0 ]; then
+if [[ "${#ARGS[@]}" -eq 0 ]]; then
   echo "Error: Nothing to update. Provide title and/or body." >&2
   exit 1
 fi
 
-if [ -n "$PR_TARGET" ]; then
+if [[ -n "$PR_TARGET" ]]; then
   gh pr edit "$PR_TARGET" "${ARGS[@]}"
 else
   gh pr edit "${ARGS[@]}"

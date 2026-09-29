@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck disable=SC1091
+source "$(dirname "${BASH_SOURCE[0]}")/auth_fallback.sh"
 
 # This script resolves a specific PR inline review comment thread.
 # Usage: ./resolve_comment.sh <thread_id>
 
-if [ "$#" -lt 1 ]; then
+if [[ "$#" -lt 1 ]]; then
   echo "Usage: $0 <thread_id>" >&2
   exit 1
 fi

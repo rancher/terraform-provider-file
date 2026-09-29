@@ -142,7 +142,9 @@ TOTP
 trachier
 unparseable
 unredacted
+unregistration
 unreviewed
+unsets
 unvetted
 updatecli
 variablize
