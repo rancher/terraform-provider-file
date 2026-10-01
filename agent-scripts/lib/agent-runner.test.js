@@ -383,9 +383,19 @@ test('agent-runner initialization and logging', async (t) => {
 });
 
 test('runAgentSession maxTurns override integration', async (t) => {
+  const originalSession = GeminiCliAgent.prototype.session;
+  t.after(() => {
+    GeminiCliAgent.prototype.session = originalSession;
+  });
+
+  const attachMockSendStream = (agent, sendStream) => {
+    const session = originalSession.call(agent);
+    session.sendStream = sendStream;
+    return session;
+  };
+
   await t.test('verifies maxTurns override reaches SDK agent session and enforces hard stop', async () => {
     let capturedAgentOptions = null;
-    const originalSession = GeminiCliAgent.prototype.session;
     try {
       const config = await initializeAgentRunner();
       const initialLogContent = await fs.readFile(config.logPath, 'utf-8').catch(() => '');
@@ -393,16 +403,14 @@ test('runAgentSession maxTurns override integration', async (t) => {
 
       GeminiCliAgent.prototype.session = function () {
         capturedAgentOptions = this.options;
-        const session = originalSession.call(this);
-        session.sendStream = async function* () {
+        return attachMockSendStream(this, async function* () {
           yield { type: 'content', value: 'Turn 1 initial response\n' };
           for (let turn = 1; turn <= 5; turn++) {
             yield { type: 'tool_call_request', value: { name: 'no_op', args: '{}' } };
             yield { type: 'tool_call_result', value: 'success' };
           }
           yield { type: 'content', value: 'Turn 6 response should never be reached\n' };
-        };
-        return session;
+        });
       };
 
       const result = await runAgentSession({
@@ -434,15 +442,12 @@ test('runAgentSession maxTurns override integration', async (t) => {
 
   await t.test('respects precedence of maxTurnsOverride over maxTurns', async () => {
     let capturedAgentOptions = null;
-    const originalSession = GeminiCliAgent.prototype.session;
     try {
       GeminiCliAgent.prototype.session = function () {
         capturedAgentOptions = this.options;
-        const session = originalSession.call(this);
-        session.sendStream = async function* () {
+        return attachMockSendStream(this, async function* () {
           yield { type: 'content', value: 'Turn 1 initial response\n' };
-        };
-        return session;
+        });
       };
 
       await runAgentSession({
@@ -460,15 +465,12 @@ test('runAgentSession maxTurns override integration', async (t) => {
 
   await t.test('ignores boolean maxTurns inputs and avoids coercing to 1', async () => {
     let capturedAgentOptions = null;
-    const originalSession = GeminiCliAgent.prototype.session;
     try {
       GeminiCliAgent.prototype.session = function () {
         capturedAgentOptions = this.options;
-        const session = originalSession.call(this);
-        session.sendStream = async function* () {
+        return attachMockSendStream(this, async function* () {
           yield { type: 'content', value: 'Turn 1 initial response\n' };
-        };
-        return session;
+        });
       };
 
       await runAgentSession({
@@ -486,15 +488,12 @@ test('runAgentSession maxTurns override integration', async (t) => {
 
   await t.test('handles non-positive maxTurns by falling back to default capacity', async () => {
     let capturedAgentOptions = null;
-    const originalSession = GeminiCliAgent.prototype.session;
     try {
       GeminiCliAgent.prototype.session = function () {
         capturedAgentOptions = this.options;
-        const session = originalSession.call(this);
-        session.sendStream = async function* () {
+        return attachMockSendStream(this, async function* () {
           yield { type: 'content', value: 'Turn 1 initial response\n' };
-        };
-        return session;
+        });
       };
 
       await runAgentSession({

@@ -2000,12 +2000,7 @@
     "quadrant": "Tutorial",
     "prerequisites": {
       "knowledge_level": "Intermediate",
-      "tools_required": [
-        "git",
-        "go",
-        "nix",
-        "gpg"
-      ]
+      "tools_required": ["git", "go", "nix", "gpg"]
     },
     "steps": [
       {

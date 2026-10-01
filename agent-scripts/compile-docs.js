@@ -8,8 +8,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import TOML from '@iarna/toml';
+
+const execFileAsync = promisify(execFile);
+const randomBytesAsync = promisify(crypto.randomBytes);
 
 const workspaceRoot = process.cwd();
 const docsDir = path.join(workspaceRoot, 'docs');
@@ -30,7 +34,19 @@ async function getFilesRecursively(dir) {
   return results;
 }
 
-export default async function main(core) {
+export default async function main(rawCore = {}) {
+  const core = {
+    info: typeof rawCore?.info === 'function' ? rawCore.info.bind(rawCore) : console.log,
+    warning: typeof rawCore?.warning === 'function' ? rawCore.warning.bind(rawCore) : console.warn,
+    setFailed:
+      typeof rawCore?.setFailed === 'function'
+        ? rawCore.setFailed.bind(rawCore)
+        : (msg) => {
+            console.error(msg);
+            process.exitCode = 1;
+          },
+  };
+
   const lockPath = `${outputFilePath}.lock`;
   let lock;
   try {
@@ -109,13 +125,25 @@ export default async function main(core) {
         sortedDocs[key] = compiledDocs[key];
       });
 
-    const randomBytesAsync = promisify(crypto.randomBytes);
     const randBytes = await randomBytesAsync(4);
     const randHex = randBytes.toString('hex');
-    const tempPath = `${outputFilePath}.${Date.now()}-${randHex}.tmp`;
-    await fs.promises.writeFile(tempPath, JSON.stringify(sortedDocs, null, 2) + '\n', 'utf8');
-    await fs.promises.rename(tempPath, outputFilePath);
-    core.info(`Successfully compiled ${Object.keys(sortedDocs).length} TOML documents to ${outputFilePath}`);
+    const tempPath = `${outputFilePath}.${Date.now()}-${randHex}.tmp.json`;
+
+    try {
+      await fs.promises.writeFile(tempPath, JSON.stringify(sortedDocs, null, 2) + '\n', 'utf8');
+
+      try {
+        await execFileAsync('prettier', ['--parser', 'json', '--write', tempPath]);
+      } catch (prettierErr) {
+        core.info(`Note: Prettier formatting skipped for compiled docs: ${prettierErr.message}`);
+      }
+
+      await fs.promises.rename(tempPath, outputFilePath);
+      core.info(`Successfully compiled ${Object.keys(sortedDocs).length} TOML documents to ${outputFilePath}`);
+    } catch (writeOrRenameErr) {
+      await fs.promises.unlink(tempPath).catch(() => {});
+      throw writeOrRenameErr;
+    }
   } catch (err) {
     core.setFailed(`Compilation failed: ${err.message}`);
     process.exitCode = 1;
