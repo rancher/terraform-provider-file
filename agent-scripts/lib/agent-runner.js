@@ -469,26 +469,36 @@ export async function runAgentSession({
   standalone = false,
   rl = null,
   ioOptions = {},
-  maxTurns: maxTurnsOverride,
+  maxTurns: inputMaxTurns,
+  maxTurnsOverride,
 }) {
   await initializeAgentRunner();
 
   try {
     const startingModel = requestedModel || MODEL_FLASH;
     const fallbackSequence = getModelFallbackSequence(startingModel);
-    const parsedTurnsOverride = Number(maxTurnsOverride);
+    const effectiveMaxTurnsOverride = maxTurnsOverride ?? inputMaxTurns;
+    const isNumeric =
+      typeof effectiveMaxTurnsOverride === 'number' ||
+      (typeof effectiveMaxTurnsOverride === 'string' && effectiveMaxTurnsOverride.trim() !== '');
+    const parsedTurnsOverride = isNumeric ? Number(effectiveMaxTurnsOverride) : NaN;
     const hasTurnOverride = Number.isInteger(parsedTurnsOverride) && parsedTurnsOverride > 0;
+
+    if (effectiveMaxTurnsOverride !== undefined && effectiveMaxTurnsOverride !== null && !hasTurnOverride) {
+      console.warn(
+        `⚠️ Invalid maxTurns override "${effectiveMaxTurnsOverride}". Expected a positive integer. Falling back to default model turn budget.`,
+      );
+    }
 
     for (let i = 0; i < fallbackSequence.length; i++) {
       const currentModel = fallbackSequence[i];
-      const maxTurns =
-        hasTurnOverride
-          ? parsedTurnsOverride
-          : getMaxTurnsForModel(currentModel, {
-              pro: MODEL_PRO,
-              flash: MODEL_FLASH,
-              flash_lite: MODEL_FLASH_LITE,
-            });
+      const maxTurns = hasTurnOverride
+        ? parsedTurnsOverride
+        : getMaxTurnsForModel(currentModel, {
+            pro: MODEL_PRO,
+            flash: MODEL_FLASH,
+            flash_lite: MODEL_FLASH_LITE,
+          });
       console.log(`\n[Initializing Gemini SDK Agentic Session] (Model: ${currentModel}, Max Turns: ${maxTurns})...`);
 
       const modelInstructions =

@@ -221,11 +221,7 @@ Your final JSON response must strictly conform to this schema:
           rl,
         });
 
-        const validatedPlan = await validateAgentOutput(
-          planResult,
-          planSchema,
-          planConfig?.model || models?.flash,
-        );
+        const validatedPlan = await validateAgentOutput(planResult, planSchema, planConfig?.model || models?.flash);
         if (!validatedPlan) {
           console.error('❌ Failed to parse plan JSON output from planner agent.');
           process.exitCode = 1;
@@ -450,11 +446,7 @@ ${diffText}
           rl,
         });
 
-        const qaReportObj = await validateAgentOutput(
-          qaResultText,
-          qaSchema,
-          qaConfig?.model || models?.flash,
-        );
+        const qaReportObj = await validateAgentOutput(qaResultText, qaSchema, qaConfig?.model || models?.flash);
         if (!qaReportObj) {
           console.error('❌ Failed to parse QA Agent JSON report.');
           continue;

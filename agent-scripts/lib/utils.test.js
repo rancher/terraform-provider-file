@@ -315,7 +315,7 @@ test('validateAgentOutput schema validation and error handling', async (t) => {
       return '```json\n{"meta": {"tag": "beta"}}\n```';
     };
     const result = await validateAgentOutput('not json', nestedSchema, mockRunner);
-    assert.deepStrictEqual(result, { meta: { tag: "beta" } });
+    assert.deepStrictEqual(result, { meta: { tag: 'beta' } });
   });
 
   await t.test('generates expected schema structure for top-level array schemas during retry', async () => {
@@ -329,10 +329,10 @@ test('validateAgentOutput schema validation and error handling', async (t) => {
   });
 
   await t.test('throws TypeError when schema is missing or invalid', async () => {
-    await assert.rejects(
-      async () => validateAgentOutput('data', null),
-      { name: 'TypeError', message: /valid Zod schema/ },
-    );
+    await assert.rejects(async () => validateAgentOutput('data', null), {
+      name: 'TypeError',
+      message: /valid Zod schema/,
+    });
   });
 
   await t.test('introspects ZodLiteral and ZodUnion schemas in retry prompts', async () => {
@@ -340,7 +340,10 @@ test('validateAgentOutput schema validation and error handling', async (t) => {
       status: z.union([z.literal('APPROVED'), z.literal('REJECTED')]),
     });
     const mockRunner = async (opts) => {
-      assert.ok(opts.initialPrompt.includes('"APPROVED" | "REJECTED"'));
+      assert.ok(
+        opts.initialPrompt.includes('"APPROVED" | "REJECTED"') ||
+          opts.initialPrompt.includes('\\"APPROVED\\" | \\"REJECTED\\"'),
+      );
       return '```json\n{"status": "APPROVED"}\n```';
     };
     const result = await validateAgentOutput('invalid', unionSchema, mockRunner);
