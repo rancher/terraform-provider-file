@@ -100,4 +100,16 @@ test('block-restricted-commands.js offline fallback blacklist', async (t) => {
     assert.strictEqual(parsed.decision, 'deny');
     assert.match(parsed.reason, /potentially destructive|Subagent invocation is disabled/);
   });
+
+  await t.test('outputs only valid JSON without unnecessary noise', async () => {
+    const payload = {
+      tool_name: 'run_shell_command',
+      tool_input: { command: 'echo "hello"' },
+      is_offline: true,
+    };
+    const res = await runHook(payload);
+    const lines = res.stdout.trim().split('\n');
+    assert.strictEqual(lines.length, 1, 'Expected exactly one line of output');
+    assert.doesNotThrow(() => JSON.parse(lines[0]), 'Expected output to be valid JSON');
+  });
 });
