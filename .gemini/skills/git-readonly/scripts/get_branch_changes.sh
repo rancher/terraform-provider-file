@@ -15,5 +15,11 @@ if ! git rev-parse --verify "$BASE_BRANCH" &>/dev/null; then
   fi
 fi
 
+# Resolve the merge base between the base branch and current HEAD
+MERGE_BASE=$(git merge-base "$BASE_BRANCH" HEAD 2>/dev/null || true)
+if [[ -z "${MERGE_BASE:-}" ]]; then
+  MERGE_BASE="$BASE_BRANCH"
+fi
+
 # Run git diff
-git diff "$BASE_BRANCH"
+git diff --no-ext-diff --no-color "$MERGE_BASE" --

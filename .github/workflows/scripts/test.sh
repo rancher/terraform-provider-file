@@ -72,7 +72,7 @@ run_workflow_script_tests() {
     test_files+=("$file")
   done < <(find ".github/workflows/scripts/tests" -type f \( -name "*.js" -o -name "*.ts" \) -print0 2>/dev/null)
   if [[ ${#test_files[@]} -gt 0 ]]; then
-    node --test "${test_files[@]}"
+    NO_COLOR=1 node --test "${test_files[@]}"
   else
     echo "No test files found in .github/workflows/scripts/tests"
     exit 1

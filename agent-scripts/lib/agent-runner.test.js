@@ -1,9 +1,11 @@
 import { TerminalQuotaError } from '@google/gemini-cli-core';
+import { GeminiCliAgent } from '@google/gemini-cli-sdk';
 import assert from 'node:assert';
 import { Buffer } from 'node:buffer';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
-import { flushLogs, initializeAgentRunner, isMaxTurnsError } from './agent-runner.js';
+import { flushLogs, initializeAgentRunner, isMaxTurnsError, runAgentSession } from './agent-runner.js';
 import { promptTurnBudgetExhaustion } from './turn-accounting.js';
 
 test('TerminalQuotaError massive delay interceptor patch', async (t) => {
@@ -377,5 +379,141 @@ test('agent-runner initialization and logging', async (t) => {
     await flushLogs();
     // Verify flushLogs is idempotent and safe to call when stream is already flushed
     await flushLogs();
+  });
+});
+
+test('runAgentSession maxTurns override integration', async (t) => {
+  const originalSession = GeminiCliAgent.prototype.session;
+  t.after(() => {
+    GeminiCliAgent.prototype.session = originalSession;
+  });
+
+  const attachMockSendStream = (agent, sendStream) => {
+    const session = originalSession.call(agent);
+    session.sendStream = sendStream;
+    const originalInitialize = session.initialize.bind(session);
+    session.initialize = async () => {
+      // Allow internal side-effects that setup config/toolRegistry if needed,
+      // but override config.refreshAuth to prevent real metadata checks.
+      if (session.config) {
+        session.config.refreshAuth = async () => {};
+      }
+      return originalInitialize();
+    };
+    return session;
+  };
+
+  await t.test('verifies maxTurns override reaches SDK agent session and enforces hard stop', async () => {
+    let capturedAgentOptions = null;
+    try {
+      const config = await initializeAgentRunner();
+      const initialLogContent = await fs.readFile(config.logPath, 'utf-8').catch(() => '');
+      const initialOffset = initialLogContent.length;
+
+      GeminiCliAgent.prototype.session = function () {
+        capturedAgentOptions = this.options;
+        return attachMockSendStream(this, async function* () {
+          yield { type: 'content', value: 'Turn 1 initial response\n' };
+          for (let turn = 1; turn <= 5; turn++) {
+            yield { type: 'tool_call_request', value: { name: 'no_op', args: '{}' } };
+            yield { type: 'tool_call_result', value: 'success' };
+          }
+          yield { type: 'content', value: 'Turn 6 response should never be reached\n' };
+        });
+      };
+
+      const result = await runAgentSession({
+        initialPrompt: 'Run validator session',
+        maxTurns: 5,
+        isolate: true,
+      });
+
+      assert.strictEqual(capturedAgentOptions?.max_turns, 5, 'maxTurns override must reach GeminiCliAgent options');
+      assert.match(result, /Turn 1 initial response/);
+      assert.doesNotMatch(
+        result,
+        /Turn 6 response should never be reached/,
+        'Session must halt at 5 turns without processing subsequent turns',
+      );
+
+      await flushLogs();
+      const logContent = await fs.readFile(config.logPath, 'utf-8');
+      const sessionLog = logContent.slice(initialOffset);
+      assert.match(
+        sessionLog,
+        /\[Turn Limit Reached\] Override limit enforced as a hard stop\./,
+        'Log must record hard stop enforcement for turn override',
+      );
+    } finally {
+      GeminiCliAgent.prototype.session = originalSession;
+    }
+  });
+
+  await t.test('respects precedence of maxTurnsOverride over maxTurns', async () => {
+    let capturedAgentOptions = null;
+    try {
+      GeminiCliAgent.prototype.session = function () {
+        capturedAgentOptions = this.options;
+        return attachMockSendStream(this, async function* () {
+          yield { type: 'content', value: 'Turn 1 initial response\n' };
+        });
+      };
+
+      await runAgentSession({
+        initialPrompt: 'Run precedence check',
+        maxTurns: 10,
+        maxTurnsOverride: 3,
+        isolate: true,
+      });
+
+      assert.strictEqual(capturedAgentOptions?.max_turns, 3, 'maxTurnsOverride must take precedence over maxTurns');
+    } finally {
+      GeminiCliAgent.prototype.session = originalSession;
+    }
+  });
+
+  await t.test('ignores boolean maxTurns inputs and avoids coercing to 1', async () => {
+    let capturedAgentOptions = null;
+    try {
+      GeminiCliAgent.prototype.session = function () {
+        capturedAgentOptions = this.options;
+        return attachMockSendStream(this, async function* () {
+          yield { type: 'content', value: 'Turn 1 initial response\n' };
+        });
+      };
+
+      await runAgentSession({
+        initialPrompt: 'Run boolean maxTurns check',
+        maxTurns: true,
+        isolate: true,
+      });
+
+      assert.notStrictEqual(capturedAgentOptions?.max_turns, 1, 'maxTurns: true must not be coerced to 1');
+      assert.ok(capturedAgentOptions?.max_turns > 1, 'Default model turn capacity must be preserved');
+    } finally {
+      GeminiCliAgent.prototype.session = originalSession;
+    }
+  });
+
+  await t.test('handles non-positive maxTurns by falling back to default capacity', async () => {
+    let capturedAgentOptions = null;
+    try {
+      GeminiCliAgent.prototype.session = function () {
+        capturedAgentOptions = this.options;
+        return attachMockSendStream(this, async function* () {
+          yield { type: 'content', value: 'Turn 1 initial response\n' };
+        });
+      };
+
+      await runAgentSession({
+        initialPrompt: 'Run zero maxTurns check',
+        maxTurns: 0,
+        isolate: true,
+      });
+
+      assert.ok(capturedAgentOptions?.max_turns > 0, 'Zero maxTurns must fall back to positive default turn budget');
+    } finally {
+      GeminiCliAgent.prototype.session = originalSession;
+    }
   });
 });

@@ -364,12 +364,15 @@ export function parseJSONFromText(text, fallbackType = 'qa') {
 
 /**
  * Formats and saves an implementation plan to plans/current.md
- * @param {string} text - Raw JSON plan string
+ * @param {string|Object} textOrObj - Raw JSON plan string or parsed plan object
  * @param {string} [fallbackObjective] - Fallback objective if plan has no explicit objective
  * @returns {Promise<boolean>}
  */
-export async function savePlanFromJSON(text, fallbackObjective = '') {
-  const planJSON = parseJSONFromText(text, 'plan');
+export async function savePlanFromJSON(textOrObj, fallbackObjective = '') {
+  const planJSON =
+    typeof textOrObj === 'object' && textOrObj !== null
+      ? normalizePlanObject(textOrObj, fallbackObjective)
+      : parseJSONFromText(textOrObj, 'plan');
   if (planJSON && planJSON.title) {
     if (fallbackObjective) {
       if (!planJSON.objective || planJSON.objective === 'Implementation Plan') {
@@ -405,4 +408,172 @@ export async function savePlanFromJSON(text, fallbackObjective = '') {
     return true;
   }
   return false;
+}
+
+/**
+ * Unwraps Zod wrapper types (effects, default, optional, nullable).
+ * @param {import('zod').ZodTypeAny} s
+ * @returns {import('zod').ZodTypeAny}
+ */
+function unwrapZodSchema(s) {
+  if (s?._def?.schema) {
+    return unwrapZodSchema(s._def.schema);
+  }
+  if (s?._def?.innerType) {
+    return unwrapZodSchema(s._def.innerType);
+  }
+  return s;
+}
+
+/**
+ * Generates a simplified object representation of a Zod schema structure.
+ * @param {import('zod').ZodTypeAny} zodType
+ * @returns {Object|Array|string}
+ */
+function describeZodType(zodType) {
+  if (!zodType) {
+    return 'unknown';
+  }
+  const inner = unwrapZodSchema(zodType);
+  if (inner.shape) {
+    const shapeObj = typeof inner.shape === 'function' ? inner.shape() : inner.shape;
+    const out = {};
+    for (const [k, v] of Object.entries(shapeObj)) {
+      out[k] = describeZodType(v);
+    }
+    return out;
+  }
+  if (inner._def?.typeName === 'ZodArray' || (inner._def?.type && !inner._def?.values)) {
+    return [describeZodType(inner._def.type)];
+  }
+  if (inner._def?.values && Array.isArray(inner._def.values)) {
+    return inner._def.values.join(' | ');
+  }
+  if (inner._def?.value !== undefined) {
+    return JSON.stringify(inner._def.value);
+  }
+  if (inner._def?.options && Array.isArray(inner._def.options)) {
+    return inner._def.options.map(describeZodType).join(' | ');
+  }
+  return inner.description || inner._def?.typeName?.replace('Zod', '') || typeof inner;
+}
+
+/**
+ * Validates and potentially manipulates agent outputs to fit a given Zod schema.
+ * Orchestrates up to 4 validation agent sessions across 5 total validation attempts.
+ * @param {string|Object} rawInput - The raw output text or pre-parsed object from another agent
+ * @param {import('zod').ZodSchema} schema - The Zod schema to validate against
+ * @param {string|Function|Object} [requestedModelOrRunner='gemini-3.5-flash'] - The model name, session runner function, or options object
+ * @param {Function} [sessionRunner=null] - The session runner function to use for validator agent calls
+ * @returns {Promise<Object|null>} The parsed and validated JSON object, or null on failure
+ */
+export async function validateAgentOutput(
+  rawInput,
+  schema,
+  requestedModelOrRunner = 'gemini-3.5-flash',
+  sessionRunner = null,
+) {
+  if (!schema || typeof schema.parse !== 'function') {
+    throw new TypeError('validateAgentOutput requires a valid Zod schema with a .parse() method.');
+  }
+
+  let requestedModel = 'gemini-3.5-flash';
+  let runner = sessionRunner;
+
+  if (typeof requestedModelOrRunner === 'function') {
+    runner = requestedModelOrRunner;
+  } else if (typeof requestedModelOrRunner === 'string') {
+    requestedModel = requestedModelOrRunner;
+  } else if (requestedModelOrRunner && typeof requestedModelOrRunner === 'object') {
+    if (requestedModelOrRunner.requestedModel) {
+      requestedModel = requestedModelOrRunner.requestedModel;
+    }
+    if (typeof requestedModelOrRunner.sessionRunner === 'function') {
+      runner = requestedModelOrRunner.sessionRunner;
+    }
+  }
+
+  let currentData = rawInput;
+  const rawTextRepresentation =
+    typeof rawInput === 'object' && rawInput !== null ? JSON.stringify(rawInput, null, 2) : String(rawInput);
+
+  for (let i = 0; i < 5; i++) {
+    try {
+      let parsedObj;
+      if (typeof currentData === 'object' && currentData !== null) {
+        parsedObj = currentData;
+      } else {
+        parsedObj = parseJSONFromText(currentData, null);
+        if (!parsedObj) {
+          parsedObj = JSON.parse(currentData);
+        }
+      }
+
+      const validatedData = schema.parse(parsedObj);
+      return validatedData;
+    } catch (err) {
+      console.log(
+        `\n⚠️ Agent Output Validation failed (Try ${i + 1}/5): ${err.message}. Retrying via Validator Agent...`,
+      );
+      if (i === 4) {
+        console.error(`❌ Failed to validate agent output against schema after 5 tries. Last error: ${err.message}`);
+        return null;
+      }
+
+      let schemaDetails = schema?.description || '';
+      if (!schemaDetails) {
+        try {
+          const targetSchema = unwrapZodSchema(schema);
+          const described = describeZodType(targetSchema);
+          if (described && described !== 'unknown') {
+            schemaDetails = JSON.stringify(described, null, 2);
+          }
+        } catch (shapeErr) {
+          console.debug(`[DEBUG] Failed to inspect schema shape: ${shapeErr.message}`);
+          schemaDetails = '';
+        }
+      }
+
+      const schemaContext = schemaDetails ? `Expected Schema Structure:\n${schemaDetails}\n\n` : '';
+
+      const currentTextStr =
+        typeof currentData === 'object' && currentData !== null
+          ? JSON.stringify(currentData, null, 2)
+          : String(currentData);
+
+      const dataComparison =
+        i > 0 && currentTextStr !== rawTextRepresentation
+          ? `Original Raw Input:\n${rawTextRepresentation}\n\nLatest Attempt That Failed:\n${currentTextStr}`
+          : `Original Data:\n${currentTextStr}`;
+
+      const prompt = `The following JSON output failed schema validation:
+Error:
+${err.message}
+
+${schemaContext}${dataComparison}
+
+Please re-format the original data to strictly fit the required schema without losing or changing the semantic data. Output ONLY valid JSON matching the schema, with no markdown formatting or extra text.`;
+
+      const systemInstructions = `You are a strict data formatter and schema validator agent. Your only job is to transform the provided data so it successfully parses against the target JSON schema. Do not change the meaning of the data. Return pure JSON block.`;
+
+      try {
+        if (!runner) {
+          const runnerMod = await import('./agent-runner.js');
+          runner = runnerMod.runAgentSession;
+        }
+        currentData = await runner({
+          initialPrompt: prompt,
+          systemInstructions: systemInstructions,
+          requestedModel,
+          maxTurns: 5,
+          isolate: true,
+        });
+      } catch (sessionErr) {
+        console.error(`❌ Validator Agent session failed: ${sessionErr.message}`);
+        return null;
+      }
+    }
+  }
+
+  return null;
 }

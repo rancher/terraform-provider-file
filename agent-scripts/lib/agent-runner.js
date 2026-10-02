@@ -456,6 +456,7 @@ function truncateDeep(val, maxLen = 2000) {
  * @param {Array<Object>} [options.customTools] - Array of custom SDK tools to register
  * @param {boolean} [options.isolate] - Whether to isolate the agent session
  * @param {boolean} [options.standalone] - Whether to auto-flush logs upon session completion
+ * @param {number} [options.maxTurns] - Maximum turn capacity override for the session
  * @returns {Promise<string>} Accumulated text output from the agent
  */
 export async function runAgentSession({
@@ -468,20 +469,36 @@ export async function runAgentSession({
   standalone = false,
   rl = null,
   ioOptions = {},
+  maxTurns: inputMaxTurns,
+  maxTurnsOverride,
 }) {
   await initializeAgentRunner();
 
   try {
     const startingModel = requestedModel || MODEL_FLASH;
     const fallbackSequence = getModelFallbackSequence(startingModel);
+    const effectiveMaxTurnsOverride = maxTurnsOverride ?? inputMaxTurns;
+    const isNumeric =
+      typeof effectiveMaxTurnsOverride === 'number' ||
+      (typeof effectiveMaxTurnsOverride === 'string' && effectiveMaxTurnsOverride.trim() !== '');
+    const parsedTurnsOverride = isNumeric ? Number(effectiveMaxTurnsOverride) : NaN;
+    const hasTurnOverride = Number.isInteger(parsedTurnsOverride) && parsedTurnsOverride > 0;
+
+    if (effectiveMaxTurnsOverride !== undefined && effectiveMaxTurnsOverride !== null && !hasTurnOverride) {
+      console.warn(
+        `⚠️ Invalid maxTurns override "${effectiveMaxTurnsOverride}". Expected a positive integer. Falling back to default model turn budget.`,
+      );
+    }
 
     for (let i = 0; i < fallbackSequence.length; i++) {
       const currentModel = fallbackSequence[i];
-      const maxTurns = getMaxTurnsForModel(currentModel, {
-        pro: MODEL_PRO,
-        flash: MODEL_FLASH,
-        flash_lite: MODEL_FLASH_LITE,
-      });
+      const maxTurns = hasTurnOverride
+        ? parsedTurnsOverride
+        : getMaxTurnsForModel(currentModel, {
+            pro: MODEL_PRO,
+            flash: MODEL_FLASH,
+            flash_lite: MODEL_FLASH_LITE,
+          });
       console.log(`\n[Initializing Gemini SDK Agentic Session] (Model: ${currentModel}, Max Turns: ${maxTurns})...`);
 
       const modelInstructions =
@@ -512,6 +529,7 @@ export async function runAgentSession({
 
         const session = agent.session();
         const projectTempDir = path.join(os.homedir(), '.gemini/tmp/terraform-provider-file');
+        await fsPromises.mkdir(projectTempDir, { recursive: true });
         session.config.getWorkspaceContext().addDirectory(projectTempDir);
         await session.initialize();
 
@@ -565,6 +583,7 @@ export async function runAgentSession({
                 if (chunk.type === 'content') {
                   const shouldContinue = turnTracker.onContent();
                   if (!shouldContinue) {
+                    streamHaltedByBudget = true;
                     break;
                   }
                   const text = chunk.value || '';
@@ -633,6 +652,12 @@ export async function runAgentSession({
               writeLogAsync(
                 `[Turn Limit Reached] Tracker detected budget limit (${turnTracker.count}/${turnTracker.currentTurnBudget}).`,
               );
+              if (hasTurnOverride) {
+                writeLogAsync(`[Turn Limit Reached] Override limit enforced as a hard stop.`);
+                controller.abort();
+                return accumulatedText;
+              }
+
               const summary = await requestHandoffSummary(agent, session, writeLogAsync, controller);
               if (summary) {
                 accumulatedText += '\n\n' + summary;
