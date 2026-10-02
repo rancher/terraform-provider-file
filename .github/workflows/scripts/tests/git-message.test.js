@@ -223,7 +223,11 @@ test('git_message isolated environment and product boundary rules', async (t) =>
 
     await fs.writeFile(path.join(repo, 'internal', 'file.go'), 'package file // changed');
 
-    // Without a GPG key in test env, git commit -S fails; git_message should stop at commit without pushing
+    // Force commit to fail reliably across all environments
+    await execFileAsync('git', ['config', 'commit.gpgsign', 'true'], { cwd: repo });
+    await execFileAsync('git', ['config', 'user.signingkey', 'BOGUS_KEY_1234567890'], { cwd: repo });
+
+    // Without a valid GPG key in test env, git commit -S fails; git_message should stop at commit without pushing
     await assert.rejects(
       async () => runGitMessage(['feat: add file feature'], {}, repo),
       (err) => {
@@ -277,6 +281,10 @@ test('git_message isolated environment and product boundary rules', async (t) =>
     await execFileAsync('git', ['commit', '-m', 'chore: initial internal'], { cwd: repo });
 
     await fs.writeFile(path.join(internalDir, 'file.go'), 'package file // changed from subdir');
+
+    // Force commit to fail reliably across all environments
+    await execFileAsync('git', ['config', 'commit.gpgsign', 'true'], { cwd: repo });
+    await execFileAsync('git', ['config', 'user.signingkey', 'BOGUS_KEY_1234567890'], { cwd: repo });
 
     // Executing git_message with 'feat:' from inside repo/internal should NOT trigger non-product error
     await assert.rejects(

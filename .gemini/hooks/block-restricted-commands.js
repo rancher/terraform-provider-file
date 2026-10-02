@@ -1,8 +1,25 @@
 #!/usr/bin/env node
 
+import { GeminiCliAgent } from '@google/gemini-cli-sdk';
 import { Buffer } from 'node:buffer';
 import { fileURLToPath } from 'node:url';
-import { GeminiCliAgent } from '@google/gemini-cli-sdk';
+
+const originalWrite = process.stdout.write;
+console.log = () => {};
+console.info = () => {};
+console.debug = () => {};
+console.warn = () => {};
+process.stdout.write = function (chunk, encoding, callback) {
+  const cb = typeof encoding === 'function' ? encoding : callback;
+  if (typeof cb === 'function') {
+    cb();
+  }
+  return true;
+};
+
+function outputResult(obj) {
+  originalWrite.call(process.stdout, JSON.stringify(obj) + '\n');
+}
 
 function evaluateQuickRules(tool_name, tool_input) {
   const blacklistPaths = [
@@ -109,7 +126,7 @@ async function main() {
     const rawData = Buffer.concat(buffers).toString('utf-8');
     inputData = JSON.parse(rawData);
   } catch {
-    console.log(JSON.stringify({ decision: 'deny', reason: 'Failed to parse input parameters.' }));
+    outputResult({ decision: 'deny', reason: 'Failed to parse input parameters.' });
     process.exit(0);
   }
 
@@ -125,17 +142,17 @@ async function main() {
   const quickDecision = evaluateQuickRules(tool_name, tool_input);
 
   if (quickDecision === 'deny') {
-    console.log(JSON.stringify(denyResponse));
+    outputResult(denyResponse);
     process.exit(0);
   }
 
   if (quickDecision === 'allow') {
-    console.log(JSON.stringify({ decision: 'allow' }));
+    outputResult({ decision: 'allow' });
     process.exit(0);
   }
 
   if (is_offline) {
-    console.log(JSON.stringify({ decision: 'allow' }));
+    outputResult({ decision: 'allow' });
     process.exit(0);
   }
 
@@ -143,18 +160,18 @@ async function main() {
   const llmDecision = await lightweightLlmEval(tool_name, tool_input);
 
   if (llmDecision === 'deny') {
-    console.log(JSON.stringify(denyResponse));
+    outputResult(denyResponse);
     process.exit(0);
   }
 
-  console.log(JSON.stringify({ decision: 'allow' }));
+  outputResult({ decision: 'allow' });
   process.exit(0);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main().catch(() => {
     // Fail-open on fatal crash to ensure we don't completely trap the user/agent loop
-    console.log(JSON.stringify({ decision: 'allow' }));
+    outputResult({ decision: 'allow' });
     process.exit(0);
   });
 }
