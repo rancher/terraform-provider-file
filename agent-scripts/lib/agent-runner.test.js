@@ -391,6 +391,15 @@ test('runAgentSession maxTurns override integration', async (t) => {
   const attachMockSendStream = (agent, sendStream) => {
     const session = originalSession.call(agent);
     session.sendStream = sendStream;
+    const originalInitialize = session.initialize.bind(session);
+    session.initialize = async () => {
+      // Allow internal side-effects that setup config/toolRegistry if needed,
+      // but override config.refreshAuth to prevent real metadata checks.
+      if (session.config) {
+        session.config.refreshAuth = async () => {};
+      }
+      return originalInitialize();
+    };
     return session;
   };
 
