@@ -529,6 +529,7 @@ export async function runAgentSession({
 
         const session = agent.session();
         const projectTempDir = path.join(os.homedir(), '.gemini/tmp/terraform-provider-file');
+        await fsPromises.mkdir(projectTempDir, { recursive: true });
         session.config.getWorkspaceContext().addDirectory(projectTempDir);
         await session.initialize();
 
