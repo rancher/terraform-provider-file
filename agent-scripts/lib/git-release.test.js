@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import test from 'node:test';
-import { stripDiffMetadata } from './git-release.js';
+import { affectsProductFiles, getGitDiff, stripDiffMetadata } from './git-release.js';
 
 test('stripDiffMetadata', async (t) => {
   await t.test('filters index lines and chunk header @@ lines with line number shifts', () => {
@@ -96,5 +96,17 @@ test('stripDiffMetadata', async (t) => {
     assert.match(strippedWith, /\+added line with spaces {3}\n/);
     assert.notStrictEqual(strippedWith, strippedWithout);
     assert.ok(strippedWith.endsWith('\n'));
+  });
+});
+
+test('getGitDiff and affectsProductFiles', async (t) => {
+  await t.test('getGitDiff returns a string', async () => {
+    const diff = await getGitDiff();
+    assert.strictEqual(typeof diff, 'string');
+  });
+
+  await t.test('affectsProductFiles returns a boolean', async () => {
+    const isProduct = await affectsProductFiles();
+    assert.strictEqual(typeof isProduct, 'boolean');
   });
 });

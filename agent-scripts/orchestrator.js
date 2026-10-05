@@ -26,6 +26,7 @@ const USE_CASES = {
   3: { name: 'Refactor', desc: 'Refactor something without changing behavior' },
   4: { name: 'Test', desc: 'Add new tests without changing behavior' },
   5: { name: 'PR Comments', desc: 'Address PR comments programmatically' },
+  6: { name: 'Review Loop', desc: 'Iterative loop to review staged code until no changes exist' },
 };
 
 // Define custom tool for human-in-the-loop clarification during planning
@@ -62,10 +63,10 @@ async function main() {
 
     let selection = '';
     while (!USE_CASES[selection]) {
-      const inputSel = await rl.question('\n👉 Selection (1-5): ');
+      const inputSel = await rl.question('\n👉 Selection (1-6): ');
       selection = inputSel.trim();
       if (!USE_CASES[selection]) {
-        console.log('⚠️ Invalid selection. Please enter a number between 1 and 5.');
+        console.log('⚠️ Invalid selection. Please enter a number between 1 and 6.');
       }
     }
 
@@ -187,6 +188,32 @@ async function main() {
       await savePlanFromJSON(autoPlan);
       planApproved = true;
       console.log('✅ Generated deterministic Testing implementation plan.');
+    } else if (selection === '6') {
+      // REVIEW LOOP: Generate deterministic plan programmatically
+      console.log('Review Loop workflow selected. Generating deterministic plan...');
+      const autoPlan = {
+        title: `Review Loop: ${objective}`,
+        objective: objective,
+        scope_boundaries: {
+          in_scope: [
+            'Reviewing staged and unstaged code.',
+            'Implementing suggestions recursively until zero changes are needed.',
+          ],
+          out_of_scope: ['Committing code', 'Modifying orchestrator use cases outside of this loop.'],
+        },
+        exit_criteria: [
+          'No new changes suggested by agent after review.',
+          'Summary, PR description, and commit message generated.',
+        ],
+        implementation_tasks: [
+          'Stage all files.',
+          'Invoke thinking agent with review prompt.',
+          'Loop until no changes found.',
+        ],
+      };
+      await savePlanFromJSON(autoPlan);
+      planApproved = true;
+      console.log('✅ Generated deterministic Review Loop implementation plan.');
     } else {
       // BUGFIX & FEATURE: Run standard agent planning with user-interview capabilities
       console.log('Bugfix/Feature workflow selected. Invoking @planner agent...');
@@ -282,7 +309,14 @@ Your final JSON response must strictly conform to this schema:
         console.log('Fetching latest from origin main...');
         await execFileAsync('git', ['pull', 'origin', 'main']);
 
-        const prefixMap = { 1: 'bugfix', 2: 'feature', 3: 'refactor', 4: 'test', 5: 'pr-comments' };
+        const prefixMap = {
+          1: 'bugfix',
+          2: 'feature',
+          3: 'refactor',
+          4: 'test',
+          5: 'pr-comments',
+          6: 'review-loop',
+        };
         const prefix = prefixMap[selection] || 'task';
         const sanitizedObjective =
           objective
@@ -323,6 +357,8 @@ Implement the approved plan documented in 'plans/current.md' meticulously and su
     if (selection === '4') {
       // Strictly restrict the agent to test files
       implementInstructions += `\n⚠️ STRICT CONSTRAINT: You are ONLY allowed to write or modify test files (e.g. *_test.go, *.test.js, or files under test directories). DO NOT modify any product files.`;
+    } else if (selection === '6') {
+      implementInstructions = `You are in the REVIEW LOOP phase. Review the staged code and the approved plan documented in 'plans/current.md', make surgical improvements within scope if necessary, and ensure all tests and linters pass. If no changes or improvements are needed, make no modifications.`;
     }
 
     const implementPrompt = `Objective: "${objective}".
@@ -330,12 +366,52 @@ Please implement the approved plan documented in 'plans/current.md' meticulously
 Once you have fully finished your implementation, stop.`;
 
     try {
-      await runAgentSession({
-        initialPrompt: implementPrompt,
-        systemInstructions: implementInstructions,
-        requestedModel: models.pro,
-        rl,
-      });
+      if (selection === '6') {
+        let iteration = 0;
+        let hasChanges = true;
+        const maxIterations = 15;
+        const reviewPrompt = `Please review the staged code and the current plan, then implement any suggestions you have that are within the scope of the plan. If you don't have any suggestions please let me know. Don't plan, invoke, or commit. Make sure lint.sh and test.sh workflow scripts pass with the 'all' option.`;
+
+        while (iteration < maxIterations && hasChanges) {
+          iteration++;
+          console.log(`\n🔄 Review Loop Iteration ${iteration}/${maxIterations}...`);
+
+          // Stage all files and capture baseline state before running the agent
+          await execFileAsync('git', ['add', '-A']);
+          const { stdout: beforeStatus } = await execFileAsync('git', ['status', '--porcelain']);
+          const beforeDiff = await getGitDiff();
+
+          // Run thinking agent
+          await runAgentSession({
+            initialPrompt: reviewPrompt,
+            systemInstructions: implementInstructions,
+            requestedModel: models.pro,
+            maxTurnsOverride: 20,
+            rl,
+          });
+
+          // Check for new modifications by comparing against baseline state
+          const { stdout: afterStatus } = await execFileAsync('git', ['status', '--porcelain']);
+          const afterDiff = await getGitDiff();
+          if (beforeStatus.trim() === afterStatus.trim() && beforeDiff === afterDiff) {
+            console.log('\n✅ No further changes suggested by agent. Breaking loop.');
+            hasChanges = false;
+          } else {
+            console.log('\n📝 Agent made changes. Looping again...');
+          }
+        }
+
+        if (hasChanges) {
+          console.log('\n⚠️ Reached maximum iterations (15) without resolving all changes.');
+        }
+      } else {
+        await runAgentSession({
+          initialPrompt: implementPrompt,
+          systemInstructions: implementInstructions,
+          requestedModel: models.pro,
+          rl,
+        });
+      }
       console.log('\n✅ Implementation session completed.');
     } catch (err) {
       console.error(`❌ Implementation failed: ${err.message}`);
@@ -379,6 +455,36 @@ Once you have fully finished your implementation, stop.`;
         process.exitCode = 1;
         return;
       }
+    }
+
+    if (selection === '6') {
+      console.log('\n--- 📦 Phase 3: Final Review & Summary ---');
+      await execFileAsync('git', ['add', '-A']);
+      const diffText = await getGitDiff();
+      if (!diffText || diffText.trim() === '') {
+        console.log('✅ No changes were made in the review loop.');
+        return;
+      }
+
+      console.log('Asking Gemini to generate a summary, commit message, and PR description...');
+      const summaryPrompt = `Based on the following git diff, please generate a final summary of all changes made, a proposed single-line conventional commit message, and a PR description. Do NOT make any further code changes. Output the response clearly formatted:\n\n${diffText}`;
+
+      const summaryMsg = await runAgentSession({
+        initialPrompt: summaryPrompt,
+        systemInstructions:
+          'You are a technical reviewer. Summarize the changes provided without modifying any files or calling tools.',
+        requestedModel: models.flash_lite,
+        blockTools: ['write_file', 'replace', 'create_file', 'edit_file', 'run_shell_command'],
+        rl,
+      });
+
+      console.log('\n======================================');
+      console.log('📝 FINAL REVIEW SUMMARY:');
+      console.log('======================================');
+      console.log(summaryMsg);
+      console.log('======================================\n');
+      console.log('✅ Review loop complete. Please review the changes, commit, and push manually.');
+      return;
     }
 
     // ==========================================
