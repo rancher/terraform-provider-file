@@ -10,7 +10,7 @@ const execFileAsync = promisify(execFile);
  * @returns {Promise<string>} The git diff
  */
 export async function getGitDiff() {
-  const { stdout } = await execAsync('git diff HEAD', { maxBuffer: 10 * 1024 * 1024 });
+  const { stdout } = await execAsync('git diff --no-ext-diff HEAD', { maxBuffer: 10 * 1024 * 1024 });
   return stdout;
 }
 
@@ -19,7 +19,9 @@ export async function getGitDiff() {
  * @returns {Promise<boolean>}
  */
 export async function affectsProductFiles() {
-  const { stdout: diffFiles } = await execAsync('git diff --name-only HEAD', { maxBuffer: 10 * 1024 * 1024 });
+  const { stdout: diffFiles } = await execAsync('git diff --no-ext-diff --name-only HEAD', {
+    maxBuffer: 10 * 1024 * 1024,
+  });
   const changedFiles = diffFiles
     .split('\n')
     .map((f) => f.trim())
