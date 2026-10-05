@@ -3,7 +3,16 @@ import assert from 'node:assert';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
-import { getRepoRoot, normalizePlanObject, parseJSONFromText, savePlanFromJSON, validateAgentOutput } from './utils.js';
+import {
+  getRepoRoot,
+  normalizePlanObject,
+  parseJSONFromText,
+  renderBox,
+  savePlanFromJSON,
+  stripAnsi,
+  validateAgentOutput,
+  wrapLine,
+} from './utils.js';
 
 test('parseJSONFromText resilient extraction', async (t) => {
   await t.test('extracts the last valid JSON block when followed by non-JSON code blocks', () => {
@@ -348,5 +357,35 @@ test('validateAgentOutput schema validation and error handling', async (t) => {
     };
     const result = await validateAgentOutput('invalid', unionSchema, mockRunner);
     assert.deepStrictEqual(result, { status: 'APPROVED' });
+  });
+});
+
+test('renderBox and cli formatting utilities', async (t) => {
+  await t.test('stripAnsi removes ANSI escape codes from styled text', () => {
+    assert.strictEqual(stripAnsi('\u001b[32m' + 'hello' + '\u001b[0m world'), 'hello world');
+    assert.strictEqual(stripAnsi('plain text'), 'plain text');
+    assert.strictEqual(stripAnsi(123), '123');
+  });
+
+  await t.test('wrapLine wraps long strings while preserving indentation', () => {
+    const line = '  this is a long line that needs to wrap into multiple parts';
+    const wrapped = wrapLine(line, 25);
+    assert.ok(wrapped.length > 1);
+    assert.ok(wrapped[0].startsWith('  '));
+    assert.ok(wrapped[1].startsWith('  '));
+  });
+
+  await t.test('renderBox leaves single-line text untouched', () => {
+    const single = 'agent used run_shell_command';
+    assert.strictEqual(renderBox(single), single);
+  });
+
+  await t.test('renderBox wraps multi-line text in unicode box borders', () => {
+    const multiline = 'line 1\nline 2 longer';
+    const boxed = renderBox(multiline);
+    assert.ok(boxed.startsWith('┌─'));
+    assert.ok(boxed.endsWith('─┘'));
+    assert.ok(boxed.includes('│ line 1'));
+    assert.ok(boxed.includes('│ line 2 longer │'));
   });
 });
