@@ -375,6 +375,22 @@ test('renderBox and cli formatting utilities', async (t) => {
     assert.ok(wrapped[1].startsWith('  '));
   });
 
+  await t.test('wrapLine splits oversized tokens that exceed maxWidth into width-limited chunks (F3)', () => {
+    const url = 'https://github.com/rancher/terraform-provider-file/pull/444';
+    const wrapped = wrapLine(url, 20);
+    assert.ok(wrapped.length > 1);
+    for (const chunk of wrapped) {
+      assert.ok(chunk.length <= 20, `Chunk "${chunk}" must not exceed maxWidth 20`);
+    }
+
+    const indentedUrl = '  prefix ' + url;
+    const wrappedIndented = wrapLine(indentedUrl, 25);
+    for (const chunk of wrappedIndented) {
+      assert.ok(chunk.length <= 25, `Chunk "${chunk}" must not exceed maxWidth 25`);
+      assert.ok(chunk.startsWith('  '), 'Each chunk must preserve the line indentation');
+    }
+  });
+
   await t.test('renderBox leaves single-line text untouched', () => {
     const single = 'agent used run_shell_command';
     assert.strictEqual(renderBox(single), single);
@@ -387,5 +403,38 @@ test('renderBox and cli formatting utilities', async (t) => {
     assert.ok(boxed.endsWith('─┘'));
     assert.ok(boxed.includes('│ line 1'));
     assert.ok(boxed.includes('│ line 2 longer │'));
+  });
+
+  await t.test('renderBox wraps oversized tokens without exceeding maxWidth (F3)', () => {
+    const multilineWithOversized =
+      'Header\nhttps://github.com/rancher/terraform-provider-file/pull/444/very/long/path/argument';
+    const boxed = renderBox(multilineWithOversized, 46);
+    const lines = boxed.split('\n');
+    for (const line of lines) {
+      assert.ok(line.length <= 46, `Box line "${line}" (len ${line.length}) must not exceed maxWidth 46`);
+    }
+  });
+
+  await t.test('wrapLine safely handles non-positive maxWidth and non-string inputs', () => {
+    assert.deepStrictEqual(wrapLine(null, 10), ['']);
+    assert.deepStrictEqual(wrapLine(undefined, 10), ['']);
+    const wrappedZero = wrapLine('abc def', 0);
+    assert.ok(wrappedZero.length > 0);
+    const wrappedNegative = wrapLine('abc def', -5);
+    assert.ok(wrappedNegative.length > 0);
+  });
+
+  await t.test('wrapLine does not exceed safeMaxWidth when indentation exceeds maxWidth', () => {
+    const indented = '        hello world';
+    const wrapped = wrapLine(indented, 4);
+    for (const chunk of wrapped) {
+      assert.ok(chunk.length <= 4, `Chunk "${chunk}" must not exceed maxWidth 4`);
+    }
+  });
+
+  await t.test('renderBox safely handles non-string and falsy inputs', () => {
+    assert.strictEqual(renderBox(null), '');
+    assert.strictEqual(renderBox(undefined), '');
+    assert.strictEqual(renderBox(123), '123');
   });
 });

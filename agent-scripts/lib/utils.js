@@ -595,19 +595,44 @@ export function stripAnsi(str) {
  * @returns {string[]}
  */
 export function wrapLine(line, maxWidth) {
-  if (line.length <= maxWidth) {
+  if (typeof line !== 'string' || !line) {
+    return [line || ''];
+  }
+  const safeMaxWidth = Math.max(Number.isFinite(maxWidth) ? Math.floor(maxWidth) : 0, 1);
+  if (line.length <= safeMaxWidth) {
     return [line];
   }
   const indentMatch = line.match(/^(\s*)/);
-  const indent = indentMatch ? indentMatch[1] : '';
-  const trimmed = line.slice(indent.length);
-  const words = trimmed.split(/\s+/).filter(Boolean);
+  const fullIndent = indentMatch ? indentMatch[1] : '';
+  const indent = fullIndent.length < safeMaxWidth ? fullIndent : '';
+  const trimmed = line.slice(fullIndent.length);
+  const rawWords = trimmed.split(/\s+/).filter(Boolean);
+  if (rawWords.length === 0) {
+    const chunks = [];
+    for (let i = 0; i < line.length; i += safeMaxWidth) {
+      chunks.push(line.slice(i, i + safeMaxWidth));
+    }
+    return chunks.length > 0 ? chunks : [line];
+  }
+
+  const availableWidth = Math.max(safeMaxWidth - indent.length, 1);
+  const words = [];
+  for (const w of rawWords) {
+    if (w.length <= availableWidth) {
+      words.push(w);
+    } else {
+      for (let i = 0; i < w.length; i += availableWidth) {
+        words.push(w.slice(i, i + availableWidth));
+      }
+    }
+  }
+
   const wrapped = [];
   let current = indent;
   for (const word of words) {
     if (current === indent) {
       current += word;
-    } else if (current.length + 1 + word.length <= maxWidth) {
+    } else if (current.length + 1 + word.length <= safeMaxWidth) {
       current += ' ' + word;
     } else {
       wrapped.push(current);
@@ -628,6 +653,9 @@ export function wrapLine(line, maxWidth) {
  * @returns {string}
  */
 export function renderBox(text, columns = process.stdout.columns) {
+  if (typeof text !== 'string') {
+    return String(text ?? '');
+  }
   const termWidth = columns ? Math.max(columns - 6, 40) : 0;
   const rawLines = text.replace(/\r/g, '').split('\n');
   if (rawLines.length <= 1) {

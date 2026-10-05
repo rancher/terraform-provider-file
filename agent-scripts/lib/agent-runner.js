@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   bumpTurnCapacity,
+  extractIntent,
   getMaxTurnsForModel,
   promptTurnBudgetExhaustion,
   requestHandoffSummary,
@@ -471,6 +472,7 @@ export async function runAgentSession({
   ioOptions = {},
   maxTurns: inputMaxTurns,
   maxTurnsOverride,
+  validateIntent = true,
 }) {
   await initializeAgentRunner();
 
@@ -550,18 +552,22 @@ export async function runAgentSession({
           session.config.toolRegistry.unregisterTool('invoke_agent');
         }
 
+        let currentTurnText = '';
+
         turnTracker = new TurnTracker({
           maxTurns,
           controller,
           session,
           logger: writeLogAsync,
+          validateIntent,
+          getTurnText: () => currentTurnText,
         });
 
         const runResult = await promptIdContext.run(session.id, async () => {
           let currentPrompt = initialPrompt;
 
           while (!controller.signal.aborted) {
-            let currentTurnText = '';
+            currentTurnText = '';
             let streamHaltedByBudget = false;
             try {
               const stream = session.sendStream(currentPrompt, controller.signal);
@@ -628,20 +634,10 @@ export async function runAgentSession({
                     break;
                   }
 
-                  let reason = '';
-                  const trimmedTurnText = currentTurnText.trim();
-                  if (trimmedTurnText.length > 0) {
-                    const match = trimmedTurnText.match(/Intent:\s*(.*)/i);
-                    if (match && match[1]) {
-                      reason = match[1].trim();
-                    } else {
-                      reason = trimmedTurnText;
-                    }
-                  }
+                  const reason = extractIntent(currentTurnText) || turnTracker.lastDeclaredIntent;
                   if (reason) {
-                    reason = reason.replace(/^(to\s+)/i, '');
+                    turnTracker.lastDeclaredIntent = reason;
                   }
-                  currentTurnText = '';
 
                   let agentType = 'agent';
                   if (currentModel.includes('pro')) {
@@ -707,6 +703,7 @@ export async function runAgentSession({
                     console.log(logMsg);
                   }
                 } else if (chunk.type === 'tool_call_result') {
+                  currentTurnText = '';
                   if (!turnTracker.hasSessionHooks) {
                     turnTracker.onToolResult();
                   }

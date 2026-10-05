@@ -4,6 +4,7 @@ import { Readable, Writable } from 'node:stream';
 import test from 'node:test';
 import {
   bumpTurnCapacity,
+  extractIntent,
   getMaxTurnsForModel,
   promptTurnBudgetExhaustion,
   requestHandoffSummary,
@@ -404,6 +405,408 @@ test('TurnTracker hooks into session.config.toolRegistry and resets latch on exe
   // Next turn can now be counted
   tracker.onToolCall('test_tool');
   assert.strictEqual(tracker.count, 2);
+
+  tracker.dispose();
+});
+
+test('extractIntent parses intents across single-line, multi-line, and ordinary prose', () => {
+  assert.strictEqual(extractIntent('Intent: to check the git status'), 'check the git status');
+  assert.strictEqual(extractIntent('Intent: run tests and build'), 'run tests and build');
+  assert.strictEqual(extractIntent('**Intent:** to check the git status'), 'check the git status');
+  assert.strictEqual(extractIntent('* Intent: run tests and build'), 'run tests and build');
+  assert.strictEqual(extractIntent('**Intent**: run tests and build'), 'run tests and build');
+  assert.strictEqual(extractIntent('- **Intent:** check files**'), 'check files');
+  assert.strictEqual(extractIntent('Intent: **to check the git status**'), 'check the git status');
+  assert.strictEqual(extractIntent('### Intent: check status'), 'check status');
+  assert.strictEqual(extractIntent('## Intent: **to check status**'), 'check status');
+  assert.strictEqual(
+    extractIntent('Analyzing project structure...\nIntent: inspect file\nthen compare it'),
+    'inspect file\nthen compare it',
+  );
+  assert.strictEqual(
+    extractIntent('Analyzing project structure...\n- **Intent:** inspect file\nthen compare it'),
+    'inspect file\nthen compare it',
+  );
+  assert.strictEqual(extractIntent('Turn 1 initial response'), '');
+  assert.strictEqual(extractIntent(''), '');
+  assert.strictEqual(extractIntent('   '), '');
+  assert.strictEqual(extractIntent('Intent:   '), '');
+  assert.strictEqual(extractIntent(null), '');
+  assert.strictEqual(extractIntent(undefined), '');
+});
+
+test('TurnTracker intent validation allows execution with valid intent and resets retries', async () => {
+  let executed = false;
+  const mockTool = {
+    name: 'test_tool',
+    createInvocation() {
+      return {
+        async execute() {
+          executed = true;
+          return 'done';
+        },
+      };
+    },
+  };
+
+  const fakeRegistry = {
+    tools: { test_tool: mockTool },
+    getAllToolNames() {
+      return Object.keys(this.tools);
+    },
+    getTool(name) {
+      return this.tools[name];
+    },
+  };
+
+  const currentText = 'Intent: execute the test tool';
+  const tracker = new TurnTracker({
+    maxTurns: 5,
+    controller: { abort() {} },
+    session: { config: { toolRegistry: fakeRegistry } },
+    validateIntent: true,
+    getTurnText: () => currentText,
+  });
+
+  tracker.onToolCall('test_tool');
+  assert.strictEqual(tracker.count, 1);
+
+  const inv = fakeRegistry.getTool('test_tool').createInvocation();
+  const res = await inv.execute();
+  assert.strictEqual(res, 'done');
+  assert.strictEqual(executed, true);
+  assert.strictEqual(tracker.intentRetries, 0);
+  assert.strictEqual(tracker.turnCountedForModelStep, false);
+  tracker.dispose();
+});
+
+test('TurnTracker intent validation refuses execution and refunds turn when intent is missing', async () => {
+  let executed = false;
+  const mockTool = {
+    name: 'test_tool',
+    createInvocation() {
+      return {
+        async execute() {
+          executed = true;
+          return 'done';
+        },
+      };
+    },
+  };
+
+  const fakeRegistry = {
+    tools: { test_tool: mockTool },
+    getAllToolNames() {
+      return Object.keys(this.tools);
+    },
+    getTool(name) {
+      return this.tools[name];
+    },
+  };
+
+  let currentText = 'Just ordinary prose without intent';
+  const tracker = new TurnTracker({
+    maxTurns: 5,
+    controller: { abort() {} },
+    session: { config: { toolRegistry: fakeRegistry } },
+    validateIntent: true,
+    getTurnText: () => currentText,
+  });
+
+  tracker.onToolCall('test_tool');
+  assert.strictEqual(tracker.count, 1);
+
+  const inv = fakeRegistry.getTool('test_tool').createInvocation();
+  const res = await inv.execute();
+  assert.strictEqual(executed, false, 'Tool must not execute when intent is missing');
+  assert.strictEqual(res.error, true);
+  assert.match(res.llmContent, /Tool call refused: You must declare an "Intent: <reason>"/);
+  assert.strictEqual(tracker.count, 0, 'Turn count must be refunded on refused intent');
+  assert.strictEqual(tracker.intentRetries, 1);
+
+  // Agent self-corrects on next step
+  currentText = 'Intent: retry with valid intent';
+  tracker.onContent(currentText);
+  assert.strictEqual(tracker.count, 1);
+
+  const inv2 = fakeRegistry.getTool('test_tool').createInvocation();
+  const res2 = await inv2.execute();
+  assert.strictEqual(executed, true, 'Tool must execute after self-correction');
+  assert.strictEqual(res2, 'done');
+  assert.strictEqual(tracker.intentRetries, 0, 'Retries must reset after success');
+  assert.strictEqual(tracker.count, 1, 'Net turn count must be exactly 1 after self-correction');
+  tracker.dispose();
+});
+
+test('TurnTracker intent validation enforces maxIntentRetries limit', async () => {
+  const mockTool = {
+    name: 'test_tool',
+    createInvocation() {
+      return {
+        async execute() {
+          return 'done';
+        },
+      };
+    },
+  };
+
+  const fakeRegistry = {
+    tools: { test_tool: mockTool },
+    getAllToolNames() {
+      return Object.keys(this.tools);
+    },
+    getTool(name) {
+      return this.tools[name];
+    },
+  };
+
+  const tracker = new TurnTracker({
+    maxTurns: 5,
+    controller: { abort() {} },
+    session: { config: { toolRegistry: fakeRegistry } },
+    validateIntent: true,
+    getTurnText: () => 'no intent',
+    maxIntentRetries: 2,
+  });
+
+  // Attempt 1: refunded
+  tracker.onToolCall('test_tool');
+  assert.strictEqual(tracker.count, 1);
+  await fakeRegistry.getTool('test_tool').createInvocation().execute();
+  assert.strictEqual(tracker.count, 0);
+  assert.strictEqual(tracker.intentRetries, 1);
+
+  // Attempt 2: refunded
+  tracker.onToolCall('test_tool');
+  assert.strictEqual(tracker.count, 1);
+  await fakeRegistry.getTool('test_tool').createInvocation().execute();
+  assert.strictEqual(tracker.count, 0);
+  assert.strictEqual(tracker.intentRetries, 2);
+
+  // Attempt 3: exceeds maxIntentRetries (2), turn is NOT refunded
+  tracker.onToolCall('test_tool');
+  assert.strictEqual(tracker.count, 1);
+  await fakeRegistry.getTool('test_tool').createInvocation().execute();
+  assert.strictEqual(tracker.count, 1, 'Turn must not be refunded after exceeding retry limit');
+  assert.strictEqual(tracker.intentRetries, 2);
+  tracker.dispose();
+});
+
+test('TurnTracker exempts tools in exemptTools from intent validation', async () => {
+  let executed = false;
+  const noOpTool = {
+    name: 'no_op',
+    createInvocation() {
+      return {
+        async execute() {
+          executed = true;
+          return 'ok';
+        },
+      };
+    },
+  };
+
+  const fakeRegistry = {
+    tools: { no_op: noOpTool },
+    getAllToolNames() {
+      return Object.keys(this.tools);
+    },
+    getTool(name) {
+      return this.tools[name];
+    },
+  };
+
+  const tracker = new TurnTracker({
+    maxTurns: 5,
+    controller: { abort() {} },
+    session: { config: { toolRegistry: fakeRegistry } },
+    validateIntent: true,
+    exemptTools: ['no_op'],
+    getTurnText: () => 'no intent emitted',
+  });
+
+  tracker.onToolCall('no_op');
+  assert.strictEqual(tracker.count, 1);
+  const res = await fakeRegistry.getTool('no_op').createInvocation().execute();
+  assert.strictEqual(executed, true, 'Exempt tool must execute even without intent');
+  assert.strictEqual(res, 'ok');
+  assert.strictEqual(tracker.count, 1);
+  tracker.dispose();
+});
+
+test('TurnTracker supports parallel tool executions with shared intent', async () => {
+  const executedTools = [];
+  const toolA = {
+    name: 'tool_a',
+    createInvocation() {
+      return {
+        async execute() {
+          executedTools.push('tool_a');
+          return 'result_a';
+        },
+      };
+    },
+  };
+  const toolB = {
+    name: 'tool_b',
+    createInvocation() {
+      return {
+        async execute() {
+          executedTools.push('tool_b');
+          return 'result_b';
+        },
+      };
+    },
+  };
+
+  const fakeRegistry = {
+    tools: { tool_a: toolA, tool_b: toolB },
+    getAllToolNames() {
+      return Object.keys(this.tools);
+    },
+    getTool(name) {
+      return this.tools[name];
+    },
+  };
+
+  let currentText = 'Intent: execute both tools in parallel';
+  const tracker = new TurnTracker({
+    maxTurns: 5,
+    controller: { abort() {} },
+    session: { config: { toolRegistry: fakeRegistry } },
+    validateIntent: true,
+    getTurnText: () => currentText,
+  });
+
+  // Agent signals intent and invokes tool_a
+  tracker.onToolCall('tool_a');
+  const invA = fakeRegistry.getTool('tool_a').createInvocation();
+  const resA = await invA.execute();
+  assert.strictEqual(resA, 'result_a');
+
+  // Stream clears turn text after tool_a result chunk
+  currentText = '';
+
+  // Parallel tool_b executes in the same turn
+  const invB = fakeRegistry.getTool('tool_b').createInvocation();
+  const resB = await invB.execute();
+  assert.strictEqual(resB, 'result_b');
+  assert.deepStrictEqual(executedTools, ['tool_a', 'tool_b']);
+  assert.strictEqual(tracker.intentRetries, 0);
+
+  tracker.dispose();
+});
+
+test('TurnTracker resets intentRetries even when tool execution throws', async () => {
+  const throwingTool = {
+    name: 'throwing_tool',
+    createInvocation() {
+      return {
+        async execute() {
+          throw new Error('Tool execution failed unexpectedly');
+        },
+      };
+    },
+  };
+
+  const fakeRegistry = {
+    tools: { throwing_tool: throwingTool },
+    getAllToolNames() {
+      return Object.keys(this.tools);
+    },
+    getTool(name) {
+      return this.tools[name];
+    },
+  };
+
+  let currentText = 'no intent first';
+  const tracker = new TurnTracker({
+    maxTurns: 5,
+    controller: { abort() {} },
+    session: { config: { toolRegistry: fakeRegistry } },
+    validateIntent: true,
+    getTurnText: () => currentText,
+  });
+
+  // Attempt without intent -> refused and retries incremented
+  tracker.onToolCall('throwing_tool');
+  await fakeRegistry.getTool('throwing_tool').createInvocation().execute();
+  assert.strictEqual(tracker.intentRetries, 1);
+
+  // Agent provides valid intent, but tool throws during execution
+  currentText = 'Intent: execute throwing tool';
+  tracker.onToolCall('throwing_tool');
+  const inv = fakeRegistry.getTool('throwing_tool').createInvocation();
+  await assert.rejects(async () => {
+    await inv.execute();
+  }, /Tool execution failed unexpectedly/);
+
+  // intentRetries must have been reset because valid intent was declared
+  assert.strictEqual(tracker.intentRetries, 0);
+
+  tracker.dispose();
+});
+
+test('TurnTracker clears lastDeclaredIntent on onToolCall when starting a new turn', async () => {
+  const toolA = {
+    name: 'tool_a',
+    createInvocation() {
+      return {
+        async execute() {
+          return 'ok_a';
+        },
+      };
+    },
+  };
+  const toolB = {
+    name: 'tool_b',
+    createInvocation() {
+      return {
+        async execute() {
+          return 'ok_b';
+        },
+      };
+    },
+  };
+
+  const fakeRegistry = {
+    tools: { tool_a: toolA, tool_b: toolB },
+    getAllToolNames() {
+      return Object.keys(this.tools);
+    },
+    getTool(name) {
+      return this.tools[name];
+    },
+  };
+
+  let currentText = 'Intent: execute tool a';
+  const tracker = new TurnTracker({
+    maxTurns: 5,
+    controller: { abort() {} },
+    session: { config: { toolRegistry: fakeRegistry } },
+    validateIntent: true,
+    getTurnText: () => currentText,
+  });
+
+  // Turn 1: tool_a succeeds with valid intent
+  tracker.onToolCall('tool_a');
+  assert.strictEqual(tracker.count, 1);
+  const resA = await fakeRegistry.getTool('tool_a').createInvocation().execute();
+  assert.strictEqual(resA, 'ok_a');
+
+  // Turn 2: Agent starts with direct tool_b call without emitting any content or intent
+  currentText = '';
+  tracker.onToolCall('tool_b');
+  assert.strictEqual(tracker.count, 2);
+
+  const resB = await fakeRegistry.getTool('tool_b').createInvocation().execute();
+  // Must be refused because Turn 1's intent was not leaked
+  assert.strictEqual(resB.error, true);
+  assert.match(resB.returnDisplay, /Missing Intent declaration for tool_b/);
+  assert.match(resB.llmContent, /You must declare an "Intent: <reason>"/);
+  // Turn count is refunded to 1
+  assert.strictEqual(tracker.count, 1);
+  assert.strictEqual(tracker.intentRetries, 1);
 
   tracker.dispose();
 });
