@@ -517,3 +517,345 @@ test('runAgentSession maxTurns override integration', async (t) => {
     }
   });
 });
+
+test('runAgentSession enriched tool logging', async (t) => {
+  await t.test('formats tool usage log with tool name, arguments, and intent', async () => {
+    const originalSession = GeminiCliAgent.prototype.session;
+    const originalConsoleLog = console.log;
+    const logs = [];
+
+    const attachMockSendStream = (agent, sendStream) => {
+      const session = originalSession.call(agent);
+      session.sendStream = sendStream;
+      const originalInitialize = session.initialize.bind(session);
+      session.initialize = async () => {
+        if (session.config) {
+          session.config.refreshAuth = async () => {};
+        }
+        return originalInitialize();
+      };
+      return session;
+    };
+
+    try {
+      console.log = (...args) => {
+        logs.push(args.join(' '));
+      };
+
+      GeminiCliAgent.prototype.session = function () {
+        return attachMockSendStream(this, async function* () {
+          yield { type: 'content', value: 'Intent: to check the git status\n' };
+          yield {
+            type: 'tool_call_request',
+            value: { name: 'run_shell_command', args: { command: 'git status' } },
+          };
+          yield { type: 'tool_call_result', value: 'On branch main' };
+
+          yield { type: 'content', value: 'Intent: read the documentation file\n' };
+          yield {
+            type: 'tool_call_request',
+            value: { name: 'read_file', args: { file_path: 'README.md' } },
+          };
+          yield { type: 'tool_call_result', value: '# Documentation' };
+
+          yield { type: 'content', value: 'Intent: replace old logic with new\n' };
+          yield {
+            type: 'tool_call_request',
+            value: { name: 'replace', args: { file_path: 'foo.js', new_string: 'const a = 1;' } },
+          };
+          yield { type: 'tool_call_result', value: 'success' };
+        });
+      };
+
+      await runAgentSession({
+        initialPrompt: 'Run enriched tool logging test',
+        maxTurns: 3,
+        requestedModel: 'gemini-3.1-pro-preview',
+        isolate: false,
+      });
+
+      const toolLogs = logs.filter((msg) => msg.includes('agent used'));
+      assert.strictEqual(toolLogs.length, 3);
+      assert.strictEqual(toolLogs[0], "pro agent used run_shell_command with 'git status' to check the git status");
+      assert.strictEqual(toolLogs[1], 'pro agent used read_file with README.md to read the documentation file');
+      assert.strictEqual(
+        toolLogs[2],
+        "pro agent used replace with 'foo.js' ('''const a = 1;...''') to replace old logic with new",
+      );
+    } finally {
+      GeminiCliAgent.prototype.session = originalSession;
+      console.log = originalConsoleLog;
+    }
+  });
+
+  await t.test('formats tool usage log without default reason when agent emits no text', async () => {
+    const originalSession = GeminiCliAgent.prototype.session;
+    const originalConsoleLog = console.log;
+    const logs = [];
+
+    const attachMockSendStream = (agent, sendStream) => {
+      const session = originalSession.call(agent);
+      session.sendStream = sendStream;
+      const originalInitialize = session.initialize.bind(session);
+      session.initialize = async () => {
+        if (session.config) {
+          session.config.refreshAuth = async () => {};
+        }
+        return originalInitialize();
+      };
+      return session;
+    };
+
+    try {
+      console.log = (...args) => {
+        logs.push(args.join(' '));
+      };
+
+      GeminiCliAgent.prototype.session = function () {
+        return attachMockSendStream(this, async function* () {
+          yield {
+            type: 'tool_call_request',
+            value: { name: 'run_shell_command', args: { command: 'git status' } },
+          };
+          yield { type: 'tool_call_result', value: 'On branch main' };
+        });
+      };
+
+      await runAgentSession({
+        initialPrompt: 'Run no intent test',
+        maxTurns: 1,
+        requestedModel: 'gemini-3.1-pro-preview',
+        isolate: false,
+      });
+
+      const toolLogs = logs.filter((msg) => msg.includes('agent used'));
+      assert.strictEqual(toolLogs.length, 1);
+      assert.strictEqual(toolLogs[0], "pro agent used run_shell_command with 'git status'");
+      assert.ok(!toolLogs[0].includes('continue the task'));
+      assert.ok(!toolLogs[0].includes('⚡'));
+    } finally {
+      GeminiCliAgent.prototype.session = originalSession;
+      console.log = originalConsoleLog;
+    }
+  });
+
+  await t.test('renders multi-line tool usage log inside a box', async () => {
+    const originalSession = GeminiCliAgent.prototype.session;
+    const originalConsoleLog = console.log;
+    const logs = [];
+
+    const attachMockSendStream = (agent, sendStream) => {
+      const session = originalSession.call(agent);
+      session.sendStream = sendStream;
+      const originalInitialize = session.initialize.bind(session);
+      session.initialize = async () => {
+        if (session.config) {
+          session.config.refreshAuth = async () => {};
+        }
+        return originalInitialize();
+      };
+      return session;
+    };
+
+    try {
+      console.log = (...args) => {
+        logs.push(args.join(' '));
+      };
+
+      GeminiCliAgent.prototype.session = function () {
+        return attachMockSendStream(this, async function* () {
+          yield {
+            type: 'tool_call_request',
+            value: {
+              name: 'update_topic',
+              args: { strategic_intent: 'Reviewing the staged changes' },
+            },
+          };
+          yield { type: 'tool_call_result', value: 'updated' };
+        });
+      };
+
+      await runAgentSession({
+        initialPrompt: 'Run multiline box test',
+        maxTurns: 1,
+        requestedModel: 'gemini-3.1-pro-preview',
+        isolate: false,
+      });
+
+      const boxedLogs = logs.filter((msg) => msg.includes('┌') && msg.includes('update_topic'));
+      assert.strictEqual(boxedLogs.length, 1);
+      assert.ok(boxedLogs[0].includes('┌─'));
+      assert.ok(boxedLogs[0].includes('└─'));
+      assert.ok(boxedLogs[0].includes('│ pro agent used update_topic with:'));
+      assert.ok(boxedLogs[0].includes('strategic_intent'));
+      assert.ok(!boxedLogs[0].includes('⚡'));
+      assert.ok(!boxedLogs[0].includes('continue the task'));
+    } finally {
+      GeminiCliAgent.prototype.session = originalSession;
+      console.log = originalConsoleLog;
+    }
+  });
+
+  await t.test('formats tool usage log with multi-line intent and renders inside a box (F1)', async () => {
+    const originalSession = GeminiCliAgent.prototype.session;
+    const originalConsoleLog = console.log;
+    const logs = [];
+
+    const attachMockSendStream = (agent, sendStream) => {
+      const session = originalSession.call(agent);
+      session.sendStream = sendStream;
+      const originalInitialize = session.initialize.bind(session);
+      session.initialize = async () => {
+        if (session.config) {
+          session.config.refreshAuth = async () => {};
+        }
+        return originalInitialize();
+      };
+      return session;
+    };
+
+    try {
+      console.log = (...args) => {
+        logs.push(args.join(' '));
+      };
+
+      GeminiCliAgent.prototype.session = function () {
+        return attachMockSendStream(this, async function* () {
+          yield { type: 'content', value: 'Intent: inspect the file\nthen compare it\n' };
+          yield {
+            type: 'tool_call_request',
+            value: { name: 'read_file', args: { file_path: 'README.md' } },
+          };
+          yield { type: 'tool_call_result', value: 'content' };
+        });
+      };
+
+      await runAgentSession({
+        initialPrompt: 'Run multiline intent test',
+        maxTurns: 1,
+        requestedModel: 'gemini-3.1-pro-preview',
+        isolate: false,
+      });
+
+      const boxedLogs = logs.filter((msg) => msg.includes('┌') && msg.includes('read_file'));
+      assert.strictEqual(boxedLogs.length, 1, 'Multiline intent must trigger renderBox');
+      assert.ok(boxedLogs[0].includes('pro agent used read_file with README.md to:'));
+      assert.ok(boxedLogs[0].includes('inspect the file'));
+      assert.ok(boxedLogs[0].includes('then compare it'));
+    } finally {
+      GeminiCliAgent.prototype.session = originalSession;
+      console.log = originalConsoleLog;
+    }
+  });
+
+  await t.test('does not treat ordinary prose as intent before tool call (F2)', async () => {
+    const originalSession = GeminiCliAgent.prototype.session;
+    const originalConsoleLog = console.log;
+    const logs = [];
+
+    const attachMockSendStream = (agent, sendStream) => {
+      const session = originalSession.call(agent);
+      session.sendStream = sendStream;
+      const originalInitialize = session.initialize.bind(session);
+      session.initialize = async () => {
+        if (session.config) {
+          session.config.refreshAuth = async () => {};
+        }
+        return originalInitialize();
+      };
+      return session;
+    };
+
+    try {
+      console.log = (...args) => {
+        logs.push(args.join(' '));
+      };
+
+      GeminiCliAgent.prototype.session = function () {
+        return attachMockSendStream(this, async function* () {
+          yield { type: 'content', value: 'Turn 1 initial response\n' };
+          yield {
+            type: 'tool_call_request',
+            value: { name: 'no_op', args: '{}' },
+          };
+          yield { type: 'tool_call_result', value: 'ok' };
+        });
+      };
+
+      await runAgentSession({
+        initialPrompt: 'Run prose intent test',
+        maxTurns: 1,
+        requestedModel: 'gemini-3.1-pro-preview',
+        isolate: false,
+      });
+
+      const toolLogs = logs.filter((msg) => msg.includes('agent used no_op'));
+      assert.strictEqual(toolLogs.length, 1);
+      assert.strictEqual(toolLogs[0], "pro agent used no_op with '{}'");
+      assert.ok(!toolLogs[0].includes('Turn 1 initial response'));
+      assert.ok(!toolLogs[0].includes('to '));
+    } finally {
+      GeminiCliAgent.prototype.session = originalSession;
+      console.log = originalConsoleLog;
+    }
+  });
+
+  await t.test('preserves declared intent across sequential tool calls within the same turn', async () => {
+    const originalSession = GeminiCliAgent.prototype.session;
+    const originalConsoleLog = console.log;
+    const logs = [];
+
+    const attachMockSendStream = (agent, sendStream) => {
+      const session = originalSession.call(agent);
+      session.sendStream = sendStream;
+      const originalInitialize = session.initialize.bind(session);
+      session.initialize = async () => {
+        if (session.config) {
+          session.config.refreshAuth = async () => {};
+        }
+        return originalInitialize();
+      };
+      return session;
+    };
+
+    try {
+      console.log = (...args) => {
+        logs.push(args.join(' '));
+      };
+
+      GeminiCliAgent.prototype.session = function () {
+        return attachMockSendStream(this, async function* () {
+          yield { type: 'content', value: 'Intent: check status and read file\n' };
+          yield {
+            type: 'tool_call_request',
+            value: { name: 'run_shell_command', args: { command: 'git status' } },
+          };
+          yield {
+            type: 'tool_call_request',
+            value: { name: 'read_file', args: { file_path: 'README.md' } },
+          };
+          yield { type: 'tool_call_result', value: 'clean' };
+          yield { type: 'tool_call_result', value: 'content' };
+        });
+      };
+
+      await runAgentSession({
+        initialPrompt: 'Run sequential multi-tool test',
+        maxTurns: 1,
+        requestedModel: 'gemini-3.1-pro-preview',
+        isolate: false,
+      });
+
+      const toolLogs = logs.filter((msg) => msg.includes('agent used'));
+      assert.strictEqual(toolLogs.length, 2);
+      assert.strictEqual(
+        toolLogs[0],
+        "pro agent used run_shell_command with 'git status' to check status and read file",
+      );
+      assert.strictEqual(toolLogs[1], 'pro agent used read_file with README.md to check status and read file');
+    } finally {
+      GeminiCliAgent.prototype.session = originalSession;
+      console.log = originalConsoleLog;
+    }
+  });
+});

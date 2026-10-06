@@ -37,6 +37,33 @@ export function getMaxTurnsForModel(modelName, models = null) {
 }
 
 /**
+ * Extracts declared intent from streamed turn text.
+ * Returns empty string if no valid "Intent:" declaration is present.
+ *
+ * @param {string} text - The turn text to inspect
+ * @returns {string} The normalized intent reason, or empty string
+ */
+export function extractIntent(text) {
+  if (typeof text !== 'string') {
+    return '';
+  }
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return '';
+  }
+  const match = trimmed.match(/(?:^|\n)\s*(?:(?:[-*>]|#{1,6})+\s+)?[_*]{0,2}Intent[_*]{0,2}:[_*]{0,2}\s*([\s\S]+)$/i);
+  if (!match || !match[1]) {
+    return '';
+  }
+  const reason = match[1]
+    .trim()
+    .replace(/^[*_]+/, '')
+    .replace(/[*_]+$/, '')
+    .trim();
+  return reason.replace(/^(to\s+)/i, '');
+}
+
+/**
  * Safely increments maxTurns across agent and session configurations.
  *
  * @param {Object} [agent] - Agent instance
@@ -280,8 +307,21 @@ export class TurnTracker {
    * @param {AbortController} options.controller - Controller used to abort execution
    * @param {Object} [options.session] - The active GeminiCliAgent session
    * @param {Function} [options.logger] - Logger hook for recording state changes
+   * @param {boolean} [options.validateIntent=false] - Whether to enforce intent declaration before tools
+   * @param {string[]} [options.exemptTools=['no_op']] - Tool names exempt from intent enforcement
+   * @param {Function} [options.getTurnText=null] - Accessor for currently streamed turn text
+   * @param {number} [options.maxIntentRetries=2] - Maximum free intent-correction retries per turn
    */
-  constructor({ maxTurns, controller, session = null, logger = () => {} }) {
+  constructor({
+    maxTurns,
+    controller,
+    session = null,
+    logger = () => {},
+    validateIntent = false,
+    exemptTools = ['no_op'],
+    getTurnText = null,
+    maxIntentRetries = 2,
+  }) {
     this.maxTurns = maxTurns;
     this.currentTurnBudget = maxTurns;
     this.turnsExecuted = 0;
@@ -289,6 +329,12 @@ export class TurnTracker {
     this.controller = controller;
     this.session = session;
     this.logger = logger;
+    this.validateIntent = validateIntent;
+    this.exemptTools = exemptTools;
+    this.getTurnText = getTurnText;
+    this.maxIntentRetries = maxIntentRetries;
+    this.intentRetries = 0;
+    this.lastDeclaredIntent = '';
     this._hasSessionEvents = false;
     this._cleanupFns = [];
 
@@ -333,26 +379,57 @@ export class TurnTracker {
       return;
     }
     const wrapTool = (tool) => {
+      const toolName = tool?.name || tool?.definition?.name || 'tool';
+      const tracker = this;
+
+      const createWrappedExecute = (origExec) => {
+        return async function (...execArgs) {
+          try {
+            if (tracker.validateIntent && !tracker.exemptTools.includes(toolName)) {
+              const turnText = tracker.getTurnText ? tracker.getTurnText() : '';
+              const declared = extractIntent(turnText);
+              if (declared) {
+                tracker.lastDeclaredIntent = declared;
+              }
+              const intent = declared || tracker.lastDeclaredIntent;
+              if (!intent) {
+                tracker.refundTurn();
+                return {
+                  llmContent: `Tool call refused: You must declare an "Intent: <reason>" immediately before calling ${toolName}. Please output a single sentence starting with "Intent:" explaining why you are calling this tool, then retry.`,
+                  returnDisplay: `Tool call refused: Missing Intent declaration for ${toolName}.`,
+                  error: true,
+                };
+              }
+            }
+            tracker.intentRetries = 0;
+            const result = await origExec.apply(this, execArgs);
+            return result;
+          } finally {
+            tracker.onToolResult();
+          }
+        };
+      };
+
       if (tool && typeof tool.createInvocation === 'function' && !tool._turnAccountingWrapped) {
         const origCreate = tool.createInvocation;
-        const tracker = this;
         tool.createInvocation = function (...args) {
           const invocation = origCreate.apply(this, args);
           if (invocation && typeof invocation.execute === 'function') {
-            const origExec = invocation.execute;
-            invocation.execute = async function (...execArgs) {
-              try {
-                return await origExec.apply(this, execArgs);
-              } finally {
-                tracker.onToolResult();
-              }
-            };
+            invocation.execute = createWrappedExecute(invocation.execute);
           }
           return invocation;
         };
         tool._turnAccountingWrapped = true;
         this._cleanupFns.push(() => {
           tool.createInvocation = origCreate;
+          delete tool._turnAccountingWrapped;
+        });
+      } else if (tool && typeof tool.execute === 'function' && !tool._turnAccountingWrapped) {
+        const origExec = tool.execute;
+        tool.execute = createWrappedExecute(origExec);
+        tool._turnAccountingWrapped = true;
+        this._cleanupFns.push(() => {
+          tool.execute = origExec;
           delete tool._turnAccountingWrapped;
         });
       }
@@ -383,8 +460,8 @@ export class TurnTracker {
     for (const cleanup of this._cleanupFns) {
       try {
         cleanup();
-      } catch {
-        // Ignore cleanup errors
+      } catch (err) {
+        this.logger(`[DEBUG] Error during turn tracker cleanup: ${err.message}`);
       }
     }
     this._cleanupFns = [];
@@ -395,6 +472,27 @@ export class TurnTracker {
    */
   get hasSessionHooks() {
     return Boolean(this._hasSessionEvents);
+  }
+
+  /**
+   * Refunds the turn count for an intercepted/refused tool call.
+   * Decrements turnsExecuted if within retry limit.
+   * @returns {boolean} Whether the refund was granted
+   */
+  refundTurn() {
+    this.lastDeclaredIntent = '';
+    if (this.turnsExecuted > 0 && this.turnCountedForModelStep) {
+      if (this.intentRetries < this.maxIntentRetries) {
+        this.intentRetries++;
+        this.turnsExecuted--;
+        this.logger(
+          `[Turn Refunded] Tool call refused due to missing intent (retry ${this.intentRetries}/${this.maxIntentRetries}). Turns executed refunded to: ${this.turnsExecuted}/${this.currentTurnBudget}`,
+        );
+        return true;
+      }
+      this.logger(`[Turn Budget] Intent retries exceeded maximum limit (${this.maxIntentRetries}). Turn not refunded.`);
+    }
+    return false;
   }
 
   /**
@@ -411,6 +509,7 @@ export class TurnTracker {
   onContent() {
     if (!this.turnCountedForModelStep) {
       this.turnCountedForModelStep = true;
+      this.lastDeclaredIntent = '';
       this.turnsExecuted++;
       this.logger(`[Turn ${this.turnsExecuted}/${this.currentTurnBudget}] Agent streaming content response.`);
     }
@@ -425,6 +524,7 @@ export class TurnTracker {
   onToolCall(toolName) {
     if (!this.turnCountedForModelStep) {
       this.turnCountedForModelStep = true;
+      this.lastDeclaredIntent = '';
       this.turnsExecuted++;
       this.logger(`[Turn ${this.turnsExecuted}/${this.currentTurnBudget}] Tool call request: ${toolName}`);
     }
@@ -445,6 +545,7 @@ export class TurnTracker {
    */
   resetStepLatch() {
     this.turnCountedForModelStep = false;
+    this.lastDeclaredIntent = '';
   }
 
   /**

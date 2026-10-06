@@ -3,7 +3,16 @@ import assert from 'node:assert';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
-import { getRepoRoot, normalizePlanObject, parseJSONFromText, savePlanFromJSON, validateAgentOutput } from './utils.js';
+import {
+  getRepoRoot,
+  normalizePlanObject,
+  parseJSONFromText,
+  renderBox,
+  savePlanFromJSON,
+  stripAnsi,
+  validateAgentOutput,
+  wrapLine,
+} from './utils.js';
 
 test('parseJSONFromText resilient extraction', async (t) => {
   await t.test('extracts the last valid JSON block when followed by non-JSON code blocks', () => {
@@ -348,5 +357,84 @@ test('validateAgentOutput schema validation and error handling', async (t) => {
     };
     const result = await validateAgentOutput('invalid', unionSchema, mockRunner);
     assert.deepStrictEqual(result, { status: 'APPROVED' });
+  });
+});
+
+test('renderBox and cli formatting utilities', async (t) => {
+  await t.test('stripAnsi removes ANSI escape codes from styled text', () => {
+    assert.strictEqual(stripAnsi('\u001b[32m' + 'hello' + '\u001b[0m world'), 'hello world');
+    assert.strictEqual(stripAnsi('plain text'), 'plain text');
+    assert.strictEqual(stripAnsi(123), '123');
+  });
+
+  await t.test('wrapLine wraps long strings while preserving indentation', () => {
+    const line = '  this is a long line that needs to wrap into multiple parts';
+    const wrapped = wrapLine(line, 25);
+    assert.ok(wrapped.length > 1);
+    assert.ok(wrapped[0].startsWith('  '));
+    assert.ok(wrapped[1].startsWith('  '));
+  });
+
+  await t.test('wrapLine splits oversized tokens that exceed maxWidth into width-limited chunks (F3)', () => {
+    const url = 'https://github.com/rancher/terraform-provider-file/pull/444';
+    const wrapped = wrapLine(url, 20);
+    assert.ok(wrapped.length > 1);
+    for (const chunk of wrapped) {
+      assert.ok(chunk.length <= 20, `Chunk "${chunk}" must not exceed maxWidth 20`);
+    }
+
+    const indentedUrl = '  prefix ' + url;
+    const wrappedIndented = wrapLine(indentedUrl, 25);
+    for (const chunk of wrappedIndented) {
+      assert.ok(chunk.length <= 25, `Chunk "${chunk}" must not exceed maxWidth 25`);
+      assert.ok(chunk.startsWith('  '), 'Each chunk must preserve the line indentation');
+    }
+  });
+
+  await t.test('renderBox leaves single-line text untouched', () => {
+    const single = 'agent used run_shell_command';
+    assert.strictEqual(renderBox(single), single);
+  });
+
+  await t.test('renderBox wraps multi-line text in unicode box borders', () => {
+    const multiline = 'line 1\nline 2 longer';
+    const boxed = renderBox(multiline);
+    assert.ok(boxed.startsWith('┌─'));
+    assert.ok(boxed.endsWith('─┘'));
+    assert.ok(boxed.includes('│ line 1'));
+    assert.ok(boxed.includes('│ line 2 longer │'));
+  });
+
+  await t.test('renderBox wraps oversized tokens without exceeding maxWidth (F3)', () => {
+    const multilineWithOversized =
+      'Header\nhttps://github.com/rancher/terraform-provider-file/pull/444/very/long/path/argument';
+    const boxed = renderBox(multilineWithOversized, 46);
+    const lines = boxed.split('\n');
+    for (const line of lines) {
+      assert.ok(line.length <= 46, `Box line "${line}" (len ${line.length}) must not exceed maxWidth 46`);
+    }
+  });
+
+  await t.test('wrapLine safely handles non-positive maxWidth and non-string inputs', () => {
+    assert.deepStrictEqual(wrapLine(null, 10), ['']);
+    assert.deepStrictEqual(wrapLine(undefined, 10), ['']);
+    const wrappedZero = wrapLine('abc def', 0);
+    assert.ok(wrappedZero.length > 0);
+    const wrappedNegative = wrapLine('abc def', -5);
+    assert.ok(wrappedNegative.length > 0);
+  });
+
+  await t.test('wrapLine does not exceed safeMaxWidth when indentation exceeds maxWidth', () => {
+    const indented = '        hello world';
+    const wrapped = wrapLine(indented, 4);
+    for (const chunk of wrapped) {
+      assert.ok(chunk.length <= 4, `Chunk "${chunk}" must not exceed maxWidth 4`);
+    }
+  });
+
+  await t.test('renderBox safely handles non-string and falsy inputs', () => {
+    assert.strictEqual(renderBox(null), '');
+    assert.strictEqual(renderBox(undefined), '');
+    assert.strictEqual(renderBox(123), '123');
   });
 });

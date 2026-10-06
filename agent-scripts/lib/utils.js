@@ -577,3 +577,106 @@ Please re-format the original data to strictly fit the required schema without l
 
   return null;
 }
+
+/**
+ * Strips ANSI color/style escape codes from a string.
+ * @param {string} str
+ * @returns {string}
+ */
+export function stripAnsi(str) {
+  const ansiPattern = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
+  return typeof str === 'string' ? str.replace(ansiPattern, '') : String(str);
+}
+
+/**
+ * Wraps a long line while preserving leading indentation.
+ * @param {string} line
+ * @param {number} maxWidth
+ * @returns {string[]}
+ */
+export function wrapLine(line, maxWidth) {
+  if (typeof line !== 'string' || !line) {
+    return [line || ''];
+  }
+  const safeMaxWidth = Math.max(Number.isFinite(maxWidth) ? Math.floor(maxWidth) : 0, 1);
+  if (line.length <= safeMaxWidth) {
+    return [line];
+  }
+  const indentMatch = line.match(/^(\s*)/);
+  const fullIndent = indentMatch ? indentMatch[1] : '';
+  const indent = fullIndent.length < safeMaxWidth ? fullIndent : '';
+  const trimmed = line.slice(fullIndent.length);
+  const rawWords = trimmed.split(/\s+/).filter(Boolean);
+  if (rawWords.length === 0) {
+    const chunks = [];
+    for (let i = 0; i < line.length; i += safeMaxWidth) {
+      chunks.push(line.slice(i, i + safeMaxWidth));
+    }
+    return chunks.length > 0 ? chunks : [line];
+  }
+
+  const availableWidth = Math.max(safeMaxWidth - indent.length, 1);
+  const words = [];
+  for (const w of rawWords) {
+    if (w.length <= availableWidth) {
+      words.push(w);
+    } else {
+      for (let i = 0; i < w.length; i += availableWidth) {
+        words.push(w.slice(i, i + availableWidth));
+      }
+    }
+  }
+
+  const wrapped = [];
+  let current = indent;
+  for (const word of words) {
+    if (current === indent) {
+      current += word;
+    } else if (current.length + 1 + word.length <= safeMaxWidth) {
+      current += ' ' + word;
+    } else {
+      wrapped.push(current);
+      current = indent + word;
+    }
+  }
+  if (current && current !== indent) {
+    wrapped.push(current);
+  }
+  return wrapped.length > 0 ? wrapped : [line];
+}
+
+/**
+ * Renders multi-line text inside a unicode box.
+ * If text is single-line, it returns the original text unmodified.
+ * @param {string} text
+ * @param {number} [columns]
+ * @returns {string}
+ */
+export function renderBox(text, columns = process.stdout.columns) {
+  if (typeof text !== 'string') {
+    return String(text ?? '');
+  }
+  const termWidth = columns ? Math.max(columns - 6, 40) : 0;
+  const rawLines = text.replace(/\r/g, '').split('\n');
+  if (rawLines.length <= 1) {
+    return text;
+  }
+  const lines = [];
+  for (const rLine of rawLines) {
+    if (termWidth > 0 && stripAnsi(rLine).length > termWidth) {
+      lines.push(...wrapLine(rLine, termWidth));
+    } else {
+      lines.push(rLine);
+    }
+  }
+  const maxLen = Math.max(...lines.map((l) => stripAnsi(l).length));
+  const top = `┌─${'─'.repeat(maxLen)}─┐`;
+  const bottom = `└─${'─'.repeat(maxLen)}─┘`;
+  const middle = lines
+    .map((l) => {
+      const pad = maxLen - stripAnsi(l).length;
+      return `│ ${l}${' '.repeat(pad)} │`;
+    })
+    .join('\n');
+  return `${top}\n${middle}\n${bottom}`;
+}

@@ -7,13 +7,14 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   bumpTurnCapacity,
+  extractIntent,
   getMaxTurnsForModel,
   promptTurnBudgetExhaustion,
   requestHandoffSummary,
   syncSessionTools,
   TurnTracker,
 } from './turn-accounting.js';
-import { getRepoRoot } from './utils.js';
+import { getRepoRoot, renderBox } from './utils.js';
 
 const MAX_SILENT_RETRY_DELAY_MS = 300000; // 5 minutes
 
@@ -471,6 +472,7 @@ export async function runAgentSession({
   ioOptions = {},
   maxTurns: inputMaxTurns,
   maxTurnsOverride,
+  validateIntent = true,
 }) {
   await initializeAgentRunner();
 
@@ -503,6 +505,7 @@ export async function runAgentSession({
 
       const modelInstructions =
         (systemInstructions || 'You are a highly capable agentic assistant.') +
+        `\n\n⚠️ TOOL USAGE INSTRUCTIONS: Immediately before calling a tool, you MUST output a single short sentence starting with "Intent:" explaining why you are calling it.` +
         `\n\n⚠️ IMPORTANT TURN BUDGET: You are allowed a MAXIMUM of ${maxTurns} turns/iterations for this entire run. Conduct yourself efficiently, use tools in parallel, avoid unnecessary turns, and complete your task before reaching this limit.`;
 
       const noOpTool = tool(
@@ -549,17 +552,22 @@ export async function runAgentSession({
           session.config.toolRegistry.unregisterTool('invoke_agent');
         }
 
+        let currentTurnText = '';
+
         turnTracker = new TurnTracker({
           maxTurns,
           controller,
           session,
           logger: writeLogAsync,
+          validateIntent,
+          getTurnText: () => currentTurnText,
         });
 
         const runResult = await promptIdContext.run(session.id, async () => {
           let currentPrompt = initialPrompt;
 
           while (!controller.signal.aborted) {
+            currentTurnText = '';
             let streamHaltedByBudget = false;
             try {
               const stream = session.sendStream(currentPrompt, controller.signal);
@@ -589,6 +597,7 @@ export async function runAgentSession({
                   const text = chunk.value || '';
                   process.stdout.write(text);
                   accumulatedText += text;
+                  currentTurnText += text;
                 } else if (chunk.type === 'tool_call_request') {
                   const toolCall = chunk.value;
                   const toolName = toolCall.name;
@@ -625,8 +634,76 @@ export async function runAgentSession({
                     break;
                   }
 
-                  console.log(`⚡ Agent using tool: ${toolName}`);
+                  const reason = extractIntent(currentTurnText) || turnTracker.lastDeclaredIntent;
+                  if (reason) {
+                    turnTracker.lastDeclaredIntent = reason;
+                  }
+
+                  let agentType = 'agent';
+                  if (currentModel.includes('pro')) {
+                    agentType = 'pro agent';
+                  } else if (currentModel.includes('flash')) {
+                    agentType = 'flash agent';
+                  }
+
+                  let what = '';
+                  if (toolName === 'run_shell_command' && args && args.command) {
+                    what = `'${args.command}'`;
+                  } else if (toolName === 'read_file' && args && args.file_path) {
+                    what = `${args.file_path}`;
+                  } else if ((toolName === 'replace' || toolName === 'write_file') && args) {
+                    const file = args.file_path ? `'${args.file_path}'` : '';
+                    const snippet = String(args.new_string || args.content || '')
+                      .substring(0, 30)
+                      .replace(/\n/g, ' ');
+                    if (file && snippet) {
+                      what = `${file} ('''${snippet}...''')`;
+                    } else {
+                      what = file || (snippet ? `'''${snippet}...'''` : "''");
+                    }
+                  } else if (args) {
+                    if (typeof args === 'object') {
+                      if (Object.keys(args).length === 0) {
+                        what = "'{}'";
+                      } else {
+                        what = JSON.stringify(args, null, 2);
+                      }
+                    } else {
+                      what = String(args);
+                    }
+                  }
+
+                  let logMsg = '';
+                  if (what && what.includes('\n')) {
+                    if (reason) {
+                      if (reason.includes('\n')) {
+                        logMsg = `${agentType} used ${toolName} to:\n${reason}\nwith:\n${what}`;
+                      } else {
+                        logMsg = `${agentType} used ${toolName} to ${reason} with:\n${what}`;
+                      }
+                    } else {
+                      logMsg = `${agentType} used ${toolName} with:\n${what}`;
+                    }
+                  } else {
+                    const withClause = what ? ` with ${what}` : '';
+                    if (reason) {
+                      if (reason.includes('\n')) {
+                        logMsg = `${agentType} used ${toolName}${withClause} to:\n${reason}`;
+                      } else {
+                        logMsg = `${agentType} used ${toolName}${withClause} to ${reason}`;
+                      }
+                    } else {
+                      logMsg = `${agentType} used ${toolName}${withClause}`;
+                    }
+                  }
+
+                  if (logMsg.includes('\n')) {
+                    console.log(renderBox(logMsg));
+                  } else {
+                    console.log(logMsg);
+                  }
                 } else if (chunk.type === 'tool_call_result') {
+                  currentTurnText = '';
                   if (!turnTracker.hasSessionHooks) {
                     turnTracker.onToolResult();
                   }
