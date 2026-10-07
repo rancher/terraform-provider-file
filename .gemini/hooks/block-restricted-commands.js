@@ -22,16 +22,23 @@ function outputResult(obj) {
 }
 
 const DESTRUCTIVE_BINS = new Set(['rm', 'mv', 'chmod', 'chown']);
-const SHELL_WRAPPERS = new Set(['command', 'builtin', 'exec', 'sudo', 'env', 'nohup', 'xargs', 'bash', 'sh', 'zsh', 'node', 'python', 'ruby', 'perl']);
-const MUTATING_GIT_SUBCOMMANDS = new Set([
-  'push',
-  'commit',
-  'reset',
-  'checkout',
-  'rebase',
-  'clean',
-  'restore',
+const SHELL_WRAPPERS = new Set([
+  'command',
+  'builtin',
+  'exec',
+  'sudo',
+  'env',
+  'nohup',
+  'xargs',
+  'bash',
+  'sh',
+  'zsh',
+  'node',
+  'python',
+  'ruby',
+  'perl',
 ]);
+const MUTATING_GIT_SUBCOMMANDS = new Set(['push', 'commit', 'reset', 'checkout', 'rebase', 'clean', 'restore']);
 
 /**
  * Splits a compound command string into individual statements
@@ -161,7 +168,7 @@ function tokenize(statement) {
 }
 
 /**
- * Extracts the executable base name and recursively unwraps 
+ * Extracts the executable base name and recursively unwraps
  * shell interpreters (-c, -e) and command wrappers (command, sudo, env, etc.).
  * Returns a list of all identified executables to check.
  */
@@ -183,7 +190,7 @@ function extractExecutables(tokens) {
     // If it's a wrapper like sudo, env, command, exec, bash -c, etc.
     if (SHELL_WRAPPERS.has(baseName)) {
       executables.push({ executable: token, baseName, args: tokens.slice(idx + 1) });
-      
+
       idx++;
       let foundPayload = false;
       while (idx < tokens.length) {
@@ -197,16 +204,16 @@ function extractExecutables(tokens) {
           if (idx < tokens.length) {
             // For standard sh/bash/zsh we try to parse the payload as bash statements
             if (baseName === 'bash' || baseName === 'sh' || baseName === 'zsh') {
-                const payloadStmts = splitStatements(tokens[idx]);
-                for (const stmt of payloadStmts) {
-                    const subExecs = extractExecutables(tokenize(stmt));
-                    executables.push(...subExecs);
-                }
+              const payloadStmts = splitStatements(tokens[idx]);
+              for (const stmt of payloadStmts) {
+                const subExecs = extractExecutables(tokenize(stmt));
+                executables.push(...subExecs);
+              }
             } else {
-                // For non-shell interpreters (node, python, perl, ruby) evaluating
-                // arbitrary string payloads is unsafe since we can't parse their AST.
-                // We add a synthetic "rm" executable to ensure it is denied.
-                executables.push({ executable: 'rm', baseName: 'rm', args: [] });
+              // For non-shell interpreters (node, python, perl, ruby) evaluating
+              // arbitrary string payloads is unsafe since we can't parse their AST.
+              // We add a synthetic "rm" executable to ensure it is denied.
+              executables.push({ executable: 'rm', baseName: 'rm', args: [] });
             }
             foundPayload = true;
           }
@@ -222,9 +229,9 @@ function extractExecutables(tokens) {
         }
         break; // Reached next executable token
       }
-      
+
       if (foundPayload) {
-          return executables; 
+        return executables;
       }
       continue; // Continue unwrapping outer shell wrapper
     }
@@ -243,7 +250,7 @@ function isStatementDestructive(statement) {
     return false;
   }
   const execs = extractExecutables(tokens);
-  return execs.some(exec => DESTRUCTIVE_BINS.has(exec.baseName));
+  return execs.some((exec) => DESTRUCTIVE_BINS.has(exec.baseName));
 }
 
 function isStatementMutatingGit(statement) {
@@ -252,42 +259,40 @@ function isStatementMutatingGit(statement) {
     return false;
   }
   const execs = extractExecutables(tokens);
-  
+
   for (const { baseName, args } of execs) {
-      if (baseName !== 'git' && baseName !== 'gh') {
+    if (baseName !== 'git' && baseName !== 'gh') {
+      continue;
+    }
+
+    let subCmdIdx = 0;
+    while (subCmdIdx < args.length) {
+      const arg = args[subCmdIdx];
+      if (arg === '-C' || arg === '-c' || arg === '--git-dir' || arg === '--work-tree') {
+        subCmdIdx += 2;
         continue;
       }
-    
-      let subCmdIdx = 0;
-      while (subCmdIdx < args.length) {
-        const arg = args[subCmdIdx];
-        if (arg === '-C' || arg === '-c' || arg === '--git-dir' || arg === '--work-tree') {
-          subCmdIdx += 2;
-          continue;
-        }
-        if (arg.startsWith('-')) {
-          subCmdIdx++;
-          continue;
-        }
-        break;
+      if (arg.startsWith('-')) {
+        subCmdIdx++;
+        continue;
       }
-    
-      if (subCmdIdx < args.length) {
-        const subCmd = args[subCmdIdx].toLowerCase();
-        if (MUTATING_GIT_SUBCOMMANDS.has(subCmd)) {
+      break;
+    }
+
+    if (subCmdIdx < args.length) {
+      const subCmd = args[subCmdIdx].toLowerCase();
+      if (MUTATING_GIT_SUBCOMMANDS.has(subCmd)) {
+        return true;
+      }
+      if (subCmd === 'branch' || subCmd === 'tag') {
+        const subArgs = args.slice(subCmdIdx + 1);
+        if (
+          subArgs.some((a) => a === '-d' || a === '-D' || a === '--delete' || a.startsWith('-d') || a.startsWith('-D'))
+        ) {
           return true;
         }
-        if (subCmd === 'branch' || subCmd === 'tag') {
-          const subArgs = args.slice(subCmdIdx + 1);
-          if (
-            subArgs.some(
-              (a) => a === '-d' || a === '-D' || a === '--delete' || a.startsWith('-d') || a.startsWith('-D'),
-            )
-          ) {
-            return true;
-          }
-        }
       }
+    }
   }
   return false;
 }
@@ -326,24 +331,26 @@ function evaluateRules(tool_name, tool_input) {
 
   // 3. Check sensitive file paths - canonicalize paths to defeat traversal
   const rawTargetPath = (tool_input?.file_path || tool_input?.path || tool_input?.dir_path || '').replace(/\\/g, '/');
-  
+
   if (rawTargetPath) {
     const canonicalTarget = path.normalize(rawTargetPath);
     if (blacklistPaths.some((b) => canonicalTarget.includes(b))) {
       return 'deny';
     }
   }
-  
+
   if (cmdStr) {
-     const tokens = tokenize(cmdStr);
-     for (const token of tokens) {
-         if (token.startsWith('-')) continue;
-         const canonicalToken = path.normalize(token.replace(/\\/g, '/').toLowerCase());
-         const normalizedCmdForPaths = canonicalToken.replace(/\/usr\/(?:local\/)?(?:bin|sbin)\//g, '');
-         if (blacklistPaths.some((b) => normalizedCmdForPaths.includes(b))) {
-             return 'deny';
-         }
-     }
+    const tokens = tokenize(cmdStr);
+    for (const token of tokens) {
+      if (token.startsWith('-')) {
+        continue;
+      }
+      const canonicalToken = path.normalize(token.replace(/\\/g, '/').toLowerCase());
+      const normalizedCmdForPaths = canonicalToken.replace(/\/usr\/(?:local\/)?(?:bin|sbin)\//g, '');
+      if (blacklistPaths.some((b) => normalizedCmdForPaths.includes(b))) {
+        return 'deny';
+      }
+    }
   }
 
   // 4. Block unauthorized subagent spawning via hook
