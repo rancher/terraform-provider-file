@@ -139,12 +139,16 @@ test('block-restricted-commands.js deterministic guardrail rules', async (t) => 
     assert.doesNotThrow(() => JSON.parse(lines[0]), 'Expected output to be valid JSON');
   });
 
-  await t.test('blocks access to security-controlled .gemini files (.gemini/hooks/block-restricted-commands.js, .gemini/settings.json)', async () => {
+  await t.test('blocks access to security-controlled .gemini files (.gemini/hooks/block-restricted-commands.js, .gemini/settings.json, including traversal)', async () => {
     for (const file of [
       '.gemini/hooks/block-restricted-commands.js',
       '.gemini/settings.json',
       './.gemini/hooks/block-restricted-commands.js',
       './.gemini/settings.json',
+      '.gemini/hooks/../settings.json',
+      '.gemini/hooks/../../.gemini/settings.json',
+      '.gemini/hooks/../hooks/block-restricted-commands.js',
+      '/absolute/path/.gemini/settings.json',
     ]) {
       const readPayload = {
         tool_name: 'read_file',
@@ -169,6 +173,27 @@ test('block-restricted-commands.js deterministic guardrail rules', async (t) => 
       const cmdRes = await runHook(cmdPayload);
       const cmdParsed = parseJSON(cmdRes.stdout);
       assert.strictEqual(cmdParsed.decision, 'deny', `Expected command "cat ${file}" to be denied`);
+    }
+  });
+
+  await t.test('blocks shell interpreter payloads with -c or -e', async () => {
+    const interpreterCmds = [
+      "bash -c 'rm -rf ./tmp'",
+      'sh -c "git push origin main"',
+      'zsh -c "chmod +x script.sh"',
+      'node -e "require(\'fs\').rmSync(\'./tmp\', {recursive: true})"',
+      "python -c 'import os; os.system(\"rm -rf ./tmp\")'",
+      "ruby -c 'system(\"git commit -m fix\")'",
+      "perl -e 'system(\"mv old new\")'",
+    ];
+    for (const cmd of interpreterCmds) {
+      const payload = {
+        tool_name: 'run_shell_command',
+        tool_input: { command: cmd },
+      };
+      const res = await runHook(payload);
+      const parsed = parseJSON(res.stdout);
+      assert.strictEqual(parsed.decision, 'deny', `Expected interpreter payload "${cmd}" to be denied`);
     }
   });
 
