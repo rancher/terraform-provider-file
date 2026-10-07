@@ -138,4 +138,103 @@ test('block-restricted-commands.js deterministic guardrail rules', async (t) => 
     assert.strictEqual(lines.length, 1, 'Expected exactly one line of output');
     assert.doesNotThrow(() => JSON.parse(lines[0]), 'Expected output to be valid JSON');
   });
+
+  await t.test('blocks access to security-controlled .gemini files (.gemini/hooks/block-restricted-commands.js, .gemini/settings.json)', async () => {
+    for (const file of [
+      '.gemini/hooks/block-restricted-commands.js',
+      '.gemini/settings.json',
+      './.gemini/hooks/block-restricted-commands.js',
+      './.gemini/settings.json',
+    ]) {
+      const readPayload = {
+        tool_name: 'read_file',
+        tool_input: { file_path: file },
+      };
+      const readRes = await runHook(readPayload);
+      const readParsed = parseJSON(readRes.stdout);
+      assert.strictEqual(readParsed.decision, 'deny', `Expected reading "${file}" to be denied`);
+
+      const writePayload = {
+        tool_name: 'write_file',
+        tool_input: { file_path: file },
+      };
+      const writeRes = await runHook(writePayload);
+      const writeParsed = parseJSON(writeRes.stdout);
+      assert.strictEqual(writeParsed.decision, 'deny', `Expected writing "${file}" to be denied`);
+
+      const cmdPayload = {
+        tool_name: 'run_shell_command',
+        tool_input: { command: `cat ${file}` },
+      };
+      const cmdRes = await runHook(cmdPayload);
+      const cmdParsed = parseJSON(cmdRes.stdout);
+      assert.strictEqual(cmdParsed.decision, 'deny', `Expected command "cat ${file}" to be denied`);
+    }
+  });
+
+  await t.test('blocks wrapped and path-qualified destructive commands', async () => {
+    const destructive = [
+      '/bin/rm -rf ./tmp',
+      '/usr/bin/rm -rf ./tmp',
+      'command rm -rf ./tmp',
+      'command -p rm -rf ./tmp',
+      'sudo rm -rf ./tmp',
+      'sudo /bin/rm -rf ./tmp',
+      'env rm -rf ./tmp',
+      'env -i rm -rf ./tmp',
+      'VAR=1 /bin/rm -rf ./tmp',
+      '/bin/mv old new',
+      '/usr/bin/chmod +x script.sh',
+      '/usr/sbin/chown root:root file',
+      'echo hello && /bin/rm -rf ./tmp',
+    ];
+    for (const cmd of destructive) {
+      const payload = {
+        tool_name: 'run_shell_command',
+        tool_input: { command: cmd },
+      };
+      const res = await runHook(payload);
+      const parsed = parseJSON(res.stdout);
+      assert.strictEqual(parsed.decision, 'deny', `Expected "${cmd}" to be denied`);
+    }
+  });
+
+  await t.test('blocks wrapped and path-qualified mutating git commands', async () => {
+    const mutating = [
+      '/usr/bin/git commit -m "fix"',
+      '/usr/bin/git push origin main',
+      'command git checkout main',
+      'sudo git reset --hard HEAD~1',
+      'env git rebase main',
+      'git -C ./repo commit -m "fix"',
+      'git --no-pager push origin main',
+    ];
+    for (const cmd of mutating) {
+      const payload = {
+        tool_name: 'run_shell_command',
+        tool_input: { command: cmd },
+      };
+      const res = await runHook(payload);
+      const parsed = parseJSON(res.stdout);
+      assert.strictEqual(parsed.decision, 'deny', `Expected "${cmd}" to be denied`);
+    }
+  });
+
+  await t.test('allows wrapped or path-qualified safe read-only git commands', async () => {
+    const safe = [
+      '/usr/bin/git status',
+      'command git diff HEAD',
+      'git -C ./repo log -n 5',
+      '/usr/bin/git rev-parse --show-toplevel',
+    ];
+    for (const cmd of safe) {
+      const payload = {
+        tool_name: 'run_shell_command',
+        tool_input: { command: cmd },
+      };
+      const res = await runHook(payload);
+      const parsed = parseJSON(res.stdout);
+      assert.strictEqual(parsed.decision, 'allow', `Expected "${cmd}" to be allowed`);
+    }
+  });
 });
