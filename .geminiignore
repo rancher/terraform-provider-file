@@ -1,8 +1,0 @@
-# Hide security hooks and scripts
-.gemini/hooks/
-
-# Hide cryptographic gating signatures and flags
-*-approval.json
-*-approval.challenge
-*.flag
-*.sig

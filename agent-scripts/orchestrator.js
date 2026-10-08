@@ -51,6 +51,7 @@ const askUserTool = tool(
 async function main() {
   try {
     const { models } = await initializeAgentRunner();
+    const repoRoot = await getRepoRoot();
     console.log('\n==================================================');
     console.log('🤖 [Gemini CLI Orchestrator] - Modular Pipeline');
     console.log('==================================================');
@@ -73,11 +74,27 @@ async function main() {
     const useCase = USE_CASES[selection];
     console.log(`\n🚀 Starting Tailored Workflow for: [${useCase.name}]`);
 
-    const objective = await rl.question('\n🎯 Enter your objective/task: ');
-    if (!objective || objective.trim() === '') {
-      console.error('❌ Error: An objective is required.');
-      process.exitCode = 1;
-      return;
+    let objective = '';
+    if (selection === '6') {
+      const currentPlanPath = path.join(repoRoot, 'plans/current.md');
+      if (!(await exists(currentPlanPath))) {
+        console.error('❌ Error: plans/current.md not found. An existing plan is required to run the review loop.');
+        process.exitCode = 1;
+        return;
+      }
+      const planText = await fs.readFile(currentPlanPath, 'utf8');
+      const match = planText.match(/## 🎯 OBJECTIVE\s+([\s\S]*?)(?=\n## |$)/);
+      objective = match ? match[1].trim() : 'Review staged code against existing plan in plans/current.md';
+      console.log(
+        `ℹ️ Review Loop will use existing plan from plans/current.md (Objective: "${objective.slice(0, 80)}...")`,
+      );
+    } else {
+      objective = await rl.question('\n🎯 Enter your objective/task: ');
+      if (!objective || objective.trim() === '') {
+        console.error('❌ Error: An objective is required.');
+        process.exitCode = 1;
+        return;
+      }
     }
 
     const planSchema = z.object({
@@ -189,31 +206,9 @@ async function main() {
       planApproved = true;
       console.log('✅ Generated deterministic Testing implementation plan.');
     } else if (selection === '6') {
-      // REVIEW LOOP: Generate deterministic plan programmatically
-      console.log('Review Loop workflow selected. Generating deterministic plan...');
-      const autoPlan = {
-        title: `Review Loop: ${objective}`,
-        objective: objective,
-        scope_boundaries: {
-          in_scope: [
-            'Reviewing staged and unstaged code.',
-            'Implementing suggestions recursively until zero changes are needed.',
-          ],
-          out_of_scope: ['Committing code', 'Modifying orchestrator use cases outside of this loop.'],
-        },
-        exit_criteria: [
-          'No new changes suggested by agent after review.',
-          'Summary, PR description, and commit message generated.',
-        ],
-        implementation_tasks: [
-          'Stage all files.',
-          'Invoke thinking agent with review prompt.',
-          'Loop until no changes found.',
-        ],
-      };
-      await savePlanFromJSON(autoPlan);
+      // REVIEW LOOP: Preserve existing plans/current.md and proceed directly to review
+      console.log('Review Loop workflow selected. Preserving existing plans/current.md...');
       planApproved = true;
-      console.log('✅ Generated deterministic Review Loop implementation plan.');
     } else {
       // BUGFIX & FEATURE: Run standard agent planning with user-interview capabilities
       console.log('Bugfix/Feature workflow selected. Invoking @planner agent...');
@@ -268,7 +263,6 @@ Your final JSON response must strictly conform to this schema:
     }
 
     // Display the plan and gate approval
-    const repoRoot = await getRepoRoot();
     const possiblePlanPaths = [path.join(repoRoot, 'plans/current.md')];
     for (const p of possiblePlanPaths) {
       if (await exists(p)) {

@@ -81,6 +81,15 @@
           '';
         };
 
+        gemini-cli = pkgs.gemini-cli-bin.overrideAttrs (oldAttrs: rec {
+          version = "0.62.0";
+          src = pkgs.fetchzip {
+            url = "https://github.com/google-gemini/gemini-cli/releases/download/v${version}/gemini-cli-bundle.zip";
+            hash = "sha256-OJx8+Lu/QPszslPzot3d3LgefU+XVR0uI7AWXIsLLhY=";
+            stripRoot = false;
+          };
+        });
+
         macVscode = pkgs.writeShellScriptBin "code" ''
           exec /usr/local/bin/code "$@"
         '';
@@ -116,6 +125,7 @@
           leftovers
           terraform
           initNodeEnv
+          gemini-cli
         ] ++ ([
           # unfree packages from the nix repository
           claude-code
@@ -126,14 +136,12 @@
           age
           awscli2
           bashInteractive
-          claude-code
           cspell
           curl
           dig
           docker-client
           docker-compose
           eslint
-          gemini-cli-bin
           gh
           git
           gitleaks
@@ -166,7 +174,7 @@
           which
           xz
           yq-go
-        ]) ++ ( if pkgs.stdenv.isDarwin then [
+        ]) ++ ( if pkgs.stdenv.hostPlatform.isDarwin then [
           # mac only packages
           macVscode
           swVers

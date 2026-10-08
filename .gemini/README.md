@@ -50,7 +50,6 @@ Located in the root of your Git repository, this directory contains team-shared 
 
 ```text
 your-project/
-├── .geminiignore               # Gitignore-style patterns for excluding files from search/RAG indexing
 ├── .gemini/
 │   ├── settings.json           # Workspace settings (overrides user-level settings)
 │   ├── .env                    # Workspace-specific, secure environment variables

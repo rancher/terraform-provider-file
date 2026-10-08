@@ -38,6 +38,8 @@ eslintignore
 façade
 façades
 fetchurl
+fetchzip
+geminiignore
 genai
 genproto
 getline
@@ -95,6 +97,7 @@ PRRT
 pushd
 rancherlabs
 rancherremote
+recompiles
 redactions
 remediation
 remediations
