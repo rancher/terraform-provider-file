@@ -203,6 +203,16 @@ export async function initializeAgentRunner() {
     });
     setupConsoleIntercept();
 
+    // Prevent unhandled AbortError from crashing Node process when Gemini SDK stream is aborted
+    const abortErrorHandler = (err, origin) => {
+      if (err?.name === 'AbortError' || err?.type === 'aborted' || err?.code === 'ABORT_ERR') {
+        return;
+      }
+      process.removeListener('uncaughtException', abortErrorHandler);
+      process.emit('uncaughtException', err, origin);
+    };
+    process.on('uncaughtException', abortErrorHandler);
+
     let modelConfig;
     try {
       const settingsStr = await fsPromises.readFile(path.join(repoRoot, '.gemini/settings.json'), 'utf8');
@@ -731,7 +741,6 @@ export async function runAgentSession({
               );
               if (hasTurnOverride) {
                 writeLogAsync(`[Turn Limit Reached] Override limit enforced as a hard stop.`);
-                controller.abort();
                 return accumulatedText;
               }
 

@@ -97,6 +97,7 @@ export function bumpTurnCapacity(agent, session, delta) {
 
 /**
  * Prompts the user via readline when turn budget is exhausted to either continue or stop.
+ * Defaults to extending budget when user presses Enter, or stopping on Ctrl+C/stop.
  *
  * @param {number} turnsExecuted - Total turns executed so far
  * @param {number} currentTurnBudget - Current turn budget limit
@@ -131,13 +132,18 @@ export async function promptTurnBudgetExhaustion(
   const ownsRl = !ioOptions.rl;
   const rl = ioOptions.rl || readline.createInterface({ input: rlInput, output: rlOutput });
   try {
-    let answer = '';
+    let answer = null;
     let attempts = 0;
-    while (answer !== 'continue' && answer !== 'stop' && attempts < 5) {
+    const isContinue = (val) => val === '' || val === 'continue';
+    const isStop = (val) => val === 'stop' || val === 'ctrl+c' || val === '^c';
+
+    while (answer === null && attempts < 5) {
       attempts++;
       let response;
       try {
-        response = await rl.question("👉 Type 'continue' to extend the turn limit or 'stop' to gracefully abort: ");
+        response = await rl.question(
+          `👉 Hit enter to continue with an additional ${maxTurns} turns, or type ctrl+c to stop the script: `,
+        );
       } catch (err) {
         logger(`[DEBUG] Readline question error: ${err.message}`);
         answer = 'stop';
@@ -147,15 +153,26 @@ export async function promptTurnBudgetExhaustion(
         answer = 'stop';
         break;
       }
-      answer = response.trim().toLowerCase();
-      if (answer !== 'continue' && answer !== 'stop') {
-        if (!rlInput.isTTY && !ioOptions.input && !ioOptions.rl) {
-          logger(`[DEBUG] Non-interactive environment detected at turn limit prompt. Defaulting to stop.`);
-          answer = 'stop';
-          break;
-        }
-        console.log("Please enter 'continue' or 'stop'.");
+      const trimmed = response.trim().toLowerCase();
+      if (isContinue(trimmed)) {
+        answer = 'continue';
+        break;
       }
+      if (isStop(trimmed)) {
+        answer = 'stop';
+        break;
+      }
+
+      if (!rlInput.isTTY && !ioOptions.input && !ioOptions.rl) {
+        logger(`[DEBUG] Non-interactive environment detected at turn limit prompt. Defaulting to stop.`);
+        answer = 'stop';
+        break;
+      }
+      console.log("Please hit enter to continue or type ctrl+c / 'stop' to stop.");
+    }
+
+    if (answer !== 'continue' && answer !== 'stop') {
+      answer = 'stop';
     }
 
     if (answer === 'continue') {

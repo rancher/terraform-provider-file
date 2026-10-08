@@ -20,6 +20,15 @@ const execFileAsync = promisify(execFile);
 
 const rl = readline.createInterface({ input, output });
 
+// Prevent unhandled AbortError from crashing Node process when SDK streams abort
+process.on('uncaughtException', (err, origin) => {
+  if (err?.name === 'AbortError' || err?.type === 'aborted' || err?.code === 'ABORT_ERR') {
+    return;
+  }
+  console.error(`❌ Uncaught exception (${origin}):`, err);
+  process.exit(1);
+});
+
 const USE_CASES = {
   1: { name: 'Bugfix', desc: 'Address a problem the user is facing' },
   2: { name: 'Feature', desc: 'Add a new feature the user would like' },
@@ -364,7 +373,11 @@ Once you have fully finished your implementation, stop.`;
         let iteration = 0;
         let hasChanges = true;
         const maxIterations = 15;
-        const reviewPrompt = `Please review the staged code and the current plan, then implement any suggestions you have that are within the scope of the plan. If you don't have any suggestions please let me know. Don't plan, invoke, or commit. Make sure lint.sh and test.sh workflow scripts pass with the 'all' option.`;
+        const planPath = planFileFound || path.join(repoRoot, 'plans/current.md');
+        let activePlan = '';
+        if (await exists(planPath)) {
+          activePlan = await fs.readFile(planPath, 'utf8');
+        }
 
         while (iteration < maxIterations && hasChanges) {
           iteration++;
@@ -374,6 +387,46 @@ Once you have fully finished your implementation, stop.`;
           await execFileAsync('git', ['add', '-A']);
           const { stdout: beforeStatus } = await execFileAsync('git', ['status', '--porcelain']);
           const beforeDiff = await getGitDiff();
+
+          if (!beforeDiff || beforeDiff.trim() === '') {
+            console.log('\n✅ No staged changes found to review. Breaking loop.');
+            hasChanges = false;
+            break;
+          }
+
+          // Programmatically retrieve modified files and their full contents
+          const { stdout: diffFilesRaw } = await execFileAsync('git', ['diff', '--no-ext-diff', '--name-only', 'HEAD']);
+          const changedFiles = diffFilesRaw
+            .split('\n')
+            .map((f) => f.trim())
+            .filter(Boolean);
+
+          let modifiedFilesContext = '';
+          for (const relPath of changedFiles) {
+            const fullPath = path.join(repoRoot, relPath);
+            if (await exists(fullPath)) {
+              try {
+                const content = await fs.readFile(fullPath, 'utf8');
+                modifiedFilesContext += `\n<file path="${relPath}">\n${content}\n</file>\n`;
+              } catch (err) {
+                console.debug(`[DEBUG] Could not read modified file ${relPath}: ${err.message}`);
+              }
+            }
+          }
+
+          const reviewPrompt = `Please review the staged code and the active plan, then implement any surgical improvements or suggestions you have that are strictly within scope of the plan. If you don't have any suggestions, respond stating that the code looks good and make no file modifications. Don't plan, invoke, or commit. Make sure lint.sh and test.sh workflow scripts pass with the 'all' option.
+
+<active_plan>
+${activePlan}
+</active_plan>
+
+<git_diff>
+${beforeDiff}
+</git_diff>
+
+<modified_files>
+${modifiedFilesContext.trim()}
+</modified_files>`;
 
           // Run thinking agent
           await runAgentSession({

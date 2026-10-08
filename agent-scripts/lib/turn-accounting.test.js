@@ -52,8 +52,39 @@ test('promptTurnBudgetExhaustion extends budget when user enters continue', asyn
   assert.strictEqual(result.newBudget, 10);
 });
 
+test('promptTurnBudgetExhaustion extends budget when user hits enter', async () => {
+  const mockInput = Readable.from(['\n']);
+  const mockOutput = new Writable({
+    write(_chunk, _encoding, callback) {
+      callback();
+    },
+  });
+  const result = await promptTurnBudgetExhaustion(5, 5, 5, null, { input: mockInput, output: mockOutput });
+  assert.strictEqual(result.shouldContinue, true);
+  assert.strictEqual(result.newBudget, 10);
+});
+
 test('promptTurnBudgetExhaustion aborts session when user enters stop', async () => {
   const mockInput = Readable.from(['stop\n']);
+  const mockOutput = new Writable({
+    write(_chunk, _encoding, callback) {
+      callback();
+    },
+  });
+  let aborted = false;
+  const controller = {
+    abort() {
+      aborted = true;
+    },
+  };
+  const result = await promptTurnBudgetExhaustion(5, 5, 5, controller, { input: mockInput, output: mockOutput });
+  assert.strictEqual(result.shouldContinue, false);
+  assert.strictEqual(result.newBudget, 5);
+  assert.strictEqual(aborted, true);
+});
+
+test('promptTurnBudgetExhaustion aborts session when user enters ctrl+c', async () => {
+  const mockInput = Readable.from(['ctrl+c\n']);
   const mockOutput = new Writable({
     write(_chunk, _encoding, callback) {
       callback();
