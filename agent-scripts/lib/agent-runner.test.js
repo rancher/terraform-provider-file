@@ -5,7 +5,7 @@ import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
-import { flushLogs, initializeAgentRunner, isMaxTurnsError, runAgentSession } from './agent-runner.js';
+import { flushLogs, initializeAgentRunner, isAbortError, isMaxTurnsError, runAgentSession } from './agent-runner.js';
 import { promptTurnBudgetExhaustion } from './turn-accounting.js';
 
 test('TerminalQuotaError massive delay interceptor patch', async (t) => {
@@ -379,6 +379,87 @@ test('agent-runner initialization and logging', async (t) => {
     await flushLogs();
     // Verify flushLogs is idempotent and safe to call when stream is already flushed
     await flushLogs();
+  });
+});
+
+test('isAbortError and uncaughtException handling', async (t) => {
+  await t.test('isAbortError identifies standard abort errors and variants', () => {
+    assert.strictEqual(isAbortError({ name: 'AbortError' }), true);
+    assert.strictEqual(isAbortError({ type: 'aborted' }), true);
+    assert.strictEqual(isAbortError({ code: 'ABORT_ERR' }), true);
+    assert.strictEqual(isAbortError(new Error('regular error')), false);
+    assert.strictEqual(isAbortError(null), false);
+    assert.strictEqual(isAbortError(undefined), false);
+    assert.strictEqual(isAbortError('AbortError'), false);
+  });
+
+  await t.test('activeAbortHandler suppresses AbortError and preserves fatal handling for other errors', async () => {
+    await flushLogs();
+    await initializeAgentRunner();
+
+    const listeners = process.listeners('uncaughtException');
+    const handler = listeners[listeners.length - 1];
+    assert.ok(typeof handler === 'function');
+
+    // AbortError should be silently handled without removing handler
+    const abortErr = new Error('aborted');
+    abortErr.name = 'AbortError';
+    assert.doesNotThrow(() => handler(abortErr, 'uncaughtException'));
+    assert.ok(process.listeners('uncaughtException').includes(handler));
+
+    // Non-AbortError should throw when no other listeners exist
+    const otherListeners = process.rawListeners('uncaughtException').filter((l) => l !== handler);
+    for (const l of otherListeners) {
+      process.removeListener('uncaughtException', l);
+    }
+
+    try {
+      const nonAbortErr = new Error('unexpected fatal failure');
+      assert.throws(() => handler(nonAbortErr, 'uncaughtException'), /unexpected fatal failure/);
+      assert.strictEqual(process.listeners('uncaughtException').includes(handler), false);
+    } finally {
+      for (const l of otherListeners) {
+        process.on('uncaughtException', l);
+      }
+    }
+
+    // After flushLogs, handler should be cleanly removed
+    await initializeAgentRunner();
+    await flushLogs();
+    assert.strictEqual(process.listeners('uncaughtException').includes(handler), false);
+  });
+
+  await t.test('activeAbortHandler forwards non-AbortError when another listener exists', async () => {
+    await flushLogs();
+    await initializeAgentRunner();
+
+    const listeners = process.listeners('uncaughtException');
+    const handler = listeners[listeners.length - 1];
+
+    const otherListeners = process.rawListeners('uncaughtException').filter((l) => l !== handler);
+    for (const l of otherListeners) {
+      process.removeListener('uncaughtException', l);
+    }
+
+    let customListenerFired = false;
+    const customListener = (err) => {
+      if (err.message === 'forwarded failure') {
+        customListenerFired = true;
+      }
+    };
+
+    process.on('uncaughtException', customListener);
+    try {
+      const regularErr = new Error('forwarded failure');
+      assert.doesNotThrow(() => handler(regularErr, 'uncaughtException'));
+      assert.strictEqual(customListenerFired, true);
+    } finally {
+      process.removeListener('uncaughtException', customListener);
+      for (const l of otherListeners) {
+        process.on('uncaughtException', l);
+      }
+      await flushLogs();
+    }
   });
 });
 

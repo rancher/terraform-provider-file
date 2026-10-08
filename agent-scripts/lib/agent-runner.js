@@ -80,11 +80,21 @@ let logStream = null;
 let isConsoleIntercepted = false;
 let originalStdoutWrite = null;
 let originalStderrWrite = null;
+let activeAbortHandler = null;
 
 let MODEL_PRO = 'gemini-3.1-pro-preview';
 let MODEL_FLASH = 'gemini-3.5-flash';
 let MODEL_FLASH_LITE = 'gemini-3.1-flash-lite';
 let MODEL_HIERARCHY = [MODEL_PRO, MODEL_FLASH, MODEL_FLASH_LITE];
+
+/**
+ * Determines whether an error is an AbortError from an aborted stream or controller.
+ * @param {any} err
+ * @returns {boolean}
+ */
+export function isAbortError(err) {
+  return err?.name === 'AbortError' || err?.type === 'aborted' || err?.code === 'ABORT_ERR';
+}
 
 function writeLogAsync(msg) {
   if (logStream && logStream.writable && !logStream.writableEnded && !logStream.destroyed && !logStream.errored) {
@@ -107,6 +117,10 @@ export async function flushLogs() {
     originalStdoutWrite = null;
     originalStderrWrite = null;
     isConsoleIntercepted = false;
+  }
+  if (activeAbortHandler) {
+    process.removeListener('uncaughtException', activeAbortHandler);
+    activeAbortHandler = null;
   }
   if (!logStream) {
     return;
@@ -202,6 +216,23 @@ export async function initializeAgentRunner() {
       console.debug(`[DEBUG] Debug log stream error encountered: ${err.message}`);
     });
     setupConsoleIntercept();
+
+    // Prevent unhandled AbortError from crashing Node process when Gemini SDK stream is aborted
+    if (!activeAbortHandler) {
+      activeAbortHandler = (err, origin) => {
+        if (isAbortError(err)) {
+          return;
+        }
+        process.removeListener('uncaughtException', activeAbortHandler);
+        activeAbortHandler = null;
+        if (process.listenerCount('uncaughtException') > 0) {
+          process.emit('uncaughtException', err, origin);
+        } else {
+          throw err;
+        }
+      };
+      process.on('uncaughtException', activeAbortHandler);
+    }
 
     let modelConfig;
     try {
@@ -731,7 +762,6 @@ export async function runAgentSession({
               );
               if (hasTurnOverride) {
                 writeLogAsync(`[Turn Limit Reached] Override limit enforced as a hard stop.`);
-                controller.abort();
                 return accumulatedText;
               }
 

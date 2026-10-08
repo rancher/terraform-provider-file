@@ -102,6 +102,7 @@ redactions
 remediation
 remediations
 renovatebot
+reprompt
 respawn
 respawning
 rewordings
