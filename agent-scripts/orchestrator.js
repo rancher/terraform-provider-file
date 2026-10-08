@@ -10,7 +10,7 @@ import { promisify } from 'node:util';
 import { tool, z } from '@google/gemini-cli-sdk';
 
 // Import our deterministic modular libraries
-import { flushLogs, initializeAgentRunner, runAgentSession } from './lib/agent-runner.js';
+import { flushLogs, initializeAgentRunner, isAbortError, runAgentSession } from './lib/agent-runner.js';
 import { getGitDiff, stageAndCommit, stripDiffMetadata, validateMessage } from './lib/git-release.js';
 import { getPRComments } from './lib/github-context.js';
 import { runQAPipeline } from './lib/qa-runner.js';
@@ -22,7 +22,7 @@ const rl = readline.createInterface({ input, output });
 
 // Prevent unhandled AbortError from crashing Node process when SDK streams abort
 process.on('uncaughtException', (err, origin) => {
-  if (err?.name === 'AbortError' || err?.type === 'aborted' || err?.code === 'ABORT_ERR') {
+  if (isAbortError(err)) {
     return;
   }
   console.error(`❌ Uncaught exception (${origin}):`, err);
