@@ -990,3 +990,83 @@ test('TurnTracker does not mark topic as established if update_topic execution f
 
   tracker.dispose();
 });
+
+test('TurnTracker captures tool arguments from createInvocation(input) when execute receives context', async () => {
+  let executedUpdateArgs = null;
+  const executedHookCalls = [];
+
+  const mockUpdateTopic = {
+    name: 'update_topic',
+    createInvocation: (input) => ({
+      params: input,
+      execute: async () => {
+        executedUpdateArgs = input;
+        return `Topic set: ${input?.title}`;
+      },
+    }),
+  };
+
+  const mockReadFile = {
+    name: 'read_file',
+    createInvocation: (input) => ({
+      params: input,
+      execute: async () => {
+        return `content of ${input?.file_path}`;
+      },
+    }),
+  };
+
+  const fakeRegistry = {
+    tools: { update_topic: mockUpdateTopic, read_file: mockReadFile },
+    getAllToolNames() {
+      return Object.keys(this.tools);
+    },
+    getTool(name) {
+      return this.tools[name];
+    },
+  };
+
+  const tracker = new TurnTracker({
+    maxTurns: 5,
+    controller: new globalThis.AbortController(),
+    session: { config: { toolRegistry: fakeRegistry } },
+    requireTopic: true,
+    onToolExecution: (info) => {
+      executedHookCalls.push(info);
+    },
+  });
+
+  // Call update_topic by passing input to createInvocation, and execution context to execute()
+  const invocation = fakeRegistry.getTool('update_topic').createInvocation({
+    title: 'Investigation Phase',
+    strategic_intent: 'Capture arguments correctly from createInvocation',
+  });
+  const dummyContext = { abortSignal: new globalThis.AbortController().signal, userContext: 'sdk' };
+  const result = await invocation.execute(dummyContext);
+
+  assert.strictEqual(result, 'Topic set: Investigation Phase');
+  assert.strictEqual(tracker.hasEstablishedTopic, true);
+  assert.strictEqual(tracker.activeTopic.objective, 'Capture arguments correctly from createInvocation');
+  assert.deepStrictEqual(executedUpdateArgs, {
+    title: 'Investigation Phase',
+    strategic_intent: 'Capture arguments correctly from createInvocation',
+  });
+
+  // onToolExecution hook must have received the real tool input, not dummyContext
+  const updateHook = executedHookCalls.find((h) => h.toolName === 'update_topic');
+  assert.ok(updateHook, 'update_topic hook must be called');
+  assert.strictEqual(updateHook.args.title, 'Investigation Phase');
+  assert.strictEqual(updateHook.args.strategic_intent, 'Capture arguments correctly from createInvocation');
+
+  // Verify subsequent tool invocation also captures args from createInvocation
+  tracker.onToolCall('read_file');
+  const readInvocation = fakeRegistry.getTool('read_file').createInvocation({ file_path: 'test.go' });
+  const readResult = await readInvocation.execute(dummyContext);
+  assert.strictEqual(readResult, 'content of test.go');
+
+  const readHook = executedHookCalls.find((h) => h.toolName === 'read_file');
+  assert.ok(readHook, 'read_file hook must be called');
+  assert.strictEqual(readHook.args.file_path, 'test.go');
+
+  tracker.dispose();
+});

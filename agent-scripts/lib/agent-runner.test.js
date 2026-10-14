@@ -1096,4 +1096,72 @@ test('runAgentSession enriched tool logging', async (t) => {
       });
     }, /Cannot block "update_topic" tool when requireTopic is enabled/);
   });
+
+  await t.test(
+    'renders distinct cards for identical repeated tool calls without deduplication collisions',
+    async () => {
+      const originalSession = GeminiCliAgent.prototype.session;
+      const originalConsoleLog = console.log;
+      const logs = [];
+
+      try {
+        console.log = (...args) => {
+          logs.push(args.join(' '));
+        };
+
+        GeminiCliAgent.prototype.session = function () {
+          const session = originalSession.call(this);
+          session.sendStream = async function* () {
+            // First tool call
+            yield {
+              type: 'tool_call_request',
+              value: {
+                name: 'read_file',
+                args: { file_path: 'repeated.txt' },
+              },
+            };
+            yield {
+              type: 'tool_call_result',
+              value: 'First read content',
+            };
+            // Second identical tool call with same name and same arguments
+            yield {
+              type: 'tool_call_request',
+              value: {
+                name: 'read_file',
+                args: { file_path: 'repeated.txt' },
+              },
+            };
+            yield {
+              type: 'tool_call_result',
+              value: 'Second read content',
+            };
+          };
+          const origInit = session.initialize.bind(session);
+          session.initialize = async () => {
+            if (session.config) {
+              session.config.refreshAuth = async () => {};
+            }
+            return origInit();
+          };
+          return session;
+        };
+
+        await runAgentSession({
+          initialPrompt: 'Run repeated tool calls test',
+          maxTurns: 5,
+          requestedModel: 'gemini-3.1-pro-preview',
+          isolate: false,
+        });
+
+        const cards = logs.filter((msg) => msg.includes('╭─') && msg.includes('ReadFile repeated.txt'));
+        assert.strictEqual(cards.length, 2, 'Both identical tool calls must render their own card');
+        assert.ok(cards[0].includes('First read content'), 'First card contains first result');
+        assert.ok(cards[1].includes('Second read content'), 'Second card contains second result');
+      } finally {
+        GeminiCliAgent.prototype.session = originalSession;
+        console.log = originalConsoleLog;
+      }
+    },
+  );
 });

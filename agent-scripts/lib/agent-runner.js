@@ -622,7 +622,6 @@ export async function runAgentSession({
 
         let currentTurnText = '';
         const pendingToolCalls = [];
-        const renderedToolCalls = new Set();
 
         const renderToolOutput = (toolName, args, result, status = 'success') => {
           if (toolName === 'update_topic' && status !== 'error') {
@@ -654,8 +653,10 @@ export async function runAgentSession({
           requireTopic,
           getTurnText: () => currentTurnText,
           onToolExecution: ({ toolName, args, result, error }) => {
-            const callKey = `${toolName}:${JSON.stringify(args || {})}`;
-            renderedToolCalls.add(callKey);
+            const pending = pendingToolCalls.find((p) => !p.rendered && p.toolName === toolName);
+            if (pending) {
+              pending.rendered = true;
+            }
             renderToolOutput(toolName, args, result, error ? 'error' : 'success');
           },
         });
@@ -736,7 +737,8 @@ export async function runAgentSession({
                     turnTracker.lastDeclaredIntent = reason;
                   }
 
-                  pendingToolCalls.push({ toolName, args });
+                  const callId = toolCall.callId || toolCall.id;
+                  pendingToolCalls.push({ callId, toolName, args, rendered: false });
                 } else if (chunk.type === 'tool_call_result') {
                   currentTurnText = '';
                   if (!turnTracker.hasSessionHooks) {
@@ -749,24 +751,20 @@ export async function runAgentSession({
                     console.debug(`[DEBUG] Failed to log tool call result: ${err.message}`);
                   }
                   const pending = pendingToolCalls.shift();
-                  if (pending) {
-                    const callKey = `${pending.toolName}:${JSON.stringify(pending.args || {})}`;
-                    if (!renderedToolCalls.has(callKey)) {
-                      renderedToolCalls.add(callKey);
-                      const isError = Boolean(
-                        chunk.value && typeof chunk.value === 'object' && chunk.value.error === true,
-                      );
-                      const status = isError ? 'error' : 'success';
-                      renderToolOutput(pending.toolName, pending.args, chunk.value, status);
-                    }
+                  if (pending && !pending.rendered) {
+                    pending.rendered = true;
+                    const isError = Boolean(
+                      chunk.value && typeof chunk.value === 'object' && chunk.value.error === true,
+                    );
+                    const status = isError ? 'error' : 'success';
+                    renderToolOutput(pending.toolName, pending.args, chunk.value, status);
                   }
                 }
               }
 
               for (const pending of pendingToolCalls) {
-                const callKey = `${pending.toolName}:${JSON.stringify(pending.args || {})}`;
-                if (!renderedToolCalls.has(callKey)) {
-                  renderedToolCalls.add(callKey);
+                if (!pending.rendered) {
+                  pending.rendered = true;
                   renderToolOutput(pending.toolName, pending.args, null, 'error');
                 }
               }

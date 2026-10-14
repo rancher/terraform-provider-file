@@ -407,12 +407,21 @@ export class TurnTracker {
       const toolName = tool?.name || tool?.definition?.name || 'tool';
       const tracker = this;
 
-      const createWrappedExecute = (origExec) => {
+      const createWrappedExecute = (origExec, invocationArgs = null, invocation = null) => {
         return async function (...execArgs) {
           try {
             let pendingTopic = null;
+            const toolArgs =
+              invocationArgs !== null &&
+              invocationArgs !== undefined &&
+              typeof invocationArgs === 'object' &&
+              Object.keys(invocationArgs).length > 0
+                ? invocationArgs
+                : invocation?.params ||
+                  invocation?.input ||
+                  (execArgs[0] && typeof execArgs[0] === 'object' ? execArgs[0] : {});
+
             if (toolName === 'update_topic') {
-              const toolArgs = execArgs[0] || {};
               const title = toolArgs.title || '';
               const objective = toolArgs.strategic_intent || '';
               const summary = toolArgs.summary || '';
@@ -472,7 +481,7 @@ export class TurnTracker {
                 try {
                   tracker.onToolExecution({
                     toolName,
-                    args: execArgs[0],
+                    args: toolArgs,
                     result,
                     error: executionError || (result && typeof result === 'object' && result.error === true),
                   });
@@ -490,10 +499,10 @@ export class TurnTracker {
 
       if (tool && typeof tool.createInvocation === 'function' && !tool._turnAccountingWrapped) {
         const origCreate = tool.createInvocation;
-        tool.createInvocation = function (...args) {
-          const invocation = origCreate.apply(this, args);
+        tool.createInvocation = function (...createArgs) {
+          const invocation = origCreate.apply(this, createArgs);
           if (invocation && typeof invocation.execute === 'function') {
-            invocation.execute = createWrappedExecute(invocation.execute);
+            invocation.execute = createWrappedExecute(invocation.execute, createArgs[0], invocation);
           }
           return invocation;
         };
@@ -504,7 +513,7 @@ export class TurnTracker {
         });
       } else if (tool && typeof tool.execute === 'function' && !tool._turnAccountingWrapped) {
         const origExec = tool.execute;
-        tool.execute = createWrappedExecute(origExec);
+        tool.execute = createWrappedExecute(origExec, null, tool);
         tool._turnAccountingWrapped = true;
         this._cleanupFns.push(() => {
           tool.execute = origExec;
