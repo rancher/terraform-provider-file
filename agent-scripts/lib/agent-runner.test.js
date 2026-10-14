@@ -1164,4 +1164,90 @@ test('runAgentSession enriched tool logging', async (t) => {
       }
     },
   );
+
+  await t.test('throws explicit error when requireTopic is true with isolate true', async () => {
+    await assert.rejects(async () => {
+      await runAgentSession({
+        initialPrompt: 'Run isolated session with topic requirement',
+        maxTurns: 1,
+        requestedModel: 'gemini-3.1-pro-preview',
+        isolate: true,
+        requireTopic: true,
+      });
+    }, /Cannot enable requireTopic when isolate is true/);
+  });
+
+  await t.test('correlates parallel tool results by callId when completed out of order', async () => {
+    const originalSession = GeminiCliAgent.prototype.session;
+    const originalConsoleLog = console.log;
+    const logs = [];
+
+    try {
+      console.log = (...args) => {
+        logs.push(args.join(' '));
+      };
+
+      GeminiCliAgent.prototype.session = function () {
+        const session = originalSession.call(this);
+        session.sendStream = async function* () {
+          // Two parallel tool call requests with unique callIds
+          yield {
+            type: 'tool_call_request',
+            value: {
+              callId: 'call_alpha',
+              name: 'read_file',
+              args: { file_path: 'alpha.txt' },
+            },
+          };
+          yield {
+            type: 'tool_call_request',
+            value: {
+              callId: 'call_beta',
+              name: 'read_file',
+              args: { file_path: 'beta.txt' },
+            },
+          };
+          // Results complete out of order: beta arrives before alpha
+          yield {
+            type: 'tool_call_result',
+            callId: 'call_beta',
+            value: 'Content of beta',
+          };
+          yield {
+            type: 'tool_call_result',
+            callId: 'call_alpha',
+            value: 'Content of alpha',
+          };
+        };
+        const origInit = session.initialize.bind(session);
+        session.initialize = async () => {
+          if (session.config) {
+            session.config.refreshAuth = async () => {};
+          }
+          return origInit();
+        };
+        return session;
+      };
+
+      await runAgentSession({
+        initialPrompt: 'Run parallel out of order test',
+        maxTurns: 5,
+        requestedModel: 'gemini-3.1-pro-preview',
+        isolate: false,
+      });
+
+      const cards = logs.filter((msg) => msg.includes('╭─') && msg.includes('ReadFile'));
+      assert.strictEqual(cards.length, 2, 'Both parallel calls render cards');
+      // Verify beta was rendered with beta content, and alpha with alpha content
+      const betaCard = cards.find((c) => c.includes('beta.txt'));
+      const alphaCard = cards.find((c) => c.includes('alpha.txt'));
+      assert.ok(betaCard, 'beta card exists');
+      assert.ok(alphaCard, 'alpha card exists');
+      assert.ok(betaCard.includes('Content of beta'), 'beta card contains beta content');
+      assert.ok(alphaCard.includes('Content of alpha'), 'alpha card contains alpha content');
+    } finally {
+      GeminiCliAgent.prototype.session = originalSession;
+      console.log = originalConsoleLog;
+    }
+  });
 });

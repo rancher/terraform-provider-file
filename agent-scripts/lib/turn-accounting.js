@@ -407,8 +407,16 @@ export class TurnTracker {
       const toolName = tool?.name || tool?.definition?.name || 'tool';
       const tracker = this;
 
-      const createWrappedExecute = (origExec, invocationArgs = null, invocation = null) => {
+      const createWrappedExecute = (origExec, invocationArgs = null, invocation = null, capturedCallId = null) => {
         return async function (...execArgs) {
+          const callId =
+            capturedCallId ||
+            execArgs[0]?.callId ||
+            execArgs[0]?.id ||
+            execArgs[1]?.callId ||
+            execArgs[1]?.id ||
+            invocation?.callId ||
+            invocation?.id;
           try {
             let pendingTopic = null;
             const toolArgs =
@@ -481,6 +489,7 @@ export class TurnTracker {
                 try {
                   tracker.onToolExecution({
                     toolName,
+                    callId,
                     args: toolArgs,
                     result,
                     error: executionError || (result && typeof result === 'object' && result.error === true),
@@ -501,8 +510,15 @@ export class TurnTracker {
         const origCreate = tool.createInvocation;
         tool.createInvocation = function (...createArgs) {
           const invocation = origCreate.apply(this, createArgs);
+          const invocationCallId =
+            createArgs[1]?.callId ||
+            createArgs[1]?.id ||
+            createArgs[0]?.callId ||
+            createArgs[0]?.id ||
+            invocation?.callId ||
+            invocation?.id;
           if (invocation && typeof invocation.execute === 'function') {
-            invocation.execute = createWrappedExecute(invocation.execute, createArgs[0], invocation);
+            invocation.execute = createWrappedExecute(invocation.execute, createArgs[0], invocation, invocationCallId);
           }
           return invocation;
         };

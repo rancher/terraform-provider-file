@@ -524,6 +524,12 @@ export async function runAgentSession({
       );
     }
 
+    if (requireTopic && isolate) {
+      throw new Error(
+        'Cannot enable requireTopic when isolate is true; isolated sessions do not have access to the update_topic tool.',
+      );
+    }
+
     if (requireTopic && blockTools.includes('update_topic')) {
       throw new Error(
         'Cannot block "update_topic" tool when requireTopic is enabled; topics are required for session progress and user visibility.',
@@ -652,8 +658,16 @@ export async function runAgentSession({
           validateIntent,
           requireTopic,
           getTurnText: () => currentTurnText,
-          onToolExecution: ({ toolName, args, result, error }) => {
-            const pending = pendingToolCalls.find((p) => !p.rendered && p.toolName === toolName);
+          onToolExecution: ({ toolName, callId, args, result, error }) => {
+            const argsStr = JSON.stringify(args || {});
+            const pending =
+              pendingToolCalls.find(
+                (p) =>
+                  !p.rendered &&
+                  ((callId && p.callId && p.callId === callId) ||
+                    (p.toolName === toolName && JSON.stringify(p.args || {}) === argsStr)),
+              ) || pendingToolCalls.find((p) => !p.rendered && p.toolName === toolName);
+
             if (pending) {
               pending.rendered = true;
             }
@@ -750,7 +764,14 @@ export async function runAgentSession({
                   } catch (err) {
                     console.debug(`[DEBUG] Failed to log tool call result: ${err.message}`);
                   }
-                  const pending = pendingToolCalls.shift();
+                  const resultCallId = chunk.callId || chunk.id || chunk.value?.callId || chunk.value?.id;
+                  let pendingIndex = -1;
+                  if (resultCallId) {
+                    pendingIndex = pendingToolCalls.findIndex((p) => p.callId === resultCallId);
+                  }
+                  const pending =
+                    pendingIndex !== -1 ? pendingToolCalls.splice(pendingIndex, 1)[0] : pendingToolCalls.shift();
+
                   if (pending && !pending.rendered) {
                     pending.rendered = true;
                     const isError = Boolean(
