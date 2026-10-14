@@ -600,7 +600,7 @@ test('runAgentSession maxTurns override integration', async (t) => {
 });
 
 test('runAgentSession enriched tool logging', async (t) => {
-  await t.test('formats tool usage log with tool name, arguments, and intent', async () => {
+  await t.test('formats tool usage log with tool name, arguments, and execution result in rounded cards', async () => {
     const originalSession = GeminiCliAgent.prototype.session;
     const originalConsoleLog = console.log;
     const logs = [];
@@ -625,21 +625,18 @@ test('runAgentSession enriched tool logging', async (t) => {
 
       GeminiCliAgent.prototype.session = function () {
         return attachMockSendStream(this, async function* () {
-          yield { type: 'content', value: 'Intent: to check the git status\n' };
           yield {
             type: 'tool_call_request',
             value: { name: 'run_shell_command', args: { command: 'git status' } },
           };
           yield { type: 'tool_call_result', value: 'On branch main' };
 
-          yield { type: 'content', value: 'Intent: read the documentation file\n' };
           yield {
             type: 'tool_call_request',
             value: { name: 'read_file', args: { file_path: 'README.md' } },
           };
           yield { type: 'tool_call_result', value: '# Documentation' };
 
-          yield { type: 'content', value: 'Intent: replace old logic with new\n' };
           yield {
             type: 'tool_call_request',
             value: { name: 'replace', args: { file_path: 'foo.js', new_string: 'const a = 1;' } },
@@ -655,21 +652,21 @@ test('runAgentSession enriched tool logging', async (t) => {
         isolate: false,
       });
 
-      const toolLogs = logs.filter((msg) => msg.includes('agent used'));
-      assert.strictEqual(toolLogs.length, 3);
-      assert.strictEqual(toolLogs[0], "pro agent used run_shell_command with 'git status' to check the git status");
-      assert.strictEqual(toolLogs[1], 'pro agent used read_file with README.md to read the documentation file');
-      assert.strictEqual(
-        toolLogs[2],
-        "pro agent used replace with 'foo.js' ('''const a = 1;...''') to replace old logic with new",
-      );
+      const cards = logs.filter((msg) => msg.includes('╭─') && msg.includes('╰─'));
+      assert.strictEqual(cards.length, 3);
+      assert.ok(cards[0].includes('✓  Shell git status'));
+      assert.ok(cards[0].includes('On branch main'));
+      assert.ok(cards[1].includes('✓  ReadFile README.md'));
+      assert.ok(cards[1].includes('# Documentation'));
+      assert.ok(cards[2].includes('✓  Replace foo.js'));
+      assert.ok(cards[2].includes('success'));
     } finally {
       GeminiCliAgent.prototype.session = originalSession;
       console.log = originalConsoleLog;
     }
   });
 
-  await t.test('formats tool usage log without default reason when agent emits no text', async () => {
+  await t.test('formats tool usage log as a clean card when agent emits no prose', async () => {
     const originalSession = GeminiCliAgent.prototype.session;
     const originalConsoleLog = console.log;
     const logs = [];
@@ -709,18 +706,17 @@ test('runAgentSession enriched tool logging', async (t) => {
         isolate: false,
       });
 
-      const toolLogs = logs.filter((msg) => msg.includes('agent used'));
-      assert.strictEqual(toolLogs.length, 1);
-      assert.strictEqual(toolLogs[0], "pro agent used run_shell_command with 'git status'");
-      assert.ok(!toolLogs[0].includes('continue the task'));
-      assert.ok(!toolLogs[0].includes('⚡'));
+      const cards = logs.filter((msg) => msg.includes('╭─') && msg.includes('Shell'));
+      assert.strictEqual(cards.length, 1);
+      assert.ok(cards[0].includes('✓  Shell git status'));
+      assert.ok(cards[0].includes('On branch main'));
     } finally {
       GeminiCliAgent.prototype.session = originalSession;
       console.log = originalConsoleLog;
     }
   });
 
-  await t.test('renders multi-line tool usage log inside a box', async () => {
+  await t.test('renders topic updates inside a prominent rounded topic banner', async () => {
     const originalSession = GeminiCliAgent.prototype.session;
     const originalConsoleLog = console.log;
     const logs = [];
@@ -763,21 +759,18 @@ test('runAgentSession enriched tool logging', async (t) => {
         isolate: false,
       });
 
-      const boxedLogs = logs.filter((msg) => msg.includes('┌') && msg.includes('update_topic'));
-      assert.strictEqual(boxedLogs.length, 1);
-      assert.ok(boxedLogs[0].includes('┌─'));
-      assert.ok(boxedLogs[0].includes('└─'));
-      assert.ok(boxedLogs[0].includes('│ pro agent used update_topic with:'));
-      assert.ok(boxedLogs[0].includes('strategic_intent'));
-      assert.ok(!boxedLogs[0].includes('⚡'));
-      assert.ok(!boxedLogs[0].includes('continue the task'));
+      const banners = logs.filter((msg) => msg.includes('╭─') && msg.includes('Objective'));
+      assert.strictEqual(banners.length, 1);
+      assert.ok(banners[0].includes('╭─'));
+      assert.ok(banners[0].includes('╰─'));
+      assert.ok(banners[0].includes('🎯 Objective: Reviewing the staged changes'));
     } finally {
       GeminiCliAgent.prototype.session = originalSession;
       console.log = originalConsoleLog;
     }
   });
 
-  await t.test('formats tool usage log with multi-line intent and renders inside a box (F1)', async () => {
+  await t.test('formats complete topic banner with title, objective, and summary', async () => {
     const originalSession = GeminiCliAgent.prototype.session;
     const originalConsoleLog = console.log;
     const logs = [];
@@ -802,34 +795,40 @@ test('runAgentSession enriched tool logging', async (t) => {
 
       GeminiCliAgent.prototype.session = function () {
         return attachMockSendStream(this, async function* () {
-          yield { type: 'content', value: 'Intent: inspect the file\nthen compare it\n' };
           yield {
             type: 'tool_call_request',
-            value: { name: 'read_file', args: { file_path: 'README.md' } },
+            value: {
+              name: 'update_topic',
+              args: {
+                title: 'Researching Bug',
+                strategic_intent: 'Reproduce parser failure',
+                summary: 'Starting investigation',
+              },
+            },
           };
-          yield { type: 'tool_call_result', value: 'content' };
+          yield { type: 'tool_call_result', value: 'updated' };
         });
       };
 
       await runAgentSession({
-        initialPrompt: 'Run multiline intent test',
+        initialPrompt: 'Run complete topic banner test',
         maxTurns: 1,
         requestedModel: 'gemini-3.1-pro-preview',
         isolate: false,
       });
 
-      const boxedLogs = logs.filter((msg) => msg.includes('┌') && msg.includes('read_file'));
-      assert.strictEqual(boxedLogs.length, 1, 'Multiline intent must trigger renderBox');
-      assert.ok(boxedLogs[0].includes('pro agent used read_file with README.md to:'));
-      assert.ok(boxedLogs[0].includes('inspect the file'));
-      assert.ok(boxedLogs[0].includes('then compare it'));
+      const banners = logs.filter((msg) => msg.includes('╭─') && msg.includes('Topic'));
+      assert.strictEqual(banners.length, 1);
+      assert.ok(banners[0].includes('📂 Topic: Researching Bug'));
+      assert.ok(banners[0].includes('🎯 Objective: Reproduce parser failure'));
+      assert.ok(banners[0].includes('📝 Summary: Starting investigation'));
     } finally {
       GeminiCliAgent.prototype.session = originalSession;
       console.log = originalConsoleLog;
     }
   });
 
-  await t.test('does not treat ordinary prose as intent before tool call (F2)', async () => {
+  await t.test('does not treat ordinary prose as tool card content', async () => {
     const originalSession = GeminiCliAgent.prototype.session;
     const originalConsoleLog = console.log;
     const logs = [];
@@ -870,18 +869,17 @@ test('runAgentSession enriched tool logging', async (t) => {
         isolate: false,
       });
 
-      const toolLogs = logs.filter((msg) => msg.includes('agent used no_op'));
-      assert.strictEqual(toolLogs.length, 1);
-      assert.strictEqual(toolLogs[0], "pro agent used no_op with '{}'");
-      assert.ok(!toolLogs[0].includes('Turn 1 initial response'));
-      assert.ok(!toolLogs[0].includes('to '));
+      const cards = logs.filter((msg) => msg.includes('╭─') && msg.includes('NoOp'));
+      assert.strictEqual(cards.length, 1);
+      assert.ok(cards[0].includes('✓  NoOp'));
+      assert.ok(!cards[0].includes('Turn 1 initial response'));
     } finally {
       GeminiCliAgent.prototype.session = originalSession;
       console.log = originalConsoleLog;
     }
   });
 
-  await t.test('preserves declared intent across sequential tool calls within the same turn', async () => {
+  await t.test('renders distinct rounded cards for sequential tool calls within the same turn', async () => {
     const originalSession = GeminiCliAgent.prototype.session;
     const originalConsoleLog = console.log;
     const logs = [];
@@ -906,7 +904,6 @@ test('runAgentSession enriched tool logging', async (t) => {
 
       GeminiCliAgent.prototype.session = function () {
         return attachMockSendStream(this, async function* () {
-          yield { type: 'content', value: 'Intent: check status and read file\n' };
           yield {
             type: 'tool_call_request',
             value: { name: 'run_shell_command', args: { command: 'git status' } },
@@ -927,13 +924,12 @@ test('runAgentSession enriched tool logging', async (t) => {
         isolate: false,
       });
 
-      const toolLogs = logs.filter((msg) => msg.includes('agent used'));
-      assert.strictEqual(toolLogs.length, 2);
-      assert.strictEqual(
-        toolLogs[0],
-        "pro agent used run_shell_command with 'git status' to check status and read file",
-      );
-      assert.strictEqual(toolLogs[1], 'pro agent used read_file with README.md to check status and read file');
+      const cards = logs.filter((msg) => msg.includes('╭─'));
+      assert.strictEqual(cards.length, 2);
+      assert.ok(cards[0].includes('✓  Shell git status'));
+      assert.ok(cards[0].includes('clean'));
+      assert.ok(cards[1].includes('✓  ReadFile README.md'));
+      assert.ok(cards[1].includes('content'));
     } finally {
       GeminiCliAgent.prototype.session = originalSession;
       console.log = originalConsoleLog;

@@ -841,3 +841,87 @@ test('TurnTracker clears lastDeclaredIntent on onToolCall when starting a new tu
 
   tracker.dispose();
 });
+
+test('TurnTracker requireTopic defers tools until update_topic is called with granular objective', async () => {
+  let readFileExecuted = false;
+  let updateTopicExecuted = false;
+
+  const mockReadFile = {
+    name: 'read_file',
+    createInvocation: () => ({
+      execute: async () => {
+        readFileExecuted = true;
+        return 'file content';
+      },
+    }),
+  };
+
+  const mockUpdateTopic = {
+    name: 'update_topic',
+    createInvocation: () => ({
+      execute: async (args) => {
+        updateTopicExecuted = true;
+        return `Updated topic to: ${args?.title || 'default'}`;
+      },
+    }),
+  };
+
+  const fakeRegistry = {
+    tools: { read_file: mockReadFile, update_topic: mockUpdateTopic },
+    getAllToolNames() {
+      return Object.keys(this.tools);
+    },
+    getTool(name) {
+      return this.tools[name];
+    },
+  };
+
+  const executedTools = [];
+  const tracker = new TurnTracker({
+    maxTurns: 5,
+    controller: new globalThis.AbortController(),
+    session: { config: { toolRegistry: fakeRegistry } },
+    requireTopic: true,
+    onToolExecution: (info) => {
+      executedTools.push(info);
+    },
+  });
+
+  // Attempting read_file first must be deferred
+  tracker.onToolCall('read_file');
+  assert.strictEqual(tracker.count, 1);
+  const deferredRes = await fakeRegistry.getTool('read_file').createInvocation().execute({ file_path: 'foo.txt' });
+  assert.strictEqual(deferredRes.error, true);
+  assert.match(deferredRes.llmContent, /Tool call deferred: You must establish an objective first/);
+  assert.strictEqual(readFileExecuted, false);
+  assert.strictEqual(tracker.count, 0, 'Turn must be refunded on deferral');
+
+  // Attempting update_topic with empty objective must be rejected
+  const emptyTopicRes = await fakeRegistry.getTool('update_topic').createInvocation().execute({ title: 'Phase 1' });
+  assert.strictEqual(emptyTopicRes.error, true);
+  assert.match(emptyTopicRes.llmContent, /Topic update rejected: You must provide a granular "strategic_intent"/);
+  assert.strictEqual(tracker.hasEstablishedTopic, false);
+
+  // Calling update_topic with valid strategic_intent succeeds
+  const validTopicRes = await fakeRegistry.getTool('update_topic').createInvocation().execute({
+    title: 'Researching bug',
+    strategic_intent: 'Reproduce parser failure',
+    summary: 'Starting investigation',
+  });
+  assert.strictEqual(validTopicRes, 'Updated topic to: Researching bug');
+  assert.strictEqual(updateTopicExecuted, true);
+  assert.strictEqual(tracker.hasEstablishedTopic, true);
+  assert.strictEqual(tracker.activeTopic.objective, 'Reproduce parser failure');
+
+  // Subsequent read_file call now succeeds
+  tracker.onToolCall('read_file');
+  const successRes = await fakeRegistry.getTool('read_file').createInvocation().execute({ file_path: 'foo.txt' });
+  assert.strictEqual(successRes, 'file content');
+  assert.strictEqual(readFileExecuted, true);
+
+  // onToolExecution recorded the successful calls
+  assert.ok(executedTools.some((e) => e.toolName === 'update_topic' && e.error === false));
+  assert.ok(executedTools.some((e) => e.toolName === 'read_file' && e.result === 'file content'));
+
+  tracker.dispose();
+});

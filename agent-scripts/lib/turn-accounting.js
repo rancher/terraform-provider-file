@@ -325,7 +325,9 @@ export class TurnTracker {
    * @param {Object} [options.session] - The active GeminiCliAgent session
    * @param {Function} [options.logger] - Logger hook for recording state changes
    * @param {boolean} [options.validateIntent=false] - Whether to enforce intent declaration before tools
-   * @param {string[]} [options.exemptTools=['no_op']] - Tool names exempt from intent enforcement
+   * @param {boolean} [options.requireTopic=false] - Whether to enforce calling update_topic with granular objective before other tools
+   * @param {Function} [options.onToolExecution=null] - Hook called upon tool completion with execution details
+   * @param {string[]} [options.exemptTools=['no_op']] - Tool names exempt from intent and topic enforcement
    * @param {Function} [options.getTurnText=null] - Accessor for currently streamed turn text
    * @param {number} [options.maxIntentRetries=2] - Maximum free intent-correction retries per turn
    */
@@ -335,6 +337,8 @@ export class TurnTracker {
     session = null,
     logger = () => {},
     validateIntent = false,
+    requireTopic = false,
+    onToolExecution = null,
     exemptTools = ['no_op'],
     getTurnText = null,
     maxIntentRetries = 2,
@@ -347,11 +351,15 @@ export class TurnTracker {
     this.session = session;
     this.logger = logger;
     this.validateIntent = validateIntent;
+    this.requireTopic = requireTopic;
+    this.onToolExecution = onToolExecution;
     this.exemptTools = exemptTools;
     this.getTurnText = getTurnText;
     this.maxIntentRetries = maxIntentRetries;
     this.intentRetries = 0;
     this.lastDeclaredIntent = '';
+    this.hasEstablishedTopic = false;
+    this.activeTopic = null;
     this._hasSessionEvents = false;
     this._cleanupFns = [];
 
@@ -402,6 +410,33 @@ export class TurnTracker {
       const createWrappedExecute = (origExec) => {
         return async function (...execArgs) {
           try {
+            if (toolName === 'update_topic') {
+              const toolArgs = execArgs[0] || {};
+              const title = toolArgs.title || '';
+              const objective = toolArgs.strategic_intent || '';
+              const summary = toolArgs.summary || '';
+              if (tracker.requireTopic && (!objective || typeof objective !== 'string' || !objective.trim())) {
+                return {
+                  llmContent: `Topic update rejected: You must provide a granular "strategic_intent" describing your specific objective (e.g., 'Empirically reproduce test failure in parser.test.js').`,
+                  returnDisplay: `Topic update rejected: Missing granular strategic_intent.`,
+                  error: true,
+                };
+              }
+              tracker.hasEstablishedTopic = true;
+              tracker.activeTopic = { title, objective: objective.trim(), summary: summary.trim() };
+            } else if (
+              tracker.requireTopic &&
+              !tracker.hasEstablishedTopic &&
+              !tracker.exemptTools.includes(toolName)
+            ) {
+              tracker.refundTurn();
+              return {
+                llmContent: `Tool call deferred: You must establish an objective first by calling update_topic with a "title", "summary", and a granular "strategic_intent" before executing ${toolName}.`,
+                returnDisplay: `Tool call deferred: Please call update_topic first.`,
+                error: true,
+              };
+            }
+
             if (tracker.validateIntent && !tracker.exemptTools.includes(toolName)) {
               const turnText = tracker.getTurnText ? tracker.getTurnText() : '';
               const declared = extractIntent(turnText);
@@ -419,7 +454,28 @@ export class TurnTracker {
               }
             }
             tracker.intentRetries = 0;
-            const result = await origExec.apply(this, execArgs);
+            let result;
+            let executionError = false;
+            try {
+              result = await origExec.apply(this, execArgs);
+            } catch (execErr) {
+              result = execErr.message;
+              executionError = true;
+              throw execErr;
+            } finally {
+              if (typeof tracker.onToolExecution === 'function') {
+                try {
+                  tracker.onToolExecution({
+                    toolName,
+                    args: execArgs[0],
+                    result,
+                    error: executionError || (result && typeof result === 'object' && result.error === true),
+                  });
+                } catch (e) {
+                  console.debug(`[DEBUG] onToolExecution hook failed: ${e.message}`);
+                }
+              }
+            }
             return result;
           } finally {
             tracker.onToolResult();

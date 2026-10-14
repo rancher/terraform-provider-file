@@ -650,9 +650,10 @@ export function wrapLine(line, maxWidth) {
  * If text is single-line, it returns the original text unmodified.
  * @param {string} text
  * @param {number} [columns]
+ * @param {'square'|'round'} [style='square']
  * @returns {string}
  */
-export function renderBox(text, columns = process.stdout.columns) {
+export function renderBox(text, columns = process.stdout.columns, style = 'square') {
   if (typeof text !== 'string') {
     return String(text ?? '');
   }
@@ -670,13 +671,212 @@ export function renderBox(text, columns = process.stdout.columns) {
     }
   }
   const maxLen = Math.max(...lines.map((l) => stripAnsi(l).length));
-  const top = `┌─${'─'.repeat(maxLen)}─┐`;
-  const bottom = `└─${'─'.repeat(maxLen)}─┘`;
+  const isRound = style === 'round';
+  const topLeft = isRound ? '╭─' : '┌─';
+  const topRight = isRound ? '─╮' : '─┐';
+  const bottomLeft = isRound ? '╰─' : '└─';
+  const bottomRight = isRound ? '─╯' : '─┘';
+  const top = `${topLeft}${'─'.repeat(maxLen)}${topRight}`;
+  const bottom = `${bottomLeft}${'─'.repeat(maxLen)}${bottomRight}`;
   const middle = lines
     .map((l) => {
       const pad = maxLen - stripAnsi(l).length;
       return `│ ${l}${' '.repeat(pad)} │`;
     })
     .join('\n');
+  return `${top}\n${middle}\n${bottom}`;
+}
+
+/**
+ * Formats a tool name and arguments into a concise Gemini CLI style action header.
+ * @param {string} toolName
+ * @param {Object|string} [args]
+ * @returns {string}
+ */
+export function formatToolAction(toolName, args = {}) {
+  if (!toolName) {
+    return 'Tool';
+  }
+  let toolArgs = args;
+  if (typeof args === 'string') {
+    try {
+      toolArgs = JSON.parse(args);
+    } catch {
+      toolArgs = {};
+    }
+  }
+  if (!toolArgs || typeof toolArgs !== 'object') {
+    toolArgs = {};
+  }
+
+  switch (toolName) {
+    case 'run_shell_command':
+      return `Shell ${toolArgs.command || ''}`.trim();
+    case 'read_file':
+      return `ReadFile ${toolArgs.file_path || ''}`.trim();
+    case 'write_file':
+      return `WriteFile ${toolArgs.file_path || ''}`.trim();
+    case 'replace':
+      return `Replace ${toolArgs.file_path || ''}`.trim();
+    case 'grep_search':
+      return `GrepSearch ${toolArgs.pattern ? `'${toolArgs.pattern}'` : ''}`.trim();
+    case 'glob':
+      return `Glob ${toolArgs.pattern ? `'${toolArgs.pattern}'` : ''}`.trim();
+    case 'list_directory':
+      return `ListDirectory ${toolArgs.dir_path || '.'}`.trim();
+    case 'ask_user':
+      return 'AskUser';
+    case 'update_topic':
+      return `UpdateTopic ${toolArgs.title || toolArgs.strategic_intent || ''}`.trim();
+    default: {
+      const pascal = toolName
+        .split('_')
+        .map((part) => (part.length > 0 ? part[0].toUpperCase() + part.slice(1) : ''))
+        .join('');
+      const firstArg = Object.keys(toolArgs).length > 0 ? String(Object.values(toolArgs)[0]) : '';
+      return firstArg ? `${pascal} ${firstArg}`.trim() : pascal;
+    }
+  }
+}
+
+/**
+ * Renders a Gemini CLI style rounded tool execution card.
+ * @param {Object} options
+ * @param {string} options.toolName
+ * @param {Object|string} [options.args]
+ * @param {'success'|'running'|'error'|'info'} [options.status='success']
+ * @param {any} [options.result]
+ * @param {string} [options.agentType]
+ * @param {number} [columns]
+ * @returns {string}
+ */
+export function renderToolCard(
+  { toolName, args, status = 'success', result, agentType } = {},
+  columns = process.stdout.columns,
+) {
+  const width = typeof columns === 'number' && columns > 0 ? columns : process.stdout.columns || 100;
+  const boxWidth = Math.max(Math.min(width, 160), 40);
+  const innerWidth = boxWidth - 4;
+
+  const icons = {
+    success: '✓  ',
+    running: '⚡  ',
+    error: '❌  ',
+    info: 'ℹ  ',
+  };
+  const icon = icons[status] || icons.success;
+  const actionText = formatToolAction(toolName, args);
+  const prefix = agentType ? `[${agentType}] ` : '';
+  const header = `${icon}${prefix}${actionText}`;
+
+  const lines = [];
+  if (stripAnsi(header).length > innerWidth) {
+    lines.push(...wrapLine(header, innerWidth));
+  } else {
+    lines.push(header);
+  }
+
+  let formattedResult = '';
+  if (result !== undefined && result !== null) {
+    if (typeof result === 'string') {
+      formattedResult = result;
+    } else if (typeof result === 'object') {
+      if (typeof result.returnDisplay === 'string') {
+        formattedResult = result.returnDisplay;
+      } else if (typeof result.llmContent === 'string') {
+        formattedResult = result.llmContent;
+      } else {
+        formattedResult = JSON.stringify(result, null, 2);
+      }
+    } else {
+      formattedResult = String(result);
+    }
+  }
+
+  const trimmedResult = formattedResult.replace(/\r/g, '').trim();
+  if (trimmedResult.length > 0) {
+    lines.push(''); // Empty separator line matching Gemini CLI format
+    const rawResultLines = trimmedResult.split('\n');
+    const MAX_VISIBLE_LINES = 20;
+    let visibleLines = rawResultLines;
+    if (rawResultLines.length > MAX_VISIBLE_LINES) {
+      const hidden = rawResultLines.length - MAX_VISIBLE_LINES;
+      const tail = rawResultLines.slice(rawResultLines.length - MAX_VISIBLE_LINES);
+      visibleLines = [`... first ${hidden} lines hidden (Ctrl+O to show) ...`, ...tail];
+    }
+    for (const rLine of visibleLines) {
+      if (stripAnsi(rLine).length > innerWidth) {
+        lines.push(...wrapLine(rLine, innerWidth));
+      } else {
+        lines.push(rLine);
+      }
+    }
+  }
+
+  const top = `╭─${'─'.repeat(innerWidth)}─╮`;
+  const bottom = `╰─${'─'.repeat(innerWidth)}─╯`;
+  const middle = lines
+    .map((l) => {
+      const stripped = stripAnsi(l);
+      const pad = Math.max(innerWidth - stripped.length, 0);
+      return `│ ${l}${' '.repeat(pad)} │`;
+    })
+    .join('\n');
+
+  return `${top}\n${middle}\n${bottom}`;
+}
+
+/**
+ * Renders a prominent Gemini CLI style topic banner with title, objective, and summary.
+ * @param {Object} options
+ * @param {string} [options.topic] - Phase or topic title
+ * @param {string} [options.objective] - Granular strategic intent
+ * @param {string} [options.summary] - Contextual summary of previous work and new goals
+ * @param {number} [columns]
+ * @returns {string}
+ */
+export function renderTopicBanner({ topic, objective, summary } = {}, columns = process.stdout.columns) {
+  const width = typeof columns === 'number' && columns > 0 ? columns : process.stdout.columns || 100;
+  const boxWidth = Math.max(Math.min(width, 160), 40);
+  const innerWidth = boxWidth - 4;
+
+  const rawLines = [];
+  const cleanTopic = typeof topic === 'string' ? topic.trim() : '';
+  const cleanObjective = typeof objective === 'string' ? objective.trim() : '';
+  const cleanSummary = typeof summary === 'string' ? summary.trim() : '';
+
+  if (cleanTopic) {
+    rawLines.push(`📂 Topic: ${cleanTopic}`);
+  }
+  if (cleanObjective) {
+    rawLines.push(`🎯 Objective: ${cleanObjective}`);
+  }
+  if (cleanSummary) {
+    rawLines.push(`📝 Summary: ${cleanSummary}`);
+  }
+
+  if (rawLines.length === 0) {
+    rawLines.push('📂 Topic: (Active Goal)');
+  }
+
+  const lines = [];
+  for (const rLine of rawLines) {
+    if (stripAnsi(rLine).length > innerWidth) {
+      lines.push(...wrapLine(rLine, innerWidth));
+    } else {
+      lines.push(rLine);
+    }
+  }
+
+  const top = `╭─${'─'.repeat(innerWidth)}─╮`;
+  const bottom = `╰─${'─'.repeat(innerWidth)}─╯`;
+  const middle = lines
+    .map((l) => {
+      const stripped = stripAnsi(l);
+      const pad = Math.max(innerWidth - stripped.length, 0);
+      return `│ ${l}${' '.repeat(pad)} │`;
+    })
+    .join('\n');
+
   return `${top}\n${middle}\n${bottom}`;
 }

@@ -14,7 +14,7 @@ import {
   syncSessionTools,
   TurnTracker,
 } from './turn-accounting.js';
-import { getRepoRoot, renderBox } from './utils.js';
+import { getRepoRoot, renderToolCard, renderTopicBanner } from './utils.js';
 
 const MAX_SILENT_RETRY_DELAY_MS = 300000; // 5 minutes
 
@@ -503,7 +503,8 @@ export async function runAgentSession({
   ioOptions = {},
   maxTurns: inputMaxTurns,
   maxTurnsOverride,
-  validateIntent = true,
+  validateIntent = false,
+  requireTopic = !isolate,
 }) {
   await initializeAgentRunner();
 
@@ -534,9 +535,22 @@ export async function runAgentSession({
           });
       console.log(`\n[Initializing Gemini SDK Agentic Session] (Model: ${currentModel}, Max Turns: ${maxTurns})...`);
 
+      const topicInstructions = requireTopic
+        ? `\n\n🎯 TOPIC & OBJECTIVE INSTRUCTIONS:
+- You MUST call update_topic on your first turn with a descriptive "title", "summary", and a granular "strategic_intent" (your concrete objective).
+- Update the topic whenever you transition phases (e.g., Research -> Strategy -> Execution -> Validation) or whenever your strategic intent shifts.
+- Keep your strategic_intent granular and actionable (e.g., "Empirically reproduce failure in parser.test.js", "Refactor buffer allocation in chunk.go").
+- Do NOT output "Intent: <reason>" before each tool call.`
+        : '';
+
+      const intentInstructions = validateIntent
+        ? `\n\n⚠️ TOOL USAGE INSTRUCTIONS: Immediately before calling a tool, you MUST output a single short sentence starting with "Intent:" explaining why you are calling it.`
+        : '';
+
       const modelInstructions =
         (systemInstructions || 'You are a highly capable agentic assistant.') +
-        `\n\n⚠️ TOOL USAGE INSTRUCTIONS: Immediately before calling a tool, you MUST output a single short sentence starting with "Intent:" explaining why you are calling it.` +
+        topicInstructions +
+        intentInstructions +
         `\n\n⚠️ IMPORTANT TURN BUDGET: You are allowed a MAXIMUM of ${maxTurns} turns/iterations for this entire run. Conduct yourself efficiently, use tools in parallel, avoid unnecessary turns, and complete your task before reaching this limit.`;
 
       const noOpTool = tool(
@@ -584,6 +598,29 @@ export async function runAgentSession({
         }
 
         let currentTurnText = '';
+        const pendingToolCalls = [];
+        const renderedToolCalls = new Set();
+
+        const renderToolOutput = (toolName, args, result, status = 'success') => {
+          if (toolName === 'update_topic') {
+            console.log(
+              renderTopicBanner({
+                topic: args?.title,
+                objective: args?.strategic_intent,
+                summary: args?.summary,
+              }),
+            );
+          } else {
+            console.log(
+              renderToolCard({
+                toolName,
+                args,
+                result,
+                status,
+              }),
+            );
+          }
+        };
 
         turnTracker = new TurnTracker({
           maxTurns,
@@ -591,7 +628,13 @@ export async function runAgentSession({
           session,
           logger: writeLogAsync,
           validateIntent,
+          requireTopic,
           getTurnText: () => currentTurnText,
+          onToolExecution: ({ toolName, args, result, error }) => {
+            const callKey = `${toolName}:${JSON.stringify(args || {})}`;
+            renderedToolCalls.add(callKey);
+            renderToolOutput(toolName, args, result, error ? 'error' : 'success');
+          },
         });
 
         const runResult = await promptIdContext.run(session.id, async () => {
@@ -670,68 +713,13 @@ export async function runAgentSession({
                     turnTracker.lastDeclaredIntent = reason;
                   }
 
-                  let agentType = 'agent';
-                  if (currentModel.includes('pro')) {
-                    agentType = 'pro agent';
-                  } else if (currentModel.includes('flash')) {
-                    agentType = 'flash agent';
-                  }
-
-                  let what = '';
-                  if (toolName === 'run_shell_command' && args && args.command) {
-                    what = `'${args.command}'`;
-                  } else if (toolName === 'read_file' && args && args.file_path) {
-                    what = `${args.file_path}`;
-                  } else if ((toolName === 'replace' || toolName === 'write_file') && args) {
-                    const file = args.file_path ? `'${args.file_path}'` : '';
-                    const snippet = String(args.new_string || args.content || '')
-                      .substring(0, 30)
-                      .replace(/\n/g, ' ');
-                    if (file && snippet) {
-                      what = `${file} ('''${snippet}...''')`;
-                    } else {
-                      what = file || (snippet ? `'''${snippet}...'''` : "''");
+                  pendingToolCalls.push({ toolName, args });
+                  if (toolName === 'update_topic') {
+                    const callKey = `update_topic:${JSON.stringify(args || {})}`;
+                    if (!renderedToolCalls.has(callKey)) {
+                      renderedToolCalls.add(callKey);
+                      renderToolOutput(toolName, args, null, 'success');
                     }
-                  } else if (args) {
-                    if (typeof args === 'object') {
-                      if (Object.keys(args).length === 0) {
-                        what = "'{}'";
-                      } else {
-                        what = JSON.stringify(args, null, 2);
-                      }
-                    } else {
-                      what = String(args);
-                    }
-                  }
-
-                  let logMsg = '';
-                  if (what && what.includes('\n')) {
-                    if (reason) {
-                      if (reason.includes('\n')) {
-                        logMsg = `${agentType} used ${toolName} to:\n${reason}\nwith:\n${what}`;
-                      } else {
-                        logMsg = `${agentType} used ${toolName} to ${reason} with:\n${what}`;
-                      }
-                    } else {
-                      logMsg = `${agentType} used ${toolName} with:\n${what}`;
-                    }
-                  } else {
-                    const withClause = what ? ` with ${what}` : '';
-                    if (reason) {
-                      if (reason.includes('\n')) {
-                        logMsg = `${agentType} used ${toolName}${withClause} to:\n${reason}`;
-                      } else {
-                        logMsg = `${agentType} used ${toolName}${withClause} to ${reason}`;
-                      }
-                    } else {
-                      logMsg = `${agentType} used ${toolName}${withClause}`;
-                    }
-                  }
-
-                  if (logMsg.includes('\n')) {
-                    console.log(renderBox(logMsg));
-                  } else {
-                    console.log(logMsg);
                   }
                 } else if (chunk.type === 'tool_call_result') {
                   currentTurnText = '';
@@ -744,8 +732,25 @@ export async function runAgentSession({
                   } catch (err) {
                     console.debug(`[DEBUG] Failed to log tool call result: ${err.message}`);
                   }
+                  const pending = pendingToolCalls.shift();
+                  if (pending) {
+                    const callKey = `${pending.toolName}:${JSON.stringify(pending.args || {})}`;
+                    if (!renderedToolCalls.has(callKey)) {
+                      renderedToolCalls.add(callKey);
+                      renderToolOutput(pending.toolName, pending.args, chunk.value, 'success');
+                    }
+                  }
                 }
               }
+
+              for (const pending of pendingToolCalls) {
+                const callKey = `${pending.toolName}:${JSON.stringify(pending.args || {})}`;
+                if (!renderedToolCalls.has(callKey)) {
+                  renderedToolCalls.add(callKey);
+                  renderToolOutput(pending.toolName, pending.args, null, 'success');
+                }
+              }
+              pendingToolCalls.length = 0;
             } catch (err) {
               if (isMaxTurnsError(err)) {
                 writeLogAsync(`[Turn Budget Reached] SDK threw max turns error during stream: ${err.message}`);

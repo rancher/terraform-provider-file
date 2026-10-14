@@ -4,10 +4,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import {
+  formatToolAction,
   getRepoRoot,
   normalizePlanObject,
   parseJSONFromText,
   renderBox,
+  renderToolCard,
+  renderTopicBanner,
   savePlanFromJSON,
   stripAnsi,
   validateAgentOutput,
@@ -436,5 +439,89 @@ test('renderBox and cli formatting utilities', async (t) => {
     assert.strictEqual(renderBox(null), '');
     assert.strictEqual(renderBox(undefined), '');
     assert.strictEqual(renderBox(123), '123');
+  });
+
+  await t.test('renderBox supports round style borders', () => {
+    const multiline = 'line A\nline B';
+    const boxed = renderBox(multiline, 40, 'round');
+    assert.ok(boxed.startsWith('╭─'));
+    assert.ok(boxed.endsWith('─╯'));
+    assert.ok(boxed.includes('│ line A'));
+    assert.ok(boxed.includes('│ line B'));
+  });
+
+  await t.test('formatToolAction formats known tools and generic fallbacks cleanly', () => {
+    assert.strictEqual(formatToolAction('run_shell_command', { command: 'git status' }), 'Shell git status');
+    assert.strictEqual(formatToolAction('read_file', { file_path: 'README.md' }), 'ReadFile README.md');
+    assert.strictEqual(formatToolAction('write_file', { file_path: 'foo.txt' }), 'WriteFile foo.txt');
+    assert.strictEqual(formatToolAction('replace', { file_path: 'bar.js' }), 'Replace bar.js');
+    assert.strictEqual(formatToolAction('grep_search', { pattern: 'test_func' }), "GrepSearch 'test_func'");
+    assert.strictEqual(formatToolAction('glob', { pattern: '*.go' }), "Glob '*.go'");
+    assert.strictEqual(formatToolAction('list_directory', { dir_path: 'src' }), 'ListDirectory src');
+    assert.strictEqual(formatToolAction('list_directory', {}), 'ListDirectory .');
+    assert.strictEqual(formatToolAction('ask_user'), 'AskUser');
+    assert.strictEqual(formatToolAction('update_topic', { title: 'New Topic' }), 'UpdateTopic New Topic');
+    assert.strictEqual(formatToolAction('custom_tool', { param: 'value' }), 'CustomTool value');
+    assert.strictEqual(formatToolAction('no_op'), 'NoOp');
+    assert.strictEqual(formatToolAction(null), 'Tool');
+  });
+
+  await t.test('renderToolCard formats rounded box with header and execution result', () => {
+    const card = renderToolCard(
+      {
+        toolName: 'run_shell_command',
+        args: { command: 'git status' },
+        status: 'success',
+        result: 'On branch main\nnothing to commit',
+      },
+      80,
+    );
+    const lines = card.split('\n');
+    assert.ok(lines[0].startsWith('╭─'));
+    assert.ok(lines[0].endsWith('─╮'));
+    assert.strictEqual(lines[0].length, 80);
+    assert.ok(lines[1].includes('✓  Shell git status'));
+    assert.strictEqual(lines[1].length, 80);
+    assert.strictEqual(lines[2], `│ ${' '.repeat(76)} │`); // separator line
+    assert.ok(lines[3].includes('On branch main'));
+    assert.ok(lines[lines.length - 1].startsWith('╰─'));
+    assert.ok(lines[lines.length - 1].endsWith('─╯'));
+    assert.strictEqual(lines[lines.length - 1].length, 80);
+  });
+
+  await t.test('renderToolCard truncates oversized results with Ctrl+O notice', () => {
+    const longOutput = Array.from({ length: 40 }, (_, i) => `log line ${i + 1}`).join('\n');
+    const card = renderToolCard(
+      {
+        toolName: 'run_shell_command',
+        args: { command: 'npm test' },
+        result: longOutput,
+      },
+      80,
+    );
+    assert.ok(card.includes('... first 20 lines hidden (Ctrl+O to show) ...'));
+    assert.ok(card.includes('log line 40'));
+    assert.ok(!card.includes('log line 1\n'));
+  });
+
+  await t.test('renderTopicBanner formats prominent rounded topic and objective banner', () => {
+    const banner = renderTopicBanner(
+      {
+        topic: 'Researching Parser',
+        objective: 'Reproduce timeout in parser test',
+        summary: 'Identified bottleneck in main loop',
+      },
+      80,
+    );
+    const lines = banner.split('\n');
+    assert.ok(lines[0].startsWith('╭─'));
+    assert.ok(lines[0].endsWith('─╮'));
+    assert.strictEqual(lines[0].length, 80);
+    assert.ok(lines.some((l) => l.includes('📂 Topic: Researching Parser')));
+    assert.ok(lines.some((l) => l.includes('🎯 Objective: Reproduce timeout in parser test')));
+    assert.ok(lines.some((l) => l.includes('📝 Summary: Identified bottleneck in main loop')));
+    assert.ok(lines[lines.length - 1].startsWith('╰─'));
+    assert.ok(lines[lines.length - 1].endsWith('─╯'));
+    assert.strictEqual(lines[lines.length - 1].length, 80);
   });
 });
