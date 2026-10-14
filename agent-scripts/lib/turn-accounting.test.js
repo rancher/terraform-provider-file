@@ -841,3 +841,232 @@ test('TurnTracker clears lastDeclaredIntent on onToolCall when starting a new tu
 
   tracker.dispose();
 });
+
+test('TurnTracker requireTopic defers tools until update_topic is called with granular objective', async () => {
+  let readFileExecuted = false;
+  let updateTopicExecuted = false;
+
+  const mockReadFile = {
+    name: 'read_file',
+    createInvocation: () => ({
+      execute: async () => {
+        readFileExecuted = true;
+        return 'file content';
+      },
+    }),
+  };
+
+  const mockUpdateTopic = {
+    name: 'update_topic',
+    createInvocation: () => ({
+      execute: async (args) => {
+        updateTopicExecuted = true;
+        return `Updated topic to: ${args?.title || 'default'}`;
+      },
+    }),
+  };
+
+  const fakeRegistry = {
+    tools: { read_file: mockReadFile, update_topic: mockUpdateTopic },
+    getAllToolNames() {
+      return Object.keys(this.tools);
+    },
+    getTool(name) {
+      return this.tools[name];
+    },
+  };
+
+  const executedTools = [];
+  const tracker = new TurnTracker({
+    maxTurns: 5,
+    controller: new globalThis.AbortController(),
+    session: { config: { toolRegistry: fakeRegistry } },
+    requireTopic: true,
+    onToolExecution: (info) => {
+      executedTools.push(info);
+    },
+  });
+
+  // Attempting read_file first must be deferred
+  tracker.onToolCall('read_file');
+  assert.strictEqual(tracker.count, 1);
+  const deferredRes = await fakeRegistry.getTool('read_file').createInvocation().execute({ file_path: 'foo.txt' });
+  assert.strictEqual(deferredRes.error, true);
+  assert.match(deferredRes.llmContent, /Tool call deferred: You must establish an objective first/);
+  assert.strictEqual(readFileExecuted, false);
+  assert.strictEqual(tracker.count, 0, 'Turn must be refunded on deferral');
+
+  // Attempting update_topic with empty objective must be rejected
+  tracker.onToolCall('update_topic');
+  assert.strictEqual(tracker.count, 1);
+  const emptyTopicRes = await fakeRegistry.getTool('update_topic').createInvocation().execute({ title: 'Phase 1' });
+  assert.strictEqual(emptyTopicRes.error, true);
+  assert.match(emptyTopicRes.llmContent, /Topic update rejected: You must provide a granular "strategic_intent"/);
+  assert.strictEqual(tracker.hasEstablishedTopic, false);
+  assert.strictEqual(tracker.count, 0, 'Turn must be refunded on rejected update_topic');
+
+  // Calling update_topic with valid strategic_intent succeeds
+  const validTopicRes = await fakeRegistry.getTool('update_topic').createInvocation().execute({
+    title: 'Researching bug',
+    strategic_intent: 'Reproduce parser failure',
+    summary: 'Starting investigation',
+  });
+  assert.strictEqual(validTopicRes, 'Updated topic to: Researching bug');
+  assert.strictEqual(updateTopicExecuted, true);
+  assert.strictEqual(tracker.hasEstablishedTopic, true);
+  assert.strictEqual(tracker.activeTopic.objective, 'Reproduce parser failure');
+
+  // Subsequent read_file call now succeeds
+  tracker.onToolCall('read_file');
+  const successRes = await fakeRegistry.getTool('read_file').createInvocation().execute({ file_path: 'foo.txt' });
+  assert.strictEqual(successRes, 'file content');
+  assert.strictEqual(readFileExecuted, true);
+
+  // onToolExecution recorded the successful calls
+  assert.ok(executedTools.some((e) => e.toolName === 'update_topic' && e.error === false));
+  assert.ok(executedTools.some((e) => e.toolName === 'read_file' && e.result === 'file content'));
+
+  tracker.dispose();
+});
+
+test('TurnTracker does not mark topic as established if update_topic execution fails', async () => {
+  let readFileExecuted = false;
+
+  const mockReadFile = {
+    name: 'read_file',
+    createInvocation: () => ({
+      execute: async () => {
+        readFileExecuted = true;
+        return 'file content';
+      },
+    }),
+  };
+
+  const mockFailingUpdateTopic = {
+    name: 'update_topic',
+    createInvocation: () => ({
+      execute: async () => {
+        throw new Error('API failure during topic update');
+      },
+    }),
+  };
+
+  const fakeRegistry = {
+    tools: { read_file: mockReadFile, update_topic: mockFailingUpdateTopic },
+    getAllToolNames() {
+      return Object.keys(this.tools);
+    },
+    getTool(name) {
+      return this.tools[name];
+    },
+  };
+
+  const tracker = new TurnTracker({
+    maxTurns: 5,
+    controller: new globalThis.AbortController(),
+    session: { config: { toolRegistry: fakeRegistry } },
+    requireTopic: true,
+  });
+
+  // Calling update_topic which throws execution error
+  await assert.rejects(async () => {
+    await fakeRegistry.getTool('update_topic').createInvocation().execute({
+      title: 'Failing phase',
+      strategic_intent: 'Intent here',
+    });
+  }, /API failure during topic update/);
+
+  assert.strictEqual(
+    tracker.hasEstablishedTopic,
+    false,
+    'hasEstablishedTopic must remain false after failed execution',
+  );
+
+  // Attempting read_file must still be deferred
+  tracker.onToolCall('read_file');
+  const deferredRes = await fakeRegistry.getTool('read_file').createInvocation().execute({ file_path: 'foo.txt' });
+  assert.strictEqual(deferredRes.error, true);
+  assert.strictEqual(readFileExecuted, false);
+
+  tracker.dispose();
+});
+
+test('TurnTracker captures tool arguments from createInvocation(input) when execute receives context', async () => {
+  let executedUpdateArgs = null;
+  const executedHookCalls = [];
+
+  const mockUpdateTopic = {
+    name: 'update_topic',
+    createInvocation: (input) => ({
+      params: input,
+      execute: async () => {
+        executedUpdateArgs = input;
+        return `Topic set: ${input?.title}`;
+      },
+    }),
+  };
+
+  const mockReadFile = {
+    name: 'read_file',
+    createInvocation: (input) => ({
+      params: input,
+      execute: async () => {
+        return `content of ${input?.file_path}`;
+      },
+    }),
+  };
+
+  const fakeRegistry = {
+    tools: { update_topic: mockUpdateTopic, read_file: mockReadFile },
+    getAllToolNames() {
+      return Object.keys(this.tools);
+    },
+    getTool(name) {
+      return this.tools[name];
+    },
+  };
+
+  const tracker = new TurnTracker({
+    maxTurns: 5,
+    controller: new globalThis.AbortController(),
+    session: { config: { toolRegistry: fakeRegistry } },
+    requireTopic: true,
+    onToolExecution: (info) => {
+      executedHookCalls.push(info);
+    },
+  });
+
+  // Call update_topic by passing input to createInvocation, and execution context to execute()
+  const invocation = fakeRegistry.getTool('update_topic').createInvocation({
+    title: 'Investigation Phase',
+    strategic_intent: 'Capture arguments correctly from createInvocation',
+  });
+  const dummyContext = { abortSignal: new globalThis.AbortController().signal, userContext: 'sdk' };
+  const result = await invocation.execute(dummyContext);
+
+  assert.strictEqual(result, 'Topic set: Investigation Phase');
+  assert.strictEqual(tracker.hasEstablishedTopic, true);
+  assert.strictEqual(tracker.activeTopic.objective, 'Capture arguments correctly from createInvocation');
+  assert.deepStrictEqual(executedUpdateArgs, {
+    title: 'Investigation Phase',
+    strategic_intent: 'Capture arguments correctly from createInvocation',
+  });
+
+  // onToolExecution hook must have received the real tool input, not dummyContext
+  const updateHook = executedHookCalls.find((h) => h.toolName === 'update_topic');
+  assert.ok(updateHook, 'update_topic hook must be called');
+  assert.strictEqual(updateHook.args.title, 'Investigation Phase');
+  assert.strictEqual(updateHook.args.strategic_intent, 'Capture arguments correctly from createInvocation');
+
+  // Verify subsequent tool invocation also captures args from createInvocation
+  tracker.onToolCall('read_file');
+  const readInvocation = fakeRegistry.getTool('read_file').createInvocation({ file_path: 'test.go' });
+  const readResult = await readInvocation.execute(dummyContext);
+  assert.strictEqual(readResult, 'content of test.go');
+
+  const readHook = executedHookCalls.find((h) => h.toolName === 'read_file');
+  assert.ok(readHook, 'read_file hook must be called');
+  assert.strictEqual(readHook.args.file_path, 'test.go');
+
+  tracker.dispose();
+});

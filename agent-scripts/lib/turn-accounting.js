@@ -325,7 +325,9 @@ export class TurnTracker {
    * @param {Object} [options.session] - The active GeminiCliAgent session
    * @param {Function} [options.logger] - Logger hook for recording state changes
    * @param {boolean} [options.validateIntent=false] - Whether to enforce intent declaration before tools
-   * @param {string[]} [options.exemptTools=['no_op']] - Tool names exempt from intent enforcement
+   * @param {boolean} [options.requireTopic=false] - Whether to enforce calling update_topic with granular objective before executing tools on tool-using turns
+   * @param {Function} [options.onToolExecution=null] - Hook called upon tool completion with execution details
+   * @param {string[]} [options.exemptTools=['no_op']] - Tool names exempt from intent and topic enforcement
    * @param {Function} [options.getTurnText=null] - Accessor for currently streamed turn text
    * @param {number} [options.maxIntentRetries=2] - Maximum free intent-correction retries per turn
    */
@@ -335,6 +337,8 @@ export class TurnTracker {
     session = null,
     logger = () => {},
     validateIntent = false,
+    requireTopic = false,
+    onToolExecution = null,
     exemptTools = ['no_op'],
     getTurnText = null,
     maxIntentRetries = 2,
@@ -347,11 +351,15 @@ export class TurnTracker {
     this.session = session;
     this.logger = logger;
     this.validateIntent = validateIntent;
+    this.requireTopic = requireTopic;
+    this.onToolExecution = onToolExecution;
     this.exemptTools = exemptTools;
     this.getTurnText = getTurnText;
     this.maxIntentRetries = maxIntentRetries;
     this.intentRetries = 0;
     this.lastDeclaredIntent = '';
+    this.hasEstablishedTopic = false;
+    this.activeTopic = null;
     this._hasSessionEvents = false;
     this._cleanupFns = [];
 
@@ -399,9 +407,54 @@ export class TurnTracker {
       const toolName = tool?.name || tool?.definition?.name || 'tool';
       const tracker = this;
 
-      const createWrappedExecute = (origExec) => {
+      const createWrappedExecute = (origExec, invocationArgs = null, invocation = null, capturedCallId = null) => {
         return async function (...execArgs) {
+          const callId =
+            capturedCallId ||
+            execArgs[0]?.callId ||
+            execArgs[0]?.id ||
+            execArgs[1]?.callId ||
+            execArgs[1]?.id ||
+            invocation?.callId ||
+            invocation?.id;
           try {
+            let pendingTopic = null;
+            const toolArgs =
+              invocationArgs !== null &&
+              invocationArgs !== undefined &&
+              typeof invocationArgs === 'object' &&
+              Object.keys(invocationArgs).length > 0
+                ? invocationArgs
+                : invocation?.params ||
+                  invocation?.input ||
+                  (execArgs[0] && typeof execArgs[0] === 'object' ? execArgs[0] : {});
+
+            if (toolName === 'update_topic') {
+              const title = toolArgs.title || '';
+              const objective = toolArgs.strategic_intent || '';
+              const summary = toolArgs.summary || '';
+              if (tracker.requireTopic && (!objective || typeof objective !== 'string' || !objective.trim())) {
+                tracker.refundTurn();
+                return {
+                  llmContent: `Topic update rejected: You must provide a granular "strategic_intent" describing your specific objective (e.g., 'Empirically reproduce test failure in parser.test.js').`,
+                  returnDisplay: `Topic update rejected: Missing granular strategic_intent.`,
+                  error: true,
+                };
+              }
+              pendingTopic = { title, objective: objective.trim(), summary: summary.trim() };
+            } else if (
+              tracker.requireTopic &&
+              !tracker.hasEstablishedTopic &&
+              !tracker.exemptTools.includes(toolName)
+            ) {
+              tracker.refundTurn();
+              return {
+                llmContent: `Tool call deferred: You must establish an objective first by calling update_topic with a "title", "summary", and a granular "strategic_intent" before executing ${toolName}.`,
+                returnDisplay: `Tool call deferred: Please call update_topic first.`,
+                error: true,
+              };
+            }
+
             if (tracker.validateIntent && !tracker.exemptTools.includes(toolName)) {
               const turnText = tracker.getTurnText ? tracker.getTurnText() : '';
               const declared = extractIntent(turnText);
@@ -419,7 +472,33 @@ export class TurnTracker {
               }
             }
             tracker.intentRetries = 0;
-            const result = await origExec.apply(this, execArgs);
+            let result;
+            let executionError = false;
+            try {
+              result = await origExec.apply(this, execArgs);
+              if (pendingTopic && !(result && typeof result === 'object' && result.error === true)) {
+                tracker.hasEstablishedTopic = true;
+                tracker.activeTopic = pendingTopic;
+              }
+            } catch (execErr) {
+              result = execErr.message;
+              executionError = true;
+              throw execErr;
+            } finally {
+              if (typeof tracker.onToolExecution === 'function') {
+                try {
+                  tracker.onToolExecution({
+                    toolName,
+                    callId,
+                    args: toolArgs,
+                    result,
+                    error: executionError || (result && typeof result === 'object' && result.error === true),
+                  });
+                } catch (e) {
+                  console.debug(`[DEBUG] onToolExecution hook failed: ${e.message}`);
+                }
+              }
+            }
             return result;
           } finally {
             tracker.onToolResult();
@@ -429,10 +508,17 @@ export class TurnTracker {
 
       if (tool && typeof tool.createInvocation === 'function' && !tool._turnAccountingWrapped) {
         const origCreate = tool.createInvocation;
-        tool.createInvocation = function (...args) {
-          const invocation = origCreate.apply(this, args);
+        tool.createInvocation = function (...createArgs) {
+          const invocation = origCreate.apply(this, createArgs);
+          const invocationCallId =
+            createArgs[1]?.callId ||
+            createArgs[1]?.id ||
+            createArgs[0]?.callId ||
+            createArgs[0]?.id ||
+            invocation?.callId ||
+            invocation?.id;
           if (invocation && typeof invocation.execute === 'function') {
-            invocation.execute = createWrappedExecute(invocation.execute);
+            invocation.execute = createWrappedExecute(invocation.execute, createArgs[0], invocation, invocationCallId);
           }
           return invocation;
         };
@@ -443,7 +529,7 @@ export class TurnTracker {
         });
       } else if (tool && typeof tool.execute === 'function' && !tool._turnAccountingWrapped) {
         const origExec = tool.execute;
-        tool.execute = createWrappedExecute(origExec);
+        tool.execute = createWrappedExecute(origExec, null, tool);
         tool._turnAccountingWrapped = true;
         this._cleanupFns.push(() => {
           tool.execute = origExec;

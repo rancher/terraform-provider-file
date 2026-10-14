@@ -17,6 +17,7 @@ boolplanmodifier
 boolvalidator
 bootstrapper
 buildrace
+CAINFO
 claudeignore
 containerize
 currentdiff
@@ -55,6 +56,7 @@ gotestsum
 gpgconf
 gpgsign
 gsub
+hclean
 hclog
 hermeticity
 hmac
@@ -128,6 +130,7 @@ terraformrc
 testacc
 testaccrelay
 testracc
+textwithbellandcontrol
 tfbackend
 tflint
 tflog
@@ -158,4 +161,3 @@ worklist
 worktree
 yamux
 yubi
-CAINFO

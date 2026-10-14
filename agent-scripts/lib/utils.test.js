@@ -4,10 +4,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import {
+  formatToolAction,
   getRepoRoot,
   normalizePlanObject,
   parseJSONFromText,
   renderBox,
+  renderToolCard,
+  renderTopicBanner,
   savePlanFromJSON,
   stripAnsi,
   validateAgentOutput,
@@ -365,6 +368,15 @@ test('renderBox and cli formatting utilities', async (t) => {
     assert.strictEqual(stripAnsi('\u001b[32m' + 'hello' + '\u001b[0m world'), 'hello world');
     assert.strictEqual(stripAnsi('plain text'), 'plain text');
     assert.strictEqual(stripAnsi(123), '123');
+    // OSC sequences and terminal control characters (F3)
+    assert.strictEqual(stripAnsi('\x1b]0;Spoofed Title\x07clean text'), 'clean text');
+    assert.strictEqual(stripAnsi('\x1b]0;Spoofed Title\x1b\\clean text'), 'clean text');
+    assert.strictEqual(stripAnsi('\x1b[2J\x1b[H\x1b[?25hclean text'), 'clean text');
+    assert.strictEqual(stripAnsi('text\x00with\x07bell\x08and\x1bcontrol'), 'textwithbellandcontrol');
+    // C1 8-bit controls and CSI/OSC sequences (U+0080-U+009F)
+    assert.strictEqual(stripAnsi('\u009b2J\u009bHclean text'), 'clean text');
+    assert.strictEqual(stripAnsi('\u009d0;Spoofed\u009cclean text'), 'clean text');
+    assert.strictEqual(stripAnsi('text\u0080with\u009fc1'), 'textwithc1');
   });
 
   await t.test('wrapLine wraps long strings while preserving indentation', () => {
@@ -436,5 +448,161 @@ test('renderBox and cli formatting utilities', async (t) => {
     assert.strictEqual(renderBox(null), '');
     assert.strictEqual(renderBox(undefined), '');
     assert.strictEqual(renderBox(123), '123');
+  });
+
+  await t.test('renderBox supports round style borders', () => {
+    const multiline = 'line A\nline B';
+    const boxed = renderBox(multiline, 40, 'round');
+    assert.ok(boxed.startsWith('╭─'));
+    assert.ok(boxed.endsWith('─╯'));
+    assert.ok(boxed.includes('│ line A'));
+    assert.ok(boxed.includes('│ line B'));
+  });
+
+  await t.test('formatToolAction formats known tools and generic fallbacks cleanly', () => {
+    assert.strictEqual(formatToolAction('run_shell_command', { command: 'git status' }), 'Shell git status');
+    assert.strictEqual(formatToolAction('read_file', { file_path: 'README.md' }), 'ReadFile README.md');
+    assert.strictEqual(formatToolAction('write_file', { file_path: 'foo.txt' }), 'WriteFile foo.txt');
+    assert.strictEqual(formatToolAction('replace', { file_path: 'bar.js' }), 'Replace bar.js');
+    assert.strictEqual(formatToolAction('grep_search', { pattern: 'test_func' }), "GrepSearch 'test_func'");
+    assert.strictEqual(formatToolAction('glob', { pattern: '*.go' }), "Glob '*.go'");
+    assert.strictEqual(formatToolAction('list_directory', { dir_path: 'src' }), 'ListDirectory src');
+    assert.strictEqual(formatToolAction('list_directory', {}), 'ListDirectory .');
+    assert.strictEqual(formatToolAction('ask_user'), 'AskUser');
+    assert.strictEqual(formatToolAction('update_topic', { title: 'New Topic' }), 'UpdateTopic New Topic');
+    assert.strictEqual(formatToolAction('custom_tool', { param: 'value' }), 'CustomTool value');
+    assert.strictEqual(formatToolAction('no_op'), 'NoOp');
+    assert.strictEqual(formatToolAction(null), 'Tool');
+  });
+
+  await t.test('renderToolCard formats rounded box with header and execution result', () => {
+    const card = renderToolCard(
+      {
+        toolName: 'run_shell_command',
+        args: { command: 'git status' },
+        status: 'success',
+        result: 'On branch main\nnothing to commit',
+      },
+      80,
+    );
+    const lines = card.split('\n');
+    assert.ok(lines[0].startsWith('╭─'));
+    assert.ok(lines[0].endsWith('─╮'));
+    assert.strictEqual(lines[0].length, 80);
+    assert.ok(lines[1].includes('✓  Shell git status'));
+    assert.strictEqual(lines[1].length, 80);
+    assert.strictEqual(lines[2], `│ ${' '.repeat(76)} │`); // separator line
+    assert.ok(lines[3].includes('On branch main'));
+    assert.ok(lines[lines.length - 1].startsWith('╰─'));
+    assert.ok(lines[lines.length - 1].endsWith('─╯'));
+    assert.strictEqual(lines[lines.length - 1].length, 80);
+  });
+
+  await t.test('renderToolCard truncates oversized results with Ctrl+O notice', () => {
+    const longOutput = Array.from({ length: 40 }, (_, i) => `log line ${i + 1}`).join('\n');
+    const card = renderToolCard(
+      {
+        toolName: 'run_shell_command',
+        args: { command: 'npm test' },
+        result: longOutput,
+      },
+      80,
+    );
+    assert.ok(card.includes('... first 20 lines hidden (Ctrl+O to show) ...'));
+    assert.ok(card.includes('log line 40'));
+    assert.ok(!card.includes('log line 1\n'));
+  });
+
+  await t.test('renderToolCard sanitizes terminal control sequences from tool output (F3)', () => {
+    const maliciousOutput = '\x1b]0;Pwned Title\x07\x1b[2J\x1b[31;1mDangerous output\x1b[0m\x08';
+    const card = renderToolCard(
+      {
+        toolName: 'run_shell_command',
+        args: { command: 'curl evil.com' },
+        result: maliciousOutput,
+      },
+      80,
+    );
+    assert.ok(!card.includes('\x1b'), 'Card must not contain raw ESC characters');
+    assert.ok(!card.includes('\x07'), 'Card must not contain BEL character');
+    assert.ok(!card.includes('\x08'), 'Card must not contain BS character');
+    assert.ok(card.includes('Dangerous output'), 'Sanitized text content must be retained');
+  });
+
+  await t.test('renderTopicBanner formats prominent rounded topic and objective banner', () => {
+    const banner = renderTopicBanner(
+      {
+        topic: 'Researching Parser',
+        objective: 'Reproduce timeout in parser test',
+        summary: 'Identified bottleneck in main loop',
+      },
+      80,
+    );
+    const lines = banner.split('\n');
+    assert.ok(lines[0].startsWith('╭─'));
+    assert.ok(lines[0].endsWith('─╮'));
+    assert.strictEqual(lines[0].length, 80);
+    assert.ok(lines.some((l) => l.includes('📂 Topic: Researching Parser')));
+    assert.ok(lines.some((l) => l.includes('🎯 Objective: Reproduce timeout in parser test')));
+    assert.ok(lines.some((l) => l.includes('📝 Summary: Identified bottleneck in main loop')));
+    assert.ok(lines[lines.length - 1].startsWith('╰─'));
+    assert.ok(lines[lines.length - 1].endsWith('─╯'));
+    assert.strictEqual(lines[lines.length - 1].length, 80);
+  });
+
+  await t.test('renderTopicBanner splits multiline fields into neatly framed lines', () => {
+    const banner = renderTopicBanner(
+      {
+        topic: 'Investigation\nPhase 2',
+        objective: 'Step 1\nStep 2',
+        summary: 'First line\nSecond line',
+      },
+      80,
+    );
+    const lines = banner.split('\n');
+    assert.ok(lines.every((l) => l.startsWith('╭─') || l.startsWith('╰─') || (l.startsWith('│ ') && l.endsWith(' │'))));
+    assert.ok(lines.some((l) => l.includes('📂 Topic: Investigation')));
+    assert.ok(lines.some((l) => l.includes('   Phase 2')));
+    assert.ok(lines.some((l) => l.includes('🎯 Objective: Step 1')));
+    assert.ok(lines.some((l) => l.includes('   Step 2')));
+  });
+
+  await t.test('renderToolCard normalizes multiline action text', () => {
+    const card = renderToolCard(
+      {
+        toolName: 'run_shell_command',
+        args: { command: 'echo "line1\nline2"' },
+      },
+      80,
+    );
+    const lines = card.split('\n');
+    assert.ok(lines.every((l) => l.startsWith('╭─') || l.startsWith('╰─') || (l.startsWith('│ ') && l.endsWith(' │'))));
+    assert.ok(lines[1].includes('Shell echo "line1 line2"'));
+  });
+
+  await t.test('renderTopicBanner normalizes bare carriage returns to prevent terminal spoofing', () => {
+    const banner = renderTopicBanner(
+      {
+        topic: 'Investigation\rSpoofed Topic',
+        objective: 'Step 1\r\nStep 2\rSpoofed Objective',
+        summary: 'Summary\rSpoofed Summary',
+      },
+      80,
+    );
+    assert.ok(!banner.includes('\r'), 'Banner must not contain any bare carriage return characters');
+    assert.ok(banner.includes('Spoofed Topic'));
+    assert.ok(banner.includes('Step 1'));
+  });
+
+  await t.test('renderToolCard truncates massive single-line results', () => {
+    const card = renderToolCard(
+      {
+        toolName: 'run_shell_command',
+        args: { command: 'cat huge.txt' },
+        result: 'x'.repeat(25000),
+      },
+      80,
+    );
+    assert.ok(card.includes('[truncated remaining 5000 characters]'));
   });
 });

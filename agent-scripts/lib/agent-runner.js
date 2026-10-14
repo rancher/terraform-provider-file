@@ -14,7 +14,7 @@ import {
   syncSessionTools,
   TurnTracker,
 } from './turn-accounting.js';
-import { getRepoRoot, renderBox } from './utils.js';
+import { getRepoRoot, renderToolCard, renderTopicBanner } from './utils.js';
 
 const MAX_SILENT_RETRY_DELAY_MS = 300000; // 5 minutes
 
@@ -503,7 +503,8 @@ export async function runAgentSession({
   ioOptions = {},
   maxTurns: inputMaxTurns,
   maxTurnsOverride,
-  validateIntent = true,
+  validateIntent = false,
+  requireTopic = !isolate,
 }) {
   await initializeAgentRunner();
 
@@ -523,6 +524,18 @@ export async function runAgentSession({
       );
     }
 
+    if (requireTopic && isolate) {
+      throw new Error(
+        'Cannot enable requireTopic when isolate is true; isolated sessions do not have access to the update_topic tool.',
+      );
+    }
+
+    if (requireTopic && blockTools.includes('update_topic')) {
+      throw new Error(
+        'Cannot block "update_topic" tool when requireTopic is enabled; topics are required for session progress and user visibility.',
+      );
+    }
+
     for (let i = 0; i < fallbackSequence.length; i++) {
       const currentModel = fallbackSequence[i];
       const maxTurns = hasTurnOverride
@@ -534,9 +547,22 @@ export async function runAgentSession({
           });
       console.log(`\n[Initializing Gemini SDK Agentic Session] (Model: ${currentModel}, Max Turns: ${maxTurns})...`);
 
+      const topicInstructions = requireTopic
+        ? `\n\n🎯 TOPIC & OBJECTIVE INSTRUCTIONS:
+- You MUST call update_topic before executing any tools (on your first tool call) with a descriptive "title", "summary", and a granular "strategic_intent" (your concrete objective).
+- Update the topic whenever you transition phases (e.g., Research -> Strategy -> Execution -> Validation) or whenever your strategic intent shifts.
+- Keep your strategic_intent granular and actionable (e.g., "Empirically reproduce failure in parser.test.js", "Refactor buffer allocation in chunk.go").
+- Do NOT output "Intent: <reason>" before each tool call.`
+        : '';
+
+      const intentInstructions = validateIntent
+        ? `\n\n⚠️ TOOL USAGE INSTRUCTIONS: Immediately before calling a tool, you MUST output a single short sentence starting with "Intent:" explaining why you are calling it.`
+        : '';
+
       const modelInstructions =
         (systemInstructions || 'You are a highly capable agentic assistant.') +
-        `\n\n⚠️ TOOL USAGE INSTRUCTIONS: Immediately before calling a tool, you MUST output a single short sentence starting with "Intent:" explaining why you are calling it.` +
+        topicInstructions +
+        intentInstructions +
         `\n\n⚠️ IMPORTANT TURN BUDGET: You are allowed a MAXIMUM of ${maxTurns} turns/iterations for this entire run. Conduct yourself efficiently, use tools in parallel, avoid unnecessary turns, and complete your task before reaching this limit.`;
 
       const noOpTool = tool(
@@ -548,7 +574,24 @@ export async function runAgentSession({
         async () => 'No operation performed.',
       );
 
-      const finalTools = isolate ? [noOpTool] : customTools;
+      const updateTopicTool = tool(
+        {
+          name: 'update_topic',
+          description:
+            'Manages your narrative flow and establishes your objective. Call this before executing tools and when transitioning phases.',
+          inputSchema: z.object({
+            strategic_intent: z.string().optional().describe('A statement of your immediate granular intent.'),
+            title: z.string().optional().describe('The title of the new topic or chapter.'),
+            summary: z.string().optional().describe('A summary of current progress and next steps.'),
+          }),
+        },
+        async ({ strategic_intent, title } = {}) => {
+          return `Topic updated to: ${title || strategic_intent || 'default'}`;
+        },
+      );
+
+      const hasTopicTool = customTools.some((t) => (t?.name || t?.definition?.name) === 'update_topic');
+      const finalTools = isolate ? [noOpTool] : !hasTopicTool ? [...customTools, updateTopicTool] : customTools;
       const controller = new globalThis.AbortController();
       let accumulatedText = '';
       let turnTracker = null;
@@ -584,6 +627,28 @@ export async function runAgentSession({
         }
 
         let currentTurnText = '';
+        const pendingToolCalls = [];
+
+        const renderToolOutput = (toolName, args, result, status = 'success') => {
+          if (toolName === 'update_topic' && status !== 'error') {
+            console.log(
+              renderTopicBanner({
+                topic: args?.title,
+                objective: args?.strategic_intent,
+                summary: args?.summary,
+              }),
+            );
+          } else {
+            console.log(
+              renderToolCard({
+                toolName,
+                args,
+                result,
+                status,
+              }),
+            );
+          }
+        };
 
         turnTracker = new TurnTracker({
           maxTurns,
@@ -591,7 +656,23 @@ export async function runAgentSession({
           session,
           logger: writeLogAsync,
           validateIntent,
+          requireTopic,
           getTurnText: () => currentTurnText,
+          onToolExecution: ({ toolName, callId, args, result, error }) => {
+            const argsStr = JSON.stringify(args || {});
+            const pending =
+              pendingToolCalls.find(
+                (p) =>
+                  !p.rendered &&
+                  ((callId && p.callId && p.callId === callId) ||
+                    (p.toolName === toolName && JSON.stringify(p.args || {}) === argsStr)),
+              ) || pendingToolCalls.find((p) => !p.rendered && p.toolName === toolName);
+
+            if (pending) {
+              pending.rendered = true;
+            }
+            renderToolOutput(toolName, args, result, error ? 'error' : 'success');
+          },
         });
 
         const runResult = await promptIdContext.run(session.id, async () => {
@@ -670,69 +751,8 @@ export async function runAgentSession({
                     turnTracker.lastDeclaredIntent = reason;
                   }
 
-                  let agentType = 'agent';
-                  if (currentModel.includes('pro')) {
-                    agentType = 'pro agent';
-                  } else if (currentModel.includes('flash')) {
-                    agentType = 'flash agent';
-                  }
-
-                  let what = '';
-                  if (toolName === 'run_shell_command' && args && args.command) {
-                    what = `'${args.command}'`;
-                  } else if (toolName === 'read_file' && args && args.file_path) {
-                    what = `${args.file_path}`;
-                  } else if ((toolName === 'replace' || toolName === 'write_file') && args) {
-                    const file = args.file_path ? `'${args.file_path}'` : '';
-                    const snippet = String(args.new_string || args.content || '')
-                      .substring(0, 30)
-                      .replace(/\n/g, ' ');
-                    if (file && snippet) {
-                      what = `${file} ('''${snippet}...''')`;
-                    } else {
-                      what = file || (snippet ? `'''${snippet}...'''` : "''");
-                    }
-                  } else if (args) {
-                    if (typeof args === 'object') {
-                      if (Object.keys(args).length === 0) {
-                        what = "'{}'";
-                      } else {
-                        what = JSON.stringify(args, null, 2);
-                      }
-                    } else {
-                      what = String(args);
-                    }
-                  }
-
-                  let logMsg = '';
-                  if (what && what.includes('\n')) {
-                    if (reason) {
-                      if (reason.includes('\n')) {
-                        logMsg = `${agentType} used ${toolName} to:\n${reason}\nwith:\n${what}`;
-                      } else {
-                        logMsg = `${agentType} used ${toolName} to ${reason} with:\n${what}`;
-                      }
-                    } else {
-                      logMsg = `${agentType} used ${toolName} with:\n${what}`;
-                    }
-                  } else {
-                    const withClause = what ? ` with ${what}` : '';
-                    if (reason) {
-                      if (reason.includes('\n')) {
-                        logMsg = `${agentType} used ${toolName}${withClause} to:\n${reason}`;
-                      } else {
-                        logMsg = `${agentType} used ${toolName}${withClause} to ${reason}`;
-                      }
-                    } else {
-                      logMsg = `${agentType} used ${toolName}${withClause}`;
-                    }
-                  }
-
-                  if (logMsg.includes('\n')) {
-                    console.log(renderBox(logMsg));
-                  } else {
-                    console.log(logMsg);
-                  }
+                  const callId = toolCall.callId || toolCall.id;
+                  pendingToolCalls.push({ callId, toolName, args, rendered: false });
                 } else if (chunk.type === 'tool_call_result') {
                   currentTurnText = '';
                   if (!turnTracker.hasSessionHooks) {
@@ -744,8 +764,32 @@ export async function runAgentSession({
                   } catch (err) {
                     console.debug(`[DEBUG] Failed to log tool call result: ${err.message}`);
                   }
+                  const resultCallId = chunk.callId || chunk.id || chunk.value?.callId || chunk.value?.id;
+                  let pendingIndex = -1;
+                  if (resultCallId) {
+                    pendingIndex = pendingToolCalls.findIndex((p) => p.callId === resultCallId);
+                  }
+                  const pending =
+                    pendingIndex !== -1 ? pendingToolCalls.splice(pendingIndex, 1)[0] : pendingToolCalls.shift();
+
+                  if (pending && !pending.rendered) {
+                    pending.rendered = true;
+                    const isError = Boolean(
+                      chunk.value && typeof chunk.value === 'object' && chunk.value.error === true,
+                    );
+                    const status = isError ? 'error' : 'success';
+                    renderToolOutput(pending.toolName, pending.args, chunk.value, status);
+                  }
                 }
               }
+
+              for (const pending of pendingToolCalls) {
+                if (!pending.rendered) {
+                  pending.rendered = true;
+                  renderToolOutput(pending.toolName, pending.args, null, 'error');
+                }
+              }
+              pendingToolCalls.length = 0;
             } catch (err) {
               if (isMaxTurnsError(err)) {
                 writeLogAsync(`[Turn Budget Reached] SDK threw max turns error during stream: ${err.message}`);
