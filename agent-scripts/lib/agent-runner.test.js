@@ -935,4 +935,153 @@ test('runAgentSession enriched tool logging', async (t) => {
       console.log = originalConsoleLog;
     }
   });
+
+  await t.test('automatically registers update_topic tool in non-isolated sessions', async () => {
+    let registeredToolNames = [];
+    const originalSession = GeminiCliAgent.prototype.session;
+
+    try {
+      GeminiCliAgent.prototype.session = function () {
+        const session = originalSession.call(this);
+        session.sendStream = async function* () {
+          yield { type: 'content', value: 'hello' };
+        };
+        const origInit = session.initialize.bind(session);
+        session.initialize = async () => {
+          if (session.config) {
+            session.config.refreshAuth = async () => {};
+          }
+          await origInit();
+          registeredToolNames = session.config?.toolRegistry?.getAllToolNames() || [];
+        };
+        return session;
+      };
+
+      await runAgentSession({
+        initialPrompt: 'Check registered tools',
+        maxTurns: 1,
+        requestedModel: 'gemini-3.1-pro-preview',
+        isolate: false,
+      });
+
+      assert.ok(
+        registeredToolNames.includes('update_topic'),
+        'update_topic tool must be registered in non-isolated sessions',
+      );
+    } finally {
+      GeminiCliAgent.prototype.session = originalSession;
+    }
+  });
+
+  await t.test('renders update_topic banner only once when onToolExecution runs', async () => {
+    const originalSession = GeminiCliAgent.prototype.session;
+    const originalConsoleLog = console.log;
+    const logs = [];
+
+    try {
+      console.log = (...args) => {
+        logs.push(args.join(' '));
+      };
+
+      GeminiCliAgent.prototype.session = function () {
+        const session = originalSession.call(this);
+        session.sendStream = async function* () {
+          yield {
+            type: 'tool_call_request',
+            value: {
+              name: 'update_topic',
+              args: { title: 'Investigation', strategic_intent: 'Find root cause' },
+            },
+          };
+          // Simulate tool execution through toolRegistry triggering onToolExecution
+          const updateTopic = session.config?.toolRegistry?.getTool('update_topic');
+          if (updateTopic) {
+            const invocation = updateTopic.createInvocation ? updateTopic.createInvocation() : updateTopic;
+            await invocation.execute({ title: 'Investigation', strategic_intent: 'Find root cause' });
+          }
+          yield { type: 'tool_call_result', value: 'Topic updated' };
+        };
+        const origInit = session.initialize.bind(session);
+        session.initialize = async () => {
+          if (session.config) {
+            session.config.refreshAuth = async () => {};
+          }
+          return origInit();
+        };
+        return session;
+      };
+
+      await runAgentSession({
+        initialPrompt: 'Run single topic banner test',
+        maxTurns: 1,
+        requestedModel: 'gemini-3.1-pro-preview',
+        isolate: false,
+      });
+
+      const banners = logs.filter((msg) => msg.includes('╭─') && msg.includes('Topic'));
+      assert.strictEqual(banners.length, 1, 'Topic banner must only be rendered once without duplicates');
+      assert.ok(banners[0].includes('📂 Topic: Investigation'));
+      assert.ok(banners[0].includes('🎯 Objective: Find root cause'));
+    } finally {
+      GeminiCliAgent.prototype.session = originalSession;
+      console.log = originalConsoleLog;
+    }
+  });
+
+  await t.test('renders error card when fallback tool_call_result contains error: true', async () => {
+    const originalSession = GeminiCliAgent.prototype.session;
+    const originalConsoleLog = console.log;
+    const logs = [];
+
+    try {
+      console.log = (...args) => {
+        logs.push(args.join(' '));
+      };
+
+      GeminiCliAgent.prototype.session = function () {
+        const session = originalSession.call(this);
+        session.sendStream = async function* () {
+          yield {
+            type: 'tool_call_request',
+            value: {
+              name: 'read_file',
+              args: { file_path: 'secret.txt' },
+            },
+          };
+          yield {
+            type: 'tool_call_result',
+            value: {
+              error: true,
+              llmContent: 'Tool call deferred: Please call update_topic first.',
+            },
+          };
+        };
+        const origInit = session.initialize.bind(session);
+        session.initialize = async () => {
+          if (session.config) {
+            session.config.refreshAuth = async () => {};
+          }
+          return origInit();
+        };
+        return session;
+      };
+
+      await runAgentSession({
+        initialPrompt: 'Run error card test',
+        maxTurns: 1,
+        requestedModel: 'gemini-3.1-pro-preview',
+        isolate: false,
+      });
+
+      const cards = logs.filter((msg) => msg.includes('╭─') && msg.includes('ReadFile'));
+      assert.strictEqual(cards.length, 1);
+      assert.ok(
+        cards[0].includes('❌  ReadFile secret.txt'),
+        'Card must show error symbol ❌ instead of success symbol ✓',
+      );
+    } finally {
+      GeminiCliAgent.prototype.session = originalSession;
+      console.log = originalConsoleLog;
+    }
+  });
 });

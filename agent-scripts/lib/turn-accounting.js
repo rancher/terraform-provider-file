@@ -325,7 +325,7 @@ export class TurnTracker {
    * @param {Object} [options.session] - The active GeminiCliAgent session
    * @param {Function} [options.logger] - Logger hook for recording state changes
    * @param {boolean} [options.validateIntent=false] - Whether to enforce intent declaration before tools
-   * @param {boolean} [options.requireTopic=false] - Whether to enforce calling update_topic with granular objective before other tools
+   * @param {boolean} [options.requireTopic=false] - Whether to enforce calling update_topic with granular objective before executing tools on tool-using turns
    * @param {Function} [options.onToolExecution=null] - Hook called upon tool completion with execution details
    * @param {string[]} [options.exemptTools=['no_op']] - Tool names exempt from intent and topic enforcement
    * @param {Function} [options.getTurnText=null] - Accessor for currently streamed turn text
@@ -410,6 +410,7 @@ export class TurnTracker {
       const createWrappedExecute = (origExec) => {
         return async function (...execArgs) {
           try {
+            let pendingTopic = null;
             if (toolName === 'update_topic') {
               const toolArgs = execArgs[0] || {};
               const title = toolArgs.title || '';
@@ -422,8 +423,7 @@ export class TurnTracker {
                   error: true,
                 };
               }
-              tracker.hasEstablishedTopic = true;
-              tracker.activeTopic = { title, objective: objective.trim(), summary: summary.trim() };
+              pendingTopic = { title, objective: objective.trim(), summary: summary.trim() };
             } else if (
               tracker.requireTopic &&
               !tracker.hasEstablishedTopic &&
@@ -458,6 +458,10 @@ export class TurnTracker {
             let executionError = false;
             try {
               result = await origExec.apply(this, execArgs);
+              if (pendingTopic && !(result && typeof result === 'object' && result.error === true)) {
+                tracker.hasEstablishedTopic = true;
+                tracker.activeTopic = pendingTopic;
+              }
             } catch (execErr) {
               result = execErr.message;
               executionError = true;

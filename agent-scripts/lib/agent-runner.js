@@ -537,7 +537,7 @@ export async function runAgentSession({
 
       const topicInstructions = requireTopic
         ? `\n\n🎯 TOPIC & OBJECTIVE INSTRUCTIONS:
-- You MUST call update_topic on your first turn with a descriptive "title", "summary", and a granular "strategic_intent" (your concrete objective).
+- You MUST call update_topic before executing any tools (on your first tool call) with a descriptive "title", "summary", and a granular "strategic_intent" (your concrete objective).
 - Update the topic whenever you transition phases (e.g., Research -> Strategy -> Execution -> Validation) or whenever your strategic intent shifts.
 - Keep your strategic_intent granular and actionable (e.g., "Empirically reproduce failure in parser.test.js", "Refactor buffer allocation in chunk.go").
 - Do NOT output "Intent: <reason>" before each tool call.`
@@ -562,7 +562,24 @@ export async function runAgentSession({
         async () => 'No operation performed.',
       );
 
-      const finalTools = isolate ? [noOpTool] : customTools;
+      const updateTopicTool = tool(
+        {
+          name: 'update_topic',
+          description:
+            'Manages your narrative flow and establishes your objective. Call this before executing tools and when transitioning phases.',
+          inputSchema: z.object({
+            strategic_intent: z.string().optional().describe('A statement of your immediate granular intent.'),
+            title: z.string().optional().describe('The title of the new topic or chapter.'),
+            summary: z.string().optional().describe('A summary of current progress and next steps.'),
+          }),
+        },
+        async ({ strategic_intent, title } = {}) => {
+          return `Topic updated to: ${title || strategic_intent || 'default'}`;
+        },
+      );
+
+      const hasTopicTool = customTools.some((t) => (t?.name || t?.definition?.name) === 'update_topic');
+      const finalTools = isolate ? [noOpTool] : !hasTopicTool ? [...customTools, updateTopicTool] : customTools;
       const controller = new globalThis.AbortController();
       let accumulatedText = '';
       let turnTracker = null;
@@ -602,7 +619,7 @@ export async function runAgentSession({
         const renderedToolCalls = new Set();
 
         const renderToolOutput = (toolName, args, result, status = 'success') => {
-          if (toolName === 'update_topic') {
+          if (toolName === 'update_topic' && status !== 'error') {
             console.log(
               renderTopicBanner({
                 topic: args?.title,
@@ -714,13 +731,6 @@ export async function runAgentSession({
                   }
 
                   pendingToolCalls.push({ toolName, args });
-                  if (toolName === 'update_topic') {
-                    const callKey = `update_topic:${JSON.stringify(args || {})}`;
-                    if (!renderedToolCalls.has(callKey)) {
-                      renderedToolCalls.add(callKey);
-                      renderToolOutput(toolName, args, null, 'success');
-                    }
-                  }
                 } else if (chunk.type === 'tool_call_result') {
                   currentTurnText = '';
                   if (!turnTracker.hasSessionHooks) {
@@ -737,7 +747,11 @@ export async function runAgentSession({
                     const callKey = `${pending.toolName}:${JSON.stringify(pending.args || {})}`;
                     if (!renderedToolCalls.has(callKey)) {
                       renderedToolCalls.add(callKey);
-                      renderToolOutput(pending.toolName, pending.args, chunk.value, 'success');
+                      const isError = Boolean(
+                        chunk.value && typeof chunk.value === 'object' && chunk.value.error === true,
+                      );
+                      const status = isError ? 'error' : 'success';
+                      renderToolOutput(pending.toolName, pending.args, chunk.value, status);
                     }
                   }
                 }
@@ -747,7 +761,7 @@ export async function runAgentSession({
                 const callKey = `${pending.toolName}:${JSON.stringify(pending.args || {})}`;
                 if (!renderedToolCalls.has(callKey)) {
                   renderedToolCalls.add(callKey);
-                  renderToolOutput(pending.toolName, pending.args, null, 'success');
+                  renderToolOutput(pending.toolName, pending.args, null, 'error');
                 }
               }
               pendingToolCalls.length = 0;

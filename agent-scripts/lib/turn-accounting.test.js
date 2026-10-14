@@ -925,3 +925,65 @@ test('TurnTracker requireTopic defers tools until update_topic is called with gr
 
   tracker.dispose();
 });
+
+test('TurnTracker does not mark topic as established if update_topic execution fails', async () => {
+  let readFileExecuted = false;
+
+  const mockReadFile = {
+    name: 'read_file',
+    createInvocation: () => ({
+      execute: async () => {
+        readFileExecuted = true;
+        return 'file content';
+      },
+    }),
+  };
+
+  const mockFailingUpdateTopic = {
+    name: 'update_topic',
+    createInvocation: () => ({
+      execute: async () => {
+        throw new Error('API failure during topic update');
+      },
+    }),
+  };
+
+  const fakeRegistry = {
+    tools: { read_file: mockReadFile, update_topic: mockFailingUpdateTopic },
+    getAllToolNames() {
+      return Object.keys(this.tools);
+    },
+    getTool(name) {
+      return this.tools[name];
+    },
+  };
+
+  const tracker = new TurnTracker({
+    maxTurns: 5,
+    controller: new globalThis.AbortController(),
+    session: { config: { toolRegistry: fakeRegistry } },
+    requireTopic: true,
+  });
+
+  // Calling update_topic which throws execution error
+  await assert.rejects(async () => {
+    await fakeRegistry.getTool('update_topic').createInvocation().execute({
+      title: 'Failing phase',
+      strategic_intent: 'Intent here',
+    });
+  }, /API failure during topic update/);
+
+  assert.strictEqual(
+    tracker.hasEstablishedTopic,
+    false,
+    'hasEstablishedTopic must remain false after failed execution',
+  );
+
+  // Attempting read_file must still be deferred
+  tracker.onToolCall('read_file');
+  const deferredRes = await fakeRegistry.getTool('read_file').createInvocation().execute({ file_path: 'foo.txt' });
+  assert.strictEqual(deferredRes.error, true);
+  assert.strictEqual(readFileExecuted, false);
+
+  tracker.dispose();
+});
