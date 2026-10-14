@@ -579,7 +579,7 @@ Please re-format the original data to strictly fit the required schema without l
 }
 
 /**
- * Strips ANSI escape sequences, OSC sequences, and unsafe terminal control characters.
+ * Strips ANSI escape sequences, OSC sequences, and unsafe terminal control characters (including C0 and C1 controls).
  * @param {string} str
  * @returns {string}
  */
@@ -589,11 +589,15 @@ export function stripAnsi(str) {
   }
   const esc = String.fromCharCode(27);
   const bell = String.fromCharCode(7);
-  const oscPattern = new RegExp(`${esc}\\][^${bell}${esc}]*(?:${bell}|${esc}\\\\)`, 'g');
-  const csiPattern = new RegExp(`${esc}\\[[0-?]*[ -/]*[@-~]`, 'g');
+  const c1Csi = String.fromCharCode(0x9b);
+  const c1Osc = String.fromCharCode(0x9d);
+  const c1St = String.fromCharCode(0x9c);
+
+  const oscPattern = new RegExp(`(?:${esc}\\]|${c1Osc})[^${bell}${esc}${c1St}]*(?:${bell}|${esc}\\\\|${c1St})`, 'g');
+  const csiPattern = new RegExp(`(?:${esc}\\[|${c1Csi})[0-?]*[ -/]*[@-~]`, 'g');
   const esc2Pattern = new RegExp(`${esc}[@-Z\\\\-_]`, 'g');
   const ctrlPattern = new RegExp(
-    `[${String.fromCharCode(0)}-${String.fromCharCode(8)}${String.fromCharCode(11)}${String.fromCharCode(12)}${String.fromCharCode(14)}-${String.fromCharCode(31)}${String.fromCharCode(127)}]`,
+    `[${String.fromCharCode(0)}-${String.fromCharCode(8)}${String.fromCharCode(11)}${String.fromCharCode(12)}${String.fromCharCode(14)}-${String.fromCharCode(31)}${String.fromCharCode(127)}-${String.fromCharCode(159)}]`,
     'g',
   );
 
@@ -777,8 +781,8 @@ export function renderToolCard(
     info: 'ℹ  ',
   };
   const icon = icons[status] || icons.success;
-  const actionText = stripAnsi(formatToolAction(toolName, args));
-  const prefix = agentType ? `[${stripAnsi(agentType)}] ` : '';
+  const actionText = stripAnsi(formatToolAction(toolName, args)).replace(/[\r\n]+/g, ' ');
+  const prefix = agentType ? `[${stripAnsi(agentType).replace(/[\r\n]+/g, ' ')}] ` : '';
   const header = `${icon}${prefix}${actionText}`;
 
   const lines = [];
@@ -858,13 +862,40 @@ export function renderTopicBanner({ topic, objective, summary } = {}, columns = 
   const cleanSummary = typeof summary === 'string' ? stripAnsi(summary).trim() : '';
 
   if (cleanTopic) {
-    rawLines.push(`📂 Topic: ${cleanTopic}`);
+    const topicLines = cleanTopic
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (topicLines.length > 0) {
+      rawLines.push(`📂 Topic: ${topicLines[0]}`);
+      for (let i = 1; i < topicLines.length; i++) {
+        rawLines.push(`   ${topicLines[i]}`);
+      }
+    }
   }
   if (cleanObjective) {
-    rawLines.push(`🎯 Objective: ${cleanObjective}`);
+    const objLines = cleanObjective
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (objLines.length > 0) {
+      rawLines.push(`🎯 Objective: ${objLines[0]}`);
+      for (let i = 1; i < objLines.length; i++) {
+        rawLines.push(`   ${objLines[i]}`);
+      }
+    }
   }
   if (cleanSummary) {
-    rawLines.push(`📝 Summary: ${cleanSummary}`);
+    const sumLines = cleanSummary
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (sumLines.length > 0) {
+      rawLines.push(`📝 Summary: ${sumLines[0]}`);
+      for (let i = 1; i < sumLines.length; i++) {
+        rawLines.push(`   ${sumLines[i]}`);
+      }
+    }
   }
 
   if (rawLines.length === 0) {

@@ -373,6 +373,10 @@ test('renderBox and cli formatting utilities', async (t) => {
     assert.strictEqual(stripAnsi('\x1b]0;Spoofed Title\x1b\\clean text'), 'clean text');
     assert.strictEqual(stripAnsi('\x1b[2J\x1b[H\x1b[?25hclean text'), 'clean text');
     assert.strictEqual(stripAnsi('text\x00with\x07bell\x08and\x1bcontrol'), 'textwithbellandcontrol');
+    // C1 8-bit controls and CSI/OSC sequences (U+0080-U+009F)
+    assert.strictEqual(stripAnsi('\u009b2J\u009bHclean text'), 'clean text');
+    assert.strictEqual(stripAnsi('\u009d0;Spoofed\u009cclean text'), 'clean text');
+    assert.strictEqual(stripAnsi('text\u0080with\u009fc1'), 'textwithc1');
   });
 
   await t.test('wrapLine wraps long strings while preserving indentation', () => {
@@ -544,5 +548,35 @@ test('renderBox and cli formatting utilities', async (t) => {
     assert.ok(lines[lines.length - 1].startsWith('╰─'));
     assert.ok(lines[lines.length - 1].endsWith('─╯'));
     assert.strictEqual(lines[lines.length - 1].length, 80);
+  });
+
+  await t.test('renderTopicBanner splits multiline fields into neatly framed lines', () => {
+    const banner = renderTopicBanner(
+      {
+        topic: 'Investigation\nPhase 2',
+        objective: 'Step 1\nStep 2',
+        summary: 'First line\nSecond line',
+      },
+      80,
+    );
+    const lines = banner.split('\n');
+    assert.ok(lines.every((l) => l.startsWith('╭─') || l.startsWith('╰─') || (l.startsWith('│ ') && l.endsWith(' │'))));
+    assert.ok(lines.some((l) => l.includes('📂 Topic: Investigation')));
+    assert.ok(lines.some((l) => l.includes('   Phase 2')));
+    assert.ok(lines.some((l) => l.includes('🎯 Objective: Step 1')));
+    assert.ok(lines.some((l) => l.includes('   Step 2')));
+  });
+
+  await t.test('renderToolCard normalizes multiline action text', () => {
+    const card = renderToolCard(
+      {
+        toolName: 'run_shell_command',
+        args: { command: 'echo "line1\nline2"' },
+      },
+      80,
+    );
+    const lines = card.split('\n');
+    assert.ok(lines.every((l) => l.startsWith('╭─') || l.startsWith('╰─') || (l.startsWith('│ ') && l.endsWith(' │'))));
+    assert.ok(lines[1].includes('Shell echo "line1 line2"'));
   });
 });
