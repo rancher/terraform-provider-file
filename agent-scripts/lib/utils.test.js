@@ -579,4 +579,30 @@ test('renderBox and cli formatting utilities', async (t) => {
     assert.ok(lines.every((l) => l.startsWith('╭─') || l.startsWith('╰─') || (l.startsWith('│ ') && l.endsWith(' │'))));
     assert.ok(lines[1].includes('Shell echo "line1 line2"'));
   });
+
+  await t.test('renderTopicBanner normalizes bare carriage returns to prevent terminal spoofing', () => {
+    const banner = renderTopicBanner(
+      {
+        topic: 'Investigation\rSpoofed Topic',
+        objective: 'Step 1\r\nStep 2\rSpoofed Objective',
+        summary: 'Summary\rSpoofed Summary',
+      },
+      80,
+    );
+    assert.ok(!banner.includes('\r'), 'Banner must not contain any bare carriage return characters');
+    assert.ok(banner.includes('Spoofed Topic'));
+    assert.ok(banner.includes('Step 1'));
+  });
+
+  await t.test('renderToolCard truncates massive single-line results', () => {
+    const card = renderToolCard(
+      {
+        toolName: 'run_shell_command',
+        args: { command: 'cat huge.txt' },
+        result: 'x'.repeat(25000),
+      },
+      80,
+    );
+    assert.ok(card.includes('[truncated remaining 5000 characters]'));
+  });
 });

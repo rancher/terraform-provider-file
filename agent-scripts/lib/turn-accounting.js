@@ -417,6 +417,7 @@ export class TurnTracker {
               const objective = toolArgs.strategic_intent || '';
               const summary = toolArgs.summary || '';
               if (tracker.requireTopic && (!objective || typeof objective !== 'string' || !objective.trim())) {
+                tracker.refundTurn();
                 return {
                   llmContent: `Topic update rejected: You must provide a granular "strategic_intent" describing your specific objective (e.g., 'Empirically reproduce test failure in parser.test.js').`,
                   returnDisplay: `Topic update rejected: Missing granular strategic_intent.`,

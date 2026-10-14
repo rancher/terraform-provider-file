@@ -809,7 +809,13 @@ export function renderToolCard(
     }
   }
 
-  const trimmedResult = stripAnsi(formattedResult).replace(/\r/g, '').trim();
+  const MAX_RESULT_CHARS = 20000;
+  let safeResult = formattedResult;
+  if (typeof formattedResult === 'string' && formattedResult.length > MAX_RESULT_CHARS) {
+    safeResult = `${formattedResult.slice(0, MAX_RESULT_CHARS)}\n... [truncated remaining ${formattedResult.length - MAX_RESULT_CHARS} characters] ...`;
+  }
+
+  const trimmedResult = stripAnsi(safeResult).replace(/\r\n/g, '\n').replace(/\r/g, '').trim();
   if (trimmedResult.length > 0) {
     lines.push(''); // Empty separator line matching Gemini CLI format
     const rawResultLines = trimmedResult.split('\n');
@@ -857,9 +863,12 @@ export function renderTopicBanner({ topic, objective, summary } = {}, columns = 
   const innerWidth = boxWidth - 4;
 
   const rawLines = [];
-  const cleanTopic = typeof topic === 'string' ? stripAnsi(topic).trim() : '';
-  const cleanObjective = typeof objective === 'string' ? stripAnsi(objective).trim() : '';
-  const cleanSummary = typeof summary === 'string' ? stripAnsi(summary).trim() : '';
+  const normalizeText = (text) =>
+    typeof text === 'string' ? stripAnsi(text).replace(/\r\n/g, '\n').replace(/\r/g, '').trim() : '';
+
+  const cleanTopic = normalizeText(topic);
+  const cleanObjective = normalizeText(objective);
+  const cleanSummary = normalizeText(summary);
 
   if (cleanTopic) {
     const topicLines = cleanTopic

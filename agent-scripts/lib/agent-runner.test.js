@@ -1084,4 +1084,16 @@ test('runAgentSession enriched tool logging', async (t) => {
       console.log = originalConsoleLog;
     }
   });
+
+  await t.test('throws explicit error when update_topic is blocked while requireTopic is enabled', async () => {
+    await assert.rejects(async () => {
+      await runAgentSession({
+        initialPrompt: 'Run blocked update_topic session',
+        maxTurns: 1,
+        requestedModel: 'gemini-3.1-pro-preview',
+        isolate: false,
+        blockTools: ['update_topic'],
+      });
+    }, /Cannot block "update_topic" tool when requireTopic is enabled/);
+  });
 });

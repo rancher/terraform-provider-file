@@ -524,6 +524,12 @@ export async function runAgentSession({
       );
     }
 
+    if (requireTopic && blockTools.includes('update_topic')) {
+      throw new Error(
+        'Cannot block "update_topic" tool when requireTopic is enabled; topics are required for session progress and user visibility.',
+      );
+    }
+
     for (let i = 0; i < fallbackSequence.length; i++) {
       const currentModel = fallbackSequence[i];
       const maxTurns = hasTurnOverride

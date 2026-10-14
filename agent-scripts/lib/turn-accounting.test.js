@@ -897,10 +897,13 @@ test('TurnTracker requireTopic defers tools until update_topic is called with gr
   assert.strictEqual(tracker.count, 0, 'Turn must be refunded on deferral');
 
   // Attempting update_topic with empty objective must be rejected
+  tracker.onToolCall('update_topic');
+  assert.strictEqual(tracker.count, 1);
   const emptyTopicRes = await fakeRegistry.getTool('update_topic').createInvocation().execute({ title: 'Phase 1' });
   assert.strictEqual(emptyTopicRes.error, true);
   assert.match(emptyTopicRes.llmContent, /Topic update rejected: You must provide a granular "strategic_intent"/);
   assert.strictEqual(tracker.hasEstablishedTopic, false);
+  assert.strictEqual(tracker.count, 0, 'Turn must be refunded on rejected update_topic');
 
   // Calling update_topic with valid strategic_intent succeeds
   const validTopicRes = await fakeRegistry.getTool('update_topic').createInvocation().execute({
