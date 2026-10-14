@@ -368,6 +368,11 @@ test('renderBox and cli formatting utilities', async (t) => {
     assert.strictEqual(stripAnsi('\u001b[32m' + 'hello' + '\u001b[0m world'), 'hello world');
     assert.strictEqual(stripAnsi('plain text'), 'plain text');
     assert.strictEqual(stripAnsi(123), '123');
+    // OSC sequences and terminal control characters (F3)
+    assert.strictEqual(stripAnsi('\x1b]0;Spoofed Title\x07clean text'), 'clean text');
+    assert.strictEqual(stripAnsi('\x1b]0;Spoofed Title\x1b\\clean text'), 'clean text');
+    assert.strictEqual(stripAnsi('\x1b[2J\x1b[H\x1b[?25hclean text'), 'clean text');
+    assert.strictEqual(stripAnsi('text\x00with\x07bell\x08and\x1bcontrol'), 'textwithbellandcontrol');
   });
 
   await t.test('wrapLine wraps long strings while preserving indentation', () => {
@@ -502,6 +507,22 @@ test('renderBox and cli formatting utilities', async (t) => {
     assert.ok(card.includes('... first 20 lines hidden (Ctrl+O to show) ...'));
     assert.ok(card.includes('log line 40'));
     assert.ok(!card.includes('log line 1\n'));
+  });
+
+  await t.test('renderToolCard sanitizes terminal control sequences from tool output (F3)', () => {
+    const maliciousOutput = '\x1b]0;Pwned Title\x07\x1b[2J\x1b[31;1mDangerous output\x1b[0m\x08';
+    const card = renderToolCard(
+      {
+        toolName: 'run_shell_command',
+        args: { command: 'curl evil.com' },
+        result: maliciousOutput,
+      },
+      80,
+    );
+    assert.ok(!card.includes('\x1b'), 'Card must not contain raw ESC characters');
+    assert.ok(!card.includes('\x07'), 'Card must not contain BEL character');
+    assert.ok(!card.includes('\x08'), 'Card must not contain BS character');
+    assert.ok(card.includes('Dangerous output'), 'Sanitized text content must be retained');
   });
 
   await t.test('renderTopicBanner formats prominent rounded topic and objective banner', () => {

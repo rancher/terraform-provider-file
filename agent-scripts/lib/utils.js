@@ -579,13 +579,25 @@ Please re-format the original data to strictly fit the required schema without l
 }
 
 /**
- * Strips ANSI color/style escape codes from a string.
+ * Strips ANSI escape sequences, OSC sequences, and unsafe terminal control characters.
  * @param {string} str
  * @returns {string}
  */
 export function stripAnsi(str) {
-  const ansiPattern = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
-  return typeof str === 'string' ? str.replace(ansiPattern, '') : String(str);
+  if (typeof str !== 'string') {
+    return String(str ?? '');
+  }
+  const esc = String.fromCharCode(27);
+  const bell = String.fromCharCode(7);
+  const oscPattern = new RegExp(`${esc}\\][^${bell}${esc}]*(?:${bell}|${esc}\\\\)`, 'g');
+  const csiPattern = new RegExp(`${esc}\\[[0-?]*[ -/]*[@-~]`, 'g');
+  const esc2Pattern = new RegExp(`${esc}[@-Z\\\\-_]`, 'g');
+  const ctrlPattern = new RegExp(
+    `[${String.fromCharCode(0)}-${String.fromCharCode(8)}${String.fromCharCode(11)}${String.fromCharCode(12)}${String.fromCharCode(14)}-${String.fromCharCode(31)}${String.fromCharCode(127)}]`,
+    'g',
+  );
+
+  return str.replace(oscPattern, '').replace(csiPattern, '').replace(esc2Pattern, '').replace(ctrlPattern, '');
 }
 
 /**
@@ -765,8 +777,8 @@ export function renderToolCard(
     info: 'ℹ  ',
   };
   const icon = icons[status] || icons.success;
-  const actionText = formatToolAction(toolName, args);
-  const prefix = agentType ? `[${agentType}] ` : '';
+  const actionText = stripAnsi(formatToolAction(toolName, args));
+  const prefix = agentType ? `[${stripAnsi(agentType)}] ` : '';
   const header = `${icon}${prefix}${actionText}`;
 
   const lines = [];
@@ -793,7 +805,7 @@ export function renderToolCard(
     }
   }
 
-  const trimmedResult = formattedResult.replace(/\r/g, '').trim();
+  const trimmedResult = stripAnsi(formattedResult).replace(/\r/g, '').trim();
   if (trimmedResult.length > 0) {
     lines.push(''); // Empty separator line matching Gemini CLI format
     const rawResultLines = trimmedResult.split('\n');
@@ -841,9 +853,9 @@ export function renderTopicBanner({ topic, objective, summary } = {}, columns = 
   const innerWidth = boxWidth - 4;
 
   const rawLines = [];
-  const cleanTopic = typeof topic === 'string' ? topic.trim() : '';
-  const cleanObjective = typeof objective === 'string' ? objective.trim() : '';
-  const cleanSummary = typeof summary === 'string' ? summary.trim() : '';
+  const cleanTopic = typeof topic === 'string' ? stripAnsi(topic).trim() : '';
+  const cleanObjective = typeof objective === 'string' ? stripAnsi(objective).trim() : '';
+  const cleanSummary = typeof summary === 'string' ? stripAnsi(summary).trim() : '';
 
   if (cleanTopic) {
     rawLines.push(`📂 Topic: ${cleanTopic}`);
