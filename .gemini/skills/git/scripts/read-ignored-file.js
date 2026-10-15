@@ -1,0 +1,106 @@
+#!/usr/bin/env node
+import { execFile } from 'node:child_process';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { promisify } from 'node:util';
+import { simpleGit } from 'simple-git';
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * Checks if a given path is excluded by .aiexclude policy.
+ * @param {string} fullPath - Full absolute path to file
+ * @param {string} repoRoot - Root of git repository
+ * @returns {Promise<boolean>} True if blocked by .aiexclude
+ */
+export async function isExcludedByAIExclude(fullPath, repoRoot) {
+  const aiexcludePath = path.join(repoRoot, '.aiexclude');
+  try {
+    await fs.access(aiexcludePath);
+  } catch {
+    return false; // .aiexclude file does not exist
+  }
+
+  const relPath = path.relative(repoRoot, fullPath);
+  try {
+    const { stdout } = await execFileAsync('git', [
+      '-C',
+      repoRoot,
+      'ls-files',
+      '-o',
+      '-c',
+      '-i',
+      '--exclude-from=.aiexclude',
+      relPath,
+    ]);
+    const lines = stdout
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
+    return lines.includes(relPath);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Reads a file that may be ignored by .gitignore, enforcing .aiexclude rules.
+ * @param {object} params
+ * @param {string} params.targetPath
+ * @param {number} [params.startLine]
+ * @param {number} [params.endLine]
+ * @param {string} [params.repoRoot]
+ * @returns {Promise<string>} Content of requested file or line range
+ */
+export async function readIgnoredFile({ targetPath, startLine, endLine, repoRoot }) {
+  const root = repoRoot || (await simpleGit().revparse(['--show-toplevel'])).trim();
+  const fullPath = path.isAbsolute(targetPath) ? targetPath : path.resolve(root, targetPath);
+
+  try {
+    await fs.access(fullPath);
+  } catch {
+    throw new Error(`File '${targetPath}' not found.`);
+  }
+
+  const isBlocked = await isExcludedByAIExclude(fullPath, root);
+  if (isBlocked) {
+    throw new Error(`Access to '${targetPath}' is blocked by .aiexclude policy.`);
+  }
+
+  const rawContent = await fs.readFile(fullPath, 'utf8');
+  if (!startLine && !endLine) {
+    return rawContent;
+  }
+
+  const lines = rawContent.split('\n');
+  const start = startLine ? Math.max(1, startLine) : 1;
+  const end = endLine ? Math.min(lines.length, endLine) : lines.length;
+
+  return lines.slice(start - 1, end).join('\n');
+}
+
+async function main() {
+  const targetPath = process.argv[2];
+  const startArg = process.argv[3];
+  const endArg = process.argv[4];
+
+  if (!targetPath) {
+    console.error('Usage: read-ignored-file.js <file_path> [start_line] [end_line]');
+    process.exit(1);
+  }
+
+  const startLine = startArg ? parseInt(startArg, 10) : undefined;
+  const endLine = endArg ? parseInt(endArg, 10) : undefined;
+
+  try {
+    const content = await readIgnoredFile({ targetPath, startLine, endLine });
+    process.stdout.write(content.endsWith('\n') ? content : content + '\n');
+  } catch (err) {
+    console.error(`❌ Error: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/^.*\//, ''))) {
+  main();
+}

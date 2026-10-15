@@ -161,3 +161,6 @@ worklist
 worktree
 yamux
 yubi
+textwithc
+textwithbellandcontrol
+textwithc1

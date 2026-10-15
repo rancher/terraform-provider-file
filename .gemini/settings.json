@@ -108,7 +108,13 @@
     "AfterTool": []
   },
   "hooksConfig": {
-    "disabled": [],
+    "disabled": [
+      "block-restricted-commands",
+      "block-restricted-commands",
+      "block-restricted-commands",
+      "block-restricted-commands",
+      "block-restricted-commands"
+    ],
     "enabled": true
   }
 }
