@@ -7,70 +7,81 @@ description: Manage, review, and address GitHub pull request comments and metada
 
 ## Overview
 
-The `github-pr` skill enables seamless local management of GitHub pull requests and review comment threads. It leverages the local `gh` CLI credentials to view, update, respond to, and resolve comments directly from the command line.
+The `github-pr` skill enables seamless local management of GitHub pull requests and review comment threads. It uses pure JavaScript and the Octokit SDK with automatic credential fallback (`GITHUB_TOKEN` -> default `gh` auth) to view, update, respond to, and resolve comments directly from the command line.
 
 ## Core Tasks
 
 ### 1. View and Find a PR
 
-To view the pull request for the current branch, run:
+To view the pull request for the current branch:
 
 ```bash
-./scripts/find_pr.sh
+node ./scripts/find_pr.js
 ```
 
-To view a specific PR (e.g. PR #123), run:
+To view a specific PR (e.g. PR #123) or branch:
 
 ```bash
-./scripts/find_pr.sh 123
+node ./scripts/find_pr.js 123
 ```
 
 ### 2. Read Comments and Review Threads
 
-To read conversation comments and inline code review comment threads (which will also output thread IDs required for resolving), run:
+To read conversation comments and inline code review comment threads (which will also output thread IDs required for resolving):
 
 ```bash
-./scripts/read_comments.sh
+node ./scripts/read_comments.js
 ```
 
 To read comments for a specific PR, pass the PR number:
 
 ```bash
-./scripts/read_comments.sh 123
+node ./scripts/read_comments.js 123
 ```
 
-### 3. Respond to Comments
+### 3. Respond to Comments and Reply to Reviews
 
-You can respond to either a top-level general conversation comment or a specific inline code review comment.
+- **Reply directly to a code review comment or thread**:
+  To post a threaded reply directly to an inline review comment using its comment ID or GraphQL Thread ID (`PRRT_...`, from `read_comments.js`):
 
-- **Add general comment**:
   ```bash
-  ./scripts/respond_comment.sh [pr_number_or_current] general "Your comment text"
+  node ./scripts/reply-comment.js <comment_id_or_thread_id> "Your reply text"
   ```
-- **Reply to an inline review thread**:
-  Retrieve the numeric comment ID (found via `read_comments.sh`) and run:
+
+  You can also explicitly pass the PR number if needed:
+
   ```bash
-  ./scripts/respond_comment.sh [pr_number_or_current] <comment_id> "Your reply text"
+  node ./scripts/reply-comment.js <comment_id_or_thread_id> "Your reply text" [pr_number]
   ```
+
+- **Add general PR comment or reply via respond_comment**:
+  - Add general conversation comment:
+    ```bash
+    node ./scripts/respond_comment.js [pr_number_or_current] general "Your comment text"
+    ```
+  - Reply to comment or thread:
+    ```bash
+    node ./scripts/respond_comment.js [pr_number_or_current] <comment_id_or_thread_id> "Your reply text"
+    ```
 
 ### 4. Resolve Review Threads
 
-To resolve an inline review thread on GitHub, retrieve the alphanumeric GraphQL Thread ID (starts with `PRRT_`, found via `read_comments.sh`) and run:
+To resolve an inline review thread on GitHub, use either the alphanumeric GraphQL Thread ID (starts with `PRRT_`, found via `read_comments.js`) or any numeric review comment ID within that thread:
 
 ```bash
-./scripts/resolve_comment.sh <thread_id>
+node ./scripts/resolve_comment.js <thread_id_or_comment_id> [pr_number]
 ```
 
 ### 5. Update PR Title and Description
 
-To edit the title and/or description of a pull request, run:
+To edit the title and/or description of a pull request:
 
 ```bash
-./scripts/update_pr.sh [pr_number_or_current] "New Title" "New Description Body"
+node ./scripts/update_pr.js [pr_number_or_current] "New Title" "New Description Body"
 ```
 
 If you only want to update one of them, pass an empty string for the other:
 
 ```bash
-./scripts/update_pr.sh current "" "Only updating the body"
+node ./scripts/update_pr.js current "" "Only updating the body"
 ```

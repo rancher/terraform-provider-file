@@ -97,6 +97,7 @@ popd
 providerserver
 PRRT
 pushd
+quotepath
 rancherlabs
 rancherremote
 recompiles
@@ -161,3 +162,6 @@ worklist
 worktree
 yamux
 yubi
+textwithc
+textwithbellandcontrol
+textwithc1

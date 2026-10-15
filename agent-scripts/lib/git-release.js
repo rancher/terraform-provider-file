@@ -1,4 +1,5 @@
 import { exec, execFile } from 'node:child_process';
+import path from 'node:path';
 import { promisify } from 'node:util';
 import { validateCommitTitle } from '../../.github/workflows/scripts/validate-commit-message.js';
 
@@ -53,7 +54,8 @@ export async function stageAndCommit(commitMessage) {
   }
 
   // Get explicitly modified and untracked files
-  const { stdout: pathsOutput } = await execAsync('.gemini/skills/git-readonly/scripts/get_modified_paths.sh');
+  const scriptPath = path.join(process.cwd(), '.gemini/skills/git/scripts/get_modified_paths.js');
+  const { stdout: pathsOutput } = await execAsync(`node "${scriptPath}"`);
   const modifiedPaths = pathsOutput
     .split('\n')
     .map((p) => p.trim())

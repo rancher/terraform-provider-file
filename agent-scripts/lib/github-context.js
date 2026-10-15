@@ -10,9 +10,9 @@ const execAsync = promisify(exec);
  * @returns {Promise<string>} The formatted PR comments
  */
 export async function getPRComments(prTarget = 'current') {
-  const scriptPath = path.join(process.cwd(), '.gemini/skills/github-pr/scripts/read_comments.sh');
+  const scriptPath = path.join(process.cwd(), '.gemini/skills/github-pr/scripts/read_comments.js');
   try {
-    const { stdout } = await execAsync(`bash "${scriptPath}" "${prTarget}"`, {
+    const { stdout } = await execAsync(`node "${scriptPath}" "${prTarget}"`, {
       maxBuffer: 10 * 1024 * 1024,
       timeout: 60000,
     });

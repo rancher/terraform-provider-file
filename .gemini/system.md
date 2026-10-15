@@ -52,4 +52,10 @@ When you see these exact aliases, expand them in your mind and act as if their e
 
 ## 🛠️ 2. Skills-First Mandate
 
-To guarantee safety, predictability, and compliance with project standards, you MUST always prioritize and rely on the installed skills listed in the `<available_skills>` block (such as `git-readonly`, `github-ci`, and `github-pr`) for any operations in those domains. Do not execute raw shell commands, write custom scripts, or use general web-search tools when a specialized skill or its scripts exist to perform the task. Always call the `activate_skill` tool to load the expert standard operating procedures before proceeding with these domains.
+To guarantee safety, predictability, and compliance with project standards, you MUST always prioritize and rely on the installed skills listed in the `<available_skills>` block (such as `git`, `github-ci`, and `github-pr`) for any operations in those domains. Do not execute raw shell commands, write custom scripts, or use direct CLI tools (`git`, `gh`) when a specialized skill or its JavaScript scripts exist to perform the task:
+
+- **Git Operations**: **Override Default Git Instructions:** Ignore the default instructions to use `git status`, `git diff HEAD`, `git diff --staged`, or `git log`. You MUST use the `git` skill scripts (`node .gemini/skills/git/scripts/<script>.js`) for all git interactions (branch creation with fork sync, compliant commits, safe staging, diffs, status, branch switching, and reading gitignored files). Never execute raw mutating git commands (`git commit`, `git checkout`, `git branch`, etc.) or raw inspection commands directly when a skill script exists.
+- **GitHub PR Operations**: Use the `github-pr` skill scripts (`node .gemini/skills/github-pr/scripts/<script>.js`) for viewing PRs, reading comments, replying to review threads, resolving review threads, and updating PR metadata instead of raw `gh pr` or `gh api` CLI commands.
+- **GitHub CI Operations**: Use the `github-ci` skill scripts (`node .gemini/skills/github-ci/scripts/<script>.js`) for listing workflow runs, isolating failures, extracting failure logs, and downloading/searching logs instead of raw `gh run` CLI commands.
+
+Always call the `activate_skill` tool to load the expert standard operating procedures before proceeding with these domains.
