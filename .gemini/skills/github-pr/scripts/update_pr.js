@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { getCurrentPRNumber, getOctokit, getRepoDetails } from './auth.js';
+import { getOctokit, getRepoDetails } from './auth.js';
+import { findPR } from './find_pr.js';
 
 /**
  * Updates a pull request's title and/or body.
@@ -37,31 +38,66 @@ export async function updatePR({ octokit, owner, repo, prNumber, title, body }) 
   return data;
 }
 
+/**
+ * Parses command-line arguments for update_pr.js flexibly.
+ * Supports:
+ * - [pr_target, title, body]
+ * - [pr_target, title]
+ * - [title, body]
+ * - [title]
+ * @param {Array<string>} args
+ * @returns {{prTarget?: string, title?: string, body?: string}}
+ */
+export function parseUpdateArgs(args) {
+  if (!args || args.length === 0) {
+    return {};
+  }
+
+  const isNum = (v) => /^#?\d+$/.test(String(v || '').trim());
+
+  if (args.length === 1) {
+    return { prTarget: 'current', title: args[0], body: undefined };
+  }
+
+  if (args.length === 2) {
+    if (args[0] === 'current' || isNum(args[0])) {
+      return { prTarget: args[0], title: args[1], body: undefined };
+    }
+    return { prTarget: 'current', title: args[0], body: args[1] };
+  }
+
+  return {
+    prTarget: args[0],
+    title: args[1],
+    body: args.slice(2).join(' '),
+  };
+}
+
 async function main() {
   const args = process.argv.slice(2);
-  if (args.length < 2) {
-    console.error('Usage: update_pr.js [pr_number_or_current] <title_or_empty> <body_or_empty>');
-    process.exit(1);
-  }
+  const { prTarget, title, body } = parseUpdateArgs(args);
 
-  let prTarget = args[0];
-  let title = args[1];
-  let body = args[2] || '';
-
-  let prNumber = null;
-  if (!prTarget || prTarget === 'current') {
-    prNumber = await getCurrentPRNumber();
-  } else if (!isNaN(parseInt(prTarget, 10))) {
-    prNumber = parseInt(prTarget, 10);
-  }
-
-  if (!prNumber) {
-    console.error('❌ Error: Could not determine target PR number.');
+  if (title === undefined && body === undefined) {
+    console.error('Usage: update_pr.js [pr_number_or_current] <title_or_empty> [body_or_empty]');
     process.exit(1);
   }
 
   const { owner, repo } = await getRepoDetails();
   const octokit = await getOctokit();
+
+  let prNumber;
+  try {
+    const pr = await findPR({
+      octokit,
+      owner,
+      repo,
+      target: prTarget === 'current' ? undefined : prTarget,
+    });
+    prNumber = pr.number;
+  } catch (err) {
+    console.error(`❌ Error: ${err.message}`);
+    process.exit(1);
+  }
 
   try {
     const updated = await updatePR({

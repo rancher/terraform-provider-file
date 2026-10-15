@@ -23,16 +23,20 @@ The `git` skill provides a safe, curated, and standardized set of Git utilities 
   ```bash
   node ./scripts/get_modified_paths.js
   ```
+- **Inspect Staged Files in Index**: Inspect what files are currently staged, their stage slot (0 for normal, 1-3 for merge conflicts), and their cached diff status (`A`, `M`, `D`, etc.):
+  ```bash
+  node ./scripts/get_staged_files.js
+  ```
 
 ### 2. Review Detailed Diffs
 
-- **Uncommitted Changes (Staged & Unstaged)**: View a full diff of local changes in the working directory and staging area:
+- **Uncommitted Changes (Staged & Unstaged)**: View a full diff of local changes in the working directory and staging area, optionally filtering by specific files:
   ```bash
-  node ./scripts/get_diff_to_review.js
+  node ./scripts/get_diff_to_review.js [file_path...]
   ```
-- **Branch Changes**: View all changes introduced in the current branch relative to the default base branch:
+- **Branch Changes**: View all changes introduced in the current branch relative to the base branch (`main`, `master`, or specified `[base-branch]`):
   ```bash
-  node ./scripts/get_branch_changes.js
+  node ./scripts/get_branch_changes.js [base-branch]
   ```
 
 ### 3. Read Files Ignored by .gitignore
@@ -56,7 +60,7 @@ node ./scripts/read-ignored-file.js <file_path> [start_line] [end_line]
   node ./scripts/switch-branch.js <branch-name>
   ```
 
-### 5. Staging Changes
+### 5. Staging and Unstaging Changes
 
 To stage specific modified files while ensuring files blocked by `.aiexclude` cannot be accidentally staged:
 
@@ -68,6 +72,18 @@ To stage all modified tracked files:
 
 ```bash
 node ./scripts/stage-files.js --all
+```
+
+To unstage specific files from the staging index:
+
+```bash
+node ./scripts/unstage-files.js <file1> [file2...]
+```
+
+To unstage all staged changes:
+
+```bash
+node ./scripts/unstage-files.js --all
 ```
 
 ### 6. Create Compliant Commits

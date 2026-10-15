@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import path from 'node:path';
 import { simpleGit } from 'simple-git';
 
 /**
@@ -13,8 +14,22 @@ export async function getDeletedFile({ git = simpleGit(), filePath }) {
     throw new Error('Missing file path.');
   }
 
+  let relPath = filePath.replace(/^\.\//, '');
+  if (git.revparse) {
+    try {
+      const root = (await git.revparse(['--show-toplevel'])).trim();
+      const fullPath = path.isAbsolute(filePath) ? filePath : path.resolve(root, filePath);
+      const computed = path.relative(root, fullPath).replace(/\\/g, '/');
+      if (!computed.startsWith('..') && !path.isAbsolute(computed)) {
+        relPath = computed;
+      }
+    } catch {
+      // Ignore revparse failure
+    }
+  }
+
   // Find last commit where file was modified
-  const log = await git.log({ file: filePath, maxCount: 1 });
+  const log = await git.log({ file: relPath, maxCount: 1 });
   if (log.all.length === 0) {
     throw new Error(`File '${filePath}' was never found in git history.`);
   }
@@ -22,12 +37,12 @@ export async function getDeletedFile({ git = simpleGit(), filePath }) {
   const lastCommit = log.all[0].hash;
 
   try {
-    const content = await git.show([`${lastCommit}:${filePath}`]);
+    const content = await git.show([`${lastCommit}:${relPath}`]);
     return content;
   } catch {
     // If not found at last commit (e.g. was deleted in that commit), check parent commit
     try {
-      const content = await git.show([`${lastCommit}~1:${filePath}`]);
+      const content = await git.show([`${lastCommit}~1:${relPath}`]);
       return content;
     } catch {
       throw new Error(`Could not retrieve contents for '${filePath}' from history.`);

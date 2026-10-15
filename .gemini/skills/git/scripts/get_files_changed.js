@@ -8,14 +8,14 @@ import { simpleGit } from 'simple-git';
  * @returns {Promise<{statusText: string, branchDiffText: string}>}
  */
 export async function getFilesChanged({ git = simpleGit() } = {}) {
-  const status = await git.raw(['status', '--short']);
+  const status = await git.raw(['-c', 'core.quotepath=false', 'status', '--short']);
 
   const branches = await git.branchLocal();
   const base = branches.all.includes('main') ? 'main' : branches.all.includes('master') ? 'master' : null;
 
   let branchDiff = '';
   if (base) {
-    branchDiff = await git.raw(['diff', '--name-status', base]);
+    branchDiff = await git.raw(['-c', 'core.quotepath=false', 'diff', '--no-ext-diff', '--name-status', base]);
   }
 
   return { statusText: status, branchDiffText: branchDiff, baseBranch: base };

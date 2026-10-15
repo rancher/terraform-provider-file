@@ -8,7 +8,7 @@ import { simpleGit } from 'simple-git';
  * @returns {Promise<Array<string>>}
  */
 export async function getModifiedPaths({ git = simpleGit() } = {}) {
-  const porcelain = await git.raw(['status', '--porcelain']);
+  const porcelain = await git.raw(['-c', 'core.quotepath=false', 'status', '--porcelain']);
   const lines = porcelain.split('\n');
   const paths = [];
 

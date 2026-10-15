@@ -18,17 +18,32 @@ export async function getFailedLog({ octokit, owner, repo, runId }) {
     run_id: runId,
   });
 
-  const { data: jobsData } = await octokit.rest.actions.listJobsForWorkflowRun({
-    owner,
-    repo,
-    run_id: runId,
-  });
+  // List all jobs for the workflow run across all pages
+  const jobs = octokit.paginate
+    ? await octokit.paginate(octokit.rest.actions.listJobsForWorkflowRun, {
+        owner,
+        repo,
+        run_id: runId,
+        per_page: 100,
+      })
+    : (
+        await octokit.rest.actions.listJobsForWorkflowRun({
+          owner,
+          repo,
+          run_id: runId,
+        })
+      ).data.jobs || [];
 
   const failedJobs = [];
   const failureRegex = /\b(error|failed|failure|fatal|panic|exit code [1-9]|exit status [1-9])\b/i;
 
-  for (const job of jobsData.jobs || []) {
-    if (job.conclusion === 'failure' || job.status === 'in_progress') {
+  for (const job of jobs) {
+    const isFailed =
+      job.conclusion === 'failure' ||
+      job.conclusion === 'timed_out' ||
+      job.conclusion === 'startup_failure' ||
+      job.status === 'in_progress';
+    if (isFailed) {
       let logText = '';
       try {
         const logRes = await octokit.rest.actions.downloadJobLogsForWorkflowRun({
@@ -36,7 +51,13 @@ export async function getFailedLog({ octokit, owner, repo, runId }) {
           repo,
           job_id: job.id,
         });
-        logText = typeof logRes.data === 'string' ? logRes.data : String(logRes.data);
+        if (Buffer.isBuffer(logRes.data)) {
+          logText = logRes.data.toString('utf8');
+        } else if (logRes.data instanceof ArrayBuffer || ArrayBuffer.isView(logRes.data)) {
+          logText = Buffer.from(logRes.data).toString('utf8');
+        } else {
+          logText = typeof logRes.data === 'string' ? logRes.data : String(logRes.data);
+        }
       } catch {
         // Logs might not be available
       }
@@ -59,7 +80,7 @@ export async function getFailedLog({ octokit, owner, repo, runId }) {
 
 async function main() {
   const runIdArg = process.argv[2];
-  let runId = runIdArg ? parseInt(runIdArg, 10) : null;
+  let runId = runIdArg ? parseInt(runIdArg.replace(/^#/, ''), 10) : null;
 
   const { owner, repo } = await getRepoDetails();
   const octokit = await getOctokit();
@@ -94,6 +115,14 @@ async function main() {
     console.log(`\n=== Failed Job Log Analysis (${failedJobs.length} job(s)) ===`);
     for (const item of failedJobs) {
       console.log(`\n❌ Job: ${item.job.name} (ID: ${item.job.id})`);
+      const failedStep = item.job.steps?.find(
+        (s) => s.conclusion === 'failure' || s.conclusion === 'timed_out' || s.conclusion === 'startup_failure',
+      );
+      if (failedStep) {
+        console.log(
+          `   Failed Step: ${failedStep.name} (Step #${failedStep.number}, conclusion: ${failedStep.conclusion})`,
+        );
+      }
       if (item.errorLines.length === 0) {
         console.log('   (No explicit error lines matched, check full logs via download_logs.js)');
       } else {

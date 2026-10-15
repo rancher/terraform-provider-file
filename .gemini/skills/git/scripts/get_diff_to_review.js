@@ -3,19 +3,39 @@ import { simpleGit } from 'simple-git';
 
 /**
  * Gets staged and unstaged diffs for review.
- * @param {object} params
+ * @param {object} [params]
  * @param {import('simple-git').SimpleGit} [params.git]
+ * @param {Array<string>} [params.files] - Optional list of file paths to inspect
  * @returns {Promise<{staged: string, unstaged: string}>}
  */
-export async function getDiffToReview({ git = simpleGit() } = {}) {
-  const staged = await git.diff(['--no-ext-diff', '--staged']);
-  const unstaged = await git.diff(['--no-ext-diff']);
+export async function getDiffToReview({ git = simpleGit(), files = [] } = {}) {
+  const fileArgs = files && files.length > 0 ? files : [];
+  const staged = await git.raw([
+    '-c',
+    'core.quotepath=false',
+    'diff',
+    '--no-ext-diff',
+    '--no-color',
+    '--staged',
+    '--',
+    ...fileArgs,
+  ]);
+  const unstaged = await git.raw([
+    '-c',
+    'core.quotepath=false',
+    'diff',
+    '--no-ext-diff',
+    '--no-color',
+    '--',
+    ...fileArgs,
+  ]);
   return { staged, unstaged };
 }
 
 async function main() {
+  const files = process.argv.slice(2);
   try {
-    const { staged, unstaged } = await getDiffToReview();
+    const { staged, unstaged } = await getDiffToReview({ files });
     console.log('=== Staged Changes (to be committed) ===');
     console.log(staged.trim() ? staged : '(No staged changes)');
     console.log('\n=== Unstaged Changes (working tree) ===');

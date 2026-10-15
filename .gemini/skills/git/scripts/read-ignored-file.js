@@ -17,8 +17,11 @@ export async function isExcludedByAIExclude(fullPath, repoRoot) {
   const aiexcludePath = path.join(repoRoot, '.aiexclude');
   try {
     await fs.access(aiexcludePath);
-  } catch {
-    return false; // .aiexclude file does not exist
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      return false; // .aiexclude file does not exist
+    }
+    throw new Error(`Failed to access .aiexclude policy: ${err.message}`, { cause: err });
   }
 
   const relPath = path.relative(repoRoot, fullPath);
@@ -26,20 +29,23 @@ export async function isExcludedByAIExclude(fullPath, repoRoot) {
     const { stdout } = await execFileAsync('git', [
       '-C',
       repoRoot,
+      '-c',
+      'core.quotepath=false',
       'ls-files',
       '-o',
       '-c',
       '-i',
       '--exclude-from=.aiexclude',
+      '--',
       relPath,
     ]);
     const lines = stdout
       .split('\n')
-      .map((l) => l.trim())
+      .map((l) => l.trim().replace(/^"(.*)"$/, '$1'))
       .filter(Boolean);
     return lines.includes(relPath);
-  } catch {
-    return false;
+  } catch (err) {
+    throw new Error(`Failed to evaluate .aiexclude policy for '${relPath}': ${err.message}`, { cause: err });
   }
 }
 
@@ -56,10 +62,18 @@ export async function readIgnoredFile({ targetPath, startLine, endLine, repoRoot
   const root = repoRoot || (await simpleGit().revparse(['--show-toplevel'])).trim();
   const fullPath = path.isAbsolute(targetPath) ? targetPath : path.resolve(root, targetPath);
 
+  const relativeFromRoot = path.relative(root, fullPath);
+  if (relativeFromRoot.startsWith('..') || path.isAbsolute(relativeFromRoot)) {
+    throw new Error(`Cannot read file outside repository root: '${targetPath}'.`);
+  }
+
   try {
     await fs.access(fullPath);
-  } catch {
-    throw new Error(`File '${targetPath}' not found.`);
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      throw new Error(`File '${targetPath}' not found.`, { cause: err });
+    }
+    throw err;
   }
 
   const isBlocked = await isExcludedByAIExclude(fullPath, root);

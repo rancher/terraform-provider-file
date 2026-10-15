@@ -41,17 +41,17 @@ node ./scripts/read_comments.js 123
 
 ### 3. Respond to Comments and Reply to Reviews
 
-- **Reply directly to a code review comment**:
-  To post a threaded reply directly to an inline review comment using its comment ID (from `read_comments.js`):
+- **Reply directly to a code review comment or thread**:
+  To post a threaded reply directly to an inline review comment using its comment ID or GraphQL Thread ID (`PRRT_...`, from `read_comments.js`):
 
   ```bash
-  node ./scripts/reply-comment.js <comment_id> "Your reply text"
+  node ./scripts/reply-comment.js <comment_id_or_thread_id> "Your reply text"
   ```
 
   You can also explicitly pass the PR number if needed:
 
   ```bash
-  node ./scripts/reply-comment.js <comment_id> "Your reply text" [pr_number]
+  node ./scripts/reply-comment.js <comment_id_or_thread_id> "Your reply text" [pr_number]
   ```
 
 - **Add general PR comment or reply via respond_comment**:
@@ -59,17 +59,17 @@ node ./scripts/read_comments.js 123
     ```bash
     node ./scripts/respond_comment.js [pr_number_or_current] general "Your comment text"
     ```
-  - Reply to comment thread:
+  - Reply to comment or thread:
     ```bash
-    node ./scripts/respond_comment.js [pr_number_or_current] <comment_id> "Your reply text"
+    node ./scripts/respond_comment.js [pr_number_or_current] <comment_id_or_thread_id> "Your reply text"
     ```
 
 ### 4. Resolve Review Threads
 
-To resolve an inline review thread on GitHub, retrieve the alphanumeric GraphQL Thread ID (starts with `PRRT_`, found via `read_comments.js`):
+To resolve an inline review thread on GitHub, use either the alphanumeric GraphQL Thread ID (starts with `PRRT_`, found via `read_comments.js`) or any numeric review comment ID within that thread:
 
 ```bash
-node ./scripts/resolve_comment.js <thread_id>
+node ./scripts/resolve_comment.js <thread_id_or_comment_id> [pr_number]
 ```
 
 ### 5. Update PR Title and Description

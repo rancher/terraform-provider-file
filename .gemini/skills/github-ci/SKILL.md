@@ -50,13 +50,13 @@ If `run_id` is omitted, it automatically targets the most recent failed workflow
 For in-depth analysis when full log dumps are required, download and extract all job and step logs into `/tmp/ci-logs-<run_id>`:
 
 ```bash
-node ./scripts/download_logs.js <run_id>
+node ./scripts/download_logs.js [run_id]
 ```
 
-You can also specify a custom output directory:
+If `run_id` is omitted or set to `current`, it automatically targets the most recent failed workflow run on the current branch. You can also specify a custom output directory:
 
 ```bash
-node ./scripts/download_logs.js <run_id> /path/to/directory
+node ./scripts/download_logs.js [run_id] /path/to/directory
 ```
 
 ### 5. Search and Grep Logs for Errors

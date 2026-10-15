@@ -14,16 +14,23 @@ import { isExcludedByAIExclude } from './read-ignored-file.js';
 export async function stageFiles({ git = simpleGit(), files = [], all = false }) {
   const root = (await git.revparse(['--show-toplevel'])).trim();
 
+  let targets = files;
   if (all) {
-    await git.add(['-u']);
-    return ['--all'];
+    const statusOutput = await git.raw(['-c', 'core.quotepath=false', 'ls-files', '-m', '-d']);
+    targets = statusOutput
+      .split('\n')
+      .map((l) => l.trim().replace(/^"(.*)"$/, '$1'))
+      .filter(Boolean);
+    if (targets.length === 0) {
+      return [];
+    }
   }
 
-  if (files.length === 0) {
+  if (targets.length === 0) {
     throw new Error('No files specified to stage.');
   }
 
-  for (const file of files) {
+  for (const file of targets) {
     const fullPath = path.isAbsolute(file) ? file : path.resolve(root, file);
     const isBlocked = await isExcludedByAIExclude(fullPath, root);
     if (isBlocked) {
@@ -31,8 +38,8 @@ export async function stageFiles({ git = simpleGit(), files = [], all = false })
     }
   }
 
-  await git.add(files);
-  return files;
+  await git.add(targets);
+  return targets;
 }
 
 async function main() {

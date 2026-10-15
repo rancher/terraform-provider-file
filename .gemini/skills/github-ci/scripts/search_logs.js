@@ -12,7 +12,19 @@ const DEFAULT_PATTERN = /\b(error|fail|failure|exception|exit status|fatal|panic
  * @returns {Promise<Array<{file: string, line: number, text: string}>>}
  */
 export async function searchLogs({ logsDir, pattern = DEFAULT_PATTERN }) {
-  const regex = typeof pattern === 'string' ? new RegExp(pattern, 'i') : pattern;
+  let regex;
+  if (pattern instanceof RegExp) {
+    regex = new RegExp(pattern.source, pattern.flags.replace(/[gy]/g, ''));
+  } else if (typeof pattern === 'string') {
+    const slashMatch = pattern.match(/^\/(.+)\/([a-z]*)$/i);
+    if (slashMatch) {
+      regex = new RegExp(slashMatch[1], slashMatch[2].replace(/[gy]/g, ''));
+    } else {
+      regex = new RegExp(pattern, 'i');
+    }
+  } else {
+    regex = DEFAULT_PATTERN;
+  }
   const results = [];
 
   async function walk(dir) {

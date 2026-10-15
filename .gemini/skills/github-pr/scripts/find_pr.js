@@ -11,26 +11,30 @@ import { getCurrentPRNumber, getOctokit, getRepoDetails } from './auth.js';
  * @returns {Promise<object>} PR data
  */
 export async function findPR({ octokit, owner, repo, target }) {
-  let pullNumber = null;
+  let pullNumber;
+  const trimmedTarget = target !== undefined && target !== null ? String(target).trim() : '';
 
-  if (target && !isNaN(parseInt(target, 10))) {
-    pullNumber = parseInt(target, 10);
-  } else if (target) {
-    // Search by head branch
-    const { data: pulls } = await octokit.rest.pulls.list({
-      owner,
-      repo,
-      head: `${owner}:${target}`,
-      state: 'all',
-      per_page: 1,
-    });
-    if (pulls.length > 0) {
-      pullNumber = pulls[0].number;
+  if (trimmedTarget && trimmedTarget !== 'current' && trimmedTarget !== 'HEAD') {
+    if (/^#?\d+$/.test(trimmedTarget)) {
+      pullNumber = parseInt(trimmedTarget.replace(/^#/, ''), 10);
     } else {
-      throw new Error(`No pull request found for branch '${target}' in ${owner}/${repo}.`);
+      const headSpec = trimmedTarget.includes(':') ? trimmedTarget : `${owner}:${trimmedTarget}`;
+      // Search by head branch
+      const { data: pulls } = await octokit.rest.pulls.list({
+        owner,
+        repo,
+        head: headSpec,
+        state: 'all',
+        per_page: 1,
+      });
+      if (pulls.length > 0) {
+        pullNumber = pulls[0].number;
+      } else {
+        throw new Error(`No pull request found for branch '${target}' in ${owner}/${repo}.`);
+      }
     }
   } else {
-    pullNumber = await getCurrentPRNumber();
+    pullNumber = await getCurrentPRNumber(octokit);
     if (!pullNumber) {
       throw new Error('No pull request target specified and no PR found for current branch.');
     }

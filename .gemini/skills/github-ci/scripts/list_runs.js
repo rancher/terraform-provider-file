@@ -33,12 +33,22 @@ async function main() {
   const branchArg = process.argv[2];
   const limitArg = process.argv[3];
 
-  let branch = branchArg;
-  if (!branch) {
-    branch = await getCurrentBranch();
-  }
+  let branch;
+  let limit = 10;
 
-  const limit = limitArg ? parseInt(limitArg, 10) : 10;
+  if (branchArg && /^\d+$/.test(branchArg)) {
+    limit = parseInt(branchArg, 10);
+    branch = await getCurrentBranch();
+  } else if (branchArg === 'all') {
+    branch = undefined;
+    limit = limitArg ? parseInt(limitArg, 10) : 10;
+  } else if (branchArg === 'current') {
+    branch = await getCurrentBranch();
+    limit = limitArg ? parseInt(limitArg, 10) : 10;
+  } else {
+    branch = branchArg || (await getCurrentBranch());
+    limit = limitArg ? parseInt(limitArg, 10) : 10;
+  }
   const { owner, repo } = await getRepoDetails();
   const octokit = await getOctokit();
 

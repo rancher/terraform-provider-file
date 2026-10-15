@@ -97,6 +97,7 @@ popd
 providerserver
 PRRT
 pushd
+quotepath
 rancherlabs
 rancherremote
 recompiles

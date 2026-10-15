@@ -3,16 +3,30 @@ import { simpleGit } from 'simple-git';
 
 /**
  * Gets diff between current branch and base branch (main/master).
- * @param {object} params
+ * @param {object} [params]
  * @param {import('simple-git').SimpleGit} [params.git]
+ * @param {string} [params.baseBranch]
  * @returns {Promise<string>}
  */
-export async function getBranchChanges({ git = simpleGit() } = {}) {
-  const branches = await git.branchLocal();
-  const base = branches.all.includes('main') ? 'main' : branches.all.includes('master') ? 'master' : null;
-
+export async function getBranchChanges({ git = simpleGit(), baseBranch } = {}) {
+  let base = baseBranch;
   if (!base) {
-    throw new Error('Neither main nor master branch exists.');
+    const branches = git.branch ? await git.branch() : await git.branchLocal();
+    if (branches.all.includes('main')) {
+      base = 'main';
+    } else if (branches.all.includes('master')) {
+      base = 'master';
+    } else if (branches.all.includes('remotes/origin/main') || branches.all.includes('origin/main')) {
+      base = 'origin/main';
+    } else if (branches.all.includes('remotes/upstream/main') || branches.all.includes('upstream/main')) {
+      base = 'upstream/main';
+    } else if (branches.all.includes('remotes/origin/master') || branches.all.includes('origin/master')) {
+      base = 'origin/master';
+    } else if (branches.all.includes('remotes/upstream/master') || branches.all.includes('upstream/master')) {
+      base = 'upstream/master';
+    } else {
+      base = 'main';
+    }
   }
 
   let mergeBase = '';
@@ -27,8 +41,9 @@ export async function getBranchChanges({ git = simpleGit() } = {}) {
 }
 
 async function main() {
+  const baseBranch = process.argv[2];
   try {
-    const diff = await getBranchChanges();
+    const diff = await getBranchChanges({ baseBranch });
     if (!diff.trim()) {
       console.log('No branch changes found relative to base branch.');
       return;
