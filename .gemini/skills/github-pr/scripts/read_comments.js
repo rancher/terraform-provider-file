@@ -68,24 +68,35 @@ query($threadId: ID!, $commentCursor: String) {
  * @param {import('octokit').Octokit} params.octokit
  * @param {string} params.owner
  * @param {string} params.repo
- * @param {number} params.prNumber
+ * @param {number|string} params.prNumber
+ * @param {boolean} [params.unresolvedOnly=false]
  * @returns {Promise<{conversationComments: Array, reviewThreads: Array}>}
  */
-export async function readComments({ octokit, owner, repo, prNumber }) {
+export async function readComments({ octokit, owner, repo, prNumber, unresolvedOnly = false }) {
+  let numericPrNumber = prNumber;
+  if (typeof prNumber === 'string') {
+    const urlMatch = prNumber.match(/\/pull\/(\d+)/);
+    if (urlMatch) {
+      numericPrNumber = parseInt(urlMatch[1], 10);
+    } else {
+      numericPrNumber = parseInt(prNumber.replace(/^#/, ''), 10);
+    }
+  }
+
   // 1. Fetch conversation comments (paginated)
   let conversationComments = [];
   if (octokit.paginate && octokit.rest?.issues?.listComments) {
     conversationComments = await octokit.paginate(octokit.rest.issues.listComments, {
       owner,
       repo,
-      issue_number: prNumber,
+      issue_number: numericPrNumber,
       per_page: 100,
     });
   } else if (octokit.rest?.issues?.listComments) {
     const res = await octokit.rest.issues.listComments({
       owner,
       repo,
-      issue_number: prNumber,
+      issue_number: numericPrNumber,
       per_page: 100,
     });
     conversationComments = res.data || [];
@@ -101,7 +112,7 @@ export async function readComments({ octokit, owner, repo, prNumber }) {
       const gqlRes = await octokit.graphql(REVIEW_THREADS_QUERY, {
         owner,
         repo,
-        prNumber,
+        prNumber: numericPrNumber,
         threadCursor,
       });
 
@@ -138,14 +149,14 @@ export async function readComments({ octokit, owner, repo, prNumber }) {
       ? await octokit.paginate(octokit.rest.pulls.listReviewComments, {
           owner,
           repo,
-          pull_number: prNumber,
+          pull_number: numericPrNumber,
           per_page: 100,
         })
       : (
           await octokit.rest.pulls.listReviewComments({
             owner,
             repo,
-            pull_number: prNumber,
+            pull_number: numericPrNumber,
             per_page: 100,
           })
         ).data || [];
@@ -159,10 +170,11 @@ export async function readComments({ octokit, owner, repo, prNumber }) {
           nodes: [
             {
               databaseId: c.id,
-              author: { login: c.user?.login },
+              author: { login: c.user?.login || 'ghost' },
               body: c.body,
               path: c.path,
               line: c.line || c.original_line,
+              originalLine: c.original_line,
             },
           ],
         },
@@ -170,21 +182,27 @@ export async function readComments({ octokit, owner, repo, prNumber }) {
     }
   }
 
-  return { conversationComments, reviewThreads };
+  const filteredThreads = unresolvedOnly ? reviewThreads.filter((t) => !t.isResolved) : reviewThreads;
+  return { conversationComments, reviewThreads: filteredThreads };
 }
-
 async function main() {
-  const argTarget = process.argv[2];
+  const args = process.argv.slice(2);
+  const unresolvedOnly = args.includes('--unresolved');
+  const jsonOutput = args.includes('--json');
+  const targetArgs = args.filter((a) => !a.startsWith('-'));
+  const argTarget = targetArgs[0];
+
   const { owner, repo } = await getRepoDetails();
   const octokit = await getOctokit();
 
   let prNumber;
   try {
+    const target = argTarget ? argTarget.replace(/^#/, '') : undefined;
     const pr = await findPR({
       octokit,
       owner,
       repo,
-      target: argTarget === 'current' ? undefined : argTarget,
+      target,
     });
     prNumber = pr.number;
   } catch (err) {
@@ -198,7 +216,13 @@ async function main() {
       owner,
       repo,
       prNumber,
+      unresolvedOnly,
     });
+
+    if (jsonOutput) {
+      console.log(JSON.stringify({ prNumber, conversationComments, reviewThreads }, null, 2));
+      return;
+    }
 
     console.log(`=== Comments for PR #${prNumber} in ${owner}/${repo} ===\n`);
 
@@ -207,12 +231,12 @@ async function main() {
       console.log('No general conversation comments found.');
     } else {
       for (const comment of conversationComments) {
-        console.log(`\n[Comment #${comment.id}] @${comment.user?.login}:`);
+        console.log(`\n[Comment #${comment.id}] @${comment.user?.login || 'ghost'}:`);
         console.log(comment.body);
       }
     }
 
-    console.log(`\n--- Review Comment Threads (${reviewThreads.length}) ---`);
+    console.log(`\n--- Review Comment Threads (${reviewThreads.length}${unresolvedOnly ? ' unresolved' : ''}) ---`);
     if (reviewThreads.length === 0) {
       console.log('No review threads found.');
     } else {
@@ -225,7 +249,7 @@ async function main() {
         }
         for (const c of thread.comments.nodes || []) {
           const lineNum = c.line || c.originalLine || '?';
-          console.log(`  Comment #${c.databaseId} by @${c.author?.login} on ${c.path}:${lineNum}:`);
+          console.log(`  Comment #${c.databaseId} by @${c.author?.login || 'ghost'} on ${c.path}:${lineNum}:`);
           console.log(`    ${c.body.replace(/\n/g, '\n    ')}`);
         }
       }

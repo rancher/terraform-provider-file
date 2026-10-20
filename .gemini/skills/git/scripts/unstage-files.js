@@ -11,7 +11,24 @@ import { simpleGit } from 'simple-git';
  */
 export async function unstageFiles({ git = simpleGit(), files = [], all = false }) {
   if (all) {
-    const rawStaged = await git.raw(['-c', 'core.quotepath=false', 'diff', '--name-only', '--cached']);
+    let rawStaged = '';
+    try {
+      rawStaged = await git.raw(['-c', 'core.quotepath=false', 'diff', '--name-only', '--cached']);
+    } catch {
+      try {
+        const stageOutput = await git.raw(['-c', 'core.quotepath=false', 'ls-files', '--stage']);
+        rawStaged = stageOutput
+          .split('\n')
+          .map((l) => {
+            const tabIdx = l.indexOf('\t');
+            return tabIdx !== -1 ? l.slice(tabIdx + 1).replace(/^"(.*)"$/, '$1') : '';
+          })
+          .filter(Boolean)
+          .join('\n');
+      } catch {
+        // Fall through
+      }
+    }
     const stagedFiles = rawStaged
       .split('\n')
       .map((l) => l.trim().replace(/^"(.*)"$/, '$1'))
@@ -21,7 +38,11 @@ export async function unstageFiles({ git = simpleGit(), files = [], all = false 
       return [];
     }
 
-    await git.reset(['HEAD', '--']);
+    try {
+      await git.reset(['HEAD', '--']);
+    } catch {
+      await git.raw(['rm', '--cached', '-r', '.']);
+    }
     return stagedFiles;
   }
 
@@ -29,7 +50,11 @@ export async function unstageFiles({ git = simpleGit(), files = [], all = false 
     throw new Error('No files specified to unstage.');
   }
 
-  await git.reset(['HEAD', '--', ...files]);
+  try {
+    await git.reset(['HEAD', '--', ...files]);
+  } catch {
+    await git.raw(['rm', '--cached', '--', ...files]);
+  }
   return files;
 }
 
@@ -41,7 +66,7 @@ async function main() {
   }
 
   const all = args.includes('--all') || args.includes('-A');
-  const files = args.filter((a) => a !== '--all' && a !== '-A');
+  const files = args.filter((a) => a !== '--all' && a !== '-A' && a !== '--');
 
   try {
     const unstaged = await unstageFiles({ files, all });

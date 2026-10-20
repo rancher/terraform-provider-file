@@ -57,8 +57,14 @@ export function parseRespondArgs(args) {
     return {};
   }
 
-  const isNum = (v) => /^#?\d+$/.test(String(v || '').trim());
-  const toNum = (v) => parseInt(String(v).trim().replace(/^#/, ''), 10);
+  const isUrl = (v) => /\/pull\/(\d+)/.test(String(v || ''));
+  const isNum = (v) => /^#?\d+$/.test(String(v || '').trim()) || isUrl(v);
+  const toNum = (v) => {
+    const s = String(v).trim();
+    const urlMatch = s.match(/\/pull\/(\d+)/);
+    if (urlMatch) return parseInt(urlMatch[1], 10);
+    return parseInt(s.replace(/^#/, ''), 10);
+  };
   const isRef = (v) => isNum(v) || String(v || '').startsWith('PRRT_');
   const toRef = (v) => (String(v || '').startsWith('PRRT_') ? String(v).trim() : toNum(v));
 
@@ -66,46 +72,70 @@ export function parseRespondArgs(args) {
   let commentId = 'general';
   let bodyTokens = [];
 
-  const first = args[0];
+  let cleanArgs = [...args];
+  let explicitBody = null;
+  const mIndex = cleanArgs.findIndex((a) => a === '-m' || a === '--body');
+  if (mIndex !== -1 && mIndex + 1 < cleanArgs.length) {
+    explicitBody = cleanArgs.slice(mIndex + 1).join(' ');
+    cleanArgs = cleanArgs.slice(0, mIndex);
+  }
+
+  if (cleanArgs.length === 0) {
+    return { prTarget, commentId, body: explicitBody || '' };
+  }
+
+  const first = cleanArgs[0];
 
   if (first === 'general' || first === '0') {
     commentId = 'general';
-    bodyTokens = args.slice(1);
+    bodyTokens = cleanArgs.slice(1);
   } else if (String(first || '').startsWith('PRRT_')) {
     commentId = String(first).trim();
-    bodyTokens = args.slice(1);
+    bodyTokens = cleanArgs.slice(1);
   } else if (first === 'current') {
     prTarget = 'current';
-    if (args.length >= 2 && (args[1] === 'general' || isRef(args[1]))) {
-      commentId = isRef(args[1]) ? toRef(args[1]) : 'general';
-      bodyTokens = args.slice(2);
+    if (cleanArgs.length >= 2 && (cleanArgs[1] === 'general' || isRef(cleanArgs[1]))) {
+      commentId = isRef(cleanArgs[1]) ? toRef(cleanArgs[1]) : 'general';
+      bodyTokens = cleanArgs.slice(2);
     } else {
       commentId = 'general';
-      bodyTokens = args.slice(1);
+      bodyTokens = cleanArgs.slice(1);
     }
   } else if (isNum(first)) {
-    if (args.length >= 2 && (args[1] === 'general' || isRef(args[1]))) {
-      prTarget = first;
-      commentId = isRef(args[1]) ? toRef(args[1]) : 'general';
-      bodyTokens = args.slice(2);
+    if (cleanArgs.length >= 2 && (cleanArgs[1] === 'general' || isRef(cleanArgs[1]))) {
+      const second = cleanArgs[1];
+      if (isUrl(first) && !isUrl(second)) {
+        prTarget = String(toNum(first));
+        commentId = isRef(second) ? toRef(second) : 'general';
+      } else if (isUrl(second) && !isUrl(first)) {
+        prTarget = String(toNum(second));
+        commentId = toNum(first);
+      } else if (isNum(second) && toNum(first) > toNum(second)) {
+        prTarget = String(toNum(second));
+        commentId = toNum(first);
+      } else {
+        prTarget = isUrl(first) ? String(toNum(first)) : first;
+        commentId = isRef(second) ? toRef(second) : 'general';
+      }
+      bodyTokens = cleanArgs.slice(2);
     } else {
-      prTarget = first;
+      prTarget = isUrl(first) ? String(toNum(first)) : first;
       commentId = 'general';
-      bodyTokens = args.slice(1);
+      bodyTokens = cleanArgs.slice(1);
     }
   } else {
-    if (args.length >= 2 && (args[1] === 'general' || isRef(args[1]))) {
+    if (cleanArgs.length >= 2 && (cleanArgs[1] === 'general' || isRef(cleanArgs[1]))) {
       prTarget = first;
-      commentId = isRef(args[1]) ? toRef(args[1]) : 'general';
-      bodyTokens = args.slice(2);
+      commentId = isRef(cleanArgs[1]) ? toRef(cleanArgs[1]) : 'general';
+      bodyTokens = cleanArgs.slice(2);
     } else {
       prTarget = 'current';
       commentId = 'general';
-      bodyTokens = args;
+      bodyTokens = cleanArgs;
     }
   }
 
-  const body = bodyTokens.join(' ').trim();
+  const body = (explicitBody || bodyTokens.join(' ')).trim();
   return { prTarget, commentId, body };
 }
 
@@ -131,8 +161,10 @@ async function main() {
     });
     prNumber = pr.number;
   } catch (err) {
-    console.error(`❌ Error: ${err.message}`);
-    process.exit(1);
+    if (!String(commentId).startsWith('PRRT_')) {
+      console.error(`❌ Error: ${err.message}`);
+      process.exit(1);
+    }
   }
 
   try {
@@ -144,7 +176,8 @@ async function main() {
       commentId,
       body,
     });
-    console.log(`✅ Successfully responded on PR #${prNumber} (${result.type}).`);
+    const targetDesc = prNumber ? `on PR #${prNumber}` : `to thread ${commentId}`;
+    console.log(`✅ Successfully responded ${targetDesc} (${result.type}).`);
   } catch (err) {
     console.error(`❌ Error responding to PR comment: ${err.message}`);
     process.exit(1);

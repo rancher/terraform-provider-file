@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { getCurrentPRNumber, getOctokit, getRepoDetails } from './auth.js';
+import { findPR } from './find_pr.js';
 
 const ADD_THREAD_REPLY_MUTATION = `
 mutation($threadId: ID!, $body: String!) {
@@ -42,13 +43,52 @@ export async function replyComment({ octokit, owner, repo, prNumber, commentId, 
     return { type: 'thread_reply', data: created };
   }
 
+  const numericCommentId = typeof commentId === 'string' ? parseInt(commentId.replace(/^#/, ''), 10) : commentId;
+  let targetPrNumber = prNumber;
+
+  if (!targetPrNumber && owner && repo && octokit.rest?.pulls?.getReviewComment) {
+    try {
+      const { data: comment } = await octokit.rest.pulls.getReviewComment({
+        owner,
+        repo,
+        comment_id: numericCommentId,
+      });
+      if (comment.pull_request_url) {
+        const parts = comment.pull_request_url.split('/');
+        const extractedPr = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(extractedPr)) {
+          targetPrNumber = extractedPr;
+        }
+      }
+    } catch {
+      if (octokit.rest?.issues?.getComment) {
+        try {
+          const { data: issueComment } = await octokit.rest.issues.getComment({
+            owner,
+            repo,
+            comment_id: numericCommentId,
+          });
+          if (issueComment.issue_url) {
+            const parts = issueComment.issue_url.split('/');
+            const extractedPr = parseInt(parts[parts.length - 1], 10);
+            if (!isNaN(extractedPr)) {
+              targetPrNumber = extractedPr;
+            }
+          }
+        } catch {
+          // Proceed to normal flow if lookup fails
+        }
+      }
+    }
+  }
+
   try {
     // Attempt reply to inline review comment thread
     const { data } = await octokit.rest.pulls.createReplyForReviewComment({
       owner,
       repo,
-      pull_number: prNumber,
-      comment_id: commentId,
+      pull_number: targetPrNumber,
+      comment_id: numericCommentId,
       body,
     });
     return { type: 'review_reply', data };
@@ -59,14 +99,14 @@ export async function replyComment({ octokit, owner, repo, prNumber, commentId, 
         await octokit.rest.issues.getComment({
           owner,
           repo,
-          comment_id: commentId,
+          comment_id: numericCommentId,
         });
 
         const { data } = await octokit.rest.issues.createComment({
           owner,
           repo,
-          issue_number: prNumber,
-          body: `> In reply to comment #${commentId}\n\n${body}`,
+          issue_number: targetPrNumber,
+          body: `> In reply to comment #${numericCommentId}\n\n${body}`,
         });
         return { type: 'issue_reply', data };
       } catch {
@@ -94,13 +134,77 @@ export function parseReplyArgs(args) {
   }
 
   let prNumber;
+  let prTarget;
   let commentId;
   let body;
 
-  const isNum = (v) => /^#?\d+$/.test(String(v || '').trim());
-  const toNum = (v) => parseInt(String(v).trim().replace(/^#/, ''), 10);
+  const isUrl = (v) => /\/pull\/(\d+)/.test(String(v || ''));
+  const isNum = (v) => /^#?\d+$/.test(String(v || '').trim()) || isUrl(v);
+  const toNum = (v) => {
+    const s = String(v).trim();
+    const urlMatch = s.match(/\/pull\/(\d+)/);
+    if (urlMatch) return parseInt(urlMatch[1], 10);
+    return parseInt(s.replace(/^#/, ''), 10);
+  };
   const isRef = (v) => isNum(v) || String(v || '').startsWith('PRRT_');
   const toRef = (v) => (String(v || '').startsWith('PRRT_') ? String(v).trim() : toNum(v));
+
+  let cleanArgs = [...args];
+  let explicitBody = null;
+  const mIndex = cleanArgs.findIndex((a) => a === '-m' || a === '--body');
+  if (mIndex !== -1 && mIndex + 1 < cleanArgs.length) {
+    explicitBody = cleanArgs.slice(mIndex + 1).join(' ');
+    cleanArgs = cleanArgs.slice(0, mIndex);
+  }
+
+  if (explicitBody !== null) {
+    body = explicitBody;
+    if (cleanArgs.length === 1 && isRef(cleanArgs[0])) {
+      commentId = toRef(cleanArgs[0]);
+    } else if (cleanArgs.length >= 2) {
+      const c0 = cleanArgs[0];
+      const c1 = cleanArgs[1];
+      if (c0 === 'current' && isRef(c1)) {
+        commentId = toRef(c1);
+      } else if (isRef(c0) && c1 === 'current') {
+        commentId = toRef(c0);
+      } else if (isNum(c0) && isNum(c1)) {
+        const n0 = toNum(c0);
+        const n1 = toNum(c1);
+        if (isUrl(c0) && !isUrl(c1)) {
+          prNumber = n0;
+          commentId = n1;
+        } else if (isUrl(c1) && !isUrl(c0)) {
+          prNumber = n1;
+          commentId = n0;
+        } else if (n0 > n1) {
+          commentId = n0;
+          prNumber = n1;
+        } else {
+          prNumber = n0;
+          commentId = n1;
+        }
+      } else if (String(c0).startsWith('PRRT_')) {
+        commentId = String(c0).trim();
+        prNumber = isNum(c1) ? toNum(c1) : undefined;
+      } else if (String(c1).startsWith('PRRT_')) {
+        commentId = String(c1).trim();
+        prNumber = isNum(c0) ? toNum(c0) : undefined;
+      } else if (!isRef(c0) && isRef(c1)) {
+        prTarget = c0;
+        commentId = toRef(c1);
+        prNumber = isNum(c0) ? toNum(c0) : undefined;
+      } else if (isRef(c0)) {
+        commentId = toRef(c0);
+        prNumber = isNum(c1) ? toNum(c1) : undefined;
+      }
+    }
+    const res = { prNumber, commentId, body };
+    if (prTarget !== undefined && !isNum(prTarget) && prTarget !== 'current') {
+      res.prTarget = prTarget;
+    }
+    return res;
+  }
 
   if (args.length === 2) {
     if (isRef(args[0])) {
@@ -108,31 +212,81 @@ export function parseReplyArgs(args) {
       body = args[1];
     }
   } else if (args.length >= 3) {
-    if (isNum(args[0]) && isRef(args[1])) {
-      prNumber = toNum(args[0]);
-      commentId = toRef(args[1]);
+    const arg0 = args[0];
+    const arg1 = args[1];
+    const lastArg = args[args.length - 1];
+
+    if (String(arg0).startsWith('PRRT_') && (isNum(arg1) || arg1 === 'current')) {
+      commentId = String(arg0).trim();
+      prNumber = arg1 === 'current' ? undefined : toNum(arg1);
       body = args.slice(2).join(' ');
-    } else if (isRef(args[0]) && isNum(args[args.length - 1])) {
-      commentId = toRef(args[0]);
+    } else if (String(arg1).startsWith('PRRT_') && (isNum(arg0) || arg0 === 'current')) {
+      commentId = String(arg1).trim();
+      prNumber = arg0 === 'current' ? undefined : toNum(arg0);
+      body = args.slice(2).join(' ');
+    } else if (isRef(arg0) && arg1 === 'current') {
+      commentId = toRef(arg0);
+      prNumber = undefined;
+      body = args.slice(2).join(' ');
+    } else if (arg0 === 'current' && isRef(arg1)) {
+      commentId = toRef(arg1);
+      prNumber = undefined;
+      body = args.slice(2).join(' ');
+    } else if (isRef(arg0) && String(arg1).startsWith('#') && !String(arg0).startsWith('#')) {
+      commentId = toRef(arg0);
+      prNumber = toNum(arg1);
+      body = args.slice(2).join(' ');
+    } else if (String(arg0).startsWith('#') && !String(arg1).startsWith('#') && isRef(arg1)) {
+      prNumber = toNum(arg0);
+      commentId = toRef(arg1);
+      body = args.slice(2).join(' ');
+    } else if (isNum(arg0) && isNum(arg1)) {
+      const n0 = toNum(arg0);
+      const n1 = toNum(arg1);
+      if (isUrl(arg0) && !isUrl(arg1)) {
+        prNumber = n0;
+        commentId = n1;
+      } else if (isUrl(arg1) && !isUrl(arg0)) {
+        prNumber = n1;
+        commentId = n0;
+      } else if (n0 > n1) {
+        commentId = n0;
+        prNumber = n1;
+      } else {
+        prNumber = n0;
+        commentId = n1;
+      }
+      body = args.slice(2).join(' ');
+    } else if (!isRef(arg0) && isRef(arg1)) {
+      prTarget = arg0;
+      commentId = toRef(arg1);
+      prNumber = isNum(arg0) ? toNum(arg0) : undefined;
+      body = args.slice(2).join(' ');
+    } else if (isRef(arg0) && (isNum(lastArg) || lastArg === 'current')) {
+      commentId = toRef(arg0);
       body = args.slice(1, -1).join(' ');
-      prNumber = toNum(args[args.length - 1]);
-    } else if (isRef(args[0])) {
-      commentId = toRef(args[0]);
+      prNumber = lastArg === 'current' ? undefined : toNum(lastArg);
+    } else if (isRef(arg0)) {
+      commentId = toRef(arg0);
       body = args.slice(1).join(' ');
     }
   }
 
-  return { prNumber, commentId, body };
+  const res = { prNumber, commentId, body };
+  if (prTarget !== undefined && !isNum(prTarget) && prTarget !== 'current') {
+    res.prTarget = prTarget;
+  }
+  return res;
 }
 
 async function main() {
   const args = process.argv.slice(2);
-  const { prNumber: parsedPr, commentId, body } = parseReplyArgs(args);
+  const { prNumber: parsedPr, prTarget, commentId, body } = parseReplyArgs(args);
   let prNumber = parsedPr;
 
   if (!commentId || !body) {
-    console.error('Usage: reply-comment.js <comment_id_or_thread_id> <body> [pr_number]');
-    console.error('   or: reply-comment.js [pr_number] <comment_id_or_thread_id> <body>');
+    console.error('Usage: reply-comment.js <comment_id_or_thread_id> <body> [pr_number_or_current]');
+    console.error('   or: reply-comment.js [pr_number_or_current] <comment_id_or_thread_id> <body>');
     process.exit(1);
   }
 
@@ -140,7 +294,52 @@ async function main() {
   const octokit = await getOctokit();
 
   if ((!prNumber || isNaN(prNumber)) && !String(commentId).startsWith('PRRT_')) {
-    prNumber = await getCurrentPRNumber(octokit);
+    if (prTarget && prTarget !== 'current') {
+      try {
+        const pr = await findPR({ octokit, owner, repo, target: prTarget });
+        prNumber = pr?.number;
+      } catch {
+        // Fall back to current branch or comment lookup
+      }
+    }
+    if (!prNumber) {
+      prNumber = await getCurrentPRNumber(octokit, { owner, repo });
+    }
+  }
+
+  if ((!prNumber || isNaN(prNumber)) && !String(commentId).startsWith('PRRT_')) {
+    const numericCommentId = typeof commentId === 'string' ? parseInt(commentId.replace(/^#/, ''), 10) : commentId;
+    try {
+      const { data: comment } = await octokit.rest.pulls.getReviewComment({
+        owner,
+        repo,
+        comment_id: numericCommentId,
+      });
+      if (comment.pull_request_url) {
+        const parts = comment.pull_request_url.split('/');
+        const extractedPr = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(extractedPr)) {
+          prNumber = extractedPr;
+        }
+      }
+    } catch {
+      try {
+        const { data: issueComment } = await octokit.rest.issues.getComment({
+          owner,
+          repo,
+          comment_id: numericCommentId,
+        });
+        if (issueComment.issue_url) {
+          const parts = issueComment.issue_url.split('/');
+          const extractedPr = parseInt(parts[parts.length - 1], 10);
+          if (!isNaN(extractedPr)) {
+            prNumber = extractedPr;
+          }
+        }
+      } catch {
+        // Ignore if not an issue comment
+      }
+    }
   }
 
   if (!prNumber && !String(commentId).startsWith('PRRT_')) {

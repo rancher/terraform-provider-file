@@ -100,6 +100,7 @@ pushd
 quotepath
 rancherlabs
 rancherremote
+realpath
 recompiles
 redactions
 remediation
@@ -152,6 +153,7 @@ unparseable
 unredacted
 unregistration
 unreviewed
+unresolve
 unsets
 unvetted
 updatecli

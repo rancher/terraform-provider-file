@@ -43,7 +43,7 @@ export async function isExcludedByAIExclude(fullPath, repoRoot) {
       .split('\n')
       .map((l) => l.trim().replace(/^"(.*)"$/, '$1'))
       .filter(Boolean);
-    return lines.includes(relPath);
+    return lines.includes(relPath) || lines.length > 0;
   } catch (err) {
     throw new Error(`Failed to evaluate .aiexclude policy for '${relPath}': ${err.message}`, { cause: err });
   }
@@ -68,7 +68,17 @@ export async function readIgnoredFile({ targetPath, startLine, endLine, repoRoot
   }
 
   try {
-    await fs.access(fullPath);
+    const stat = await fs.stat(fullPath);
+    if (stat.isDirectory()) {
+      throw new Error(`Path '${targetPath}' is a directory, not a file.`);
+    }
+
+    const realPath = await fs.realpath(fullPath);
+    const realRoot = await fs.realpath(root);
+    const realRel = path.relative(realRoot, realPath);
+    if (realRel.startsWith('..') || path.isAbsolute(realRel)) {
+      throw new Error(`Cannot read file outside repository root: '${targetPath}'.`);
+    }
   } catch (err) {
     if (err.code === 'ENOENT') {
       throw new Error(`File '${targetPath}' not found.`, { cause: err });
@@ -82,13 +92,27 @@ export async function readIgnoredFile({ targetPath, startLine, endLine, repoRoot
   }
 
   const rawContent = await fs.readFile(fullPath, 'utf8');
-  if (!startLine && !endLine) {
+  if (startLine === undefined && endLine === undefined) {
     return rawContent;
   }
 
+  const parsedStart = startLine !== undefined && startLine !== null ? Number(startLine) : undefined;
+  const parsedEnd = endLine !== undefined && endLine !== null ? Number(endLine) : undefined;
+
+  if (parsedStart !== undefined && isNaN(parsedStart)) {
+    throw new Error(`Invalid startLine: '${startLine}'. Must be a number.`);
+  }
+  if (parsedEnd !== undefined && isNaN(parsedEnd)) {
+    throw new Error(`Invalid endLine: '${endLine}'. Must be a number.`);
+  }
+
+  if (parsedStart && parsedEnd && parsedStart > parsedEnd) {
+    throw new Error(`startLine (${parsedStart}) cannot be greater than endLine (${parsedEnd}).`);
+  }
+
   const lines = rawContent.split('\n');
-  const start = startLine ? Math.max(1, startLine) : 1;
-  const end = endLine ? Math.min(lines.length, endLine) : lines.length;
+  const start = parsedStart ? Math.max(1, parsedStart) : 1;
+  const end = parsedEnd ? Math.min(lines.length, parsedEnd) : lines.length;
 
   return lines.slice(start - 1, end).join('\n');
 }

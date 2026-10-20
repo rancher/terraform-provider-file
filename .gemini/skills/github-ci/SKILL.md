@@ -18,13 +18,13 @@ The `github-ci` skill provides tools to investigate and resolve failed GitHub Ac
 To view the status of recent workflow runs on the current branch:
 
 ```bash
-node ./scripts/list_runs.js
+node ./scripts/list_runs.js [-n limit] [--status completed|in_progress|queued]
 ```
 
-To check runs on a specific branch or see more results, pass them as arguments:
+To check runs on a specific branch or across all branches, pass them as arguments:
 
 ```bash
-node ./scripts/list_runs.js <branch_name> [limit]
+node ./scripts/list_runs.js [branch_name_or_all_or_current] [-n limit] [--status status]
 ```
 
 ### 2. Isolate Failed Runs
@@ -32,7 +32,13 @@ node ./scripts/list_runs.js <branch_name> [limit]
 To list only failed workflow runs on the current branch (to find their run IDs):
 
 ```bash
-node ./scripts/find_failed_runs.js
+node ./scripts/find_failed_runs.js [-n limit] [--status completed|in_progress|queued]
+```
+
+To check failed runs on a specific branch or across all branches:
+
+```bash
+node ./scripts/find_failed_runs.js [branch_name_or_all_or_current] [-n limit] [--status status]
 ```
 
 ### 3. Fetch and Parse Failed Step Logs
@@ -40,23 +46,23 @@ node ./scripts/find_failed_runs.js
 To quickly extract and parse the exact failure details and error messages from a failed run without downloading and wading through full logs:
 
 ```bash
-node ./scripts/get_failed_log.js [run_id]
+node ./scripts/get_failed_log.js [-r run_id] [-b branch] [run_id_or_branch]
 ```
 
-If `run_id` is omitted, it automatically targets the most recent failed workflow run on the current branch.
+If `run_id_or_branch` is omitted or `current`, it automatically targets the most recent failed workflow run on the current branch. If a branch name is supplied (e.g. `main` or `-b main`), it targets the latest failed run on that branch.
 
 ### 4. Download Job and Step Logs
 
 For in-depth analysis when full log dumps are required, download and extract all job and step logs into `/tmp/ci-logs-<run_id>`:
 
 ```bash
-node ./scripts/download_logs.js [run_id]
+node ./scripts/download_logs.js [run_id] [--failed-only]
 ```
 
-If `run_id` is omitted or set to `current`, it automatically targets the most recent failed workflow run on the current branch. You can also specify a custom output directory:
+If `run_id` is omitted or set to `current`, it automatically targets the most recent failed workflow run on the current branch. You can also specify a custom output directory or download only failed job logs with `--failed-only`:
 
 ```bash
-node ./scripts/download_logs.js [run_id] /path/to/directory
+node ./scripts/download_logs.js [run_id] [/path/to/directory] [--failed-only]
 ```
 
 ### 5. Search and Grep Logs for Errors
@@ -64,7 +70,7 @@ node ./scripts/download_logs.js [run_id] /path/to/directory
 Use the search tool to scan through a downloaded logs folder for error messages, test failures, or exceptions. It uses regex patterns to catch common failure keywords (e.g., error, fail, exit status, panic, exception):
 
 ```bash
-node ./scripts/search_logs.js <logs_directory>
+node ./scripts/search_logs.js <logs_directory> [regex_pattern] [-n limit]
 ```
 
 To search for a specific error message or component failure, pass a custom pattern:

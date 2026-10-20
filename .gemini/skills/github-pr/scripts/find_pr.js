@@ -15,26 +15,54 @@ export async function findPR({ octokit, owner, repo, target }) {
   const trimmedTarget = target !== undefined && target !== null ? String(target).trim() : '';
 
   if (trimmedTarget && trimmedTarget !== 'current' && trimmedTarget !== 'HEAD') {
+    const urlMatch = trimmedTarget.match(/\/pull\/(\d+)/);
     if (/^#?\d+$/.test(trimmedTarget)) {
       pullNumber = parseInt(trimmedTarget.replace(/^#/, ''), 10);
+    } else if (urlMatch) {
+      pullNumber = parseInt(urlMatch[1], 10);
     } else {
       const headSpec = trimmedTarget.includes(':') ? trimmedTarget : `${owner}:${trimmedTarget}`;
-      // Search by head branch
+      // Search by head branch, prioritizing open PRs over closed ones
       const { data: pulls } = await octokit.rest.pulls.list({
         owner,
         repo,
         head: headSpec,
         state: 'all',
-        per_page: 1,
+        per_page: 10,
       });
-      if (pulls.length > 0) {
-        pullNumber = pulls[0].number;
+      const match = (pulls || []).find((p) => p.state === 'open') || (pulls || [])[0];
+      if (match) {
+        pullNumber = match.number;
       } else {
-        throw new Error(`No pull request found for branch '${target}' in ${owner}/${repo}.`);
+        // Fallback: search open/all PRs for matching head.ref across forks
+        const allPulls = octokit.paginate
+          ? await octokit.paginate(octokit.rest.pulls.list, {
+              owner,
+              repo,
+              state: 'all',
+              per_page: 100,
+            })
+          : (
+              await octokit.rest.pulls.list({
+                owner,
+                repo,
+                state: 'all',
+                per_page: 100,
+              })
+            ).data || [];
+
+        const match =
+          allPulls.find((p) => p.state === 'open' && p.head?.ref === trimmedTarget) ||
+          allPulls.find((p) => p.head?.ref === trimmedTarget);
+        if (match) {
+          pullNumber = match.number;
+        } else {
+          throw new Error(`No pull request found for branch '${target}' in ${owner}/${repo}.`);
+        }
       }
     }
   } else {
-    pullNumber = await getCurrentPRNumber(octokit);
+    pullNumber = await getCurrentPRNumber(octokit, { owner, repo });
     if (!pullNumber) {
       throw new Error('No pull request target specified and no PR found for current branch.');
     }
@@ -56,8 +84,9 @@ async function main() {
 
   try {
     const pr = await findPR({ octokit, owner, repo, target });
+    const stateDesc = pr.merged ? 'MERGED' : pr.draft ? 'DRAFT' : pr.state.toUpperCase();
     console.log(`=== Pull Request #${pr.number}: ${pr.title} ===`);
-    console.log(`State:  ${pr.state.toUpperCase()}`);
+    console.log(`State:  ${stateDesc}`);
     console.log(`Author: ${pr.user?.login}`);
     console.log(`Branch: ${pr.head.ref} -> ${pr.base.ref}`);
     console.log(`URL:    ${pr.html_url}`);

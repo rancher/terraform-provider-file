@@ -3,7 +3,9 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { Octokit } from 'octokit';
 
-const execFileAsync = promisify(execFile);
+export const sys = {
+  execFileAsync: promisify(execFile),
+};
 
 /**
  * Resolves an active GitHub authentication token.
@@ -27,7 +29,7 @@ export async function getAuthToken() {
  */
 export async function getGhCliToken() {
   try {
-    const { stdout } = await execFileAsync('gh', ['auth', 'token'], {
+    const { stdout } = await sys.execFileAsync('gh', ['auth', 'token'], {
       env: { ...process.env, GITHUB_TOKEN: '', GH_TOKEN: '' },
     });
     if (stdout && stdout.trim()) {
@@ -121,7 +123,7 @@ export async function getRepoDetails() {
 
   for (const remote of ['upstream', 'origin']) {
     try {
-      const { stdout } = await execFileAsync('git', ['remote', 'get-url', remote]);
+      const { stdout } = await sys.execFileAsync('git', ['remote', 'get-url', remote]);
       const url = stdout.trim();
       const match = url.match(/[:/]([^/]+)\/([^/.]+)(?:\.git)?$/);
       if (match) {
@@ -143,7 +145,7 @@ export async function getRepoDetails() {
  */
 export async function getCurrentBranch() {
   try {
-    const { stdout } = await execFileAsync('git', ['branch', '--show-current']);
+    const { stdout } = await sys.execFileAsync('git', ['branch', '--show-current']);
     return stdout.trim();
   } catch {
     return '';

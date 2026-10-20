@@ -103,9 +103,29 @@ export async function getStagedFiles({ git = simpleGit() } = {}) {
   return { entries: stagedEntries, paths, hasConflicts };
 }
 
+/**
+ * Parses command-line arguments for get_staged_files.js.
+ * Supports:
+ * - [--name-only] or [-n]
+ * @param {Array<string>} [args]
+ * @returns {{nameOnly: boolean}}
+ */
+export function parseStageArgs(args = []) {
+  const nameOnly = args.includes('--name-only') || args.includes('-n');
+  return { nameOnly };
+}
+
 async function main() {
+  const { nameOnly } = parseStageArgs(process.argv.slice(2));
   try {
     const { entries, paths, hasConflicts } = await getStagedFiles();
+    if (nameOnly) {
+      for (const p of paths) {
+        console.log(p);
+      }
+      return;
+    }
+
     console.log(`=== Staged Files in Index (${paths.length} file(s)) ===`);
 
     if (entries.length === 0) {

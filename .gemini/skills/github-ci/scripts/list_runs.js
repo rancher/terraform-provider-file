@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { getCurrentBranch, getOctokit, getRepoDetails } from './auth.js';
+import { parseRunArgs } from './find_failed_runs.js';
 
 /**
  * Lists workflow runs from GitHub Actions.
@@ -30,31 +31,24 @@ export async function listRuns({ octokit, owner, repo, branch, limit = 10, statu
 }
 
 async function main() {
-  const branchArg = process.argv[2];
-  const limitArg = process.argv[3];
+  const { branchTarget, limit, status } = parseRunArgs(process.argv.slice(2));
 
   let branch;
-  let limit = 10;
-
-  if (branchArg && /^\d+$/.test(branchArg)) {
-    limit = parseInt(branchArg, 10);
-    branch = await getCurrentBranch();
-  } else if (branchArg === 'all') {
+  if (branchTarget === 'all') {
     branch = undefined;
-    limit = limitArg ? parseInt(limitArg, 10) : 10;
-  } else if (branchArg === 'current') {
+  } else if (branchTarget === 'current') {
     branch = await getCurrentBranch();
-    limit = limitArg ? parseInt(limitArg, 10) : 10;
   } else {
-    branch = branchArg || (await getCurrentBranch());
-    limit = limitArg ? parseInt(limitArg, 10) : 10;
+    branch = branchTarget;
   }
+
   const { owner, repo } = await getRepoDetails();
   const octokit = await getOctokit();
 
   try {
-    const runs = await listRuns({ octokit, owner, repo, branch, limit });
-    console.log(`=== Recent Workflow Runs for ${owner}/${repo} (Branch: ${branch || 'all'}) ===\n`);
+    const runs = await listRuns({ octokit, owner, repo, branch, limit, status });
+    const statusNote = status ? `, Status: ${status}` : '';
+    console.log(`=== Recent Workflow Runs for ${owner}/${repo} (Branch: ${branch || 'all'}${statusNote}) ===\n`);
     if (runs.length === 0) {
       console.log('No workflow runs found.');
       return;

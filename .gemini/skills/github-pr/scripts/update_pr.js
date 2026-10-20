@@ -3,7 +3,7 @@ import { getOctokit, getRepoDetails } from './auth.js';
 import { findPR } from './find_pr.js';
 
 /**
- * Updates a pull request's title and/or body.
+ * Updates a pull request's title, body, and/or state.
  * @param {object} params
  * @param {import('octokit').Octokit} params.octokit
  * @param {string} params.owner
@@ -11,9 +11,10 @@ import { findPR } from './find_pr.js';
  * @param {number} params.prNumber
  * @param {string} [params.title]
  * @param {string} [params.body]
+ * @param {string} [params.state] - 'open' or 'closed'
  * @returns {Promise<object>}
  */
-export async function updatePR({ octokit, owner, repo, prNumber, title, body }) {
+export async function updatePR({ octokit, owner, repo, prNumber, title, body, state }) {
   const updatePayload = {
     owner,
     repo,
@@ -27,6 +28,10 @@ export async function updatePR({ octokit, owner, repo, prNumber, title, body }) 
   }
   if (body !== undefined && body !== null && body !== '') {
     updatePayload.body = body;
+    hasUpdate = true;
+  }
+  if (state !== undefined && state !== null && state !== '') {
+    updatePayload.state = state;
     hasUpdate = true;
   }
 
@@ -45,15 +50,64 @@ export async function updatePR({ octokit, owner, repo, prNumber, title, body }) 
  * - [pr_target, title]
  * - [title, body]
  * - [title]
+ * - [--title title] [--body body] [--state open|closed] [pr_target]
+ * - [-t title] [-b body] [-s open|closed] [pr_target]
  * @param {Array<string>} args
- * @returns {{prTarget?: string, title?: string, body?: string}}
+ * @returns {{prTarget?: string, title?: string, body?: string, state?: string}}
  */
 export function parseUpdateArgs(args) {
   if (!args || args.length === 0) {
     return {};
   }
 
-  const isNum = (v) => /^#?\d+$/.test(String(v || '').trim());
+  const hasFlags = args.some(
+    (a) =>
+      a === '-t' ||
+      a === '--title' ||
+      a === '-b' ||
+      a === '--body' ||
+      a === '-s' ||
+      a === '--state' ||
+      a.startsWith('-t=') ||
+      a.startsWith('--title=') ||
+      a.startsWith('-b=') ||
+      a.startsWith('--body=') ||
+      a.startsWith('-s=') ||
+      a.startsWith('--state='),
+  );
+
+  if (hasFlags) {
+    let prTarget = undefined;
+    let title = undefined;
+    let body = undefined;
+    let state = undefined;
+
+    for (let i = 0; i < args.length; i++) {
+      const a = args[i];
+      if ((a === '-t' || a === '--title') && i + 1 < args.length) {
+        title = args[++i];
+      } else if (a.startsWith('-t=') || a.startsWith('--title=')) {
+        title = a.slice(a.indexOf('=') + 1);
+      } else if ((a === '-b' || a === '--body') && i + 1 < args.length) {
+        body = args[++i];
+      } else if (a.startsWith('-b=') || a.startsWith('--body=')) {
+        body = a.slice(a.indexOf('=') + 1);
+      } else if ((a === '-s' || a === '--state') && i + 1 < args.length) {
+        state = args[++i];
+      } else if (a.startsWith('-s=') || a.startsWith('--state=')) {
+        state = a.slice(a.indexOf('=') + 1);
+      } else if (!prTarget && !a.startsWith('-')) {
+        prTarget = a;
+      }
+    }
+    const result = { prTarget: prTarget || 'current', title, body };
+    if (state !== undefined) {
+      result.state = state;
+    }
+    return result;
+  }
+
+  const isNum = (v) => /^#?\d+$/.test(String(v || '').trim()) || /\/pull\/(\d+)/.test(String(v || ''));
 
   if (args.length === 1) {
     return { prTarget: 'current', title: args[0], body: undefined };
@@ -75,10 +129,11 @@ export function parseUpdateArgs(args) {
 
 async function main() {
   const args = process.argv.slice(2);
-  const { prTarget, title, body } = parseUpdateArgs(args);
+  const { prTarget, title, body, state } = parseUpdateArgs(args);
 
-  if (title === undefined && body === undefined) {
+  if (title === undefined && body === undefined && state === undefined) {
     console.error('Usage: update_pr.js [pr_number_or_current] <title_or_empty> [body_or_empty]');
+    console.error('   or: update_pr.js [pr_number_or_current] [--title title] [--body body] [--state open|closed]');
     process.exit(1);
   }
 
@@ -107,8 +162,9 @@ async function main() {
       prNumber,
       title,
       body,
+      state,
     });
-    console.log(`✅ Successfully updated PR #${updated.number}: "${updated.title}"`);
+    console.log(`✅ Successfully updated PR #${updated.number}: "${updated.title}" (State: ${updated.state})`);
   } catch (err) {
     console.error(`❌ Error updating PR: ${err.message}`);
     process.exit(1);

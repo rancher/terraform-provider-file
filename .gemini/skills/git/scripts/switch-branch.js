@@ -13,18 +13,35 @@ export async function switchBranch({ git = simpleGit(), branchName }) {
     throw new Error('Branch name cannot be empty.');
   }
 
+  if (branchName.startsWith('-')) {
+    throw new Error('Branch name cannot start with a hyphen.');
+  }
+
+  const cleanBranch = branchName.replace(/^(?:remotes\/)?(?:upstream|origin)\//, '');
+
   const branches = await git.branch();
-  const branchExists =
-    branches.all.includes(branchName) ||
-    branches.all.includes(`remotes/origin/${branchName}`) ||
-    branches.all.includes(`remotes/upstream/${branchName}`);
+  const hasLocal = branches.all.includes(cleanBranch);
+  const hasOrigin =
+    branches.all.includes(`remotes/origin/${cleanBranch}`) || branches.all.includes(`origin/${cleanBranch}`);
+  const hasUpstream =
+    branches.all.includes(`remotes/upstream/${cleanBranch}`) || branches.all.includes(`upstream/${cleanBranch}`);
+
+  const branchExists = hasLocal || hasOrigin || hasUpstream || branches.all.includes(branchName);
 
   if (!branchExists) {
     throw new Error(`Branch '${branchName}' does not exist.`);
   }
 
-  await git.checkout(branchName);
-  return { branchName };
+  if (!hasLocal && !hasOrigin && hasUpstream) {
+    try {
+      await git.checkout(['-b', cleanBranch, '--track', `upstream/${cleanBranch}`]);
+    } catch {
+      await git.checkout(cleanBranch);
+    }
+  } else {
+    await git.checkout(cleanBranch);
+  }
+  return { branchName: cleanBranch };
 }
 
 async function main() {

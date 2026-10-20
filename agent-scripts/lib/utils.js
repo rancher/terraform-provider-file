@@ -463,21 +463,21 @@ function describeZodType(zodType) {
  * Orchestrates up to 4 validation agent sessions across 5 total validation attempts.
  * @param {string|Object} rawInput - The raw output text or pre-parsed object from another agent
  * @param {import('zod').ZodSchema} schema - The Zod schema to validate against
- * @param {string|Function|Object} [requestedModelOrRunner='gemini-3.5-flash'] - The model name, session runner function, or options object
+ * @param {string|Function|Object} [requestedModelOrRunner='gemini-3.8-flash'] - The model name, session runner function, or options object
  * @param {Function} [sessionRunner=null] - The session runner function to use for validator agent calls
  * @returns {Promise<Object|null>} The parsed and validated JSON object, or null on failure
  */
 export async function validateAgentOutput(
   rawInput,
   schema,
-  requestedModelOrRunner = 'gemini-3.5-flash',
+  requestedModelOrRunner = 'gemini-3.8-flash',
   sessionRunner = null,
 ) {
   if (!schema || typeof schema.parse !== 'function') {
     throw new TypeError('validateAgentOutput requires a valid Zod schema with a .parse() method.');
   }
 
-  let requestedModel = 'gemini-3.5-flash';
+  let requestedModel = 'gemini-3.8-flash';
   let runner = sessionRunner;
 
   if (typeof requestedModelOrRunner === 'function') {

@@ -14,6 +14,10 @@ export async function createBranch({ git = simpleGit(), branchName, baseBranch }
     throw new Error('Branch name cannot be empty.');
   }
 
+  if (branchName.startsWith('-')) {
+    throw new Error('Branch name cannot start with a hyphen.');
+  }
+
   // Determine base branch if not provided
   let base = baseBranch;
   if (!base) {
@@ -31,18 +35,23 @@ export async function createBranch({ git = simpleGit(), branchName, baseBranch }
   const remotes = await git.getRemotes();
   const upstreamRemote = remotes.some((r) => r.name === 'upstream') ? 'upstream' : 'origin';
 
-  console.log(`Syncing base branch '${base}' from remote '${upstreamRemote}'...`);
+  const remoteRef =
+    base.startsWith(`${upstreamRemote}/`) || base.startsWith('origin/') || base.startsWith('upstream/')
+      ? base.replace(/^(?:origin|upstream|remotes\/upstream|remotes\/origin)\//, '')
+      : base;
+
+  console.log(`Syncing base branch '${remoteRef}' from remote '${upstreamRemote}'...`);
   try {
-    await git.fetch(upstreamRemote, base);
+    await git.fetch(upstreamRemote, remoteRef);
     const current = (await git.branch()).current;
-    if (current === base) {
-      await git.merge(['--ff-only', `${upstreamRemote}/${base}`]);
+    if (current === remoteRef) {
+      await git.merge(['--ff-only', `${upstreamRemote}/${remoteRef}`]);
     } else {
-      await git.fetch(upstreamRemote, `${base}:${base}`);
+      await git.fetch(upstreamRemote, `${remoteRef}:${remoteRef}`);
     }
-    console.log(`Base branch '${base}' synced with '${upstreamRemote}/${base}'.`);
+    console.log(`Base branch '${remoteRef}' synced with '${upstreamRemote}/${remoteRef}'.`);
   } catch (err) {
-    console.warn(`Warning: Could not sync with '${upstreamRemote}/${base}': ${err.message}`);
+    console.warn(`Warning: Could not sync with '${upstreamRemote}/${remoteRef}': ${err.message}`);
   }
 
   // Verify branch does not already exist

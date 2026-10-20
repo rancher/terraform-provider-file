@@ -5,7 +5,7 @@ async function testIsolate() {
   try {
     const text = await runAgentSession({
       initialPrompt: 'Respond with exactly the word "Hello". Do not use any tools.',
-      requestedModel: 'gemini-3.5-flash',
+      requestedModel: 'gemini-3.8-flash',
       isolate: true,
       standalone: true,
     });

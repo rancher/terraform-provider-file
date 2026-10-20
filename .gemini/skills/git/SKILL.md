@@ -15,28 +15,28 @@ The `git` skill provides a safe, curated, and standardized set of Git utilities 
 
 ### 1. Check Workspace and Branch Status
 
-- **Working Tree & Branch Status**: View uncommitted changes and list files changed in the current branch compared to the base branch (`main` or `master`):
+- **Working Tree & Branch Status**: View uncommitted changes and list files changed in the current branch compared to the base branch (`main`, `master`, or specified `[-b base-branch]` / `[base-branch]`):
   ```bash
-  node ./scripts/get_files_changed.js
+  node ./scripts/get_files_changed.js [-b base-branch] [base-branch]
   ```
 - **List Modified/Untracked Paths**: Get a clean list of explicit file paths that have been modified or are untracked:
   ```bash
   node ./scripts/get_modified_paths.js
   ```
-- **Inspect Staged Files in Index**: Inspect what files are currently staged, their stage slot (0 for normal, 1-3 for merge conflicts), and their cached diff status (`A`, `M`, `D`, etc.):
+- **Inspect Staged Files in Index**: Inspect what files are currently staged, their stage slot (0 for normal, 1-3 for merge conflicts), and their cached diff status (`A`, `M`, `D`, etc.), or retrieve just file names with `--name-only`:
   ```bash
-  node ./scripts/get_staged_files.js
+  node ./scripts/get_staged_files.js [--name-only]
   ```
 
 ### 2. Review Detailed Diffs
 
-- **Uncommitted Changes (Staged & Unstaged)**: View a full diff of local changes in the working directory and staging area, optionally filtering by specific files:
+- **Uncommitted Changes (Staged & Unstaged)**: View a full diff of local changes in the working directory and staging area, optionally filtering by specific files, scoping to `--staged` or `--unstaged`, or requesting a compact summary with `--stat` or `--name-only`:
   ```bash
-  node ./scripts/get_diff_to_review.js [file_path...]
+  node ./scripts/get_diff_to_review.js [--staged|--unstaged] [--stat|--name-only] [file_path...]
   ```
-- **Branch Changes**: View all changes introduced in the current branch relative to the base branch (`main`, `master`, or specified `[base-branch]`):
+- **Branch Changes**: View all changes introduced in the current branch relative to the base branch (`main`, `master`, or specified `[base-branch]`), optionally filtering by specific files or requesting a compact summary with `--stat` or `--name-only`:
   ```bash
-  node ./scripts/get_branch_changes.js [base-branch]
+  node ./scripts/get_branch_changes.js [--stat|--name-only] [-b base-branch] [base-branch] [file_path...]
   ```
 
 ### 3. Read Files Ignored by .gitignore
@@ -74,6 +74,12 @@ To stage all modified tracked files:
 node ./scripts/stage-files.js --all
 ```
 
+To stage all modified tracked files and untracked files (excluding gitignored files):
+
+```bash
+node ./scripts/stage-files.js --all --include-untracked
+```
+
 To unstage specific files from the staging index:
 
 ```bash
@@ -96,11 +102,11 @@ node ./scripts/commit.js -m "fix: your commit message"
 
 ### 7. View Commit Log and File History
 
-- **View Recent Commits**: View a concise, color-stripped oneline commit history on the current branch:
+- **View Recent Commits**: View a concise, color-stripped oneline commit history on the current branch or scoped to a specific file or branch:
   ```bash
-  node ./scripts/get_commit_log.js [limit]
+  node ./scripts/get_commit_log.js [-n limit] [-f file] [-b branch]
   ```
-- **Retrieve Deleted/Historical File Contents**: Retrieve last known good contents of a deleted or heavily modified file from Git history:
+- **Retrieve Deleted/Historical File Contents**: Retrieve contents of a deleted or historical file from Git history at the latest commit or a specific revision/commit SHA:
   ```bash
-  node ./scripts/get_deleted_file.js <file_path>
+  node ./scripts/get_deleted_file.js <file_path> [commit_or_rev]
   ```

@@ -14,12 +14,13 @@ export async function getModifiedPaths({ git = simpleGit() } = {}) {
 
   for (const line of lines) {
     if (!line || line.length < 3) continue;
-    let filePath = line.slice(3).trim();
-    if (filePath.startsWith('"') && filePath.endsWith('"')) {
-      filePath = filePath.slice(1, -1);
-    }
+    let filePath = line.slice(3);
     if (filePath.includes(' -> ')) {
       filePath = filePath.split(' -> ')[1];
+    }
+    filePath = filePath.trim();
+    if (filePath.startsWith('"') && filePath.endsWith('"')) {
+      filePath = filePath.slice(1, -1);
     }
     if (filePath) {
       paths.push(filePath);

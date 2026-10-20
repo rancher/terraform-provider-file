@@ -83,7 +83,7 @@ let originalStderrWrite = null;
 let activeAbortHandler = null;
 
 let MODEL_PRO = 'gemini-3.1-pro-preview';
-let MODEL_FLASH = 'gemini-3.5-flash';
+let MODEL_FLASH = 'gemini-3.8-flash';
 let MODEL_FLASH_LITE = 'gemini-3.1-flash-lite';
 let MODEL_HIERARCHY = [MODEL_PRO, MODEL_FLASH, MODEL_FLASH_LITE];
 
@@ -245,7 +245,7 @@ export async function initializeAgentRunner() {
     }
 
     MODEL_PRO = modelConfig.pro || 'gemini-3.1-pro-preview';
-    MODEL_FLASH = modelConfig.flash || 'gemini-3.5-flash';
+    MODEL_FLASH = modelConfig.flash || 'gemini-3.8-flash';
     MODEL_FLASH_LITE = modelConfig.flash_lite || 'gemini-3.1-flash-lite';
     MODEL_HIERARCHY = [MODEL_PRO, MODEL_FLASH, MODEL_FLASH_LITE];
 

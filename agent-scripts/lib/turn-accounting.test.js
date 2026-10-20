@@ -14,6 +14,7 @@ import {
 
 test('turn-accounting model limits', () => {
   assert.strictEqual(getMaxTurnsForModel('gemini-3.1-pro-preview'), 10);
+  assert.strictEqual(getMaxTurnsForModel('gemini-3.8-flash'), 5);
   assert.strictEqual(getMaxTurnsForModel('gemini-3.5-flash'), 5);
   assert.strictEqual(getMaxTurnsForModel('gemini-3.1-flash-lite'), 2);
   assert.strictEqual(getMaxTurnsForModel('unknown-model'), 5);

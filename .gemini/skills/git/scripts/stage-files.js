@@ -7,20 +7,29 @@ import { isExcludedByAIExclude } from './read-ignored-file.js';
  * Stages files safely, ensuring .aiexclude patterns are respected.
  * @param {object} params
  * @param {import('simple-git').SimpleGit} [params.git]
- * @param {Array<string>} params.files
+ * @param {Array<string>} [params.files]
  * @param {boolean} [params.all]
+ * @param {boolean} [params.includeUntracked]
  * @returns {Promise<Array<string>>} List of staged files
  */
-export async function stageFiles({ git = simpleGit(), files = [], all = false }) {
+export async function stageFiles({ git = simpleGit(), files = [], all = false, includeUntracked = false }) {
   const root = (await git.revparse(['--show-toplevel'])).trim();
 
-  let targets = files;
-  if (all) {
-    const statusOutput = await git.raw(['-c', 'core.quotepath=false', 'ls-files', '-m', '-d']);
-    targets = statusOutput
+  let targets = [...files];
+  if (all || includeUntracked) {
+    const args = ['-c', 'core.quotepath=false', 'ls-files'];
+    if (all) {
+      args.push('-m', '-d');
+    }
+    if (includeUntracked) {
+      args.push('-o', '--exclude-standard');
+    }
+    const statusOutput = await git.raw(args);
+    const listed = statusOutput
       .split('\n')
       .map((l) => l.trim().replace(/^"(.*)"$/, '$1'))
       .filter(Boolean);
+    targets = [...new Set([...targets, ...listed])];
     if (targets.length === 0) {
       return [];
     }
@@ -30,13 +39,15 @@ export async function stageFiles({ git = simpleGit(), files = [], all = false })
     throw new Error('No files specified to stage.');
   }
 
-  for (const file of targets) {
-    const fullPath = path.isAbsolute(file) ? file : path.resolve(root, file);
-    const isBlocked = await isExcludedByAIExclude(fullPath, root);
-    if (isBlocked) {
-      throw new Error(`File '${file}' is blocked by .aiexclude policy. Staging aborted.`);
-    }
-  }
+  await Promise.all(
+    targets.map(async (file) => {
+      const fullPath = path.isAbsolute(file) ? file : path.resolve(root, file);
+      const isBlocked = await isExcludedByAIExclude(fullPath, root);
+      if (isBlocked) {
+        throw new Error(`File '${file}' is blocked by .aiexclude policy. Staging aborted.`);
+      }
+    }),
+  );
 
   await git.add(targets);
   return targets;
@@ -45,15 +56,22 @@ export async function stageFiles({ git = simpleGit(), files = [], all = false })
 async function main() {
   const args = process.argv.slice(2);
   if (args.length === 0) {
-    console.error('Usage: stage-files.js <file1> [file2...] | --all');
+    console.error('Usage: stage-files.js <file1> [file2...] | --all | --include-untracked');
     process.exit(1);
   }
 
   const all = args.includes('--all') || args.includes('-A');
-  const files = args.filter((a) => a !== '--all' && a !== '-A');
+  const includeUntracked = args.includes('--include-untracked') || args.includes('-u');
+  const files = args.filter(
+    (a) => a !== '--all' && a !== '-A' && a !== '--include-untracked' && a !== '-u' && a !== '--',
+  );
 
   try {
-    const staged = await stageFiles({ files, all });
+    const staged = await stageFiles({ files, all, includeUntracked });
+    if (staged.length === 0) {
+      console.log('No files to stage.');
+      return;
+    }
     console.log(`✅ Successfully staged: ${staged.join(', ')}`);
   } catch (err) {
     console.error(`❌ Error: ${err.message}`);

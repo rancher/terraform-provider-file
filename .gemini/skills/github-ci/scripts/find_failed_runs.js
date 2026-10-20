@@ -9,18 +9,19 @@ import { getCurrentBranch, getOctokit, getRepoDetails } from './auth.js';
  * @param {string} params.repo
  * @param {string} [params.branch]
  * @param {number} [params.limit=10]
+ * @param {string} [params.status]
  * @returns {Promise<Array>} Failed runs
  */
-export async function findFailedRuns({ octokit, owner, repo, branch, limit = 10 }) {
+export async function findFailedRuns({ octokit, owner, repo, branch, limit = 10, status }) {
   const failedRuns = [];
   const perPage = Math.min(Math.max(limit, 30), 100);
   let page = 1;
 
-  while (failedRuns.length < limit) {
+  while (failedRuns.length < limit && page <= 15) {
     const req = {
       owner,
       repo,
-      status: 'completed',
+      status: status || 'completed',
       per_page: perPage,
       page,
     };
@@ -35,7 +36,10 @@ export async function findFailedRuns({ octokit, owner, repo, branch, limit = 10 
     }
 
     for (const run of runs) {
-      if (run.conclusion === 'failure' || run.conclusion === 'timed_out' || run.conclusion === 'startup_failure') {
+      const isMatch = status
+        ? run.conclusion === status || run.status === status
+        : run.conclusion === 'failure' || run.conclusion === 'timed_out' || run.conclusion === 'startup_failure';
+      if (isMatch) {
         failedRuns.push(run);
         if (failedRuns.length >= limit) {
           break;
@@ -52,32 +56,73 @@ export async function findFailedRuns({ octokit, owner, repo, branch, limit = 10 
   return failedRuns;
 }
 
+/**
+ * Parses command-line arguments for workflow run queries.
+ * Supports:
+ * - [limit] (e.g. 20)
+ * - [-n, limit] or [--limit, limit]
+ * - [-n=limit] or [--limit=limit]
+ * - [-b, branch] or [--branch, branch]
+ * - [-b=branch] or [--branch=branch]
+ * - [-s, status] or [--status, status]
+ * - [-s=status] or [--status=status]
+ * - [branch] (e.g. 'main', 'all', 'current')
+ * - [branch, limit]
+ * - [branch, -n, limit]
+ * @param {Array<string>} [args]
+ * @returns {{branchTarget: string, limit: number, status?: string}}
+ */
+export function parseRunArgs(args = []) {
+  let limit = 10;
+  let branchTarget = 'current';
+  let status = undefined;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if ((arg === '-n' || arg === '--limit') && i + 1 < args.length) {
+      const parsed = parseInt(args[++i], 10);
+      if (!isNaN(parsed) && parsed > 0) limit = parsed;
+    } else if (arg.startsWith('-n=') || arg.startsWith('--limit=')) {
+      const parsed = parseInt(arg.slice(arg.indexOf('=') + 1), 10);
+      if (!isNaN(parsed) && parsed > 0) limit = parsed;
+    } else if ((arg === '-b' || arg === '--branch') && i + 1 < args.length) {
+      branchTarget = args[++i];
+    } else if (arg.startsWith('-b=') || arg.startsWith('--branch=')) {
+      branchTarget = arg.slice(arg.indexOf('=') + 1);
+    } else if ((arg === '-s' || arg === '--status') && i + 1 < args.length) {
+      status = args[++i];
+    } else if (arg.startsWith('-s=') || arg.startsWith('--status=')) {
+      status = arg.slice(arg.indexOf('=') + 1);
+    } else if (/^\d+$/.test(arg)) {
+      const parsed = parseInt(arg, 10);
+      if (!isNaN(parsed) && parsed > 0) limit = parsed;
+    } else if (arg && !arg.startsWith('-')) {
+      branchTarget = arg;
+    }
+  }
+
+  return { branchTarget, limit, status };
+}
+
 async function main() {
-  const branchArg = process.argv[2];
-  const limitArg = process.argv[3];
+  const { branchTarget, limit, status } = parseRunArgs(process.argv.slice(2));
 
   let branch;
-  let limit = 10;
-
-  if (branchArg && /^\d+$/.test(branchArg)) {
-    limit = parseInt(branchArg, 10);
-    branch = await getCurrentBranch();
-  } else if (branchArg === 'all') {
+  if (branchTarget === 'all') {
     branch = undefined;
-    limit = limitArg ? parseInt(limitArg, 10) : 10;
-  } else if (branchArg === 'current') {
+  } else if (branchTarget === 'current') {
     branch = await getCurrentBranch();
-    limit = limitArg ? parseInt(limitArg, 10) : 10;
   } else {
-    branch = branchArg || (await getCurrentBranch());
-    limit = limitArg ? parseInt(limitArg, 10) : 10;
+    branch = branchTarget;
   }
+
   const { owner, repo } = await getRepoDetails();
   const octokit = await getOctokit();
 
   try {
-    const runs = await findFailedRuns({ octokit, owner, repo, branch, limit });
-    console.log(`=== Failed Workflow Runs for ${owner}/${repo} (Branch: ${branch || 'all'}) ===\n`);
+    const runs = await findFailedRuns({ octokit, owner, repo, branch, limit, status });
+    const statusNote = status ? `, Status: ${status}` : '';
+    console.log(`=== Failed Workflow Runs for ${owner}/${repo} (Branch: ${branch || 'all'}${statusNote}) ===\n`);
     if (runs.length === 0) {
       console.log('No failed workflow runs found.');
       return;

@@ -3,6 +3,15 @@ import { getCurrentBranch, getOctokit, getRepoDetails } from './auth.js';
 import { findFailedRuns } from './find_failed_runs.js';
 
 /**
+ * Strips ANSI escape codes from terminal output.
+ * @param {string} str
+ * @returns {string}
+ */
+export function stripAnsi(str) {
+  return str ? str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '') : '';
+}
+
+/**
  * Retrieves and parses logs from failed jobs in a workflow run.
  * @param {object} params
  * @param {import('octokit').Octokit} params.octokit
@@ -35,7 +44,8 @@ export async function getFailedLog({ octokit, owner, repo, runId }) {
       ).data.jobs || [];
 
   const failedJobs = [];
-  const failureRegex = /\b(error|failed|failure|fatal|panic|exit code [1-9]|exit status [1-9])\b/i;
+  const failureRegex =
+    /\b(error|failed|failure|fatal|panic|exit code [1-9]|exit status [1-9]|undefined|cannot find|timed out)\b|##\[error\]/i;
 
   for (const job of jobs) {
     const isFailed =
@@ -64,13 +74,17 @@ export async function getFailedLog({ octokit, owner, repo, runId }) {
 
       const lines = logText.split('\n');
       const errorLines = lines
-        .map((l) => l.trim())
+        .map((l) => stripAnsi(l).trim())
         .filter((l) => l.length > 0 && failureRegex.test(l))
         .slice(-30); // Last 30 error lines
+
+      const nonEmpties = lines.map((l) => stripAnsi(l).trim()).filter((l) => l.length > 0);
+      const tailLines = nonEmpties.slice(-15);
 
       failedJobs.push({
         job,
         errorLines,
+        tailLines,
       });
     }
   }
@@ -78,15 +92,56 @@ export async function getFailedLog({ octokit, owner, repo, runId }) {
   return { run, failedJobs };
 }
 
+/**
+ * Parses CLI arguments for get_failed_log.js.
+ * Supports:
+ * - [run_id] (e.g. 12345 or #12345)
+ * - [-r run_id] or [--run run_id] or [--run-id run_id] or [flag=val]
+ * - [-b branch] or [--branch branch] or [flag=val]
+ * - [branch] (e.g. 'main', 'current', 'all')
+ * @param {Array<string>} [args]
+ * @returns {{runId: number|null, targetBranch?: string}}
+ */
+export function parseFailedLogArgs(args = []) {
+  let runId = null;
+  let targetBranch = undefined;
+
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if ((a === '-b' || a === '--branch') && i + 1 < args.length) {
+      targetBranch = args[++i];
+    } else if (a.startsWith('-b=') || a.startsWith('--branch=')) {
+      targetBranch = a.slice(a.indexOf('=') + 1);
+    } else if ((a === '-r' || a === '--run' || a === '--run-id') && i + 1 < args.length) {
+      const parsed = parseInt(args[++i].replace(/^#/, ''), 10);
+      if (!isNaN(parsed)) runId = parsed;
+    } else if (a.startsWith('-r=') || a.startsWith('--run=') || a.startsWith('--run-id=')) {
+      const parsed = parseInt(a.slice(a.indexOf('=') + 1).replace(/^#/, ''), 10);
+      if (!isNaN(parsed)) runId = parsed;
+    } else if (/^#?\d+$/.test(a)) {
+      runId = parseInt(a.replace(/^#/, ''), 10);
+    } else if (a !== 'current' && !a.startsWith('-')) {
+      targetBranch = a;
+    }
+  }
+
+  return { runId, targetBranch };
+}
+
 async function main() {
-  const runIdArg = process.argv[2];
-  let runId = runIdArg ? parseInt(runIdArg.replace(/^#/, ''), 10) : null;
+  const { runId: parsedRunId, targetBranch } = parseFailedLogArgs(process.argv.slice(2));
+  let runId = parsedRunId;
 
   const { owner, repo } = await getRepoDetails();
   const octokit = await getOctokit();
 
   if (!runId || isNaN(runId)) {
-    const branch = await getCurrentBranch();
+    let branch = targetBranch;
+    if (!branch || branch === 'current') {
+      branch = await getCurrentBranch();
+    } else if (branch === 'all') {
+      branch = undefined;
+    }
     console.log(`Finding latest failed run for branch '${branch || 'all'}'...`);
     const failedRuns = await findFailedRuns({ octokit, owner, repo, branch, limit: 1 });
     if (failedRuns.length === 0) {
@@ -115,16 +170,22 @@ async function main() {
     console.log(`\n=== Failed Job Log Analysis (${failedJobs.length} job(s)) ===`);
     for (const item of failedJobs) {
       console.log(`\n❌ Job: ${item.job.name} (ID: ${item.job.id})`);
-      const failedStep = item.job.steps?.find(
-        (s) => s.conclusion === 'failure' || s.conclusion === 'timed_out' || s.conclusion === 'startup_failure',
-      );
-      if (failedStep) {
-        console.log(
-          `   Failed Step: ${failedStep.name} (Step #${failedStep.number}, conclusion: ${failedStep.conclusion})`,
-        );
+      const failedSteps =
+        item.job.steps?.filter(
+          (s) => s.conclusion === 'failure' || s.conclusion === 'timed_out' || s.conclusion === 'startup_failure',
+        ) || [];
+      for (const step of failedSteps) {
+        console.log(`   Failed Step: ${step.name} (Step #${step.number}, conclusion: ${step.conclusion})`);
       }
       if (item.errorLines.length === 0) {
-        console.log('   (No explicit error lines matched, check full logs via download_logs.js)');
+        if (item.tailLines && item.tailLines.length > 0) {
+          console.log('   Recent job output lines before exit:');
+          for (const line of item.tailLines) {
+            console.log(`   > ${line}`);
+          }
+        } else {
+          console.log('   (No explicit error lines matched, check full logs via download_logs.js)');
+        }
       } else {
         console.log('   Relevant failure log lines:');
         for (const line of item.errorLines) {

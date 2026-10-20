@@ -3,7 +3,9 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { Octokit } from 'octokit';
 
-const execFileAsync = promisify(execFile);
+export const sys = {
+  execFileAsync: promisify(execFile),
+};
 
 /**
  * Resolves an active GitHub authentication token.
@@ -27,7 +29,7 @@ export async function getAuthToken() {
  */
 export async function getGhCliToken() {
   try {
-    const { stdout } = await execFileAsync('gh', ['auth', 'token'], {
+    const { stdout } = await sys.execFileAsync('gh', ['auth', 'token'], {
       env: { ...process.env, GITHUB_TOKEN: '', GH_TOKEN: '' },
     });
     if (stdout && stdout.trim()) {
@@ -121,7 +123,7 @@ export async function getRepoDetails() {
 
   for (const remote of ['upstream', 'origin']) {
     try {
-      const { stdout } = await execFileAsync('git', ['remote', 'get-url', remote]);
+      const { stdout } = await sys.execFileAsync('git', ['remote', 'get-url', remote]);
       const url = stdout.trim();
       const match = url.match(/[:/]([^/]+)\/([^/.]+)(?:\.git)?$/);
       if (match) {
@@ -138,28 +140,50 @@ export async function getRepoDetails() {
 }
 
 /**
+ * Returns current local git branch name.
+ * @returns {Promise<string>}
+ */
+export async function getCurrentBranch() {
+  try {
+    const { stdout } = await sys.execFileAsync('git', ['branch', '--show-current']);
+    return stdout.trim();
+  } catch {
+    return '';
+  }
+}
+
+/**
  * Resolves current pull request number from branch via GitHub API.
  * Falls back to `gh pr view` if available.
  * @param {import('octokit').Octokit} [octokitInstance]
+ * @param {{owner: string, repo: string}} [repoDetails]
  * @returns {Promise<number|null>}
  */
-export async function getCurrentPRNumber(octokitInstance) {
+export async function getCurrentPRNumber(octokitInstance, repoDetails) {
   try {
-    const { stdout: branchOut } = await execFileAsync('git', ['branch', '--show-current']);
-    const branch = branchOut.trim();
+    const branch = await getCurrentBranch();
 
     if (branch) {
       try {
         const octokit = octokitInstance || (await getOctokit());
-        const { owner, repo } = await getRepoDetails();
-        const { data: pulls } = await octokit.rest.pulls.list({
-          owner,
-          repo,
-          state: 'open',
-          per_page: 100,
-        });
+        const { owner, repo } = repoDetails || (await getRepoDetails());
+        const pulls = octokit.paginate
+          ? await octokit.paginate(octokit.rest.pulls.list, {
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100,
+            })
+          : (
+              await octokit.rest.pulls.list({
+                owner,
+                repo,
+                state: 'open',
+                per_page: 100,
+              })
+            ).data || [];
 
-        const match = pulls.find((p) => p.head.ref === branch);
+        const match = pulls.find((p) => p.head?.ref === branch);
         if (match) {
           return match.number;
         }
@@ -172,7 +196,7 @@ export async function getCurrentPRNumber(octokitInstance) {
   }
 
   try {
-    const { stdout } = await execFileAsync('gh', ['pr', 'view', '--json', 'number', '-q', '.number']);
+    const { stdout } = await sys.execFileAsync('gh', ['pr', 'view', '--json', 'number', '-q', '.number']);
     const num = parseInt(stdout.trim(), 10);
     return isNaN(num) ? null : num;
   } catch {

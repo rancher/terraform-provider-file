@@ -1,10 +1,10 @@
 import assert from 'node:assert';
 import test from 'node:test';
-import { getCurrentPRNumber, getRepoDetails } from '../scripts/auth.js';
+import { getCurrentBranch, getCurrentPRNumber, getRepoDetails, sys } from '../scripts/auth.js';
 import { findPR } from '../scripts/find_pr.js';
 import { readComments } from '../scripts/read_comments.js';
 import { parseReplyArgs, replyComment } from '../scripts/reply-comment.js';
-import { resolveThread } from '../scripts/resolve_comment.js';
+import { parseResolveArgs, resolveThread } from '../scripts/resolve_comment.js';
 import { parseRespondArgs, respondComment } from '../scripts/respond_comment.js';
 import { parseUpdateArgs, updatePR } from '../scripts/update_pr.js';
 
@@ -49,6 +49,13 @@ test('github-pr skill - getRepoDetails unit tests', async (t) => {
 
 test('github-pr skill - getCurrentPRNumber unit tests', async (t) => {
   await t.test('resolves PR number by matching branch in open pulls', async () => {
+    t.mock.method(sys, 'execFileAsync', async (cmd, args) => {
+      if (cmd === 'git' && args.includes('--show-current')) {
+        return { stdout: 'feature/skill-update\n' };
+      }
+      return { stdout: '' };
+    });
+
     const mockOctokit = {
       rest: {
         pulls: {
@@ -62,8 +69,90 @@ test('github-pr skill - getCurrentPRNumber unit tests', async (t) => {
       },
     };
 
-    const num = await getCurrentPRNumber(mockOctokit);
-    assert.strictEqual(num, 448);
+    const originalGhRepo = process.env.GH_REPO;
+    try {
+      process.env.GH_REPO = 'testowner/testrepo';
+      const num = await getCurrentPRNumber(mockOctokit);
+      assert.strictEqual(num, 448);
+    } finally {
+      if (originalGhRepo !== undefined) {
+        process.env.GH_REPO = originalGhRepo;
+      } else {
+        delete process.env.GH_REPO;
+      }
+    }
+  });
+
+  await t.test('uses provided repoDetails parameter directly', async () => {
+    t.mock.method(sys, 'execFileAsync', async (cmd, args) => {
+      if (cmd === 'git' && args.includes('--show-current')) {
+        return { stdout: 'feature/skill-update\n' };
+      }
+      return { stdout: '' };
+    });
+
+    let capturedParams = null;
+    const mockOctokit = {
+      rest: {
+        pulls: {
+          list: async (params) => {
+            capturedParams = params;
+            return {
+              data: [{ number: 777, head: { ref: 'feature/skill-update' } }],
+            };
+          },
+        },
+      },
+    };
+
+    const num = await getCurrentPRNumber(mockOctokit, { owner: 'explicit-owner', repo: 'explicit-repo' });
+    assert.strictEqual(num, 777);
+    assert.strictEqual(capturedParams.owner, 'explicit-owner');
+    assert.strictEqual(capturedParams.repo, 'explicit-repo');
+  });
+
+  await t.test('getCurrentBranch retrieves branch name from git', async () => {
+    t.mock.method(sys, 'execFileAsync', async (cmd, args) => {
+      if (cmd === 'git' && args.includes('--show-current')) {
+        return { stdout: 'feature/ci-skills\n' };
+      }
+      return { stdout: '' };
+    });
+
+    const branch = await getCurrentBranch();
+    assert.strictEqual(branch, 'feature/ci-skills');
+  });
+
+  await t.test('getCurrentPRNumber uses paginate when available', async () => {
+    t.mock.method(sys, 'execFileAsync', async (cmd, args) => {
+      if (cmd === 'git' && args.includes('--show-current')) {
+        return { stdout: 'feature/paginated-branch\n' };
+      }
+      return { stdout: '' };
+    });
+
+    let paginateCalled = false;
+    const mockOctokit = {
+      paginate: async (endpoint, params) => {
+        paginateCalled = true;
+        assert.strictEqual(params.state, 'open');
+        return [
+          { number: 101, head: { ref: 'other-branch' } },
+          { number: 102, head: { ref: 'feature/paginated-branch' } },
+        ];
+      },
+      rest: {
+        pulls: {
+          list: async () => {
+            throw new Error('Should have called octokit.paginate');
+          },
+        },
+      },
+    };
+
+    const num = await getCurrentPRNumber(mockOctokit, { owner: 'org', repo: 'repo' });
+    assert.strictEqual(paginateCalled, true);
+    assert.strictEqual(num, 102);
   });
 });
 
@@ -201,6 +290,47 @@ test('github-pr skill - replyComment unit tests', async (t) => {
     assert.strictEqual(issueCommentCreated, false);
   });
 
+  await t.test('resolves targetPrNumber from issueComment.issue_url when prNumber omitted', async () => {
+    let capturedIssueComment = null;
+    const mockOctokit = {
+      rest: {
+        pulls: {
+          getReviewComment: async () => {
+            const err = new Error('Not Found');
+            err.status = 404;
+            throw err;
+          },
+          createReplyForReviewComment: async () => {
+            const err = new Error('Not Found');
+            err.status = 404;
+            throw err;
+          },
+        },
+        issues: {
+          getComment: async () => ({
+            data: { id: 200, issue_url: 'https://api.github.com/repos/testowner/testrepo/issues/777' },
+          }),
+          createComment: async (params) => {
+            capturedIssueComment = params;
+            return { data: { id: 999 } };
+          },
+        },
+      },
+    };
+
+    const result = await replyComment({
+      octokit: mockOctokit,
+      owner: 'testowner',
+      repo: 'testrepo',
+      commentId: 200,
+      body: 'Replying without known PR number',
+    });
+
+    assert.strictEqual(result.type, 'issue_reply');
+    assert.strictEqual(capturedIssueComment.issue_number, 777);
+    assert.match(capturedIssueComment.body, /Replying without known PR number/);
+  });
+
   await t.test('replies to GraphQL thread ID using addPullRequestReviewThreadReply mutation', async () => {
     let capturedQuery = null;
     let capturedVars = null;
@@ -227,6 +357,41 @@ test('github-pr skill - replyComment unit tests', async (t) => {
     assert.match(capturedQuery, /addPullRequestReviewThreadReply/);
     assert.strictEqual(capturedVars.threadId, 'PRRT_kwDO12345');
     assert.strictEqual(capturedVars.body, 'Addressed thread');
+  });
+
+  await t.test('automatically resolves prNumber from getReviewComment when prNumber is omitted', async () => {
+    let capturedReply = null;
+    const mockOctokit = {
+      rest: {
+        pulls: {
+          getReviewComment: async ({ comment_id }) => {
+            assert.strictEqual(comment_id, 100);
+            return {
+              data: {
+                id: 100,
+                pull_request_url: 'https://api.github.com/repos/testowner/testrepo/pulls/88',
+              },
+            };
+          },
+          createReplyForReviewComment: async (params) => {
+            capturedReply = params;
+            return { data: { id: 790, body: params.body } };
+          },
+        },
+      },
+    };
+
+    const result = await replyComment({
+      octokit: mockOctokit,
+      owner: 'testowner',
+      repo: 'testrepo',
+      commentId: 100,
+      body: 'Discovered PR reply',
+    });
+
+    assert.strictEqual(result.type, 'review_reply');
+    assert.strictEqual(capturedReply.pull_number, 88);
+    assert.strictEqual(capturedReply.comment_id, 100);
   });
 });
 
@@ -265,6 +430,32 @@ test('github-pr skill - updatePR unit tests', async (t) => {
 
     assert.strictEqual(updated.title, 'New PR Title');
     assert.strictEqual(captured.title, 'New PR Title');
+    assert.strictEqual(captured.pull_number, 99);
+  });
+
+  await t.test('calls octokit.rest.pulls.update with supplied state', async () => {
+    let captured = null;
+    const mockOctokit = {
+      rest: {
+        pulls: {
+          update: async (params) => {
+            captured = params;
+            return { data: { number: params.pull_number, state: params.state } };
+          },
+        },
+      },
+    };
+
+    const updated = await updatePR({
+      octokit: mockOctokit,
+      owner: 'testowner',
+      repo: 'testrepo',
+      prNumber: 99,
+      state: 'closed',
+    });
+
+    assert.strictEqual(updated.state, 'closed');
+    assert.strictEqual(captured.state, 'closed');
     assert.strictEqual(captured.pull_number, 99);
   });
 });
@@ -368,10 +559,102 @@ test('github-pr skill - resolveThread unit tests', async (t) => {
       });
     }, /No review thread found containing comment #9999/);
   });
+
+  await t.test(
+    'resolves thread by numeric comment ID automatically discovering prNumber via getReviewComment',
+    async () => {
+      let queriedPr = null;
+      const mockOctokit = {
+        graphql: async (query, vars) => {
+          if (query.includes('resolveReviewThread')) {
+            return {
+              resolveReviewThread: { thread: { id: vars.threadId, isResolved: true } },
+            };
+          }
+          queriedPr = vars.prNumber;
+          return {
+            repository: {
+              pullRequest: {
+                reviewThreads: {
+                  pageInfo: { hasNextPage: false },
+                  nodes: [
+                    {
+                      id: 'PRRT_discovered',
+                      comments: {
+                        pageInfo: { hasNextPage: false },
+                        nodes: [{ databaseId: 2002 }],
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          };
+        },
+        rest: {
+          pulls: {
+            getReviewComment: async ({ comment_id }) => {
+              assert.strictEqual(comment_id, 2002);
+              return {
+                data: {
+                  id: 2002,
+                  pull_request_url: 'https://api.github.com/repos/testowner/testrepo/pulls/77',
+                },
+              };
+            },
+          },
+        },
+      };
+
+      const thread = await resolveThread({
+        octokit: mockOctokit,
+        threadId: 2002,
+        owner: 'testowner',
+        repo: 'testrepo',
+      });
+
+      assert.strictEqual(thread.id, 'PRRT_discovered');
+      assert.strictEqual(queriedPr, 77);
+    },
+  );
+
+  await t.test('calls unresolveReviewThread mutation when unresolve is true', async () => {
+    let capturedQuery = null;
+    let capturedVars = null;
+
+    const mockOctokit = {
+      graphql: async (query, vars) => {
+        capturedQuery = query;
+        capturedVars = vars;
+        return {
+          unresolveReviewThread: {
+            thread: { id: vars.threadId, isResolved: false },
+          },
+        };
+      },
+    };
+
+    const thread = await resolveThread({
+      octokit: mockOctokit,
+      threadId: 'PRRT_kwDOAbc123',
+      unresolve: true,
+    });
+
+    assert.strictEqual(thread.id, 'PRRT_kwDOAbc123');
+    assert.strictEqual(thread.isResolved, false);
+    assert.match(capturedQuery, /unresolveReviewThread/);
+  });
 });
 
 test('github-pr skill - findPR unit tests', async (t) => {
   await t.test('resolves current branch PR when target is "current" or "HEAD"', async () => {
+    t.mock.method(sys, 'execFileAsync', async (cmd, args) => {
+      if (cmd === 'git' && args.includes('--show-current')) {
+        return { stdout: 'feature/skill-update\n' };
+      }
+      return { stdout: '' };
+    });
+
     const mockOctokit = {
       rest: {
         pulls: {
@@ -385,21 +668,32 @@ test('github-pr skill - findPR unit tests', async (t) => {
       },
     };
 
-    const prCurrent = await findPR({
-      octokit: mockOctokit,
-      owner: 'testowner',
-      repo: 'testrepo',
-      target: 'current',
-    });
-    assert.strictEqual(prCurrent.number, 555);
+    const originalGhRepo = process.env.GH_REPO;
+    try {
+      process.env.GH_REPO = 'testowner/testrepo';
 
-    const prHead = await findPR({
-      octokit: mockOctokit,
-      owner: 'testowner',
-      repo: 'testrepo',
-      target: 'HEAD',
-    });
-    assert.strictEqual(prHead.number, 555);
+      const prCurrent = await findPR({
+        octokit: mockOctokit,
+        owner: 'testowner',
+        repo: 'testrepo',
+        target: 'current',
+      });
+      assert.strictEqual(prCurrent.number, 555);
+
+      const prHead = await findPR({
+        octokit: mockOctokit,
+        owner: 'testowner',
+        repo: 'testrepo',
+        target: 'HEAD',
+      });
+      assert.strictEqual(prHead.number, 555);
+    } finally {
+      if (originalGhRepo !== undefined) {
+        process.env.GH_REPO = originalGhRepo;
+      } else {
+        delete process.env.GH_REPO;
+      }
+    }
   });
   await t.test('treats decimal digit target as PR number', async () => {
     let captured = null;
@@ -503,6 +797,123 @@ test('github-pr skill - findPR unit tests', async (t) => {
     assert.strictEqual(pr.number, 777);
     assert.strictEqual(listCaptured.head, 'forkuser:feature-branch');
   });
+
+  await t.test('falls back to searching open PRs by head.ref when owner:branch query returns empty', async () => {
+    let callCount = 0;
+    const mockOctokit = {
+      rest: {
+        pulls: {
+          list: async (params) => {
+            callCount++;
+            if (params.head === 'upstream-org:fork-feature') {
+              return { data: [] };
+            }
+            return {
+              data: [
+                { number: 888, head: { ref: 'other' } },
+                { number: 999, head: { ref: 'fork-feature' } },
+              ],
+            };
+          },
+          get: async (params) => ({ data: { number: params.pull_number, title: 'Found Fork PR' } }),
+        },
+      },
+    };
+
+    const pr = await findPR({
+      octokit: mockOctokit,
+      owner: 'upstream-org',
+      repo: 'provider-repo',
+      target: 'fork-feature',
+    });
+
+    assert.strictEqual(pr.number, 999);
+    assert.strictEqual(callCount, 2);
+  });
+
+  await t.test('prioritizes open PRs over closed PRs in head.ref fallback search', async () => {
+    const mockOctokit = {
+      rest: {
+        pulls: {
+          list: async (params) => {
+            if (params.head) {
+              return { data: [] };
+            }
+            return {
+              data: [
+                { number: 100, state: 'closed', head: { ref: 'fork-feature' } },
+                { number: 200, state: 'open', head: { ref: 'fork-feature' } },
+              ],
+            };
+          },
+          get: async (params) => ({ data: { number: params.pull_number, title: 'Found Open Fork PR' } }),
+        },
+      },
+    };
+
+    const pr = await findPR({
+      octokit: mockOctokit,
+      owner: 'upstream-org',
+      repo: 'provider-repo',
+      target: 'fork-feature',
+    });
+
+    assert.strictEqual(pr.number, 200);
+  });
+
+  await t.test('resolves PR from GitHub PR URL', async () => {
+    let captured = null;
+    const mockOctokit = {
+      rest: {
+        pulls: {
+          get: async (params) => {
+            captured = params;
+            return { data: { number: params.pull_number, title: 'From URL' } };
+          },
+        },
+      },
+    };
+
+    const pr = await findPR({
+      octokit: mockOctokit,
+      owner: 'testowner',
+      repo: 'testrepo',
+      target: 'https://github.com/testowner/testrepo/pull/555',
+    });
+
+    assert.strictEqual(pr.number, 555);
+    assert.strictEqual(captured.pull_number, 555);
+  });
+
+  await t.test('prioritizes open PRs over closed PRs in direct head query', async () => {
+    const queries = [];
+    const mockOctokit = {
+      rest: {
+        pulls: {
+          list: async (params) => {
+            queries.push(params);
+            return {
+              data: [
+                { number: 222, state: 'closed', head: { ref: 'my-feature' } },
+                { number: 333, state: 'open', head: { ref: 'my-feature' } },
+              ],
+            };
+          },
+          get: async (params) => ({ data: { number: params.pull_number, title: 'Open PR' } }),
+        },
+      },
+    };
+
+    const pr = await findPR({
+      octokit: mockOctokit,
+      owner: 'testowner',
+      repo: 'testrepo',
+      target: 'my-feature',
+    });
+
+    assert.strictEqual(pr.number, 333);
+    assert.strictEqual(queries[0].head, 'testowner:my-feature');
+  });
 });
 
 test('github-pr skill - readComments unit tests', async (t) => {
@@ -600,6 +1011,7 @@ test('github-pr skill - readComments unit tests', async (t) => {
             body: 'REST review comment',
             path: 'main.go',
             line: 10,
+            original_line: 8,
           },
         ];
       },
@@ -623,6 +1035,7 @@ test('github-pr skill - readComments unit tests', async (t) => {
     assert.strictEqual(res.reviewThreads[0].id, null);
     assert.strictEqual(res.reviewThreads[0].isResolvable, false);
     assert.strictEqual(res.reviewThreads[0].comments.nodes[0].databaseId, 200);
+    assert.strictEqual(res.reviewThreads[0].comments.nodes[0].originalLine, 8);
   });
 
   await t.test('preserves originalLine when line is null in GraphQL query', async () => {
@@ -668,6 +1081,120 @@ test('github-pr skill - readComments unit tests', async (t) => {
     const comment = res.reviewThreads[0].comments.nodes[0];
     assert.strictEqual(comment.line, null);
     assert.strictEqual(comment.originalLine, 42);
+  });
+
+  await t.test('coerces string prNumber like "#42" to integer for GraphQL query', async () => {
+    let capturedPr = null;
+    const mockOctokit = {
+      graphql: async (query, vars) => {
+        capturedPr = vars.prNumber;
+        return {
+          repository: {
+            pullRequest: {
+              reviewThreads: {
+                pageInfo: { hasNextPage: false },
+                nodes: [],
+              },
+            },
+          },
+        };
+      },
+    };
+
+    await readComments({
+      octokit: mockOctokit,
+      owner: 'testowner',
+      repo: 'testrepo',
+      prNumber: '#42',
+    });
+
+    assert.strictEqual(typeof capturedPr, 'number');
+    assert.strictEqual(capturedPr, 42);
+  });
+
+  await t.test('resolves PR URL in readComments prNumber', async () => {
+    let capturedPr = null;
+    const mockOctokit = {
+      graphql: async (query, vars) => {
+        capturedPr = vars.prNumber;
+        return {
+          repository: {
+            pullRequest: {
+              reviewThreads: {
+                pageInfo: { hasNextPage: false },
+                nodes: [],
+              },
+            },
+          },
+        };
+      },
+    };
+
+    await readComments({
+      octokit: mockOctokit,
+      owner: 'testowner',
+      repo: 'testrepo',
+      prNumber: 'https://github.com/testowner/testrepo/pull/999',
+    });
+
+    assert.strictEqual(capturedPr, 999);
+  });
+
+  await t.test('filters review threads when unresolvedOnly is true', async () => {
+    const mockOctokit = {
+      graphql: async () => ({
+        repository: {
+          pullRequest: {
+            reviewThreads: {
+              pageInfo: { hasNextPage: false },
+              nodes: [
+                { id: 'PRRT_unresolved', isResolved: false, comments: { nodes: [] } },
+                { id: 'PRRT_resolved', isResolved: true, comments: { nodes: [] } },
+              ],
+            },
+          },
+        },
+      }),
+    };
+
+    const res = await readComments({
+      octokit: mockOctokit,
+      owner: 'testowner',
+      repo: 'testrepo',
+      prNumber: 42,
+      unresolvedOnly: true,
+    });
+
+    assert.strictEqual(res.reviewThreads.length, 1);
+    assert.strictEqual(res.reviewThreads[0].id, 'PRRT_unresolved');
+    assert.strictEqual(res.reviewThreads[0].isResolved, false);
+  });
+
+  await t.test('passes coerced numeric prNumber to REST fallback when prNumber has "#" prefix', async () => {
+    let capturedParams = null;
+    const mockOctokit = {
+      graphql: async () => {
+        throw new Error('GraphQL error');
+      },
+      rest: {
+        pulls: {
+          listReviewComments: async (params) => {
+            capturedParams = params;
+            return { data: [] };
+          },
+        },
+      },
+    };
+
+    await readComments({
+      octokit: mockOctokit,
+      owner: 'testowner',
+      repo: 'testrepo',
+      prNumber: '#77',
+    });
+
+    assert.strictEqual(typeof capturedParams.pull_number, 'number');
+    assert.strictEqual(capturedParams.pull_number, 77);
   });
 });
 
@@ -733,9 +1260,232 @@ test('github-pr skill - parseReplyArgs unit tests', async (t) => {
     });
   });
 
+  await t.test('parses "current" keyword in parseReplyArgs', () => {
+    const parsed1 = parseReplyArgs(['current', '123', 'Looks great']);
+    assert.deepStrictEqual(parsed1, {
+      prNumber: undefined,
+      commentId: 123,
+      body: 'Looks great',
+    });
+
+    const parsed2 = parseReplyArgs(['123', 'Looks great', 'current']);
+    assert.deepStrictEqual(parsed2, {
+      prNumber: undefined,
+      commentId: 123,
+      body: 'Looks great',
+    });
+  });
+
+  await t.test('parses [comment_id, pr_number, ...words] with larger comment ID or hash prefix', () => {
+    const parsed1 = parseReplyArgs(['1958291048', '448', 'Fixed', 'in', 'commit']);
+    assert.deepStrictEqual(parsed1, {
+      prNumber: 448,
+      commentId: 1958291048,
+      body: 'Fixed in commit',
+    });
+
+    const parsed2 = parseReplyArgs(['123', '#448', 'Addressed', 'note']);
+    assert.deepStrictEqual(parsed2, {
+      prNumber: 448,
+      commentId: 123,
+      body: 'Addressed note',
+    });
+
+    const parsed3 = parseReplyArgs(['123', 'current', 'Addressed', 'note']);
+    assert.deepStrictEqual(parsed3, {
+      prNumber: undefined,
+      commentId: 123,
+      body: 'Addressed note',
+    });
+
+    const parsed4 = parseReplyArgs(['PRRT_kwDO123', '448', 'Addressed', 'thread']);
+    assert.deepStrictEqual(parsed4, {
+      prNumber: 448,
+      commentId: 'PRRT_kwDO123',
+      body: 'Addressed thread',
+    });
+
+    const parsed5 = parseReplyArgs(['PRRT_kwDO123', 'current', 'Addressed', 'thread']);
+    assert.deepStrictEqual(parsed5, {
+      prNumber: undefined,
+      commentId: 'PRRT_kwDO123',
+      body: 'Addressed thread',
+    });
+
+    const parsed6 = parseReplyArgs(['999', '448', 'Fixed', 'in', 'commit']);
+    assert.deepStrictEqual(parsed6, {
+      prNumber: 448,
+      commentId: 999,
+      body: 'Fixed in commit',
+    });
+  });
+
+  await t.test('parses -m and --body flags in parseReplyArgs', () => {
+    const res1 = parseReplyArgs(['123', '-m', 'Fixed issue in commit']);
+    assert.deepStrictEqual(res1, {
+      prNumber: undefined,
+      commentId: 123,
+      body: 'Fixed issue in commit',
+    });
+
+    const res2 = parseReplyArgs(['448', '999', '--body', 'Detailed explanation']);
+    assert.deepStrictEqual(res2, {
+      prNumber: 448,
+      commentId: 999,
+      body: 'Detailed explanation',
+    });
+
+    const res3 = parseReplyArgs(['PRRT_kwDO123', '-m', 'Thread reply']);
+    assert.deepStrictEqual(res3, {
+      prNumber: undefined,
+      commentId: 'PRRT_kwDO123',
+      body: 'Thread reply',
+    });
+  });
+
+  await t.test('parses PR URL in parseReplyArgs', () => {
+    const res = parseReplyArgs(['https://github.com/owner/repo/pull/448', '123', 'URL reply']);
+    assert.deepStrictEqual(res, {
+      prNumber: 448,
+      commentId: 123,
+      body: 'URL reply',
+    });
+  });
+
+  await t.test('parses branch target in parseReplyArgs', () => {
+    const res1 = parseReplyArgs(['feature-branch', '123', 'Branch reply']);
+    assert.deepStrictEqual(res1, {
+      prTarget: 'feature-branch',
+      prNumber: undefined,
+      commentId: 123,
+      body: 'Branch reply',
+    });
+
+    const res2 = parseReplyArgs(['feature-branch', '123', '-m', 'Explicit message']);
+    assert.deepStrictEqual(res2, {
+      prTarget: 'feature-branch',
+      prNumber: undefined,
+      commentId: 123,
+      body: 'Explicit message',
+    });
+  });
+
   await t.test('returns empty object for fewer than 2 arguments', () => {
     assert.deepStrictEqual(parseReplyArgs([]), {});
     assert.deepStrictEqual(parseReplyArgs(['123']), {});
+  });
+});
+
+test('github-pr skill - parseResolveArgs unit tests', async (t) => {
+  await t.test('returns empty object when args is empty', () => {
+    assert.deepStrictEqual(parseResolveArgs([]), { unresolve: false });
+    assert.deepStrictEqual(parseResolveArgs(undefined), { unresolve: false });
+  });
+
+  await t.test('parses single thread ID or numeric comment ID', () => {
+    const res1 = parseResolveArgs(['PRRT_abc123']);
+    assert.deepStrictEqual(res1, {
+      threadId: 'PRRT_abc123',
+      prNumber: undefined,
+      prTarget: 'current',
+      unresolve: false,
+    });
+
+    const res2 = parseResolveArgs(['98765']);
+    assert.deepStrictEqual(res2, {
+      threadId: '98765',
+      prNumber: undefined,
+      prTarget: 'current',
+      unresolve: false,
+    });
+  });
+
+  await t.test('parses [thread_id, pr_number]', () => {
+    const res = parseResolveArgs(['PRRT_abc123', '42']);
+    assert.deepStrictEqual(res, {
+      threadId: 'PRRT_abc123',
+      prNumber: 42,
+      prTarget: '42',
+      unresolve: false,
+    });
+  });
+
+  await t.test('parses [pr_number, thread_id] and [current, thread_id]', () => {
+    const res1 = parseResolveArgs(['42', 'PRRT_abc123']);
+    assert.deepStrictEqual(res1, {
+      threadId: 'PRRT_abc123',
+      prNumber: 42,
+      prTarget: '42',
+      unresolve: false,
+    });
+
+    const res2 = parseResolveArgs(['current', 'PRRT_abc123']);
+    assert.deepStrictEqual(res2, {
+      threadId: 'PRRT_abc123',
+      prNumber: undefined,
+      prTarget: 'current',
+      unresolve: false,
+    });
+
+    const res3 = parseResolveArgs(['42', '12345']);
+    assert.deepStrictEqual(res3, {
+      threadId: 12345,
+      prNumber: 42,
+      prTarget: '42',
+      unresolve: false,
+    });
+
+    const res4 = parseResolveArgs(['12345', '42']);
+    assert.deepStrictEqual(res4, {
+      threadId: 12345,
+      prNumber: 42,
+      prTarget: '42',
+      unresolve: false,
+    });
+
+    const res5 = parseResolveArgs(['#42', '12345']);
+    assert.deepStrictEqual(res5, {
+      threadId: 12345,
+      prNumber: 42,
+      prTarget: '42',
+      unresolve: false,
+    });
+
+    const res6 = parseResolveArgs(['12345', '#42']);
+    assert.deepStrictEqual(res6, {
+      threadId: 12345,
+      prNumber: 42,
+      prTarget: '42',
+      unresolve: false,
+    });
+  });
+
+  await t.test('parses --unresolve flag', () => {
+    const res1 = parseResolveArgs(['PRRT_abc123', '--unresolve']);
+    assert.deepStrictEqual(res1, {
+      threadId: 'PRRT_abc123',
+      prNumber: undefined,
+      prTarget: 'current',
+      unresolve: true,
+    });
+
+    const res2 = parseResolveArgs(['--unresolve', '42', 'PRRT_abc123']);
+    assert.deepStrictEqual(res2, {
+      threadId: 'PRRT_abc123',
+      prNumber: 42,
+      prTarget: '42',
+      unresolve: true,
+    });
+  });
+
+  await t.test('parses PR URL in parseResolveArgs', () => {
+    const res = parseResolveArgs(['https://github.com/owner/repo/pull/448', '9999']);
+    assert.deepStrictEqual(res, {
+      threadId: 9999,
+      prNumber: 448,
+      prTarget: '448',
+      unresolve: false,
+    });
   });
 });
 
@@ -860,6 +1610,15 @@ test('github-pr skill - parseRespondArgs unit tests', async (t) => {
     });
   });
 
+  await t.test('parses [comment_id, pr_number, ...words] with larger comment ID', () => {
+    const res = parseRespondArgs(['999', '448', 'Resolved', 'in', 'commit']);
+    assert.deepStrictEqual(res, {
+      prTarget: '448',
+      commentId: 999,
+      body: 'Resolved in commit',
+    });
+  });
+
   await t.test('parses [pr_number, general, ...words]', () => {
     const res = parseRespondArgs(['448', 'general', 'PR', 'level', 'note']);
     assert.deepStrictEqual(res, {
@@ -918,6 +1677,38 @@ test('github-pr skill - parseRespondArgs unit tests', async (t) => {
       prTarget: '#448',
       commentId: 999,
       body: 'Resolved in commit',
+    });
+  });
+
+  await t.test('parses -m and --body flags in parseRespondArgs', () => {
+    const res1 = parseRespondArgs(['general', '-m', 'Overall LGTM']);
+    assert.deepStrictEqual(res1, {
+      prTarget: 'current',
+      commentId: 'general',
+      body: 'Overall LGTM',
+    });
+
+    const res2 = parseRespondArgs(['448', '999', '--body', 'Addressed in commit']);
+    assert.deepStrictEqual(res2, {
+      prTarget: '448',
+      commentId: 999,
+      body: 'Addressed in commit',
+    });
+
+    const res3 = parseRespondArgs(['-m', 'Quick comment']);
+    assert.deepStrictEqual(res3, {
+      prTarget: 'current',
+      commentId: 'general',
+      body: 'Quick comment',
+    });
+  });
+
+  await t.test('parses PR URL in parseRespondArgs', () => {
+    const res = parseRespondArgs(['https://github.com/owner/repo/pull/448', 'general', 'URL comment']);
+    assert.deepStrictEqual(res, {
+      prTarget: '448',
+      commentId: 'general',
+      body: 'URL comment',
     });
   });
 });
@@ -988,6 +1779,47 @@ test('github-pr skill - parseUpdateArgs unit tests', async (t) => {
       prTarget: 'my-branch',
       title: 'fix: title',
       body: 'Description body',
+    });
+  });
+
+  await t.test('parses --title and --body flags in parseUpdateArgs', () => {
+    const res1 = parseUpdateArgs(['--title', 'New title', '--body', 'New description']);
+    assert.deepStrictEqual(res1, {
+      prTarget: 'current',
+      title: 'New title',
+      body: 'New description',
+    });
+
+    const res2 = parseUpdateArgs(['448', '-t', 'Updated title']);
+    assert.deepStrictEqual(res2, {
+      prTarget: '448',
+      title: 'Updated title',
+      body: undefined,
+    });
+
+    const res3 = parseUpdateArgs(['-b=Updated body only', 'current']);
+    assert.deepStrictEqual(res3, {
+      prTarget: 'current',
+      title: undefined,
+      body: 'Updated body only',
+    });
+  });
+
+  await t.test('parses --state / -s flags and PR URLs in parseUpdateArgs', () => {
+    const res1 = parseUpdateArgs(['--state', 'closed']);
+    assert.deepStrictEqual(res1, {
+      prTarget: 'current',
+      title: undefined,
+      body: undefined,
+      state: 'closed',
+    });
+
+    const res2 = parseUpdateArgs(['https://github.com/owner/repo/pull/448', '-s=open', '-t', 'Reopened PR']);
+    assert.deepStrictEqual(res2, {
+      prTarget: 'https://github.com/owner/repo/pull/448',
+      title: 'Reopened PR',
+      body: undefined,
+      state: 'open',
     });
   });
 });

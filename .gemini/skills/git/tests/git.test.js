@@ -1,4 +1,6 @@
 import assert from 'node:assert';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import test from 'node:test';
 import {
   checkSpelling,
@@ -8,13 +10,13 @@ import {
   validateCommitMessage,
 } from '../scripts/commit.js';
 import { createBranch } from '../scripts/create-branch.js';
-import { getBranchChanges } from '../scripts/get_branch_changes.js';
-import { getCommitLog } from '../scripts/get_commit_log.js';
+import { getBranchChanges, parseBranchChangesArgs } from '../scripts/get_branch_changes.js';
+import { getCommitLog, parseCommitLogArgs, parseCommitLogOptions } from '../scripts/get_commit_log.js';
 import { getDeletedFile } from '../scripts/get_deleted_file.js';
-import { getDiffToReview } from '../scripts/get_diff_to_review.js';
-import { getFilesChanged } from '../scripts/get_files_changed.js';
+import { getDiffToReview, parseDiffArgs } from '../scripts/get_diff_to_review.js';
+import { getFilesChanged, parseFilesChangedArgs } from '../scripts/get_files_changed.js';
 import { getModifiedPaths } from '../scripts/get_modified_paths.js';
-import { getStagedFiles, parseStageOutput } from '../scripts/get_staged_files.js';
+import { getStagedFiles, parseStageArgs, parseStageOutput } from '../scripts/get_staged_files.js';
 import { isExcludedByAIExclude, readIgnoredFile } from '../scripts/read-ignored-file.js';
 import { stageFiles } from '../scripts/stage-files.js';
 import { switchBranch } from '../scripts/switch-branch.js';
@@ -102,6 +104,45 @@ test('git skill - readIgnoredFile with line slicing', async (t) => {
       await readIgnoredFile({ targetPath: '../../outside-repo-file.txt' });
     }, /Cannot read file outside repository root/);
   });
+
+  await t.test('throws when startLine is greater than endLine', async () => {
+    await assert.rejects(async () => {
+      await readIgnoredFile({ targetPath: 'package.json', startLine: 10, endLine: 5 });
+    }, /startLine .* cannot be greater than endLine/);
+  });
+
+  await t.test('throws when targetPath is a directory', async () => {
+    await assert.rejects(async () => {
+      await readIgnoredFile({ targetPath: 'internal' });
+    }, /is a directory, not a file/);
+  });
+
+  await t.test('throws when startLine or endLine is NaN', async () => {
+    await assert.rejects(async () => {
+      await readIgnoredFile({ targetPath: 'package.json', startLine: 'invalid' });
+    }, /Invalid startLine: 'invalid'/);
+
+    await assert.rejects(async () => {
+      await readIgnoredFile({ targetPath: 'package.json', startLine: 1, endLine: 'invalid' });
+    }, /Invalid endLine: 'invalid'/);
+  });
+
+  await t.test('throws when targetPath is a symlink pointing outside repository root', async () => {
+    const symlinkPath = path.resolve('temp-external-symlink.txt');
+    try {
+      // Point symlink to an external file
+      await fs.symlink('/etc/hosts', symlinkPath);
+      await assert.rejects(async () => {
+        await readIgnoredFile({ targetPath: 'temp-external-symlink.txt' });
+      }, /Cannot read file outside repository root/);
+    } finally {
+      try {
+        await fs.unlink(symlinkPath);
+      } catch {
+        // cleanup
+      }
+    }
+  });
 });
 
 test('git skill - getModifiedPaths parsing', async (t) => {
@@ -115,6 +156,14 @@ test('git skill - getModifiedPaths parsing', async (t) => {
 
     const paths = await getModifiedPaths({ git: mockGit });
     assert.deepStrictEqual(paths, ['file1.js', 'file2.txt', 'new.js']);
+  });
+
+  await t.test('unquotes quoted renamed files', async () => {
+    const mockGit = {
+      raw: async () => 'R  "old name.js" -> "new name.js"\n',
+    };
+    const paths = await getModifiedPaths({ git: mockGit });
+    assert.deepStrictEqual(paths, ['new name.js']);
   });
 });
 
@@ -167,6 +216,32 @@ test('git skill - stageFiles unit tests', async (t) => {
     assert.deepStrictEqual(staged, ['package.json']);
     assert.deepStrictEqual(capturedAdd, ['package.json']);
   });
+
+  await t.test('stages modified and untracked files when includeUntracked is true', async () => {
+    let capturedAdd = null;
+    const mockGit = {
+      revparse: async () => process.cwd(),
+      raw: async (args) => {
+        assert.deepStrictEqual(args, [
+          '-c',
+          'core.quotepath=false',
+          'ls-files',
+          '-m',
+          '-d',
+          '-o',
+          '--exclude-standard',
+        ]);
+        return 'package.json\nnewfile.txt\n';
+      },
+      add: async (files) => {
+        capturedAdd = files;
+      },
+    };
+
+    const staged = await stageFiles({ git: mockGit, all: true, includeUntracked: true });
+    assert.deepStrictEqual(staged, ['package.json', 'newfile.txt']);
+    assert.deepStrictEqual(capturedAdd, ['package.json', 'newfile.txt']);
+  });
 });
 
 test('git skill - unstageFiles unit tests', async (t) => {
@@ -212,6 +287,44 @@ test('git skill - unstageFiles unit tests', async (t) => {
     };
     const unstaged = await unstageFiles({ git: mockGit, all: true });
     assert.deepStrictEqual(unstaged, []);
+  });
+
+  await t.test('falls back to git rm --cached when HEAD reset throws', async () => {
+    let capturedRaw = null;
+    const mockGit = {
+      reset: async () => {
+        throw new Error('fatal: ambiguous argument HEAD');
+      },
+      raw: async (args) => {
+        capturedRaw = args;
+      },
+    };
+
+    const unstaged = await unstageFiles({ git: mockGit, files: ['package.json'] });
+    assert.deepStrictEqual(unstaged, ['package.json']);
+    assert.deepStrictEqual(capturedRaw, ['rm', '--cached', '--', 'package.json']);
+  });
+
+  await t.test('falls back to ls-files when diff throws on unborn branch during unstage all', async () => {
+    let capturedReset = null;
+    const mockGit = {
+      raw: async (args) => {
+        if (args.includes('diff')) {
+          throw new Error('fatal: ambiguous argument HEAD');
+        }
+        if (args.includes('ls-files')) {
+          return '100644 abc 0\tunborn_file.js\n';
+        }
+        return '';
+      },
+      reset: async (args) => {
+        capturedReset = args;
+      },
+    };
+
+    const unstaged = await unstageFiles({ git: mockGit, all: true });
+    assert.deepStrictEqual(unstaged, ['unborn_file.js']);
+    assert.deepStrictEqual(capturedReset, ['HEAD', '--']);
   });
 });
 
@@ -344,6 +457,12 @@ test('git skill - get_staged_files unit tests', async (t) => {
     assert.strictEqual(result.entries[0].status, 'M');
     assert.strictEqual(result.entries[1].status, 'U');
   });
+
+  await t.test('parseStageArgs extracts nameOnly flag', () => {
+    assert.deepStrictEqual(parseStageArgs([]), { nameOnly: false });
+    assert.deepStrictEqual(parseStageArgs(['--name-only']), { nameOnly: true });
+    assert.deepStrictEqual(parseStageArgs(['-n']), { nameOnly: true });
+  });
 });
 
 test('git skill - createBranch unit tests', async (t) => {
@@ -351,6 +470,12 @@ test('git skill - createBranch unit tests', async (t) => {
     await assert.rejects(async () => {
       await createBranch({ branchName: '' });
     }, /Branch name cannot be empty/);
+  });
+
+  await t.test('throws when branch name starts with a hyphen', async () => {
+    await assert.rejects(async () => {
+      await createBranch({ branchName: '-b' });
+    }, /Branch name cannot start with a hyphen/);
   });
 
   await t.test('throws when branch already exists', async () => {
@@ -390,6 +515,26 @@ test('git skill - createBranch unit tests', async (t) => {
     assert.strictEqual(syncedRemote, 'upstream');
     assert.deepStrictEqual(checkedOut, { branchName: 'new-feature', base: 'main' });
   });
+
+  await t.test('strips remote prefix from base branch when syncing remote ref', async () => {
+    let syncedRemote = null;
+    let syncedRef = null;
+    const mockGit = {
+      branchLocal: async () => ({ all: ['main'] }),
+      getRemotes: async () => [{ name: 'upstream' }, { name: 'origin' }],
+      fetch: async (remote, ref) => {
+        syncedRemote = remote;
+        syncedRef = ref;
+      },
+      branch: async () => ({ current: 'feature' }),
+      checkoutBranch: async () => {},
+    };
+
+    const result = await createBranch({ git: mockGit, branchName: 'from-upstream', baseBranch: 'upstream/main' });
+    assert.strictEqual(result.branchName, 'from-upstream');
+    assert.strictEqual(syncedRemote, 'upstream');
+    assert.strictEqual(syncedRef, 'main:main');
+  });
 });
 
 test('git skill - switchBranch unit tests', async (t) => {
@@ -397,6 +542,12 @@ test('git skill - switchBranch unit tests', async (t) => {
     await assert.rejects(async () => {
       await switchBranch({ branchName: '' });
     }, /Branch name cannot be empty/);
+  });
+
+  await t.test('throws when branch name starts with a hyphen', async () => {
+    await assert.rejects(async () => {
+      await switchBranch({ branchName: '--detach' });
+    }, /Branch name cannot start with a hyphen/);
   });
 
   await t.test('throws when branch does not exist', async () => {
@@ -421,6 +572,44 @@ test('git skill - switchBranch unit tests', async (t) => {
     const result = await switchBranch({ git: mockGit, branchName: 'feat-remote' });
     assert.strictEqual(result.branchName, 'feat-remote');
     assert.strictEqual(checkedOut, 'feat-remote');
+  });
+
+  await t.test('tracks upstream remote branch when branch only exists on upstream', async () => {
+    let checkedOut = null;
+    const mockGit = {
+      branch: async () => ({ all: ['main', 'remotes/upstream/feat-upstream'] }),
+      checkout: async (args) => {
+        checkedOut = args;
+      },
+    };
+
+    const result = await switchBranch({ git: mockGit, branchName: 'feat-upstream' });
+    assert.strictEqual(result.branchName, 'feat-upstream');
+    assert.deepStrictEqual(checkedOut, ['-b', 'feat-upstream', '--track', 'upstream/feat-upstream']);
+  });
+
+  await t.test('normalizes remote prefixes to prevent detached HEAD checkout', async () => {
+    let checkedOutOrigin = null;
+    const mockGitOrigin = {
+      branch: async () => ({ all: ['main', 'remotes/origin/feat-1'] }),
+      checkout: async (name) => {
+        checkedOutOrigin = name;
+      },
+    };
+    const resOrigin = await switchBranch({ git: mockGitOrigin, branchName: 'origin/feat-1' });
+    assert.strictEqual(resOrigin.branchName, 'feat-1');
+    assert.strictEqual(checkedOutOrigin, 'feat-1');
+
+    let checkedOutUpstream = null;
+    const mockGitUpstream = {
+      branch: async () => ({ all: ['main', 'remotes/upstream/feat-2'] }),
+      checkout: async (args) => {
+        checkedOutUpstream = args;
+      },
+    };
+    const resUpstream = await switchBranch({ git: mockGitUpstream, branchName: 'remotes/upstream/feat-2' });
+    assert.strictEqual(resUpstream.branchName, 'feat-2');
+    assert.deepStrictEqual(checkedOutUpstream, ['-b', 'feat-2', '--track', 'upstream/feat-2']);
   });
 });
 
@@ -466,6 +655,138 @@ test('git skill - getBranchChanges unit tests', async (t) => {
     assert.strictEqual(diff, 'diff output');
     assert.deepStrictEqual(capturedArgs, ['--no-ext-diff', '--no-color', 'def5678', '--']);
   });
+
+  await t.test('supports optional files parameter with raw diff', async () => {
+    let capturedArgs = null;
+    const mockGit = {
+      raw: async (args) => {
+        if (args[0] === 'merge-base') {
+          return 'abc1234\n';
+        }
+        if (args.includes('diff')) {
+          capturedArgs = args;
+          return 'filtered diff';
+        }
+        return '';
+      },
+    };
+
+    const diff = await getBranchChanges({
+      git: mockGit,
+      baseBranch: 'main',
+      files: ['file1.go', 'file2.go'],
+    });
+    assert.strictEqual(diff, 'filtered diff');
+    assert.deepStrictEqual(capturedArgs, [
+      '-c',
+      'core.quotepath=false',
+      'diff',
+      '--no-ext-diff',
+      '--no-color',
+      'abc1234',
+      '--',
+      'file1.go',
+      'file2.go',
+    ]);
+  });
+
+  await t.test('filters out -- delimiter from files parameter', async () => {
+    let capturedArgs = null;
+    const mockGit = {
+      raw: async (args) => {
+        if (args[0] === 'merge-base') {
+          return 'abc1234\n';
+        }
+        if (args.includes('diff')) {
+          capturedArgs = args;
+          return 'filtered diff';
+        }
+        return '';
+      },
+    };
+
+    await getBranchChanges({
+      git: mockGit,
+      baseBranch: 'main',
+      files: ['--', 'file1.go', '--', 'file2.go'],
+    });
+    assert.deepStrictEqual(capturedArgs, [
+      '-c',
+      'core.quotepath=false',
+      'diff',
+      '--no-ext-diff',
+      '--no-color',
+      'abc1234',
+      '--',
+      'file1.go',
+      'file2.go',
+    ]);
+  });
+
+  await t.test('supports statOnly and nameOnly flags in getBranchChanges', async () => {
+    const captured = [];
+    const mockGit = {
+      raw: async (args) => {
+        if (args[0] === 'merge-base') return 'abc1234\n';
+        captured.push(args);
+        return 'stat or name output';
+      },
+    };
+
+    const statRes = await getBranchChanges({ git: mockGit, baseBranch: 'main', statOnly: true });
+    assert.strictEqual(statRes, 'stat or name output');
+    assert.ok(captured[0].includes('--stat'));
+
+    captured.length = 0;
+    const nameRes = await getBranchChanges({ git: mockGit, baseBranch: 'main', nameOnly: true });
+    assert.strictEqual(nameRes, 'stat or name output');
+    assert.ok(captured[0].includes('--name-only'));
+  });
+
+  await t.test('parseBranchChangesArgs extracts flags and options correctly', () => {
+    assert.deepStrictEqual(parseBranchChangesArgs([]), {
+      baseBranch: undefined,
+      files: [],
+      statOnly: false,
+      nameOnly: false,
+    });
+    assert.deepStrictEqual(parseBranchChangesArgs(['--stat']), {
+      baseBranch: undefined,
+      files: [],
+      statOnly: true,
+      nameOnly: false,
+    });
+    assert.deepStrictEqual(parseBranchChangesArgs(['--name-only', '-b', 'upstream/main']), {
+      baseBranch: 'upstream/main',
+      files: [],
+      statOnly: false,
+      nameOnly: true,
+    });
+    assert.deepStrictEqual(parseBranchChangesArgs(['--base=main', 'file1.go', 'file2.go']), {
+      baseBranch: 'main',
+      files: ['file1.go', 'file2.go'],
+      statOnly: false,
+      nameOnly: false,
+    });
+    assert.deepStrictEqual(parseBranchChangesArgs(['main', 'file1.go']), {
+      baseBranch: 'main',
+      files: ['file1.go'],
+      statOnly: false,
+      nameOnly: false,
+    });
+    assert.deepStrictEqual(parseBranchChangesArgs(['--', 'file1.go']), {
+      baseBranch: undefined,
+      files: ['file1.go'],
+      statOnly: false,
+      nameOnly: false,
+    });
+    assert.deepStrictEqual(parseBranchChangesArgs(['GNUmakefile']), {
+      baseBranch: undefined,
+      files: ['GNUmakefile'],
+      statOnly: false,
+      nameOnly: false,
+    });
+  });
 });
 
 test('git skill - getCommitLog unit tests', async (t) => {
@@ -488,6 +809,55 @@ test('git skill - getCommitLog unit tests', async (t) => {
     assert.strictEqual(commits.length, 2);
     assert.strictEqual(commits[0].hash, '1234567');
     assert.strictEqual(commits[0].message, 'feat: add feature');
+  });
+
+  await t.test('returns empty array when git log throws or repo has no commits', async () => {
+    const mockGit = {
+      log: async () => {
+        throw new Error('fatal: your current branch does not have any commits yet');
+      },
+    };
+
+    const commits = await getCommitLog({ git: mockGit });
+    assert.deepStrictEqual(commits, []);
+  });
+
+  await t.test('parseCommitLogArgs supports positional, -n, and --limit flags', () => {
+    assert.strictEqual(parseCommitLogArgs([]), 5);
+    assert.strictEqual(parseCommitLogArgs(['10']), 10);
+    assert.strictEqual(parseCommitLogArgs(['-n', '7']), 7);
+    assert.strictEqual(parseCommitLogArgs(['--limit', '12']), 12);
+    assert.strictEqual(parseCommitLogArgs(['-n=8']), 8);
+    assert.strictEqual(parseCommitLogArgs(['--limit=15']), 15);
+  });
+
+  await t.test('supports file and branch scoping in getCommitLog', async () => {
+    let capturedOpts = null;
+    const mockGit = {
+      log: async (opts) => {
+        capturedOpts = opts;
+        return { all: [{ hash: '1234567890', message: 'test', date: '2026-10-15' }] };
+      },
+    };
+
+    await getCommitLog({ git: mockGit, limit: 3, file: 'main.go', branch: 'feat' });
+    assert.strictEqual(capturedOpts.maxCount, 3);
+    assert.strictEqual(capturedOpts.file, 'main.go');
+    assert.strictEqual(capturedOpts.from, 'feat');
+  });
+
+  await t.test('parseCommitLogOptions parses file and branch options', () => {
+    assert.deepStrictEqual(parseCommitLogOptions([]), { limit: 5, file: undefined, branch: undefined });
+    assert.deepStrictEqual(parseCommitLogOptions(['-n', '10', '-f', 'file.go', '-b', 'main']), {
+      limit: 10,
+      file: 'file.go',
+      branch: 'main',
+    });
+    assert.deepStrictEqual(parseCommitLogOptions(['--file=main.go', '--branch=dev']), {
+      limit: 5,
+      file: 'main.go',
+      branch: 'dev',
+    });
   });
 });
 
@@ -520,6 +890,20 @@ test('git skill - getDeletedFile unit tests', async (t) => {
     const content = await getDeletedFile({ git: mockGit, filePath: 'old-file.txt' });
     assert.strictEqual(content, 'historical content');
   });
+
+  await t.test('retrieves file contents from specific commit when commit is provided', async () => {
+    let capturedArg = null;
+    const mockGit = {
+      show: async (args) => {
+        capturedArg = args[0];
+        return 'commit-specific content\n';
+      },
+    };
+
+    const content = await getDeletedFile({ git: mockGit, filePath: 'file.go', commit: 'abc1234' });
+    assert.strictEqual(content, 'commit-specific content\n');
+    assert.strictEqual(capturedArg, 'abc1234:file.go');
+  });
 });
 
 test('git skill - getFilesChanged unit tests', async (t) => {
@@ -541,6 +925,45 @@ test('git skill - getFilesChanged unit tests', async (t) => {
     assert.strictEqual(result.baseBranch, 'main');
     assert.strictEqual(result.statusText, ' M internal/provider.go\n');
     assert.strictEqual(result.branchDiffText, 'M\tinternal/provider.go\n');
+  });
+
+  await t.test('supports explicit baseBranch and remote fallback', async () => {
+    const mockGit = {
+      branchLocal: async () => ({ all: ['feature-branch', 'remotes/origin/main'] }),
+      raw: async (args) => {
+        if (args.includes('status')) {
+          return '';
+        }
+        if (args.includes('diff')) {
+          return 'A\tnew_file.txt\n';
+        }
+        return '';
+      },
+    };
+
+    const resultExplicit = await getFilesChanged({ git: mockGit, baseBranch: 'upstream/main' });
+    assert.strictEqual(resultExplicit.baseBranch, 'upstream/main');
+    assert.strictEqual(resultExplicit.branchDiffText, 'A\tnew_file.txt\n');
+
+    const resultFallback = await getFilesChanged({ git: mockGit });
+    assert.strictEqual(resultFallback.baseBranch, 'origin/main');
+
+    const mockGitUpstream = {
+      branchLocal: async () => ({
+        all: ['feature-branch', 'remotes/origin/main', 'remotes/upstream/main'],
+      }),
+      raw: async () => '',
+    };
+    const resultUpstream = await getFilesChanged({ git: mockGitUpstream });
+    assert.strictEqual(resultUpstream.baseBranch, 'upstream/main');
+  });
+
+  await t.test('parseFilesChangedArgs parses positional and flagged base branch', () => {
+    assert.deepStrictEqual(parseFilesChangedArgs([]), { baseBranch: undefined });
+    assert.deepStrictEqual(parseFilesChangedArgs(['main']), { baseBranch: 'main' });
+    assert.deepStrictEqual(parseFilesChangedArgs(['-b', 'upstream/main']), { baseBranch: 'upstream/main' });
+    assert.deepStrictEqual(parseFilesChangedArgs(['--base=main']), { baseBranch: 'main' });
+    assert.deepStrictEqual(parseFilesChangedArgs(['--base', 'origin/master']), { baseBranch: 'origin/master' });
   });
 });
 
@@ -595,6 +1018,95 @@ test('git skill - getDiffToReview unit tests', async (t) => {
       'main.go',
       'README.md',
     ]);
+  });
+
+  await t.test('supports stagedOnly, unstagedOnly, statOnly, and nameOnly options', async () => {
+    const calls = [];
+    const mockGit = {
+      raw: async (args) => {
+        calls.push(args);
+        return 'diff data';
+      },
+    };
+
+    const stagedRes = await getDiffToReview({ git: mockGit, stagedOnly: true });
+    assert.strictEqual(stagedRes.staged, 'diff data');
+    assert.strictEqual(stagedRes.unstaged, '');
+    assert.strictEqual(calls.length, 1);
+    assert.ok(calls[0].includes('--staged'));
+
+    calls.length = 0;
+    const unstagedRes = await getDiffToReview({ git: mockGit, unstagedOnly: true });
+    assert.strictEqual(unstagedRes.staged, '');
+    assert.strictEqual(unstagedRes.unstaged, 'diff data');
+    assert.strictEqual(calls.length, 1);
+    assert.ok(!calls[0].includes('--staged'));
+
+    calls.length = 0;
+    const statRes = await getDiffToReview({ git: mockGit, statOnly: true });
+    assert.strictEqual(statRes.staged, 'diff data');
+    assert.strictEqual(statRes.unstaged, 'diff data');
+    assert.ok(calls[0].includes('--stat'));
+    assert.ok(calls[1].includes('--stat'));
+
+    calls.length = 0;
+    const nameRes = await getDiffToReview({ git: mockGit, nameOnly: true });
+    assert.strictEqual(nameRes.staged, 'diff data');
+    assert.strictEqual(nameRes.unstaged, 'diff data');
+    assert.ok(calls[0].includes('--name-only'));
+    assert.ok(calls[1].includes('--name-only'));
+  });
+
+  await t.test('parseDiffArgs separates flags and files correctly', () => {
+    assert.deepStrictEqual(parseDiffArgs(['--staged']), {
+      files: [],
+      stagedOnly: true,
+      unstagedOnly: false,
+      statOnly: false,
+      nameOnly: false,
+    });
+    assert.deepStrictEqual(parseDiffArgs(['--unstaged', 'file1.txt', 'file2.txt']), {
+      files: ['file1.txt', 'file2.txt'],
+      stagedOnly: false,
+      unstagedOnly: true,
+      statOnly: false,
+      nameOnly: false,
+    });
+    assert.deepStrictEqual(parseDiffArgs(['--cached', 'file1.txt']), {
+      files: ['file1.txt'],
+      stagedOnly: true,
+      unstagedOnly: false,
+      statOnly: false,
+      nameOnly: false,
+    });
+    assert.deepStrictEqual(parseDiffArgs(['--staged', '--unstaged', 'file1.txt']), {
+      files: ['file1.txt'],
+      stagedOnly: false,
+      unstagedOnly: false,
+      statOnly: false,
+      nameOnly: false,
+    });
+    assert.deepStrictEqual(parseDiffArgs(['--stat', 'file1.txt']), {
+      files: ['file1.txt'],
+      stagedOnly: false,
+      unstagedOnly: false,
+      statOnly: true,
+      nameOnly: false,
+    });
+    assert.deepStrictEqual(parseDiffArgs(['--name-only', 'file1.txt']), {
+      files: ['file1.txt'],
+      stagedOnly: false,
+      unstagedOnly: false,
+      statOnly: false,
+      nameOnly: true,
+    });
+    assert.deepStrictEqual(parseDiffArgs(['--', '--special-file.txt', 'file2.txt']), {
+      files: ['--special-file.txt', 'file2.txt'],
+      stagedOnly: false,
+      unstagedOnly: false,
+      statOnly: false,
+      nameOnly: false,
+    });
   });
 });
 

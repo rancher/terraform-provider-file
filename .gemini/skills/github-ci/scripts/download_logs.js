@@ -12,9 +12,10 @@ import { findFailedRuns } from './find_failed_runs.js';
  * @param {string} params.repo
  * @param {number} params.runId
  * @param {string} params.outputDir
+ * @param {boolean} [params.failedOnly=false]
  * @returns {Promise<{outputDir: string, jobsCount: number}>}
  */
-export async function downloadLogs({ octokit, owner, repo, runId, outputDir }) {
+export async function downloadLogs({ octokit, owner, repo, runId, outputDir, failedOnly = false }) {
   await fs.mkdir(outputDir, { recursive: true });
 
   // List all jobs for the workflow run across all pages
@@ -33,9 +34,15 @@ export async function downloadLogs({ octokit, owner, repo, runId, outputDir }) {
         })
       ).data.jobs || [];
 
+  const targetJobs = failedOnly
+    ? jobs.filter(
+        (j) => j.conclusion === 'failure' || j.conclusion === 'timed_out' || j.conclusion === 'startup_failure',
+      )
+    : jobs;
+
   let savedCount = 0;
 
-  for (const job of jobs) {
+  for (const job of targetJobs) {
     try {
       const response = await octokit.rest.actions.downloadJobLogsForWorkflowRun({
         owner,
@@ -63,24 +70,70 @@ export async function downloadLogs({ octokit, owner, repo, runId, outputDir }) {
   return { outputDir, jobsCount: savedCount };
 }
 
-async function main() {
-  const arg1 = process.argv[2];
-  const arg2 = process.argv[3];
-
+/**
+ * Parses command-line arguments for download_logs.js.
+ * Supports:
+ * - [run_id] [output_dir]
+ * - [output_dir]
+ * - [run_id]
+ * - ['current', output_dir]
+ * - [-o, output_dir] or [--output, output_dir] or [--output=dir]
+ * - [--failed-only] or [-f]
+ * @param {Array<string>} [args]
+ * @returns {{runId: number|null, outputDir: string|null, failedOnly: boolean}}
+ */
+export function parseDownloadArgs(args = []) {
   let runId = null;
   let outputDir = null;
+  let failedOnly = false;
 
-  if (arg1 && /^#?\d+$/.test(arg1)) {
-    runId = parseInt(arg1.replace(/^#/, ''), 10);
-    outputDir = arg2 || `/tmp/ci-logs-${runId}`;
-  } else if (arg1 && (arg1.startsWith('/') || arg1.startsWith('.'))) {
-    outputDir = arg1;
-  } else if (arg1 === 'current' || !arg1) {
-    outputDir = arg2 || null;
-  } else {
-    console.error('Usage: download_logs.js [run_id_or_current] [output_directory]');
-    process.exit(1);
+  const positional = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--failed-only' || arg === '-f') {
+      failedOnly = true;
+    } else if ((arg === '-o' || arg === '--output') && i + 1 < args.length) {
+      outputDir = args[++i];
+    } else if (arg.startsWith('--output=') || arg.startsWith('-o=')) {
+      outputDir = arg.slice(arg.indexOf('=') + 1);
+    } else if (arg && !arg.startsWith('-')) {
+      positional.push(arg);
+    }
   }
+
+  if (positional.length > 0) {
+    const first = positional[0];
+    if (/^#?\d+$/.test(first)) {
+      runId = parseInt(first.replace(/^#/, ''), 10);
+      if (positional.length > 1 && !outputDir) {
+        outputDir = positional[1];
+      }
+    } else if (first === 'current') {
+      runId = null;
+      if (positional.length > 1 && !outputDir) {
+        outputDir = positional[1];
+      }
+    } else {
+      if (!outputDir) {
+        outputDir = first;
+      }
+      if (positional.length > 1 && /^#?\d+$/.test(positional[1])) {
+        runId = parseInt(positional[1].replace(/^#/, ''), 10);
+      }
+    }
+  }
+
+  if (runId && !outputDir) {
+    outputDir = `/tmp/ci-logs-${runId}`;
+  }
+
+  return { runId, outputDir, failedOnly };
+}
+
+async function main() {
+  const { runId: parsedRunId, outputDir: parsedOutputDir, failedOnly } = parseDownloadArgs(process.argv.slice(2));
+  let runId = parsedRunId;
+  let outputDir = parsedOutputDir;
 
   const { owner, repo } = await getRepoDetails();
   const octokit = await getOctokit();
@@ -100,13 +153,15 @@ async function main() {
   }
 
   try {
-    console.log(`Downloading job logs for run #${runId} to ${outputDir}...`);
+    const scopeDesc = failedOnly ? 'failed job logs' : 'job logs';
+    console.log(`Downloading ${scopeDesc} for run #${runId} to ${outputDir}...`);
     const result = await downloadLogs({
       octokit,
       owner,
       repo,
       runId,
       outputDir,
+      failedOnly,
     });
     console.log(`✅ Successfully saved ${result.jobsCount} job log(s) to: ${result.outputDir}`);
   } catch (err) {

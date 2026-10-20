@@ -7,9 +7,10 @@ import { simpleGit } from 'simple-git';
  * @param {object} params
  * @param {import('simple-git').SimpleGit} [params.git]
  * @param {string} params.filePath
+ * @param {string} [params.commit] - Specific commit SHA or revision
  * @returns {Promise<string>}
  */
-export async function getDeletedFile({ git = simpleGit(), filePath }) {
+export async function getDeletedFile({ git = simpleGit(), filePath, commit }) {
   if (!filePath) {
     throw new Error('Missing file path.');
   }
@@ -25,6 +26,14 @@ export async function getDeletedFile({ git = simpleGit(), filePath }) {
       }
     } catch {
       // Ignore revparse failure
+    }
+  }
+
+  if (commit) {
+    try {
+      return await git.show([`${commit}:${relPath}`]);
+    } catch {
+      throw new Error(`Could not retrieve contents for '${filePath}' at commit '${commit}'.`);
     }
   }
 
@@ -52,13 +61,14 @@ export async function getDeletedFile({ git = simpleGit(), filePath }) {
 
 async function main() {
   const filePath = process.argv[2];
+  const commit = process.argv[3];
   if (!filePath) {
-    console.error('Usage: get_deleted_file.js <file_path>');
+    console.error('Usage: get_deleted_file.js <file_path> [commit_or_rev]');
     process.exit(1);
   }
 
   try {
-    const content = await getDeletedFile({ filePath });
+    const content = await getDeletedFile({ filePath, commit });
     process.stdout.write(content.endsWith('\n') ? content : content + '\n');
   } catch (err) {
     console.error(`❌ Error: ${err.message}`);
