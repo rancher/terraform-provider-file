@@ -107,6 +107,7 @@ export async function readComments({ octokit, owner, repo, prNumber, unresolvedO
   try {
     let threadCursor = null;
     let hasNextThreadPage = true;
+    const gqlThreads = [];
 
     while (hasNextThreadPage) {
       const gqlRes = await octokit.graphql(REVIEW_THREADS_QUERY, {
@@ -137,14 +138,17 @@ export async function readComments({ octokit, owner, repo, prNumber, unresolvedO
           commentCursor = commentConnection?.pageInfo?.endCursor;
         }
 
-        reviewThreads.push(thread);
+        gqlThreads.push(thread);
       }
 
       hasNextThreadPage = threadConnection?.pageInfo?.hasNextPage || false;
       threadCursor = threadConnection?.pageInfo?.endCursor;
     }
+
+    reviewThreads.push(...gqlThreads);
   } catch {
-    // If GraphQL query fails, fallback to REST review comments
+    // If GraphQL query fails, reset collection and fallback to REST review comments
+    reviewThreads.length = 0;
     const restReviewComments = octokit.paginate
       ? await octokit.paginate(octokit.rest.pulls.listReviewComments, {
           owner,

@@ -42,6 +42,21 @@ export async function getGhCliToken() {
   return '';
 }
 
+function isAuthError(err) {
+  if (err.status === 401 || err.status === 403) {
+    return true;
+  }
+  if (Array.isArray(err.errors)) {
+    return err.errors.some(
+      (e) =>
+        e.type === 'FORBIDDEN' ||
+        /Resource not accessible/i.test(e.message || '') ||
+        /Bad credentials/i.test(e.message || ''),
+    );
+  }
+  return false;
+}
+
 /**
  * Returns an authenticated Octokit instance with automatic credential fallback.
  * @param {string} [tokenOverride] - Optional token override
@@ -91,7 +106,7 @@ export async function getOctokit(tokenOverride) {
       try {
         return await origGraphql(query, vars);
       } catch (err) {
-        if (activeToken !== fallbackToken) {
+        if (isAuthError(err) && activeToken !== fallbackToken) {
           activeToken = fallbackToken;
           return await origGraphql(query, vars);
         }
@@ -153,10 +168,29 @@ export async function getCurrentBranch() {
 }
 
 /**
+ * Resolves the owner of the current head repository (from origin remote).
+ * @returns {Promise<string>}
+ */
+export async function getHeadOwner() {
+  for (const remote of ['origin', 'upstream']) {
+    try {
+      const { stdout } = await sys.execFileAsync('git', ['remote', 'get-url', remote]);
+      const match = stdout.trim().match(/[:/]([^/]+)\/([^/.]+)(?:\.git)?$/);
+      if (match) {
+        return match[1];
+      }
+    } catch {
+      // Remote does not exist or git failed
+    }
+  }
+  return '';
+}
+
+/**
  * Resolves current pull request number from branch via GitHub API.
  * Falls back to `gh pr view` if available.
  * @param {import('octokit').Octokit} [octokitInstance]
- * @param {{owner: string, repo: string}} [repoDetails]
+ * @param {{owner: string, repo: string, headOwner?: string}} [repoDetails]
  * @returns {Promise<number|null>}
  */
 export async function getCurrentPRNumber(octokitInstance, repoDetails) {
@@ -167,25 +201,53 @@ export async function getCurrentPRNumber(octokitInstance, repoDetails) {
       try {
         const octokit = octokitInstance || (await getOctokit());
         const { owner, repo } = repoDetails || (await getRepoDetails());
-        const pulls = octokit.paginate
-          ? await octokit.paginate(octokit.rest.pulls.list, {
+        const headOwner = (repoDetails && repoDetails.headOwner) || (await getHeadOwner());
+
+        const matches = (p) => {
+          if (p.head?.ref !== branch) {
+            return false;
+          }
+          if (!headOwner) {
+            return true;
+          }
+          const prHeadOwner =
+            p.head?.repo?.owner?.login ||
+            p.head?.user?.login ||
+            (p.head?.label && p.head.label.includes(':') ? p.head.label.split(':')[0] : null);
+          return !prHeadOwner || prHeadOwner.toLowerCase() === headOwner.toLowerCase();
+        };
+
+        if (octokit.paginate) {
+          const pulls = await octokit.paginate(octokit.rest.pulls.list, {
+            owner,
+            repo,
+            state: 'open',
+            per_page: 100,
+          });
+          const match = pulls.find(matches);
+          if (match) {
+            return match.number;
+          }
+        } else {
+          let page = 1;
+          while (page <= 15) {
+            const res = await octokit.rest.pulls.list({
               owner,
               repo,
               state: 'open',
               per_page: 100,
-            })
-          : (
-              await octokit.rest.pulls.list({
-                owner,
-                repo,
-                state: 'open',
-                per_page: 100,
-              })
-            ).data || [];
-
-        const match = pulls.find((p) => p.head?.ref === branch);
-        if (match) {
-          return match.number;
+              page,
+            });
+            const pagePulls = res.data || [];
+            const match = pagePulls.find(matches);
+            if (match) {
+              return match.number;
+            }
+            if (pagePulls.length < 100) {
+              break;
+            }
+            page++;
+          }
         }
       } catch {
         // If API lookup fails, fall through to CLI fallback

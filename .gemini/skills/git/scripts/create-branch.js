@@ -51,7 +51,9 @@ export async function createBranch({ git = simpleGit(), branchName, baseBranch }
     }
     console.log(`Base branch '${remoteRef}' synced with '${upstreamRemote}/${remoteRef}'.`);
   } catch (err) {
-    console.warn(`Warning: Could not sync with '${upstreamRemote}/${remoteRef}': ${err.message}`);
+    throw new Error(`Failed to sync base branch '${remoteRef}' from '${upstreamRemote}': ${err.message}`, {
+      cause: err,
+    });
   }
 
   // Verify branch does not already exist

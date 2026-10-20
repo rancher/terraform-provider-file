@@ -12,16 +12,20 @@ import { getCurrentBranch, getOctokit, getRepoDetails } from './auth.js';
  * @param {string} [params.status]
  * @returns {Promise<Array>} Failed runs
  */
+const LIFECYCLE_STATUSES = new Set(['completed', 'in_progress', 'queued', 'requested', 'waiting', 'pending']);
+
 export async function findFailedRuns({ octokit, owner, repo, branch, limit = 10, status }) {
   const failedRuns = [];
   const perPage = Math.min(Math.max(limit, 30), 100);
   let page = 1;
 
+  const apiStatus = status && LIFECYCLE_STATUSES.has(status) ? status : 'completed';
+
   while (failedRuns.length < limit && page <= 15) {
     const req = {
       owner,
       repo,
-      status: status || 'completed',
+      status: apiStatus,
       per_page: perPage,
       page,
     };

@@ -205,7 +205,7 @@ export function parseResolveArgs(args = []) {
 
 async function main() {
   const args = process.argv.slice(2);
-  const { threadId, prNumber: parsedPr, unresolve } = parseResolveArgs(args);
+  const { threadId, prNumber: parsedPr, prTarget, unresolve } = parseResolveArgs(args);
 
   if (!threadId) {
     console.error('Usage: resolve_comment.js <thread_id_or_comment_id> [pr_number] [--unresolve]');

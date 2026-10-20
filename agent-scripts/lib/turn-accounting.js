@@ -513,54 +513,7 @@ export class TurnTracker {
         !tool.definition._turnAccountingWrapped
       ) {
         const origAction = tool.definition.action;
-        tool.definition.action = async function (params, context) {
-          const toolArgs = params || {};
-          let pendingTopic = null;
-          if (toolName === 'update_topic') {
-            const title = toolArgs.title || '';
-            const objective = toolArgs.strategic_intent || '';
-            const summary = toolArgs.summary || '';
-            if (tracker.requireTopic && (!objective || typeof objective !== 'string' || !objective.trim())) {
-              tracker.refundTurn();
-              return {
-                llmContent: `Topic update rejected: You must provide a granular "strategic_intent" describing your specific objective (e.g., 'Empirically reproduce test failure in parser.test.js').`,
-                returnDisplay: `Topic update rejected: Missing granular strategic_intent.`,
-                error: true,
-              };
-            }
-            pendingTopic = { title, objective: objective.trim(), summary: summary.trim() };
-          }
-
-          let result;
-          let executionError = false;
-          try {
-            result = await origAction.apply(this, [params, context]);
-            if (pendingTopic && !(result && typeof result === 'object' && result.error === true)) {
-              tracker.hasEstablishedTopic = true;
-              tracker.activeTopic = pendingTopic;
-            }
-            return result;
-          } catch (err) {
-            result = err.message;
-            executionError = true;
-            throw err;
-          } finally {
-            if (typeof tracker.onToolExecution === 'function') {
-              try {
-                tracker.onToolExecution({
-                  toolName,
-                  callId: undefined,
-                  args: toolArgs,
-                  result,
-                  error: executionError || (result && typeof result === 'object' && result.error === true),
-                });
-              } catch (e) {
-                console.debug(`[DEBUG] onToolExecution hook failed: ${e.message}`);
-              }
-            }
-            tracker.onToolResult();
-          }
-        };
+        tool.definition.action = createWrappedExecute(origAction, null, tool.definition);
         tool.definition._turnAccountingWrapped = true;
         this._cleanupFns.push(() => {
           tool.definition.action = origAction;
@@ -568,54 +521,7 @@ export class TurnTracker {
         });
       } else if (tool && typeof tool.action === 'function' && !tool._turnAccountingWrapped) {
         const origAction = tool.action;
-        tool.action = async function (params, context) {
-          const toolArgs = params || {};
-          let pendingTopic = null;
-          if (toolName === 'update_topic') {
-            const title = toolArgs.title || '';
-            const objective = toolArgs.strategic_intent || '';
-            const summary = toolArgs.summary || '';
-            if (tracker.requireTopic && (!objective || typeof objective !== 'string' || !objective.trim())) {
-              tracker.refundTurn();
-              return {
-                llmContent: `Topic update rejected: You must provide a granular "strategic_intent" describing your specific objective (e.g., 'Empirically reproduce test failure in parser.test.js').`,
-                returnDisplay: `Topic update rejected: Missing granular strategic_intent.`,
-                error: true,
-              };
-            }
-            pendingTopic = { title, objective: objective.trim(), summary: summary.trim() };
-          }
-
-          let result;
-          let executionError = false;
-          try {
-            result = await origAction.apply(this, [params, context]);
-            if (pendingTopic && !(result && typeof result === 'object' && result.error === true)) {
-              tracker.hasEstablishedTopic = true;
-              tracker.activeTopic = pendingTopic;
-            }
-            return result;
-          } catch (err) {
-            result = err.message;
-            executionError = true;
-            throw err;
-          } finally {
-            if (typeof tracker.onToolExecution === 'function') {
-              try {
-                tracker.onToolExecution({
-                  toolName,
-                  callId: undefined,
-                  args: toolArgs,
-                  result,
-                  error: executionError || (result && typeof result === 'object' && result.error === true),
-                });
-              } catch (e) {
-                console.debug(`[DEBUG] onToolExecution hook failed: ${e.message}`);
-              }
-            }
-            tracker.onToolResult();
-          }
-        };
+        tool.action = createWrappedExecute(origAction, null, tool);
         tool._turnAccountingWrapped = true;
         this._cleanupFns.push(() => {
           tool.action = origAction;

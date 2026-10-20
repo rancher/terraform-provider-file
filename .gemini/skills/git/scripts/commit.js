@@ -144,7 +144,7 @@ export async function createCommit({ git = simpleGit(), message, checkSpellingFn
     }
   }
 
-  const affectsProduct = diffSummary.files.some((f) => f.file.startsWith('internal/') || f.file.includes('internal/'));
+  const affectsProduct = diffSummary.files.some((f) => f.file.startsWith('internal/'));
   const validation = await validateCommit({ message, affectsProduct, checkSpellingFn });
   if (!validation.valid) {
     throw new Error(validation.reason);

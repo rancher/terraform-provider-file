@@ -632,7 +632,15 @@ test('github-ci skill - findFailedRuns unit tests', async (t) => {
 
     assert.strictEqual(cancelled.length, 1);
     assert.strictEqual(cancelled[0].id, 5);
-    assert.strictEqual(captured.status, 'cancelled');
+    assert.strictEqual(captured.status, 'completed');
+
+    const inProgress = await findFailedRuns({
+      octokit: mockOctokit,
+      owner: 'testowner',
+      repo: 'testrepo',
+      status: 'in_progress',
+    });
+    assert.strictEqual(captured.status, 'in_progress');
   });
 
   await t.test('stops paginating at maximum 15 pages to protect rate limits', async () => {

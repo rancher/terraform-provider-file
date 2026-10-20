@@ -1,8 +1,10 @@
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
 
-const execAsync = promisify(exec);
+export const sys = {
+  execFileAsync: promisify(execFile),
+};
 
 /**
  * Programmatically retrieves PR comments using the git-pr skill script.
@@ -12,7 +14,7 @@ const execAsync = promisify(exec);
 export async function getPRComments(prTarget = 'current') {
   const scriptPath = path.join(process.cwd(), '.gemini/skills/github-pr/scripts/read_comments.js');
   try {
-    const { stdout } = await execAsync(`node "${scriptPath}" "${prTarget}"`, {
+    const { stdout } = await sys.execFileAsync(process.execPath, [scriptPath, String(prTarget)], {
       maxBuffer: 10 * 1024 * 1024,
       timeout: 60000,
     });

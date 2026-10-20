@@ -535,6 +535,21 @@ test('git skill - createBranch unit tests', async (t) => {
     assert.strictEqual(syncedRemote, 'upstream');
     assert.strictEqual(syncedRef, 'main:main');
   });
+
+  await t.test('aborts and throws error when synchronization fails', async () => {
+    const mockGit = {
+      branchLocal: async () => ({ all: ['main'] }),
+      getRemotes: async () => [{ name: 'upstream' }],
+      fetch: async () => {
+        throw new Error('Network unreachable');
+      },
+      branch: async () => ({ current: 'main' }),
+    };
+
+    await assert.rejects(async () => {
+      await createBranch({ git: mockGit, branchName: 'failing-sync' });
+    }, /Failed to sync base branch 'main' from 'upstream': Network unreachable/);
+  });
 });
 
 test('git skill - switchBranch unit tests', async (t) => {
@@ -1181,4 +1196,28 @@ test('git skill - createCommit unit tests', async (t) => {
     assert.strictEqual(capturedCommit.msg, 'feat: add support for new option');
     assert.deepStrictEqual(capturedCommit.opts, { '-s': null });
   });
+
+  await t.test(
+    'rejects feat commit when staged file contains internal/ but does not start with internal/',
+    async () => {
+      const mockGit = {
+        branch: async () => ({ current: 'feature/test-branch' }),
+        diffSummary: async (args) => {
+          if (args && args.includes('--cached')) {
+            return { files: [{ file: 'docs/internal/example.md' }] };
+          }
+          return { files: [] };
+        },
+      };
+
+      const mockSpeller = async () => ({ valid: true });
+      await assert.rejects(async () => {
+        await createCommit({
+          git: mockGit,
+          message: 'feat: add support for new option',
+          checkSpellingFn: mockSpeller,
+        });
+      }, /Non-product change/);
+    },
+  );
 });

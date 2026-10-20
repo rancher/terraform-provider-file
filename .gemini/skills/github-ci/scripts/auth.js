@@ -42,6 +42,21 @@ export async function getGhCliToken() {
   return '';
 }
 
+function isAuthError(err) {
+  if (err.status === 401 || err.status === 403) {
+    return true;
+  }
+  if (Array.isArray(err.errors)) {
+    return err.errors.some(
+      (e) =>
+        e.type === 'FORBIDDEN' ||
+        /Resource not accessible/i.test(e.message || '') ||
+        /Bad credentials/i.test(e.message || ''),
+    );
+  }
+  return false;
+}
+
 /**
  * Returns an authenticated Octokit instance with automatic credential fallback.
  * @param {string} [tokenOverride] - Optional token override
@@ -91,7 +106,7 @@ export async function getOctokit(tokenOverride) {
       try {
         return await origGraphql(query, vars);
       } catch (err) {
-        if (activeToken !== fallbackToken) {
+        if (isAuthError(err) && activeToken !== fallbackToken) {
           activeToken = fallbackToken;
           return await origGraphql(query, vars);
         }

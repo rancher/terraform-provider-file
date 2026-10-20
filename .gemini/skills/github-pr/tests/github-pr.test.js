@@ -154,6 +154,68 @@ test('github-pr skill - getCurrentPRNumber unit tests', async (t) => {
     assert.strictEqual(paginateCalled, true);
     assert.strictEqual(num, 102);
   });
+
+  await t.test('constrains match to head owner when fork PR shares branch name', async () => {
+    t.mock.method(sys, 'execFileAsync', async (cmd, args) => {
+      if (cmd === 'git' && args.includes('--show-current')) {
+        return { stdout: 'feature/shared-branch\n' };
+      }
+      if (cmd === 'git' && args.includes('get-url') && args.includes('origin')) {
+        return { stdout: 'git@github.com:myfork/terraform-provider-file.git\n' };
+      }
+      return { stdout: '' };
+    });
+
+    const mockOctokit = {
+      rest: {
+        pulls: {
+          list: async () => ({
+            data: [
+              { number: 101, head: { ref: 'feature/shared-branch', repo: { owner: { login: 'otherfork' } } } },
+              { number: 202, head: { ref: 'feature/shared-branch', repo: { owner: { login: 'myfork' } } } },
+            ],
+          }),
+        },
+      },
+    };
+
+    const num = await getCurrentPRNumber(mockOctokit, { owner: 'upstream-org', repo: 'upstream-repo' });
+    assert.strictEqual(num, 202);
+  });
+
+  await t.test('paginates pulls.list beyond page 1 when octokit.paginate is unavailable', async () => {
+    t.mock.method(sys, 'execFileAsync', async (cmd, args) => {
+      if (cmd === 'git' && args.includes('--show-current')) {
+        return { stdout: 'feature/page2-branch\n' };
+      }
+      return { stdout: '' };
+    });
+
+    const queriedPages = [];
+    const mockOctokit = {
+      rest: {
+        pulls: {
+          list: async (params) => {
+            queriedPages.push(params.page);
+            if (params.page === 1) {
+              const fullPage = Array.from({ length: 100 }, (_, i) => ({
+                number: i + 1,
+                head: { ref: `other-branch-${i}` },
+              }));
+              return { data: fullPage };
+            }
+            return {
+              data: [{ number: 555, head: { ref: 'feature/page2-branch' } }],
+            };
+          },
+        },
+      },
+    };
+
+    const num = await getCurrentPRNumber(mockOctokit, { owner: 'org', repo: 'repo' });
+    assert.strictEqual(num, 555);
+    assert.deepStrictEqual(queriedPages, [1, 2]);
+  });
 });
 
 test('github-pr skill - replyComment unit tests', async (t) => {
@@ -1195,6 +1257,58 @@ test('github-pr skill - readComments unit tests', async (t) => {
 
     assert.strictEqual(typeof capturedParams.pull_number, 'number');
     assert.strictEqual(capturedParams.pull_number, 77);
+  });
+
+  await t.test('clears partial GraphQL results when later page fails and falls back cleanly to REST', async () => {
+    let callCount = 0;
+    const mockOctokit = {
+      graphql: async () => {
+        callCount++;
+        if (callCount === 1) {
+          return {
+            repository: {
+              pullRequest: {
+                reviewThreads: {
+                  nodes: [
+                    { id: 'PRRT_partial', isResolved: false, comments: { nodes: [{ id: '1', body: 'Partial' }] } },
+                  ],
+                  pageInfo: { hasNextPage: true, endCursor: 'cursor_1' },
+                },
+              },
+            },
+          };
+        }
+        throw new Error('GraphQL secondary page failure');
+      },
+      rest: {
+        pulls: {
+          listReviewComments: async () => ({
+            data: [
+              {
+                id: 999,
+                body: 'REST comment',
+                user: { login: 'reviewer' },
+                path: 'file.js',
+                line: 10,
+                created_at: '2026-10-20T00:00:00Z',
+              },
+            ],
+          }),
+        },
+      },
+    };
+
+    const res = await readComments({
+      octokit: mockOctokit,
+      owner: 'testowner',
+      repo: 'testrepo',
+      prNumber: 448,
+    });
+
+    assert.strictEqual(res.reviewThreads.length, 1);
+    assert.strictEqual(res.reviewThreads[0].id, null);
+    assert.strictEqual(res.reviewThreads[0].comments.nodes[0].databaseId, 999);
+    assert.strictEqual(res.reviewThreads[0].comments.nodes[0].body, 'REST comment');
   });
 });
 
