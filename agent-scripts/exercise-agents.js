@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Open/Closed Principle compliant: Load models dynamically via environment variables with a safe fallback
 const models = process.env.GEMINI_EXERCISE_MODELS
   ? process.env.GEMINI_EXERCISE_MODELS.split(',').map((m) => m.trim())
-  : ['gemini-3.1-pro-preview', 'gemini-3.5-flash', 'gemini-2.5-pro', 'gemini-3.1-flash-lite'];
+  : ['gemini-3.1-pro-preview', 'gemini-3.8-flash', 'gemini-2.5-pro', 'gemini-3.1-flash-lite'];
 
 async function main() {
   const logFilePath = path.join(__dirname, 'exercise-agents.log');

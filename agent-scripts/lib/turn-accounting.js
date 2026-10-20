@@ -28,7 +28,7 @@ export function getMaxTurnsForModel(modelName, models = null) {
     if (modelName === 'gemini-3.1-flash-lite' || modelName.includes('flash-lite')) {
       return 2;
     }
-    if (modelName === 'gemini-3.5-flash' || modelName.includes('flash')) {
+    if (modelName === 'gemini-3.8-flash' || modelName === 'gemini-3.5-flash' || modelName.includes('flash')) {
       return 5;
     }
   }
@@ -506,7 +506,28 @@ export class TurnTracker {
         };
       };
 
-      if (tool && typeof tool.createInvocation === 'function' && !tool._turnAccountingWrapped) {
+      if (
+        tool &&
+        tool.definition &&
+        typeof tool.definition.action === 'function' &&
+        !tool.definition._turnAccountingWrapped
+      ) {
+        const origAction = tool.definition.action;
+        tool.definition.action = createWrappedExecute(origAction, null, tool.definition);
+        tool.definition._turnAccountingWrapped = true;
+        this._cleanupFns.push(() => {
+          tool.definition.action = origAction;
+          delete tool.definition._turnAccountingWrapped;
+        });
+      } else if (tool && typeof tool.action === 'function' && !tool._turnAccountingWrapped) {
+        const origAction = tool.action;
+        tool.action = createWrappedExecute(origAction, null, tool);
+        tool._turnAccountingWrapped = true;
+        this._cleanupFns.push(() => {
+          tool.action = origAction;
+          delete tool._turnAccountingWrapped;
+        });
+      } else if (tool && typeof tool.createInvocation === 'function' && !tool._turnAccountingWrapped) {
         const origCreate = tool.createInvocation;
         tool.createInvocation = function (...createArgs) {
           const invocation = origCreate.apply(this, createArgs);
@@ -540,6 +561,12 @@ export class TurnTracker {
 
     for (const name of registry.getAllToolNames()) {
       wrapTool(registry.getTool(name));
+    }
+
+    if (Array.isArray(this.session?.tools)) {
+      for (const t of this.session.tools) {
+        wrapTool(t);
+      }
     }
 
     if (typeof registry.registerTool === 'function') {

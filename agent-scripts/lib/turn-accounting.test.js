@@ -14,6 +14,7 @@ import {
 
 test('turn-accounting model limits', () => {
   assert.strictEqual(getMaxTurnsForModel('gemini-3.1-pro-preview'), 10);
+  assert.strictEqual(getMaxTurnsForModel('gemini-3.8-flash'), 5);
   assert.strictEqual(getMaxTurnsForModel('gemini-3.5-flash'), 5);
   assert.strictEqual(getMaxTurnsForModel('gemini-3.1-flash-lite'), 2);
   assert.strictEqual(getMaxTurnsForModel('unknown-model'), 5);
@@ -1067,6 +1068,105 @@ test('TurnTracker captures tool arguments from createInvocation(input) when exec
   const readHook = executedHookCalls.find((h) => h.toolName === 'read_file');
   assert.ok(readHook, 'read_file hook must be called');
   assert.strictEqual(readHook.args.file_path, 'test.go');
+
+  tracker.dispose();
+});
+
+test('TurnTracker enforces requireTopic and validateIntent for tool definitions with definition.action and action', async () => {
+  let readFileExecuted = false;
+  let grepExecuted = false;
+
+  const mockUpdateTopic = {
+    name: 'update_topic',
+    definition: {
+      action: async (params) => `Topic updated: ${params?.title}`,
+    },
+  };
+
+  const mockReadFile = {
+    name: 'read_file',
+    definition: {
+      action: async (params) => {
+        readFileExecuted = true;
+        return `content of ${params?.file_path}`;
+      },
+    },
+  };
+
+  const mockGrep = {
+    name: 'grep_search',
+    action: async (params) => {
+      grepExecuted = true;
+      return `matches for ${params?.pattern}`;
+    },
+  };
+
+  const fakeRegistry = {
+    tools: { update_topic: mockUpdateTopic, read_file: mockReadFile, grep_search: mockGrep },
+    getAllToolNames() {
+      return Object.keys(this.tools);
+    },
+    getTool(name) {
+      return this.tools[name];
+    },
+  };
+
+  let currentText = '';
+  const tracker = new TurnTracker({
+    maxTurns: 5,
+    controller: new globalThis.AbortController(),
+    session: { config: { toolRegistry: fakeRegistry } },
+    requireTopic: true,
+    validateIntent: true,
+    getTurnText: () => currentText,
+  });
+
+  // 1. Tool call before update_topic must be deferred by requireTopic
+  currentText = 'Intent: read initial file';
+  tracker.onToolCall('read_file');
+  const deferredRes = await fakeRegistry.getTool('read_file').definition.action({ file_path: 'foo.txt' });
+  assert.strictEqual(deferredRes.error, true);
+  assert.match(deferredRes.llmContent, /Tool call deferred/);
+  assert.strictEqual(readFileExecuted, false);
+
+  // 2. Calling update_topic establishes the topic
+  currentText = 'Intent: establish topic and analyze code paths';
+  tracker.onToolCall('update_topic');
+  const topicRes = await fakeRegistry.getTool('update_topic').definition.action({
+    title: 'Research',
+    strategic_intent: 'Analyze code paths',
+    summary: 'Starting research',
+  });
+  assert.strictEqual(topicRes, 'Topic updated: Research');
+  assert.strictEqual(tracker.hasEstablishedTopic, true);
+
+  // 3. Tool call without declared Intent must be refused by validateIntent
+  currentText = 'Just prose without an intent declaration';
+  tracker.onToolCall('read_file');
+  const refusedRes = await fakeRegistry.getTool('read_file').definition.action({ file_path: 'foo.txt' });
+  assert.strictEqual(refusedRes.error, true);
+  assert.match(refusedRes.llmContent, /Tool call refused/);
+  assert.strictEqual(readFileExecuted, false);
+
+  // 4. Tool call with declared Intent executes successfully through definition.action
+  currentText = 'Intent: read configuration file';
+  tracker.onToolCall('read_file');
+  const readRes = await fakeRegistry.getTool('read_file').definition.action({ file_path: 'foo.txt' });
+  assert.strictEqual(readRes, 'content of foo.txt');
+  assert.strictEqual(readFileExecuted, true);
+
+  // 5. Tool call with action fallback property also enforces validateIntent and executes
+  currentText = 'Prose without intent';
+  tracker.onToolCall('grep_search');
+  const refusedGrep = await fakeRegistry.getTool('grep_search').action({ pattern: 'abc' });
+  assert.strictEqual(refusedGrep.error, true);
+  assert.strictEqual(grepExecuted, false);
+
+  currentText = 'Intent: search for symbol';
+  tracker.onToolCall('grep_search');
+  const grepRes = await fakeRegistry.getTool('grep_search').action({ pattern: 'abc' });
+  assert.strictEqual(grepRes, 'matches for abc');
+  assert.strictEqual(grepExecuted, true);
 
   tracker.dispose();
 });

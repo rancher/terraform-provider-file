@@ -90,6 +90,9 @@ run_agent_script_tests() {
   if [[ -d ".gemini/hooks" ]]; then
     test_dirs+=(".gemini/hooks")
   fi
+  if [[ -d ".gemini/skills" ]]; then
+    test_dirs+=(".gemini/skills")
+  fi
 
   if [[ ${#test_dirs[@]} -eq 0 ]]; then
     echo "No agent script or hook directories found"

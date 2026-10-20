@@ -361,7 +361,7 @@ Implement the approved plan documented in 'plans/current.md' meticulously and su
       // Strictly restrict the agent to test files
       implementInstructions += `\n⚠️ STRICT CONSTRAINT: You are ONLY allowed to write or modify test files (e.g. *_test.go, *.test.js, or files under test directories). DO NOT modify any product files.`;
     } else if (selection === '6') {
-      implementInstructions = `You are in the REVIEW LOOP phase. Review the staged code and the approved plan documented in 'plans/current.md', make surgical improvements within scope if necessary, and ensure all tests and linters pass. If no changes or improvements are needed, make no modifications.`;
+      implementInstructions = `You are in the REVIEW LOOP phase. Review the staged code and the approved plan documented in 'plans/current.md', make surgical improvements within scope if necessary, update the plan with any decisions made, and ensure all tests and linters pass. If no changes or improvements are needed, make no modifications.`;
     }
 
     const implementPrompt = `Objective: "${objective}".
@@ -394,6 +394,12 @@ Once you have fully finished your implementation, stop.`;
             break;
           }
 
+          let beforePlan = '';
+          if (await exists(planPath)) {
+            beforePlan = await fs.readFile(planPath, 'utf8');
+            activePlan = beforePlan;
+          }
+
           // Programmatically retrieve modified files and their full contents
           const { stdout: diffFilesRaw } = await execFileAsync('git', ['diff', '--no-ext-diff', '--name-only', 'HEAD']);
           const changedFiles = diffFilesRaw
@@ -414,7 +420,18 @@ Once you have fully finished your implementation, stop.`;
             }
           }
 
-          const reviewPrompt = `Please review the staged code and the active plan, then implement any surgical improvements or suggestions you have that are strictly within scope of the plan. If you don't have any suggestions, respond stating that the code looks good and make no file modifications. Don't plan, invoke, or commit. Make sure lint.sh and test.sh workflow scripts pass with the 'all' option.
+          const reviewPrompt = `Please review the staged code and the current plan (in plans/current.md), then implement any suggestions you have that are within the scope of the plan.
+
+On your first turn, call update_topic with a descriptive "title", "summary", and a granular "strategic_intent" (e.g. title: "Review Staged Code", strategic_intent: "Review staged code and active plan, implement surgical improvements, and run workflow checks").
+
+Instructions & Constraints:
+- Do NOT enter plan mode (do not call enter_plan_mode).
+- Do NOT invoke subagents (do not call invoke_agent).
+- Do NOT commit changes to git.
+- Make sure ./.github/workflows/scripts/lint.sh all and ./.github/workflows/scripts/test.sh all workflow scripts pass cleanly.
+- The active plan is embedded below in <active_plan>. If reading plans/current.md directly, note that it is gitignored so use 'node .gemini/skills/git/scripts/read-ignored-file.js plans/current.md'.
+- Please add any decisions you make to the plan (in plans/current.md) so that further review cycles are refining the vision rather than overwriting it.
+- If you don't have any suggestions and all tests pass cleanly, please state that the code looks good and make no file modifications.
 
 <active_plan>
 ${activePlan}
@@ -432,15 +449,20 @@ ${modifiedFilesContext.trim()}
           await runAgentSession({
             initialPrompt: reviewPrompt,
             systemInstructions: implementInstructions,
-            requestedModel: models.pro,
+            requestedModel: models.flash,
             maxTurnsOverride: 20,
+            requireTopic: false,
             rl,
           });
 
           // Check for new modifications by comparing against baseline state
           const { stdout: afterStatus } = await execFileAsync('git', ['status', '--porcelain']);
           const afterDiff = await getGitDiff();
-          if (beforeStatus.trim() === afterStatus.trim() && beforeDiff === afterDiff) {
+          let afterPlan = '';
+          if (await exists(planPath)) {
+            afterPlan = await fs.readFile(planPath, 'utf8');
+          }
+          if (beforeStatus.trim() === afterStatus.trim() && beforeDiff === afterDiff && beforePlan === afterPlan) {
             console.log('\n✅ No further changes suggested by agent. Breaking loop.');
             hasChanges = false;
           } else {
