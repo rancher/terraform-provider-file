@@ -8,7 +8,7 @@ import { simpleGit } from 'simple-git';
  * @param {string} params.branchName
  * @returns {Promise<{branchName: string}>}
  */
-export async function switchBranch({ git = simpleGit(), branchName }) {
+export async function switchBranch({ git = simpleGit(), branchName } = {}) {
   if (!branchName) {
     throw new Error('Branch name cannot be empty.');
   }
@@ -44,10 +44,86 @@ export async function switchBranch({ git = simpleGit(), branchName }) {
   return { branchName: cleanBranch };
 }
 
-async function main() {
-  const branchName = process.argv[2];
+/**
+ * Gets the current active local branch name.
+ * @param {object} [params]
+ * @param {import('simple-git').SimpleGit} [params.git]
+ * @returns {Promise<string>}
+ */
+export async function getCurrentBranch({ git = simpleGit() } = {}) {
+  const branchSummary = await git.branch();
+  return branchSummary.current || '';
+}
+
+/**
+ * Checks whether a branch exists locally or on tracked remotes.
+ * @param {object} params
+ * @param {import('simple-git').SimpleGit} [params.git]
+ * @param {string} params.branchName
+ * @returns {Promise<boolean>}
+ */
+export async function checkBranchExists({ git = simpleGit(), branchName } = {}) {
   if (!branchName) {
-    console.error('Usage: switch-branch.js <branch-name>');
+    return false;
+  }
+  const cleanBranch = branchName
+    .replace(/^refs\/(?:heads|remotes)\//, '')
+    .replace(/^(?:remotes\/)?(?:upstream|origin)\//, '');
+  try {
+    const branches = await git.branch();
+    return (
+      branches.all.includes(cleanBranch) ||
+      branches.all.includes(`remotes/origin/${cleanBranch}`) ||
+      branches.all.includes(`origin/${cleanBranch}`) ||
+      branches.all.includes(`remotes/upstream/${cleanBranch}`) ||
+      branches.all.includes(`upstream/${cleanBranch}`) ||
+      branches.all.includes(branchName)
+    );
+  } catch (err) {
+    console.debug(`[DEBUG] Error checking branch existence for '${branchName}': ${err.message}`);
+    return false;
+  }
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+
+  if (args.includes('--current')) {
+    try {
+      const branch = await getCurrentBranch();
+      console.log(branch);
+      process.exit(0);
+    } catch (err) {
+      console.error(`❌ Error: ${err.message}`);
+      process.exit(1);
+    }
+  }
+
+  const checkIdx = args.findIndex((a) => a === '--check' || a === '--exists');
+  if (checkIdx !== -1) {
+    const target = args[checkIdx + 1] || args.find((a) => a !== '--check' && a !== '--exists');
+    if (!target) {
+      console.error('Usage: switch-branch.js --check <branch-name>');
+      process.exit(1);
+    }
+    try {
+      const exists = await checkBranchExists({ branchName: target });
+      if (exists) {
+        console.log(`Branch '${target}' exists.`);
+        process.exit(0);
+      } else {
+        console.error(`Branch '${target}' does not exist.`);
+        process.exit(1);
+      }
+    } catch (err) {
+      console.error(`❌ Error: ${err.message}`);
+      process.exit(1);
+    }
+  }
+
+  const branchName = args[0];
+  if (!branchName) {
+    console.error('Usage: switch-branch.js <branch-name> [--current] [--check <branch-name>]');
     process.exit(1);
   }
 

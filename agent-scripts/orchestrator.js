@@ -14,6 +14,7 @@ import { flushLogs, initializeAgentRunner, isAbortError, runAgentSession } from 
 import { getGitDiff, stageAndCommit, stripDiffMetadata, validateMessage } from './lib/git-release.js';
 import { getPRComments } from './lib/github-context.js';
 import { runQAPipeline } from './lib/qa-runner.js';
+import { runReviewRalphLoop } from './lib/ralph-loop.js';
 import { exists, getRepoRoot, loadAgentInstructions, savePlanFromJSON, validateAgentOutput } from './lib/utils.js';
 
 const execFileAsync = promisify(execFile);
@@ -26,7 +27,28 @@ process.on('uncaughtException', (err, origin) => {
     return;
   }
   console.error(`❌ Uncaught exception (${origin}):`, err);
-  process.exit(1);
+  try {
+    if (rl) {
+      rl.close();
+    }
+  } catch (closeErr) {
+    console.debug(`[DEBUG] Error closing readline interface: ${closeErr.message}`);
+  }
+
+  try {
+    flushLogs()
+      .catch((cleanupErr) => {
+        console.debug(`[DEBUG] Error during uncaughtException cleanup: ${cleanupErr.message}`);
+      })
+      .finally(() => {
+        process.exit(1);
+      });
+    setTimeout(() => {
+      process.exit(1);
+    }, 500).unref();
+  } catch {
+    process.exit(1);
+  }
 });
 
 const USE_CASES = {
@@ -93,7 +115,16 @@ async function main() {
       }
       const planText = await fs.readFile(currentPlanPath, 'utf8');
       const match = planText.match(/## 🎯 OBJECTIVE\s+([\s\S]*?)(?=\n## |$)/);
-      objective = match ? match[1].trim() : 'Review staged code against existing plan in plans/current.md';
+      const rawObjective = match ? match[1].trim() : 'Review staged code against existing plan in plans/current.md';
+      // Take the first non-empty paragraph and apply a character ceiling to prevent excessively long strings / branch names
+      const firstParagraph = rawObjective.split(/\n\s*\n/)[0].trim();
+      if (firstParagraph.length <= 200) {
+        objective = firstParagraph;
+      } else {
+        const truncated = firstParagraph.slice(0, 200);
+        const lastSpace = truncated.lastIndexOf(' ');
+        objective = (lastSpace > 50 ? truncated.slice(0, lastSpace) : truncated).trim();
+      }
       console.log(
         `ℹ️ Review Loop will use existing plan from plans/current.md (Objective: "${objective.slice(0, 80)}...")`,
       );
@@ -254,7 +285,8 @@ Your final JSON response must strictly conform to this schema:
 
         const validatedPlan = await validateAgentOutput(planResult, planSchema, planConfig?.model || models?.flash);
         if (!validatedPlan) {
-          console.error('❌ Failed to parse plan JSON output from planner agent.');
+          console.error('❌ Failed to parse plan JSON output from planner agent. Raw output:');
+          console.error(`\n--- RAW OUTPUT START ---\n${planResult}\n--- RAW OUTPUT END ---\n`);
           process.exitCode = 1;
           return;
         }
@@ -304,13 +336,15 @@ Your final JSON response must strictly conform to this schema:
       }
     }
 
-    // Check if on main, sync, and branch out
+    // Check if on main or master, sync, and branch out
     try {
-      const { stdout: branchOutput } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD']);
-      if (branchOutput.trim() === 'main') {
-        console.log('\n🌿 Currently on "main" branch. Syncing and creating a new working branch...');
-        console.log('Fetching latest from origin main...');
-        await execFileAsync('git', ['pull', 'origin', 'main']);
+      const switchBranchScript = path.join(repoRoot, '.gemini/skills/git/scripts/switch-branch.js');
+      const { stdout: branchOutput } = await execFileAsync('node', [switchBranchScript, '--current'], {
+        cwd: repoRoot,
+      });
+      const currentBranch = branchOutput.trim();
+      if (currentBranch === 'main' || currentBranch === 'master') {
+        console.log(`\n🌿 Currently on "${currentBranch}" branch. Syncing and creating a new working branch...`);
 
         const prefixMap = {
           1: 'bugfix',
@@ -331,7 +365,7 @@ Your final JSON response must strictly conform to this schema:
 
         // If the branch already exists, append a random ID
         try {
-          await execFileAsync('git', ['show-ref', '--verify', '--quiet', `refs/heads/${newBranch}`]);
+          await execFileAsync('node', [switchBranchScript, '--check', newBranch], { cwd: repoRoot });
           const randomId = crypto.randomBytes(4).toString('hex');
           newBranch = `${newBranch}-${randomId}`;
         } catch (err) {
@@ -339,7 +373,8 @@ Your final JSON response must strictly conform to this schema:
           console.debug(`[DEBUG] Branch refs/heads/${newBranch} does not exist: ${err.message}`);
         }
 
-        await execFileAsync('git', ['checkout', '-b', newBranch]);
+        const createBranchScript = path.join(repoRoot, '.gemini/skills/git/scripts/create-branch.js');
+        await execFileAsync('node', [createBranchScript, newBranch, '--base', currentBranch], { cwd: repoRoot });
         console.log(`✅ Checked out new branch: ${newBranch}`);
       }
     } catch (err) {
@@ -360,8 +395,6 @@ Implement the approved plan documented in 'plans/current.md' meticulously and su
     if (selection === '4') {
       // Strictly restrict the agent to test files
       implementInstructions += `\n⚠️ STRICT CONSTRAINT: You are ONLY allowed to write or modify test files (e.g. *_test.go, *.test.js, or files under test directories). DO NOT modify any product files.`;
-    } else if (selection === '6') {
-      implementInstructions = `You are in the REVIEW LOOP phase. Review the staged code and the approved plan documented in 'plans/current.md', make surgical improvements within scope if necessary, update the plan with any decisions made, and ensure all tests and linters pass. If no changes or improvements are needed, make no modifications.`;
     }
 
     const implementPrompt = `Objective: "${objective}".
@@ -370,108 +403,34 @@ Once you have fully finished your implementation, stop.`;
 
     try {
       if (selection === '6') {
-        let iteration = 0;
-        let hasChanges = true;
-        const maxIterations = 15;
         const planPath = planFileFound || path.join(repoRoot, 'plans/current.md');
-        let activePlan = '';
-        if (await exists(planPath)) {
-          activePlan = await fs.readFile(planPath, 'utf8');
-        }
+        console.log(
+          '\n🔄 Initiating Multi-Agent Ralph Review Loop (Thinking Reviewer -> Flash-Lite Tally -> Flash Implementer)...',
+        );
 
-        while (iteration < maxIterations && hasChanges) {
-          iteration++;
-          console.log(`\n🔄 Review Loop Iteration ${iteration}/${maxIterations}...`);
+        const loopResult = await runReviewRalphLoop({
+          repoRoot,
+          planPath,
+          proModel: models.pro,
+          flashModel: models.flash,
+          flashLiteModel: models.flash_lite,
+          sessionRunner: runAgentSession,
+          validator: (args) => runQAPipeline(args),
+          validationCommands: [
+            'bash .github/workflows/scripts/lint.sh all',
+            'bash .github/workflows/scripts/test.sh all',
+          ],
+          rl,
+          maxIterations: 15,
+          maxTurnsPerSession: 20,
+        });
 
-          // Stage all files and capture baseline state before running the agent
-          await execFileAsync('git', ['add', '-A']);
-          const { stdout: beforeStatus } = await execFileAsync('git', ['status', '--porcelain']);
-          const beforeDiff = await getGitDiff();
-
-          if (!beforeDiff || beforeDiff.trim() === '') {
-            console.log('\n✅ No staged changes found to review. Breaking loop.');
-            hasChanges = false;
-            break;
-          }
-
-          let beforePlan = '';
-          if (await exists(planPath)) {
-            beforePlan = await fs.readFile(planPath, 'utf8');
-            activePlan = beforePlan;
-          }
-
-          // Programmatically retrieve modified files and their full contents
-          const { stdout: diffFilesRaw } = await execFileAsync('git', ['diff', '--no-ext-diff', '--name-only', 'HEAD']);
-          const changedFiles = diffFilesRaw
-            .split('\n')
-            .map((f) => f.trim())
-            .filter(Boolean);
-
-          let modifiedFilesContext = '';
-          for (const relPath of changedFiles) {
-            const fullPath = path.join(repoRoot, relPath);
-            if (await exists(fullPath)) {
-              try {
-                const content = await fs.readFile(fullPath, 'utf8');
-                modifiedFilesContext += `\n<file path="${relPath}">\n${content}\n</file>\n`;
-              } catch (err) {
-                console.debug(`[DEBUG] Could not read modified file ${relPath}: ${err.message}`);
-              }
-            }
-          }
-
-          const reviewPrompt = `Please review the staged code and the current plan (in plans/current.md), then implement any suggestions you have that are within the scope of the plan.
-
-On your first turn, call update_topic with a descriptive "title", "summary", and a granular "strategic_intent" (e.g. title: "Review Staged Code", strategic_intent: "Review staged code and active plan, implement surgical improvements, and run workflow checks").
-
-Instructions & Constraints:
-- Do NOT enter plan mode (do not call enter_plan_mode).
-- Do NOT invoke subagents (do not call invoke_agent).
-- Do NOT commit changes to git.
-- Make sure ./.github/workflows/scripts/lint.sh all and ./.github/workflows/scripts/test.sh all workflow scripts pass cleanly.
-- The active plan is embedded below in <active_plan>. If reading plans/current.md directly, note that it is gitignored so use 'node .gemini/skills/git/scripts/read-ignored-file.js plans/current.md'.
-- Please add any decisions you make to the plan (in plans/current.md) so that further review cycles are refining the vision rather than overwriting it.
-- If you don't have any suggestions and all tests pass cleanly, please state that the code looks good and make no file modifications.
-
-<active_plan>
-${activePlan}
-</active_plan>
-
-<git_diff>
-${beforeDiff}
-</git_diff>
-
-<modified_files>
-${modifiedFilesContext.trim()}
-</modified_files>`;
-
-          // Run thinking agent
-          await runAgentSession({
-            initialPrompt: reviewPrompt,
-            systemInstructions: implementInstructions,
-            requestedModel: models.flash,
-            maxTurnsOverride: 20,
-            requireTopic: false,
-            rl,
-          });
-
-          // Check for new modifications by comparing against baseline state
-          const { stdout: afterStatus } = await execFileAsync('git', ['status', '--porcelain']);
-          const afterDiff = await getGitDiff();
-          let afterPlan = '';
-          if (await exists(planPath)) {
-            afterPlan = await fs.readFile(planPath, 'utf8');
-          }
-          if (beforeStatus.trim() === afterStatus.trim() && beforeDiff === afterDiff && beforePlan === afterPlan) {
-            console.log('\n✅ No further changes suggested by agent. Breaking loop.');
-            hasChanges = false;
-          } else {
-            console.log('\n📝 Agent made changes. Looping again...');
-          }
-        }
-
-        if (hasChanges) {
-          console.log('\n⚠️ Reached maximum iterations (15) without resolving all changes.');
+        if (!loopResult.completed || !loopResult.success) {
+          console.warn(`\n⚠️ Ralph Review Loop finished without full convergence: ${loopResult.reason}`);
+          process.exitCode = 1;
+          return;
+        } else {
+          console.log(`\n🟢 Ralph Review Loop completed successfully (${loopResult.iterations} iteration(s)).`);
         }
       } else {
         await runAgentSession({
@@ -490,29 +449,67 @@ ${modifiedFilesContext.trim()}
 
     // Programmatic verification of scope boundaries
     if (selection === '4') {
-      // Check if any product files were altered using git diff
-      const modifiedList = await getGitDiff();
       const modifiedFiles = new Set();
 
-      modifiedList.split('\n').forEach((line) => {
-        if (line.startsWith('+++ b/')) {
-          modifiedFiles.add(line.substring(6));
-        }
-        if (line.startsWith('--- a/')) {
-          modifiedFiles.add(line.substring(6));
-        }
-      });
+      // Check if any product files were altered using get_modified_paths skill script via execFileAsync
+      try {
+        const scriptPath = path.join(repoRoot, '.gemini/skills/git/scripts/get_modified_paths.js');
+        const { stdout: modifiedPathsOutput } = await execFileAsync('node', [scriptPath], {
+          cwd: repoRoot,
+        });
+        modifiedPathsOutput
+          .split('\n')
+          .map((p) => p.trim())
+          .filter(Boolean)
+          .forEach((p) => modifiedFiles.add(p));
+      } catch (err) {
+        console.debug(`[DEBUG] Could not inspect modified paths for scope boundary check: ${err.message}`);
+      }
+
+      // Also ensure staged files in the index are captured to prevent bypassing checks via staging
+      try {
+        const stagedScriptPath = path.join(repoRoot, '.gemini/skills/git/scripts/get_staged_files.js');
+        const { stdout: stagedPathsOutput } = await execFileAsync('node', [stagedScriptPath, '--name-only'], {
+          cwd: repoRoot,
+        });
+        stagedPathsOutput
+          .split('\n')
+          .map((p) => p.trim())
+          .filter(Boolean)
+          .forEach((f) => modifiedFiles.add(f));
+      } catch (err) {
+        console.debug(`[DEBUG] Could not inspect staged files for scope boundary check: ${err.message}`);
+      }
+
+      // Also check any branch changes relative to base branch (e.g. if changes were committed)
+      try {
+        const branchChangesScript = path.join(repoRoot, '.gemini/skills/git/scripts/get_branch_changes.js');
+        const { stdout: branchChangesOutput } = await execFileAsync('node', [branchChangesScript, '--name-only'], {
+          cwd: repoRoot,
+        });
+        branchChangesOutput
+          .split('\n')
+          .map((p) => p.trim())
+          .filter(Boolean)
+          .forEach((f) => modifiedFiles.add(f));
+      } catch (err) {
+        console.debug(`[DEBUG] Could not inspect branch changes for scope boundary check: ${err.message}`);
+      }
 
       const invalidChanges = Array.from(modifiedFiles).filter((f) => {
         if (f === 'dev/null') {
           return false;
         }
         const parts = f.split('/');
-        const isInTestDir = parts.slice(0, -1).some((p) => p === 'test' || p === 'tests');
+        const isInTestDir = parts.slice(0, -1).some((p) => p === 'test' || p === 'tests' || p === '__tests__');
         const isGoTest = f.endsWith('_test.go');
         const isJsTest =
-          (f.endsWith('.test.js') || f.endsWith('.spec.js')) &&
-          (f.startsWith('agent-scripts/') || f.startsWith('.github/workflows/scripts/'));
+          f.endsWith('.test.js') ||
+          f.endsWith('.spec.js') ||
+          f.endsWith('.test.mjs') ||
+          f.endsWith('.spec.mjs') ||
+          f.endsWith('.test.ts') ||
+          f.endsWith('.spec.ts');
 
         return !isInTestDir && !isGoTest && !isJsTest;
       });
@@ -528,7 +525,17 @@ ${modifiedFilesContext.trim()}
 
     if (selection === '6') {
       console.log('\n--- 📦 Phase 3: Final Review & Summary ---');
-      await execFileAsync('git', ['add', '-A']);
+      try {
+        await execFileAsync(
+          'node',
+          [path.join(repoRoot, '.gemini/skills/git/scripts/stage-files.js'), '--all', '--include-untracked'],
+          {
+            cwd: repoRoot,
+          },
+        );
+      } catch (err) {
+        console.debug(`[DEBUG] Could not stage files in review loop Phase 3: ${err.message}`);
+      }
       const diffText = await getGitDiff();
       if (!diffText || diffText.trim() === '') {
         console.log('✅ No changes were made in the review loop.');
@@ -542,8 +549,10 @@ ${modifiedFilesContext.trim()}
         initialPrompt: summaryPrompt,
         systemInstructions:
           'You are a technical reviewer. Summarize the changes provided without modifying any files or calling tools.',
-        requestedModel: models.flash_lite,
-        blockTools: ['write_file', 'replace', 'create_file', 'edit_file', 'run_shell_command'],
+        requestedModel: models.flash || models.pro,
+        maxTurnsOverride: 1,
+        requireTopic: false,
+        isolate: true,
         rl,
       });
 
@@ -601,6 +610,9 @@ Please analyze these errors and fix the code surgically.`;
       if (await exists(planPath)) {
         activePlan = await fs.readFile(planPath, 'utf8');
       }
+      if (!activePlan && objective) {
+        activePlan = `Objective: ${objective}`;
+      }
 
       const qaPrompt = `Please review the proposed changes for code quality, strict adherence to the project conventions, and security. Output a strict JSON object with 'approval_status': 'APPROVED' | 'UNAPPROVED' and a 'findings' array detailing any issues, or an empty array if approved.
 
@@ -617,7 +629,8 @@ ${diffText}
           initialPrompt: qaPrompt,
           systemInstructions: qaConfig.instructions || 'You are a strict QA Review Agent. Output JSON.',
           requestedModel: qaConfig.model || models.flash,
-          blockTools: ['write_file', 'replace', 'create_file', 'edit_file', 'run_shell_command'],
+          requireTopic: false,
+          isolate: true,
           rl,
         });
 
@@ -704,8 +717,10 @@ ${diffText}
       initialPrompt: commitPrompt,
       systemInstructions:
         'You are a professional software engineer. Generate a single-line conventional commit message with NO quotes, markdown, or preambles.',
-      requestedModel: models.flash_lite,
-      blockTools: ['write_file', 'replace', 'create_file', 'edit_file'],
+      requestedModel: models.flash_lite || models.flash,
+      maxTurnsOverride: 1,
+      requireTopic: false,
+      isolate: true,
       rl,
     });
 

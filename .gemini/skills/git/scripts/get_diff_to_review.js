@@ -3,9 +3,9 @@ import { simpleGit } from 'simple-git';
 
 /**
  * Parses command-line arguments for get_diff_to_review.js.
- * Extracts flags (--staged/--cached, --unstaged/--working-tree, --stat, --name-only) and file paths.
+ * Extracts flags (--staged/--cached, --unstaged/--working-tree, --stat, --name-only, --head, --raw) and file paths.
  * @param {Array<string>} [args]
- * @returns {{files: Array<string>, stagedOnly: boolean, unstagedOnly: boolean, statOnly: boolean, nameOnly: boolean}}
+ * @returns {{files: Array<string>, stagedOnly: boolean, unstagedOnly: boolean, statOnly: boolean, nameOnly: boolean, head: boolean, raw: boolean}}
  */
 export function parseDiffArgs(args = []) {
   const files = [];
@@ -13,6 +13,8 @@ export function parseDiffArgs(args = []) {
   let unstagedOnly = false;
   let statOnly = false;
   let nameOnly = false;
+  let head = false;
+  let raw = false;
   let separatorReached = false;
 
   for (const arg of args) {
@@ -32,6 +34,10 @@ export function parseDiffArgs(args = []) {
       statOnly = true;
     } else if (arg === '--name-only') {
       nameOnly = true;
+    } else if (arg === '--head') {
+      head = true;
+    } else if (arg === '--raw') {
+      raw = true;
     } else if (arg && !arg.startsWith('-')) {
       files.push(arg);
     }
@@ -42,7 +48,7 @@ export function parseDiffArgs(args = []) {
     unstagedOnly = false;
   }
 
-  return { files, stagedOnly, unstagedOnly, statOnly, nameOnly };
+  return { files, stagedOnly, unstagedOnly, statOnly, nameOnly, head, raw };
 }
 
 /**
@@ -54,7 +60,8 @@ export function parseDiffArgs(args = []) {
  * @param {boolean} [params.unstagedOnly] - Retrieve only unstaged changes
  * @param {boolean} [params.statOnly] - Retrieve diffstat summary instead of full diff
  * @param {boolean} [params.nameOnly] - Retrieve only changed file names
- * @returns {Promise<{staged: string, unstaged: string}>}
+ * @param {boolean} [params.head] - Retrieve full diff against HEAD
+ * @returns {Promise<{staged: string, unstaged: string, head?: string}>}
  */
 export async function getDiffToReview({
   git = simpleGit(),
@@ -63,6 +70,7 @@ export async function getDiffToReview({
   unstagedOnly = false,
   statOnly = false,
   nameOnly = false,
+  head = false,
 } = {}) {
   const extraFlags = [];
   if (statOnly) extraFlags.push('--stat');
@@ -70,8 +78,27 @@ export async function getDiffToReview({
 
   const fileArgs = files && files.length > 0 ? files : [];
 
+  let headDiff = '';
+  if (head) {
+    try {
+      headDiff = await git.raw([
+        '-c',
+        'core.quotepath=false',
+        'diff',
+        '--no-ext-diff',
+        '--no-color',
+        ...extraFlags,
+        'HEAD',
+        '--',
+        ...fileArgs,
+      ]);
+    } catch {
+      headDiff = '';
+    }
+  }
+
   let staged = '';
-  if (!unstagedOnly) {
+  if (!unstagedOnly && !head) {
     staged = await git.raw([
       '-c',
       'core.quotepath=false',
@@ -86,7 +113,7 @@ export async function getDiffToReview({
   }
 
   let unstaged = '';
-  if (!stagedOnly) {
+  if (!stagedOnly && !head) {
     unstaged = await git.raw([
       '-c',
       'core.quotepath=false',
@@ -99,13 +126,42 @@ export async function getDiffToReview({
     ]);
   }
 
-  return { staged, unstaged };
+  return { staged, unstaged, head: headDiff };
 }
 
 async function main() {
-  const { files, stagedOnly, unstagedOnly, statOnly, nameOnly } = parseDiffArgs(process.argv.slice(2));
+  const { files, stagedOnly, unstagedOnly, statOnly, nameOnly, head, raw } = parseDiffArgs(process.argv.slice(2));
   try {
-    const { staged, unstaged } = await getDiffToReview({ files, stagedOnly, unstagedOnly, statOnly, nameOnly });
+    const {
+      staged,
+      unstaged,
+      head: headDiff,
+    } = await getDiffToReview({
+      files,
+      stagedOnly,
+      unstagedOnly,
+      statOnly,
+      nameOnly,
+      head,
+    });
+    if (raw) {
+      if (head) {
+        process.stdout.write(headDiff || '');
+      } else if (stagedOnly) {
+        process.stdout.write(staged);
+      } else if (unstagedOnly) {
+        process.stdout.write(unstaged);
+      } else {
+        // Concatenate staged and unstaged diffs (both already terminate with newlines natively)
+        process.stdout.write([staged, unstaged].filter(Boolean).join(''));
+      }
+      return;
+    }
+    if (head) {
+      console.log('=== Changes relative to HEAD ===');
+      console.log(headDiff.trim() ? headDiff : '(No changes relative to HEAD)');
+      return;
+    }
     if (!unstagedOnly) {
       console.log('=== Staged Changes (to be committed) ===');
       console.log(staged.trim() ? staged : '(No staged changes)');
