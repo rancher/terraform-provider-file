@@ -177,7 +177,7 @@ export async function loadWorkspaceSkillsContext(customRepoRoot = null) {
   if (hasSystemMd) {
     try {
       const systemContent = await fs.readFile(systemMdPath, 'utf8');
-      const mandateMatch = systemContent.match(/## 🛠️ 2\. Skills-First Mandate[\s\S]*?(?=\n## |$)/);
+      const mandateMatch = systemContent.match(/## (?:[^\n]*?)Skills-First Mandate[\s\S]*?(?=\n---|\n## |$)/);
       if (mandateMatch) {
         mandateText = mandateMatch[0].trim();
       }

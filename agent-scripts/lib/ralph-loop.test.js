@@ -5,13 +5,17 @@ import {
   buildImplementationPrompt,
   buildReviewerPrompt,
   buildReviewPrompt,
+  buildBatchSuggestionImplementationPrompt,
   buildTallyPrompt,
   calculateScaledTurns,
   captureGitState,
   detectGitStateChange,
+  extractCompletedSuggestionIds,
   formatValidationCommands,
   GIT_EMPTY_TREE_HASH,
+  parseIndividualSuggestions,
   parseSuggestionCounts,
+  runImplementationRalphLoop,
   runRalphLoop,
   runReviewRalphLoop,
   tallySuggestionsWithFlashLite,
@@ -909,6 +913,15 @@ test('multi-agent prompts and suggestion parsing', async (t) => {
 
     assert.ok(prompt.includes('at least 5 suggestions'));
     assert.ok(prompt.includes('"critical", "medium", or "minor"'));
+    assert.ok(prompt.includes('Analyze for Impact'));
+    assert.ok(prompt.includes('Bugs & Logic Flaws'));
+    assert.ok(prompt.includes('Minimize Pedantic Noise'));
+    assert.ok(prompt.includes('Be Concrete'));
+    assert.ok(
+      prompt.includes(
+        'cite the exact file name and line reference from the diff, explain the risk, and provide a concrete replacement snippet or fix rationale',
+      ),
+    );
     assert.ok(
       prompt.includes(
         'Do NOT add markdown formatting (such as asterisks or bolding, e.g. **[critical]** or [**critical**])',
@@ -1244,6 +1257,7 @@ test('runReviewRalphLoop multi-agent pipeline execution', async (t) => {
   await t.test('implements all suggestions when critical or medium suggestions are present', async () => {
     const sessionsInvoked = [];
     let iteration = 0;
+    let stageCalled = false;
 
     const mockCapture = async () => ({
       diff: 'staged diff',
@@ -1257,6 +1271,9 @@ test('runReviewRalphLoop multi-agent pipeline execution', async (t) => {
     const result = await runReviewRalphLoop({
       maxIterations: 5,
       captureState: mockCapture,
+      stageFn: async () => {
+        stageCalled = true;
+      },
       detectChange: () => ({ hasChanged: iteration === 1 }),
       sessionRunner: async ({ requestedModel, initialPrompt }) => {
         sessionsInvoked.push(requestedModel);
@@ -1290,9 +1307,8 @@ test('runReviewRalphLoop multi-agent pipeline execution', async (t) => {
         }
 
         if (requestedModel === 'gemini-3.8-flash') {
-          assert.ok(initialPrompt.includes('Memory leak in buffer'));
-          assert.ok(initialPrompt.includes('Missing validation check'));
-          return 'Implemented all 5 suggestions.';
+          assert.ok(initialPrompt.includes('remaining suggestion(s) to implement'));
+          return '<completed_suggestion id="1">Implemented</completed_suggestion>';
         }
 
         return '';
@@ -1304,78 +1320,15 @@ test('runReviewRalphLoop multi-agent pipeline execution', async (t) => {
     assert.strictEqual(result.success, true);
     assert.strictEqual(result.completed, true);
     assert.strictEqual(result.iterations, 2);
-    // Iteration 1: Pro -> Flash-Lite -> Flash (implemented)
-    // Iteration 2: Pro -> Flash-Lite (only minor, skipped!)
-    assert.deepStrictEqual(sessionsInvoked, [
-      'gemini-3.1-pro-preview',
-      'gemini-3.1-flash-lite',
-      'gemini-3.8-flash',
-      'gemini-3.1-pro-preview',
-      'gemini-3.1-flash-lite',
-    ]);
+    assert.strictEqual(stageCalled, true, 'Stage function must be called after inner implementation loop completes');
+    const flashInvocations = sessionsInvoked.filter((m) => m === 'gemini-3.8-flash');
+    assert.strictEqual(flashInvocations.length, 5, 'Flash implementer should be invoked once per suggestion');
   });
 
-  await t.test(
-    'runs thinking reviewer in isolated session and scales implementer turns dynamically for large suggestion counts',
-    async () => {
-      let reviewerIsolate = null;
-      let implementerTurns = null;
-
-      const mockCapture = async () => ({
-        diff: 'staged diff',
-        status: 'M main.go',
-        diffHash: 'diff-hash',
-        plan: '## Review Plan',
-        changedFiles: ['main.go'],
-        modifiedFilesContext: '<file path="main.go">content</file>',
-      });
-
-      const result = await runReviewRalphLoop({
-        maxIterations: 1,
-        maxTurnsPerSession: 20,
-        captureState: mockCapture,
-        detectChange: () => ({ hasChanged: false }),
-        sessionRunner: async ({ requestedModel, isolate, maxTurnsOverride }) => {
-          if (requestedModel === 'gemini-3.1-pro-preview') {
-            reviewerIsolate = isolate;
-            return `
-1. [critical] Item 1
-2. [critical] Item 2
-3. [medium] Item 3
-4. [medium] Item 4
-5. [minor] Item 5
-6. [minor] Item 6
-7. [minor] Item 7
-8. [minor] Item 8
-9. [minor] Item 9
-10. [minor] Item 10
-`;
-          }
-          if (requestedModel === 'gemini-3.1-flash-lite') {
-            return JSON.stringify({ critical: 2, medium: 2, minor: 6 });
-          }
-          if (requestedModel === 'gemini-3.8-flash') {
-            implementerTurns = maxTurnsOverride;
-            return '<promise>COMPLETE</promise>';
-          }
-          return '';
-        },
-        validator: async () => ({ success: true }),
-        logger: () => {},
-      });
-
-      assert.strictEqual(result.success, true);
-      assert.strictEqual(reviewerIsolate, true, 'Thinking reviewer should run in isolated session');
-      // For 10 suggestions (base 20 turns, 10/5 = 2x multiplier): 40 turns
-      assert.strictEqual(implementerTurns, 40);
-    },
-  );
-
-  await t.test('injects workspace skills context into reviewer and implementer prompts and instructions', async () => {
-    let capturedReviewerPrompt = '';
-    let capturedReviewerInstructions = '';
-    let capturedImplPrompt = '';
-    let capturedImplInstructions = '';
+  await t.test('runs thinking reviewer in isolated session and executes inner implementation loop', async () => {
+    let reviewerIsolate = null;
+    let implementerTurns = null;
+    let stageCalled = false;
 
     const mockCapture = async () => ({
       diff: 'staged diff',
@@ -1388,12 +1341,63 @@ test('runReviewRalphLoop multi-agent pipeline execution', async (t) => {
 
     const result = await runReviewRalphLoop({
       maxIterations: 1,
+      maxTurnsPerSession: 20,
       captureState: mockCapture,
+      stageFn: async () => {
+        stageCalled = true;
+      },
       detectChange: () => ({ hasChanged: false }),
-      sessionRunner: async ({ requestedModel, initialPrompt, systemInstructions }) => {
+      sessionRunner: async ({ requestedModel, isolate, maxTurnsOverride }) => {
+        if (requestedModel === 'gemini-3.1-pro-preview') {
+          reviewerIsolate = isolate;
+          return `
+1. [critical] Item 1
+2. [critical] Item 2
+3. [medium] Item 3
+4. [medium] Item 4
+5. [minor] Item 5
+`;
+        }
+        if (requestedModel === 'gemini-3.1-flash-lite') {
+          return JSON.stringify({ critical: 2, medium: 2, minor: 1 });
+        }
+        if (requestedModel === 'gemini-3.8-flash') {
+          implementerTurns = maxTurnsOverride;
+          return '<completed_suggestion id="1">COMPLETE</completed_suggestion>';
+        }
+        return '';
+      },
+      validator: async () => ({ success: true }),
+      logger: () => {},
+    });
+
+    assert.strictEqual(result.success, true);
+    assert.strictEqual(reviewerIsolate, true, 'Thinking reviewer should run in isolated session');
+    assert.strictEqual(implementerTurns, 20);
+    assert.strictEqual(stageCalled, true, 'Inner loop must stage code');
+  });
+
+  await t.test('injects workspace skills context into reviewer and implementer prompts and instructions', async () => {
+    let capturedReviewerPrompt = '';
+    let capturedImplPrompt = '';
+
+    const mockCapture = async () => ({
+      diff: 'staged diff',
+      status: 'M main.go',
+      diffHash: 'diff-hash',
+      plan: '## Review Plan',
+      changedFiles: ['main.go'],
+      modifiedFilesContext: '<file path="main.go">content</file>',
+    });
+
+    await runReviewRalphLoop({
+      maxIterations: 1,
+      captureState: mockCapture,
+      stageFn: async () => {},
+      detectChange: () => ({ hasChanged: false }),
+      sessionRunner: async ({ requestedModel, initialPrompt }) => {
         if (requestedModel === 'gemini-3.1-pro-preview') {
           capturedReviewerPrompt = initialPrompt;
-          capturedReviewerInstructions = systemInstructions;
           return `
 1. [critical] Item 1
 2. [medium] Item 2
@@ -1407,8 +1411,7 @@ test('runReviewRalphLoop multi-agent pipeline execution', async (t) => {
         }
         if (requestedModel === 'gemini-3.8-flash') {
           capturedImplPrompt = initialPrompt;
-          capturedImplInstructions = systemInstructions;
-          return '<promise>COMPLETE</promise>';
+          return '<completed_suggestion id="1">COMPLETE</completed_suggestion>';
         }
         return '';
       },
@@ -1416,14 +1419,11 @@ test('runReviewRalphLoop multi-agent pipeline execution', async (t) => {
       logger: () => {},
     });
 
-    assert.strictEqual(result.success, true);
     assert.ok(capturedReviewerPrompt.includes('<available_skills>'), 'Reviewer prompt must include skills');
     assert.ok(capturedReviewerPrompt.includes('Skills-First Mandate'), 'Reviewer prompt must include mandate');
-    assert.ok(capturedReviewerInstructions.includes('<available_skills>'), 'Reviewer instructions must include skills');
 
     assert.ok(capturedImplPrompt.includes('<available_skills>'), 'Implementer prompt must include skills');
     assert.ok(capturedImplPrompt.includes('Skills-First Mandate'), 'Implementer prompt must include mandate');
-    assert.ok(capturedImplInstructions.includes('<available_skills>'), 'Implementer instructions must include skills');
   });
 
   await t.test('passes blockTools to implementer session to prevent subagents and plan mode', async () => {
@@ -1438,9 +1438,10 @@ test('runReviewRalphLoop multi-agent pipeline execution', async (t) => {
       modifiedFilesContext: '<file path="main.go">content</file>',
     });
 
-    const result = await runReviewRalphLoop({
+    await runReviewRalphLoop({
       maxIterations: 1,
       captureState: mockCapture,
+      stageFn: async () => {},
       detectChange: () => ({ hasChanged: false }),
       sessionRunner: async ({ requestedModel, blockTools }) => {
         if (requestedModel === 'gemini-3.1-pro-preview') {
@@ -1451,7 +1452,7 @@ test('runReviewRalphLoop multi-agent pipeline execution', async (t) => {
         }
         if (requestedModel === 'gemini-3.8-flash') {
           capturedBlockTools = blockTools;
-          return '<promise>COMPLETE</promise>';
+          return '<completed_suggestion id="1">Done</completed_suggestion>';
         }
         return '';
       },
@@ -1459,7 +1460,6 @@ test('runReviewRalphLoop multi-agent pipeline execution', async (t) => {
       logger: () => {},
     });
 
-    assert.strictEqual(result.success, true);
     assert.deepStrictEqual(capturedBlockTools, ['invoke_agent', 'enter_plan_mode']);
   });
 
@@ -1501,4 +1501,628 @@ test('runReviewRalphLoop multi-agent pipeline execution', async (t) => {
       'Only minor suggestions found (0 minor, 0 critical, 0 medium). No implementation needed.',
     );
   });
+});
+
+test('inner implementation Ralph Loop utilities and execution', async (t) => {
+  await t.test('parseIndividualSuggestions parses numbered and bulleted suggestions', () => {
+    const raw = `
+1. [critical] Fix buffer overflow in reader
+2. [medium] Validate nil pointer before lookup
+* [minor] Documentation typo in README
+- (minor) Reorder imports alphabetically
+5. Suggestion without severity tag
+`;
+    const items = parseIndividualSuggestions(raw);
+    assert.strictEqual(items.length, 5);
+    assert.strictEqual(items[0].id, 1);
+    assert.strictEqual(items[0].severity, 'critical');
+    assert.ok(items[0].text.includes('Fix buffer overflow'));
+
+    assert.strictEqual(items[1].id, 2);
+    assert.strictEqual(items[1].severity, 'medium');
+
+    assert.strictEqual(items[2].id, 3);
+    assert.strictEqual(items[2].severity, 'minor');
+
+    assert.strictEqual(items[3].id, 4);
+    assert.strictEqual(items[3].severity, 'minor');
+
+    assert.strictEqual(items[4].id, 5);
+    assert.strictEqual(items[4].severity, 'unclassified');
+  });
+
+  await t.test('parseIndividualSuggestions tolerates internal whitespace within severity tags', () => {
+    const raw = `
+1. [ critical ] Fix buffer overflow with internal spaces
+2. (  medium  ) Validate nil pointer with spaces in parens
+3. [   minor   ] Typo fix with extra spaces
+`;
+    const items = parseIndividualSuggestions(raw);
+    assert.strictEqual(items.length, 3);
+    assert.strictEqual(items[0].severity, 'critical');
+    assert.strictEqual(items[1].severity, 'medium');
+    assert.strictEqual(items[2].severity, 'minor');
+  });
+
+  await t.test('parseIndividualSuggestions tolerates leading whitespace for indented suggestions', () => {
+    const raw = `
+  1. [critical] Fix memory leak in buffer
+  2. [medium] Validate nil pointer before lookup
+    3. [minor] Rename identifier
+`;
+    const items = parseIndividualSuggestions(raw);
+    assert.strictEqual(items.length, 3);
+    assert.strictEqual(items[0].id, 1);
+    assert.strictEqual(items[0].severity, 'critical');
+    assert.strictEqual(items[0].text, 'Fix memory leak in buffer');
+
+    assert.strictEqual(items[1].id, 2);
+    assert.strictEqual(items[1].severity, 'medium');
+    assert.strictEqual(items[1].text, 'Validate nil pointer before lookup');
+
+    assert.strictEqual(items[2].id, 3);
+    assert.strictEqual(items[2].severity, 'minor');
+    assert.strictEqual(items[2].text, 'Rename identifier');
+  });
+
+  await t.test('parseIndividualSuggestions tolerates indented suggestions while preserving indented sub-items', () => {
+    const raw = `
+  1. [critical] Fix memory leak in buffer:
+     - Check stream handle
+     - Free allocated memory
+  2. [medium] Validate nil pointer:
+     1. Verify obj is not nil
+     2. Return error if nil
+  3. [minor] Rename identifier
+`;
+    const items = parseIndividualSuggestions(raw);
+    assert.strictEqual(items.length, 3);
+    assert.strictEqual(items[0].id, 1);
+    assert.strictEqual(items[0].severity, 'critical');
+    assert.ok(
+      items[0].text.includes('Fix memory leak in buffer:\n     - Check stream handle\n     - Free allocated memory'),
+    );
+    assert.strictEqual(items[1].id, 2);
+    assert.strictEqual(items[1].severity, 'medium');
+    assert.ok(
+      items[1].text.includes('Validate nil pointer:\n     1. Verify obj is not nil\n     2. Return error if nil'),
+    );
+    assert.strictEqual(items[2].id, 3);
+    assert.strictEqual(items[2].severity, 'minor');
+    assert.strictEqual(items[2].text, 'Rename identifier');
+  });
+
+  await t.test('parseIndividualSuggestions handles empty or invalid input gracefully', () => {
+    assert.deepStrictEqual(parseIndividualSuggestions(''), []);
+    assert.deepStrictEqual(parseIndividualSuggestions(null), []);
+  });
+
+  await t.test('parseIndividualSuggestions handles multiline suggestion when text starts on next line', () => {
+    const raw = `
+1. [critical]
+Fix buffer overflow in reader when handling large chunks.
+2. [medium]
+Validate nil pointer before lookup.
+`;
+    const items = parseIndividualSuggestions(raw);
+    assert.strictEqual(items.length, 2);
+    assert.strictEqual(items[0].id, 1);
+    assert.strictEqual(items[0].severity, 'critical');
+    assert.strictEqual(items[0].text, 'Fix buffer overflow in reader when handling large chunks.');
+
+    assert.strictEqual(items[1].id, 2);
+    assert.strictEqual(items[1].severity, 'medium');
+    assert.strictEqual(items[1].text, 'Validate nil pointer before lookup.');
+  });
+
+  await t.test(
+    'parseIndividualSuggestions preserves leading indentation on the first line when suggestion body starts on next line',
+    () => {
+      const raw = `
+1. [critical]
+   \`\`\`go
+   stream.Close()
+   \`\`\`
+2. [medium]
+   - Sub-bullet 1
+   - Sub-bullet 2
+`;
+      const items = parseIndividualSuggestions(raw);
+      assert.strictEqual(items.length, 2);
+      assert.strictEqual(items[0].id, 1);
+      assert.strictEqual(items[0].severity, 'critical');
+      assert.strictEqual(items[0].text, '   ```go\n   stream.Close()\n   ```');
+
+      assert.strictEqual(items[1].id, 2);
+      assert.strictEqual(items[1].severity, 'medium');
+      assert.strictEqual(items[1].text, '   - Sub-bullet 1\n   - Sub-bullet 2');
+    },
+  );
+
+  await t.test('parseIndividualSuggestions preserves newlines and indentation in multiline suggestions', () => {
+    const raw = `
+1. [critical] Fix resource leak in stream:
+   Ensure stream is closed in finally block:
+   \`\`\`go
+   if stream != nil {
+       stream.Close()
+   }
+   \`\`\`
+2. [medium] Add validation:
+   Check error return.
+`;
+    const items = parseIndividualSuggestions(raw);
+    assert.strictEqual(items.length, 2);
+    assert.strictEqual(items[0].id, 1);
+    assert.strictEqual(items[0].severity, 'critical');
+    assert.ok(items[0].text.includes('Fix resource leak in stream:\n   Ensure stream is closed in finally block:'));
+    assert.ok(items[0].text.includes('       stream.Close()'));
+    assert.strictEqual(items[1].id, 2);
+    assert.strictEqual(items[1].severity, 'medium');
+    assert.ok(items[1].text.includes('Add validation:\n   Check error return.'));
+  });
+
+  await t.test('parseIndividualSuggestions prevents redundant newline accumulation across multiple blank lines', () => {
+    const raw = `
+1. [critical] Fix resource leak:
+
+   Paragraph 1.
+
+
+   Paragraph 2.
+2. [minor] Clean up comments.
+`;
+    const items = parseIndividualSuggestions(raw);
+    assert.strictEqual(items.length, 2);
+    assert.strictEqual(items[0].id, 1);
+    assert.strictEqual(items[0].severity, 'critical');
+    assert.strictEqual(items[0].text, 'Fix resource leak:\n\n   Paragraph 1.\n\n   Paragraph 2.');
+  });
+
+  await t.test(
+    'parseIndividualSuggestions preserves indented sub-bullets and numbered sub-lists without splitting',
+    () => {
+      const raw = `
+1. [critical] Fix the memory leak:
+   - In file A: close buffer
+   - In file B: release lock
+2. [medium] Validate nil pointer before lookup:
+   1. Check if obj is nil
+   2. Return error if nil
+3. [minor] Documentation typo
+`;
+      const items = parseIndividualSuggestions(raw);
+      assert.strictEqual(items.length, 3);
+      assert.strictEqual(items[0].id, 1);
+      assert.strictEqual(items[0].severity, 'critical');
+      assert.ok(
+        items[0].text.includes('Fix the memory leak:\n   - In file A: close buffer\n   - In file B: release lock'),
+      );
+      assert.strictEqual(items[1].id, 2);
+      assert.strictEqual(items[1].severity, 'medium');
+      assert.ok(
+        items[1].text.includes(
+          'Validate nil pointer before lookup:\n   1. Check if obj is nil\n   2. Return error if nil',
+        ),
+      );
+      assert.strictEqual(items[2].id, 3);
+      assert.strictEqual(items[2].severity, 'minor');
+      assert.strictEqual(items[2].text, 'Documentation typo');
+    },
+  );
+
+  await t.test('parseIndividualSuggestions ignores header-like lines inside markdown code blocks', () => {
+    const raw = `
+1. [critical] Add database migration script:
+   Here is the migration script:
+   \`\`\`bash
+   1. echo "migration step 1"
+   2. echo "migration step 2"
+   * echo "bullet item"
+   \`\`\`
+   Verify the logs afterwards.
+2. [medium] Add validation for null user:
+   \`\`\`go
+   // 1. check pointer
+   if user == nil {
+       return ErrNotFound
+   }
+   \`\`\`
+3. [minor] Update documentation
+`;
+    const items = parseIndividualSuggestions(raw);
+    assert.strictEqual(items.length, 3);
+    assert.strictEqual(items[0].id, 1);
+    assert.strictEqual(items[0].severity, 'critical');
+    assert.ok(items[0].text.includes('1. echo "migration step 1"'));
+    assert.ok(items[0].text.includes('2. echo "migration step 2"'));
+    assert.ok(items[0].text.includes('* echo "bullet item"'));
+    assert.ok(items[0].text.includes('Verify the logs afterwards.'));
+
+    assert.strictEqual(items[1].id, 2);
+    assert.strictEqual(items[1].severity, 'medium');
+    assert.ok(items[1].text.includes('// 1. check pointer'));
+    assert.ok(items[1].text.includes('if user == nil {'));
+
+    assert.strictEqual(items[2].id, 3);
+    assert.strictEqual(items[2].severity, 'minor');
+    assert.strictEqual(items[2].text, 'Update documentation');
+  });
+
+  await t.test(
+    'parseIndividualSuggestions resets unclosed code block when next suggestion header is encountered',
+    () => {
+      const raw = `
+1. [critical] Fix buffer overflow in reader:
+   \`\`\`go
+   buf := make([]byte, 1024)
+   // note: unclosed code block without closing fence
+2. [medium] Validate nil pointer before lookup:
+   Check nil obj.
+3. [minor] Rename identifier:
+   Rename x to counter.
+`;
+      const items = parseIndividualSuggestions(raw);
+      assert.strictEqual(items.length, 3);
+      assert.strictEqual(items[0].id, 1);
+      assert.strictEqual(items[0].severity, 'critical');
+      assert.ok(items[0].text.includes('buf := make([]byte, 1024)'));
+
+      assert.strictEqual(items[1].id, 2);
+      assert.strictEqual(items[1].severity, 'medium');
+      assert.ok(items[1].text.includes('Validate nil pointer before lookup'));
+
+      assert.strictEqual(items[2].id, 3);
+      assert.strictEqual(items[2].severity, 'minor');
+      assert.ok(items[2].text.includes('Rename identifier'));
+    },
+  );
+
+  await t.test('parseIndividualSuggestions supports tilde (~~~) code fences and ignores internal headers', () => {
+    const raw = `
+1. [critical] Add database migration script:
+   Here is the migration script using tildes:
+   ~~~bash
+   1. echo "step 1 inside tilde block"
+   2. echo "step 2 inside tilde block"
+   * bullet item
+   ~~~
+   Verify the logs afterwards.
+2. [medium] Validate nil pointer before lookup:
+   Check nil obj.
+3. [minor] Rename identifier
+`;
+    const items = parseIndividualSuggestions(raw);
+    assert.strictEqual(items.length, 3);
+    assert.strictEqual(items[0].id, 1);
+    assert.strictEqual(items[0].severity, 'critical');
+    assert.ok(items[0].text.includes('1. echo "step 1 inside tilde block"'));
+    assert.ok(items[0].text.includes('2. echo "step 2 inside tilde block"'));
+    assert.ok(items[0].text.includes('* bullet item'));
+    assert.ok(items[0].text.includes('Verify the logs afterwards.'));
+
+    assert.strictEqual(items[1].id, 2);
+    assert.strictEqual(items[1].severity, 'medium');
+    assert.ok(items[1].text.includes('Validate nil pointer before lookup'));
+
+    assert.strictEqual(items[2].id, 3);
+    assert.strictEqual(items[2].severity, 'minor');
+    assert.strictEqual(items[2].text, 'Rename identifier');
+  });
+
+  await t.test(
+    'extractCompletedSuggestionIds parses tags, comma-separated IDs, conversational text, and defaults',
+    () => {
+      const remaining = [{ id: 1 }, { id: 2 }, { id: 3 }];
+
+      assert.deepStrictEqual(
+        extractCompletedSuggestionIds('<completed_suggestion id="2">Done</completed_suggestion>', remaining),
+        [2],
+      );
+      assert.deepStrictEqual(
+        extractCompletedSuggestionIds('<completed_suggestion id="1, 2">Done</completed_suggestion>', remaining),
+        [1, 2],
+      );
+      assert.deepStrictEqual(
+        extractCompletedSuggestionIds(
+          '<completed_suggestion id="2">Implemented suggestion 1</completed_suggestion>',
+          remaining,
+        ),
+        [2],
+      );
+      assert.deepStrictEqual(extractCompletedSuggestionIds('<completed_suggestion id="2"/>', remaining), [2]);
+      assert.deepStrictEqual(
+        extractCompletedSuggestionIds('<completed_suggestion id="3">Unclosed tag without closing delimiter', remaining),
+        [3],
+      );
+      assert.deepStrictEqual(
+        extractCompletedSuggestionIds('<completed_suggestion>3</completed_suggestion>', remaining),
+        [3],
+      );
+      assert.deepStrictEqual(
+        extractCompletedSuggestionIds('<completed_suggestion>1, 3</completed_suggestion>', remaining),
+        [1, 3],
+      );
+      assert.deepStrictEqual(
+        extractCompletedSuggestionIds('<completed_suggestion>ID: 2</completed_suggestion>', remaining),
+        [2],
+      );
+      assert.deepStrictEqual(
+        extractCompletedSuggestionIds('<completed_suggestion>#2</completed_suggestion>', remaining),
+        [2],
+      );
+      assert.deepStrictEqual(
+        extractCompletedSuggestionIds('<completed_suggestion># 2</completed_suggestion>', remaining),
+        [2],
+      );
+      assert.deepStrictEqual(
+        extractCompletedSuggestionIds('<completed_suggestion>id 2</completed_suggestion>', remaining),
+        [2],
+      );
+      assert.deepStrictEqual(
+        extractCompletedSuggestionIds('<completed_suggestion>suggestion 2</completed_suggestion>', remaining),
+        [2],
+      );
+      assert.deepStrictEqual(
+        extractCompletedSuggestionIds('<completed_suggestion>suggestions 1, 2</completed_suggestion>', remaining),
+        [1, 2],
+      );
+      assert.deepStrictEqual(
+        extractCompletedSuggestionIds('<completed_suggestion>suggestion #2</completed_suggestion>', remaining),
+        [2],
+      );
+      assert.deepStrictEqual(
+        extractCompletedSuggestionIds('<completed_suggestion>Fixed bug on line 2</completed_suggestion>', remaining),
+        [1], // Greedy regex defense returns default fallback if unable to isolate exactly
+      );
+      assert.deepStrictEqual(
+        extractCompletedSuggestionIds(
+          '<completed_suggestion id="2">First</completed_suggestion><completed_suggestion id="3">Second</completed_suggestion>',
+          remaining,
+        ),
+        [2, 3],
+      );
+      assert.deepStrictEqual(extractCompletedSuggestionIds('I have implemented suggestions 2, 3.', remaining), [2, 3]);
+      assert.deepStrictEqual(extractCompletedSuggestionIds('Resolved suggestion #1 successfully', remaining), [1]);
+      assert.deepStrictEqual(extractCompletedSuggestionIds('Addressing suggestion id 3', remaining), [3]);
+      assert.deepStrictEqual(extractCompletedSuggestionIds('Working on suggestion #2 for this turn', remaining), [2]);
+      assert.deepStrictEqual(extractCompletedSuggestionIds('Here is the fix for suggestion 2', remaining), [2]);
+      assert.deepStrictEqual(
+        extractCompletedSuggestionIds('I considered suggestion 99, but implemented suggestion 2', remaining),
+        [2],
+      );
+      assert.deepStrictEqual(
+        extractCompletedSuggestionIds('I considered suggestion 99, and here is suggestion #2', remaining),
+        [2],
+      );
+      assert.deepStrictEqual(extractCompletedSuggestionIds('I made changes without specific tag', remaining), [1]);
+      assert.deepStrictEqual(
+        extractCompletedSuggestionIds('<completed_suggestion id="99">Unknown</completed_suggestion>', remaining),
+        [1],
+      );
+    },
+  );
+
+  await t.test('buildBatchSuggestionImplementationPrompt formats remaining items and batch instructions', () => {
+    const prompt = buildBatchSuggestionImplementationPrompt({
+      remainingSuggestions: [
+        { id: 1, severity: 'critical', text: 'Fix buffer leak\n<leak>details</leak>' },
+        { id: 2, severity: 'medium', text: 'Add validation' },
+      ],
+      currentSuggestionIndex: 1,
+      totalSuggestions: 2,
+    });
+    assert.ok(prompt.includes('Implementation Phase - Step 1 of 2.'));
+    assert.ok(prompt.includes('There are 2 remaining suggestion(s) to implement:'));
+    assert.ok(prompt.includes('1. [critical] (Original #1) Fix buffer leak\n<leak>details</leak>'));
+    assert.ok(prompt.includes('UP TO 3 SUGGESTIONS'));
+    assert.ok(prompt.includes('WHICH suggestions were implemented'));
+  });
+
+  await t.test('buildBatchSuggestionImplementationPrompt caps validation output length safely', () => {
+    const massiveStdout = 'stdout-line\n'.repeat(300); // ~3600 chars
+    const massiveStderr = 'stderr-line\n'.repeat(300); // ~3600 chars
+    const prompt = buildBatchSuggestionImplementationPrompt({
+      remainingSuggestions: [{ id: 1, severity: 'critical', text: 'Fix bug' }],
+      lastValidation: {
+        success: false,
+        stdout: massiveStdout,
+        stderr: massiveStderr,
+      },
+    });
+
+    assert.ok(prompt.includes('PREVIOUS VALIDATION FAILURE'));
+    assert.ok(prompt.includes('[truncated, showing last 2000 chars]'));
+    // Ensure the prompt does not contain the entire 3600 character output
+    assert.ok(!prompt.includes(massiveStdout));
+    assert.ok(!prompt.includes(massiveStderr));
+  });
+
+  await t.test(
+    'runImplementationRalphLoop iterates per suggestion, removes completed items, and stages code',
+    async () => {
+      let stageCalled = false;
+      const promptsReceived = [];
+      const loggedMessages = [];
+      let innerIter = 0;
+
+      const mockCapture = async () => ({
+        diff: 'staged diff',
+        status: 'M main.go',
+        diffHash: 'diff-hash',
+        plan: '## Review Plan',
+        changedFiles: ['main.go'],
+        modifiedFilesContext: '<file path="main.go">content</file>',
+      });
+
+      const result = await runImplementationRalphLoop({
+        suggestions: [
+          { id: 1, severity: 'critical', text: 'Fix leak' },
+          { id: 2, severity: 'medium', text: 'Add validation' },
+        ],
+        captureState: mockCapture,
+        stageFn: async () => {
+          stageCalled = true;
+        },
+        sessionRunner: async ({ initialPrompt }) => {
+          innerIter++;
+          promptsReceived.push(initialPrompt);
+          if (innerIter === 1) {
+            return '<completed_suggestion id="1">Fixed leak</completed_suggestion>';
+          }
+          return '<completed_suggestion id="2">Added validation</completed_suggestion>';
+        },
+        validator: async () => ({ success: true }),
+        logger: (msg) => loggedMessages.push(msg),
+      });
+
+      assert.strictEqual(result.success, true);
+      assert.strictEqual(result.completed, true);
+      assert.strictEqual(result.implementedCount, 2);
+      assert.strictEqual(result.totalSuggestions, 2);
+      assert.strictEqual(result.iterations, 2);
+      assert.strictEqual(stageCalled, true, 'Code must be staged after completing all suggestions');
+      assert.ok(promptsReceived[0].includes('Fix leak'));
+      assert.ok(promptsReceived[1].includes('Add validation'));
+      assert.ok(
+        loggedMessages.some((m) =>
+          m.includes('Waiting for implementation of suggestion(s) #1, #2 (e.g., ID #1 [critical]'),
+        ),
+      );
+    },
+  );
+
+  await t.test(
+    'runImplementationRalphLoop retries suggestion on validation failure without removing item',
+    async () => {
+      let validatorCallCount = 0;
+      let stageCalled = false;
+
+      const mockCapture = async () => ({
+        diff: 'staged diff',
+        status: 'M main.go',
+        diffHash: 'diff-hash',
+        plan: '## Review Plan',
+        changedFiles: ['main.go'],
+        modifiedFilesContext: '<file path="main.go">content</file>',
+      });
+
+      const result = await runImplementationRalphLoop({
+        suggestions: [{ id: 1, severity: 'critical', text: 'Fix leak' }],
+        maxIterations: 3,
+        captureState: mockCapture,
+        stageFn: async () => {
+          stageCalled = true;
+        },
+        sessionRunner: async () => '<completed_suggestion id="1">Fixed</completed_suggestion>',
+        validator: async () => {
+          validatorCallCount++;
+          // Fail on iteration 1, succeed on iteration 2
+          return validatorCallCount === 1 ? { success: false, stdout: '', stderr: 'Linter error' } : { success: true };
+        },
+        logger: () => {},
+      });
+
+      assert.strictEqual(result.success, true);
+      assert.strictEqual(result.completed, true);
+      assert.strictEqual(result.implementedCount, 1);
+      assert.strictEqual(result.iterations, 2);
+      assert.strictEqual(stageCalled, true);
+    },
+  );
+
+  await t.test('runImplementationRalphLoop handles empty suggestions without iterating', async () => {
+    let sessionRunnerCalled = false;
+    let stageCalled = false;
+
+    const result = await runImplementationRalphLoop({
+      suggestions: [],
+      suggestionsText: '',
+      stageFn: async () => {
+        stageCalled = true;
+      },
+      sessionRunner: async () => {
+        sessionRunnerCalled = true;
+        return '';
+      },
+      logger: () => {},
+    });
+
+    assert.strictEqual(result.success, true);
+    assert.strictEqual(result.completed, true);
+    assert.strictEqual(result.totalSuggestions, 0);
+    assert.strictEqual(result.implementedCount, 0);
+    assert.strictEqual(result.iterations, 0);
+    assert.strictEqual(sessionRunnerCalled, false);
+    assert.strictEqual(stageCalled, false);
+  });
+
+  await t.test(
+    'runImplementationRalphLoop does not stage code if loop hits maxIterations and fails validation',
+    async () => {
+      let stageCalled = false;
+
+      const mockCapture = async () => ({
+        diff: 'staged diff',
+        status: 'M main.go',
+        diffHash: 'diff-hash',
+        plan: '## Review Plan',
+        changedFiles: ['main.go'],
+        modifiedFilesContext: '<file path="main.go">content</file>',
+      });
+
+      const result = await runImplementationRalphLoop({
+        suggestions: [{ id: 1, severity: 'critical', text: 'Fix leak' }],
+        maxIterations: 2,
+        captureState: mockCapture,
+        stageFn: async () => {
+          stageCalled = true;
+        },
+        sessionRunner: async () => '<completed_suggestion id="1">Attempted</completed_suggestion>',
+        validator: async () => ({ success: false, stdout: '', stderr: 'Compile error' }),
+        logger: () => {},
+      });
+
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.completed, false);
+      assert.strictEqual(result.implementedCount, 0);
+      assert.strictEqual(result.iterations, 3); // 2 max iterations + 1 fallback attempt
+      assert.strictEqual(stageCalled, false, 'Code must not be staged when suggestions remain uncompleted');
+    },
+  );
+
+  await t.test(
+    'runImplementationRalphLoop logs attempted suggestion ID on validation failure when agent chooses non-first suggestion',
+    async () => {
+      const loggedMessages = [];
+      const mockCapture = async () => ({
+        diff: 'staged diff',
+        status: 'M main.go',
+        diffHash: 'diff-hash',
+        plan: '## Review Plan',
+        changedFiles: ['main.go'],
+        modifiedFilesContext: '<file path="main.go">content</file>',
+      });
+
+      const result = await runImplementationRalphLoop({
+        suggestions: [
+          { id: 1, severity: 'critical', text: 'Fix leak' },
+          { id: 2, severity: 'medium', text: 'Add validation' },
+        ],
+        maxIterations: 1,
+        captureState: mockCapture,
+        stageFn: async () => {},
+        sessionRunner: async () => '<completed_suggestion id="2">Attempted fix 2</completed_suggestion>',
+        validator: async () => ({ success: false, stdout: '', stderr: 'Validation error' }),
+        logger: (msg) => loggedMessages.push(msg),
+      });
+
+      assert.strictEqual(result.success, false);
+      assert.strictEqual(result.completed, false);
+      assert.ok(
+        loggedMessages.some((m) => m.includes('Running deterministic validation pipeline for suggestion ID(s) 2')),
+      );
+      assert.ok(loggedMessages.some((m) => m.includes('Validation failed for suggestion ID(s) 2')));
+    },
+  );
 });

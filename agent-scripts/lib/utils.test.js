@@ -643,7 +643,7 @@ test('loadWorkspaceSkillsContext discovery and formatting', async (t) => {
     assert.ok(skillsContext.includes('<name>github-pr</name>'));
     assert.ok(skillsContext.includes('<name>github-ci</name>'));
     assert.ok(skillsContext.includes('node .gemini/skills/git/scripts/read-ignored-file.js'));
-    assert.ok(skillsContext.includes('## 🛠️ 2. Skills-First Mandate'));
+    assert.ok(skillsContext.includes('Skills-First Mandate'));
   });
 
   await t.test('caches skills context across repeated calls and resetSkillsContextCache clears it', async () => {

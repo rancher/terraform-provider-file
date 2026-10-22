@@ -607,23 +607,35 @@ Prioritize suggestions that directly address and resolve these failures.
 
   return `Review iteration ${iteration}/${maxIterations}.
 
-You are a senior technical reviewer. Review the staged code against the approved plan (in plans/current.md).
-Your task is ONLY to review the code and output a list of actionable suggestions within the scope of the plan.
+You are an expert principal software engineer performing a strict, constructive pull request (PR) review on the staged git diff against the approved plan (in plans/current.md).
+Your task is ONLY to review the code and output a numbered list of actionable suggestions within the scope of the plan.
 ${validationBlock}
+Review Focus & Principles:
+1. Analyze for Impact: Focus strictly on significant issues:
+   - Bugs & Logic Flaws: Edge cases, off-by-one errors, state mutation risks, unhandled null/undefined values.
+   - Security: Secret leakage, injection vulnerabilities, untrusted input handling.
+   - Performance & Resources: Memory leaks, inefficient queries/loops, unnecessary allocations, concurrency/deadlock issues.
+   - Architecture & Missing Tests: Idiomatic style, error propagation, missing unit test scenarios.
+2. Minimize Pedantic Noise: Ignore minor stylistic preferences, import sorting, or formatting unless they violate critical language conventions or obscure readability.
+3. Be Concrete: For every finding, cite the exact file name and line reference from the diff, explain the risk, and provide a concrete replacement snippet or fix rationale.
+
 Instructions & Strict Constraints:
 1. Your output must ONLY be a numbered list of suggestions.
-2. Every suggestion MUST be explicitly categorized with a severity rating of either "critical", "medium", or "minor". Do NOT add markdown formatting (such as asterisks or bolding, e.g. **[critical]** or [**critical**]) around or inside the severity tags or brackets.
-3. You must ALWAYS come up with at least 5 suggestions.
+2. Every suggestion MUST be explicitly categorized with a severity rating of either "critical", "medium", or "minor". Do NOT add markdown formatting (such as asterisks or bolding, e.g. **[critical]** or [**critical**]) around or inside the severity tags or brackets:
+   - [critical]: Must-fix bugs, data loss, security vulnerabilities, or regression risks.
+   - [medium]: Missing tests, error handling gaps, resource leaks, or architectural inconsistencies.
+   - [minor]: Clean-up recommendations, maintainability improvements, or non-blocking edge cases.
+3. You must ALWAYS come up with at least 5 suggestions (if code is solid, provide minor maintainability or test enhancements).
 4. Do NOT make file modifications, call mutating tools, or commit code. You may use grep_search to inspect files and verify code patterns.
 5. Consider the repository's installed skills (in .gemini/skills/) and the Skills-First Mandate when reviewing code and proposing suggestions.
 
 Format each suggestion clearly as:
-<number>. [<severity>] <Summary>: <Detailed suggestion and rationale>
+<number>. [<severity>] <Summary>: <File:line reference> - <Explanation of risk and recommended fix>
 
 Example format:
-1. [critical] Fix resource leak: Ensure stream is closed in finally block...
-2. [medium] Improve error handling: Add specific error typing...
-3. [minor] Variable naming: Rename tmpVar to descriptive identifier...
+1. [critical] Fix resource leak: agent-scripts/lib/ralph-loop.js:120 - Ensure stream is closed in finally block...
+2. [medium] Add missing unit test: internal/provider/resource_test.go:45 - Add test case for empty directory input...
+3. [minor] Variable naming: agent-scripts/lib/utils.js:80 - Rename tmpVar to descriptive identifier...
 ${skillsContext ? `\n${skillsContext}\n` : ''}
 <active_plan>
 ${plan}
@@ -730,6 +742,277 @@ Instructions & Constraints:
 - Update the plan in 'plans/current.md' with any decisions made so further review cycles build on them.
 - Do NOT commit changes to git.
 ${validationClause}
+${skillsContext ? `\n${skillsContext}\n` : ''}
+<active_plan>
+${plan}
+</active_plan>
+
+<git_diff>
+${diff}
+</git_diff>
+
+<modified_files>
+${modifiedFiles}
+</modified_files>`;
+}
+
+/**
+ * Parses individual numbered or bulleted suggestions from reviewer text into discrete suggestion objects.
+ *
+ * @param {string} [text=''] - Raw reviewer text containing suggestions
+ * @returns {Array<{id: number, severity: string, text: string, raw: string}>}
+ */
+export function parseIndividualSuggestions(text = '') {
+  if (typeof text !== 'string' || !text.trim()) {
+    return [];
+  }
+  const lines = text.replace(/\r/g, '').split('\n');
+  const items = [];
+  let currentItem = null;
+  let insideCodeBlock = false;
+  let codeFenceMarker = null;
+
+  // Matches lines like: 1. [critical] ..., 2. [medium] ..., * [minor] ..., 1. Title ...
+  // Tolerates leading whitespace for indented list items.
+  const headerRegex = /^\s*(?:[*-]|\d+[.)])\s+(?:\[\s*([a-z]+)\s*\]|\(\s*([a-z]+)\s*\))?\s*(.*)$/i;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!currentItem && !trimmed) {
+      continue;
+    }
+    const isBacktickFence = trimmed.startsWith('```');
+    const isTildeFence = trimmed.startsWith('~~~');
+    const isCodeFence = insideCodeBlock
+      ? codeFenceMarker
+        ? trimmed.startsWith(codeFenceMarker)
+        : isBacktickFence || isTildeFence
+      : isBacktickFence || isTildeFence;
+    const wasInsideCodeBlock = insideCodeBlock;
+    if (isCodeFence) {
+      const marker = isBacktickFence ? '```' : '~~~';
+      const isSingleLineFence = !insideCodeBlock && trimmed.length >= 6 && trimmed.slice(3).includes(marker);
+      if (!isSingleLineFence) {
+        insideCodeBlock = !insideCodeBlock;
+        codeFenceMarker = insideCodeBlock ? marker : null;
+      }
+    }
+    const isInCodeBlock = wasInsideCodeBlock || insideCodeBlock || isCodeFence;
+    let match = !isInCodeBlock ? line.match(headerRegex) : null;
+    if (match && /^\s+/.test(line) && !match[1] && !match[2] && currentItem) {
+      match = null;
+    }
+    if (!match && insideCodeBlock) {
+      const candidateMatch = line.match(headerRegex);
+      if (candidateMatch) {
+        const rawSeverity = (candidateMatch[1] || candidateMatch[2] || '').toLowerCase();
+        if (['critical', 'medium', 'minor'].includes(rawSeverity)) {
+          insideCodeBlock = false;
+          codeFenceMarker = null;
+          match = candidateMatch;
+        }
+      }
+    }
+    if (match) {
+      if (currentItem) {
+        currentItem.text = currentItem.text.replace(/^\n+|\s+$/g, '');
+        currentItem.raw = currentItem.raw.trim();
+        items.push(currentItem);
+      }
+      const rawSeverity = (match[1] || match[2] || '').toLowerCase();
+      const severity = ['critical', 'medium', 'minor'].includes(rawSeverity) ? rawSeverity : 'unclassified';
+      const body = match[3] ? match[3].trim() : '';
+      currentItem = {
+        id: items.length + 1,
+        severity,
+        text: body,
+        raw: trimmed,
+      };
+    } else if (currentItem) {
+      if (!trimmed) {
+        if (currentItem.text && !currentItem.text.endsWith('\n')) {
+          currentItem.text += '\n';
+        }
+        if (currentItem.raw && !currentItem.raw.endsWith('\n')) {
+          currentItem.raw += '\n';
+        }
+      } else {
+        const content = line.trimEnd();
+        currentItem.text = currentItem.text ? `${currentItem.text}\n${content}` : content;
+        currentItem.raw = currentItem.raw ? `${currentItem.raw}\n${line.trimEnd()}` : line.trimEnd();
+      }
+    }
+  }
+
+  if (currentItem) {
+    currentItem.text = currentItem.text.replace(/^\n+|\s+$/g, '');
+    currentItem.raw = currentItem.raw.trim();
+    items.push(currentItem);
+  }
+
+  return items;
+}
+
+/**
+ * Extracts completed suggestion ID(s) from implementer output or defaults to first remaining suggestion.
+ *
+ * @param {string} [agentOutput='']
+ * @param {Array<{id: number}>} [remainingSuggestions=[]]
+ * @param {Function} [logger=console.warn]
+ * @returns {number[]} Array of completed suggestion IDs
+ */
+export function extractCompletedSuggestionIds(agentOutput = '', remainingSuggestions = []) {
+  if (typeof agentOutput !== 'string') {
+    return remainingSuggestions[0] ? [remainingSuggestions[0].id] : [];
+  }
+
+  const matchedIds = new Set();
+
+  // 1. Tag match: <completed_suggestion id="1,2"> or <completed_suggestion>1, 2</completed_suggestion>
+  const tagMatches = agentOutput.matchAll(/<completed_suggestion[^>]*id=["']?([\d\s,]+)["']?[^>]*>/gi);
+  for (const match of tagMatches) {
+    const ids = match[1]
+      .split(',')
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => !isNaN(n));
+    ids.forEach((id) => {
+      if (remainingSuggestions.some((s) => s.id === id)) {
+        matchedIds.add(id);
+      }
+    });
+  }
+
+  const tagBodyMatches = agentOutput.matchAll(
+    /<completed_suggestion[^>]*>\s*(?:(?:suggestions?\s*)?(?:#\s*|id\b\s*:?\s*)|suggestions?\s+)?([\d\s,]+)\b.*?<\/completed_suggestion>/gis,
+  );
+  for (const match of tagBodyMatches) {
+    const ids = match[1]
+      .split(',')
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => !isNaN(n));
+    ids.forEach((id) => {
+      if (remainingSuggestions.some((s) => s.id === id)) {
+        matchedIds.add(id);
+      }
+    });
+  }
+
+  if (matchedIds.size > 0) {
+    return Array.from(matchedIds);
+  }
+
+  // 2. Conversational match: action verbs ("completed suggestions 1, 2", "suggestion #3 resolved")
+  const phraseMatches = [
+    ...agentOutput.matchAll(
+      /(?:completed|implemented|resolved|addressed|fixed)\s+suggestions?\s*(?:#|id\s*)?([\d\s,]+)/gi,
+    ),
+    ...agentOutput.matchAll(
+      /suggestions?\s*(?:#|id\s*)?([\d\s,]+)\s+(?:completed|implemented|resolved|addressed|fixed)/gi,
+    ),
+    ...agentOutput.matchAll(/suggestions?\s*(?:#|id\s*)?([\d\s,]+)/gi),
+  ];
+
+  for (const match of phraseMatches) {
+    const ids = match[1]
+      .split(',')
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => !isNaN(n));
+    ids.forEach((id) => {
+      if (remainingSuggestions.some((s) => s.id === id)) {
+        matchedIds.add(id);
+      }
+    });
+  }
+
+  if (matchedIds.size > 0) {
+    return Array.from(matchedIds);
+  }
+
+  return remainingSuggestions[0] ? [remainingSuggestions[0].id] : [];
+}
+
+/**
+ * Builds prompt for batch suggestion iteration within the implementation Ralph loop.
+ *
+ * @param {Object} options
+ * @returns {string} Formatted prompt
+ */
+export function buildBatchSuggestionImplementationPrompt({
+  remainingSuggestions = [],
+  activePlan = '',
+  stateBefore = {},
+  lastValidation = null,
+  currentSuggestionIndex = 1,
+  totalSuggestions = 1,
+  validationCommands = ['bash .github/workflows/scripts/lint.sh all', 'go test ./...'],
+  skillsContext = '',
+} = {}) {
+  const diff = stateBefore?.diff || '';
+  const modifiedFiles = stateBefore?.modifiedFilesContext || '';
+  const plan = activePlan || stateBefore?.plan || '';
+  const validationCmdsText = formatValidationCommands(validationCommands);
+  const validationClause = validationCmdsText
+    ? `- Ensure all tests and linters pass cleanly (e.g., ${validationCmdsText}).`
+    : `- Ensure all tests and linters pass cleanly.`;
+
+  let validationBlock = '';
+  if (lastValidation && !lastValidation.success) {
+    const maxValidationChars = 2000;
+    const formatOutput = (text, fallback) => {
+      if (!text) {
+        return fallback;
+      }
+      const str = String(text);
+      if (str.length <= maxValidationChars) {
+        return str;
+      }
+      return `... [truncated, showing last ${maxValidationChars} chars]\n${str.slice(-maxValidationChars)}`;
+    };
+
+    const stdoutText = formatOutput(lastValidation.stdout, '(no stdout)');
+    const stderrText = formatOutput(lastValidation.stderr || lastValidation.error, '(no stderr)');
+
+    validationBlock = `
+⚠️ PREVIOUS VALIDATION FAILURE (Deterministic Backpressure):
+The automated workspace checks failed in the previous iteration.
+You MUST resolve and fix the following failures while addressing the suggestions:
+
+<validation_failure>
+STDOUT:
+${stdoutText}
+
+STDERR / ERRORS:
+${stderrText}
+</validation_failure>
+Prioritize resolving these failures cleanly.
+`;
+  }
+
+  const formattedRemaining = remainingSuggestions
+    .map((s, idx) => `${idx + 1}. [${s.severity}] (Original #${s.id}) ${s.text}`)
+    .join('\n');
+
+  return `Implementation Phase - Step ${currentSuggestionIndex} of ${totalSuggestions}.
+
+There are ${remainingSuggestions.length} remaining suggestion(s) to implement:
+
+<remaining_suggestions>
+${formattedRemaining}
+</remaining_suggestions>
+${validationBlock}
+Instructions & Constraints:
+- On your first turn, call update_topic with a descriptive "title" and "summary" (e.g. title: "Implement Suggestions ${currentSuggestionIndex}-${Math.min(currentSuggestionIndex + 2, totalSuggestions)}/${totalSuggestions}").
+- You may implement UP TO 3 SUGGESTIONS in this single turn if they are related or straightforward. Do not overwhelm the turn budget.
+- Focus surgically on those suggestions and keep changes minimal and precise.
+- You have access to GrepSearch (and grep_search) to search across workspace file contents.
+- Do NOT enter plan mode (do not call enter_plan_mode).
+- Do NOT invoke subagents (do not call invoke_agent).
+- Comply strictly with the Skills-First Mandate: use installed skills in .gemini/skills/ (such as 'node .gemini/skills/git/scripts/read-ignored-file.js plans/current.md') for repository operations instead of raw mutating commands.
+- Update the plan in 'plans/current.md' with any decisions made so further review cycles build on them.
+- Do NOT commit changes to git.
+${validationClause}
+- When finished, include a tag indicating WHICH suggestions were implemented (comma-separated if multiple):
+  <completed_suggestion id="${remainingSuggestions[0]?.id || 1}">Brief summary of the fixes...</completed_suggestion>
 ${skillsContext ? `\n${skillsContext}\n` : ''}
 <active_plan>
 ${plan}
@@ -1368,6 +1651,227 @@ export function calculateScaledTurns(baseTurns = 20, suggestionCount = 5, maxCei
 }
 
 /**
+ * Executes an inner Ralph Loop for the implementation phase of the review loop.
+ * Iterates through suggestions one by one with fresh context per iteration,
+ * running automated validation backpressure, removing completed suggestions,
+ * and staging the code before returning to the outer review loop.
+ *
+ * @param {Object} [options]
+ * @returns {Promise<{success: boolean, completed: boolean, totalSuggestions: number, implementedCount: number, iterations: number}>}
+ */
+export async function runImplementationRalphLoop(options = {}) {
+  const {
+    suggestions = [],
+    suggestionsText = '',
+    sessionRunner = runAgentSession,
+    model = 'gemini-3.8-flash',
+    proModel = 'gemini-3.1-pro-preview',
+    validator = () => runQAPipeline({ fix: false }),
+    validationCommands = ['bash .github/workflows/scripts/lint.sh all', 'go test ./...'],
+    repoRoot = null,
+    planPath = null,
+    skillsContext = '',
+    captureState = null,
+    stageFn = null,
+    rl = null,
+    logger: inputLogger = console.log,
+    maxTurnsPerSession = 20,
+    maxIterations = 15,
+    customTools = [],
+    blockTools = ['invoke_agent', 'enter_plan_mode'],
+  } = options;
+
+  const logger = typeof inputLogger === 'function' ? inputLogger : console.log;
+  const root = repoRoot || (await getRepoRoot());
+  const resolvedPlanPath = planPath || path.join(root, 'plans/current.md');
+  const captureFn = captureState || captureGitState;
+
+  // Parse suggestions into a list if not already parsed
+  const parsedItems = suggestions.length > 0 ? [...suggestions] : parseIndividualSuggestions(suggestionsText);
+  const remaining =
+    parsedItems.length > 0
+      ? parsedItems
+      : typeof suggestionsText === 'string' && suggestionsText.trim()
+        ? [{ id: 1, severity: 'critical', text: suggestionsText.trim(), raw: suggestionsText.trim() }]
+        : [];
+
+  const totalSuggestions = remaining.length;
+  if (totalSuggestions === 0) {
+    logger(`\nℹ️ [Inner Implementation Ralph Loop] No suggestions provided to implement.`);
+    return {
+      success: true,
+      completed: true,
+      totalSuggestions: 0,
+      implementedCount: 0,
+      iterations: 0,
+    };
+  }
+
+  let implementedCount = 0;
+  let innerIteration = 0;
+  let currentStateBefore = await captureFn({
+    repoRoot: root,
+    planPath: resolvedPlanPath,
+    stageBeforeIteration: false,
+  });
+  let lastValidation = null;
+
+  logger(
+    `\n🔄 [Inner Implementation Ralph Loop] Initiating incremental implementation of ${totalSuggestions} suggestion(s)...`,
+  );
+
+  while (remaining.length > 0 && innerIteration <= maxIterations) {
+    innerIteration++;
+
+    // If we've hit the max iteration limit without fully resolving all suggestions,
+    // we use the final innerIteration as a last-ditch effort with the pro thinking model
+    // before giving up.
+    const isExhaustionFallback = innerIteration > maxIterations;
+    if (isExhaustionFallback) {
+      logger(
+        `\n⚠️ [Inner Loop] Iteration ceiling reached. Escalating remaining ${remaining.length} suggestion(s) to Thinking Model (${proModel}) for final fallback attempt...`,
+      );
+    }
+
+    const currentModel = isExhaustionFallback ? proModel : model;
+
+    const currentSuggestion = remaining[0];
+    const maxBatchSize = 3;
+    const batchSize = Math.min(remaining.length, maxBatchSize);
+    const batchedSuggestions = remaining.slice(0, batchSize);
+    const batchSummary = batchedSuggestions.map((s) => `#${s.id}`).join(', ');
+
+    logger(
+      `\n🛠️ [Inner Loop] Iteration ${Math.min(innerIteration, maxIterations)}/${maxIterations}: Waiting for implementation of suggestion(s) ${batchSummary} (e.g., ID #${currentSuggestion.id} [${currentSuggestion.severity}]: "${currentSuggestion.text.slice(0, 80)}") [${implementedCount}/${totalSuggestions} completed]...`,
+    );
+
+    const prompt = buildBatchSuggestionImplementationPrompt({
+      remainingSuggestions: remaining,
+      activePlan: currentStateBefore.plan,
+      stateBefore: currentStateBefore,
+      lastValidation,
+      currentSuggestionIndex: implementedCount + 1,
+      totalSuggestions,
+      validationCommands,
+      skillsContext,
+    });
+
+    const instructions =
+      'You are an expert engineer in the IMPLEMENTATION phase of the review loop. Pick and implement UP TO 3 SUGGESTIONS from the remaining list. Ensure all tests and linters pass cleanly.' +
+      (skillsContext ? `\n\n${skillsContext}` : '');
+
+    let agentOutput;
+    let sessionError = null;
+
+    try {
+      agentOutput = await sessionRunner({
+        initialPrompt: instructions + '\n\n' + prompt,
+        requestedModel: currentModel,
+        maxTurnsOverride: maxTurnsPerSession,
+        requireTopic: true,
+        blockTools,
+        customTools,
+        rl,
+      });
+    } catch (err) {
+      if (isAbortError(err)) {
+        throw err;
+      }
+      logger(`❌ [Inner Loop] Implementer session threw error: ${err.message}`);
+      sessionError = err;
+      agentOutput = `Error: ${err.message}`;
+    }
+
+    const attemptedIds = extractCompletedSuggestionIds(agentOutput, remaining, logger);
+
+    // Deterministic Backpressure: validate after each suggestion
+    let validationResult = sessionError
+      ? { success: false, stdout: '', stderr: sessionError.message }
+      : { success: true };
+
+    if (!sessionError && typeof validator === 'function') {
+      logger(`⚙️  Running deterministic validation pipeline for suggestion ID(s) ${attemptedIds.join(', ')}...`);
+      try {
+        validationResult = await validator({
+          iteration: innerIteration,
+          repoRoot: root,
+          state: currentStateBefore,
+        });
+      } catch (err) {
+        validationResult = {
+          success: false,
+          stdout: '',
+          stderr: err.message || String(err),
+        };
+      }
+    }
+
+    lastValidation = validationResult;
+
+    if (validationResult.success) {
+      for (const attemptedId of attemptedIds) {
+        const completedIdx = remaining.findIndex((s) => s.id === attemptedId);
+        if (completedIdx !== -1) {
+          const removed = remaining.splice(completedIdx, 1)[0];
+          implementedCount++;
+          logger(
+            `✅ [Inner Loop] Successfully implemented and verified suggestion #${removed.id} [${removed.severity}]. (${remaining.length} remaining)`,
+          );
+        }
+      }
+
+      // If they didn't report any parsed ID but tests passed and session succeeded, we assume they fixed the first one
+      if (attemptedIds.length === 0 && remaining.length > 0) {
+        const removed = remaining.shift();
+        implementedCount++;
+        logger(
+          `✅ [Inner Loop] Successfully implemented and verified suggestion #${removed.id} [${removed.severity}]. (${remaining.length} remaining)`,
+        );
+      }
+
+      // Recapture state after successful implementation
+      currentStateBefore = await captureFn({
+        repoRoot: root,
+        planPath: resolvedPlanPath,
+        stageBeforeIteration: false,
+      });
+    } else {
+      logger(
+        `⚠️ [Inner Loop] Validation failed for suggestion ID(s) ${attemptedIds.join(', ')}. Retrying with automated backpressure...`,
+      );
+    }
+  }
+
+  // Only stage code if all suggestions were successfully implemented and last validation passed
+  if (remaining.length === 0 && (!lastValidation || lastValidation.success)) {
+    logger(`\n📦 [Inner Loop] Staging all implemented changes...`);
+    if (typeof stageFn === 'function') {
+      await stageFn({ repoRoot: root });
+    } else {
+      try {
+        const stageScript = path.join(root, '.gemini/skills/git/scripts/stage-files.js');
+        await execFileAsync('node', [stageScript, '--all'], { cwd: root });
+        logger(`✅ Successfully staged code via git skill stage-files.js.`);
+      } catch (err) {
+        logger(`⚠️ Could not stage files via skill: ${err.message}`);
+      }
+    }
+  } else {
+    logger(
+      `\n⚠️ [Inner Loop] Skipping staging: loop finished with ${remaining.length} remaining suggestion(s) and validation success=${lastValidation?.success ?? 'n/a'}.`,
+    );
+  }
+
+  return {
+    success: remaining.length === 0,
+    completed: remaining.length === 0,
+    totalSuggestions,
+    implementedCount,
+    iterations: innerIteration,
+  };
+}
+
+/**
  * Specialized high-level wrapper executing a Multi-Agent Review Ralph Loop.
  * 1. Thinking model (Pro) reviews staged code and generates at least 5 rated suggestions (critical/medium/minor).
  * 2. Flash-Lite model reads and tallies the counts of each category.
@@ -1392,6 +1896,7 @@ export async function runReviewRalphLoop(options = {}) {
     repoRoot = null,
     planPath = null,
     customTools = [],
+    stageFn = null,
     rl = null,
     logger: inputLogger = console.log,
     maxIterations = 15,
@@ -1406,6 +1911,7 @@ export async function runReviewRalphLoop(options = {}) {
   const resolvedFlashLiteModel = modelsConfig?.flash_lite || modelsConfig?.flashLite || flashLiteModel;
 
   const root = repoRoot || (await getRepoRoot());
+  const resolvedPlanPath = planPath || path.join(root, 'plans/current.md');
   let skillsContext = '';
   try {
     skillsContext = await loadWorkspaceSkillsContext(root);
@@ -1438,8 +1944,7 @@ export async function runReviewRalphLoop(options = {}) {
 
     // 1. Thinking model reviews staged code
     const suggestionsText = await sessionRunner({
-      initialPrompt: reviewerPrompt,
-      systemInstructions: reviewerInstructions,
+      initialPrompt: reviewerInstructions + '\n\n' + reviewerPrompt,
       requestedModel: resolvedProModel,
       maxTurnsOverride: 5,
       requireTopic: false,
@@ -1485,45 +1990,35 @@ export async function runReviewRalphLoop(options = {}) {
     }
 
     activeLogger(
-      `\n🛠️ [Review Loop] Step 3: Critical or medium suggestions detected. Flash Model (${resolvedFlashModel}) implementing all suggestions...`,
+      `\n🛠️ [Review Loop] Step 3: Critical or medium suggestions detected. Initiating inner implementation Ralph Loop (${resolvedFlashModel})...`,
     );
 
-    // Scale turns dynamically based on suggestion volume to provide sufficient runway
-    const scaledTurns = calculateScaledTurns(maxTurnsPerSession, tally.total);
-
-    // 4. Flash Model implements all suggestions
-    const implementationPrompt = buildImplementationPrompt({
+    // 4. Run the inner Ralph Loop to implement one suggestion per iteration, stage code upon completion
+    const innerResult = await runImplementationRalphLoop({
       suggestionsText,
-      tally,
-      activePlan: stateBefore.plan,
-      stateBefore,
-      lastValidation,
-      iteration,
-      maxIterations: totalIterations,
+      sessionRunner,
+      model: resolvedFlashModel,
+      validator,
       validationCommands: restOptions.validationCommands,
+      repoRoot: root,
+      planPath: resolvedPlanPath,
       skillsContext,
-    });
-
-    const implInstructions =
-      'You are an expert engineer in the REVIEW LOOP phase. Implement all suggestions provided by the reviewer that are within plan scope, update plans/current.md with decisions, and ensure all tests and linters pass cleanly.' +
-      (skillsContext ? `\n\n${skillsContext}` : '');
-
-    const implOutput = await sessionRunner({
-      initialPrompt: implementationPrompt,
-      systemInstructions: implInstructions,
-      requestedModel: resolvedFlashModel,
-      maxTurnsOverride: scaledTurns,
-      requireTopic: true,
-      blockTools: restOptions.blockTools || ['invoke_agent', 'enter_plan_mode'],
-      customTools: restOptions.customTools || customTools,
+      captureState: restOptions.captureState || captureGitState,
+      stageFn: stageFn || restOptions.stageFn,
       rl,
+      logger: activeLogger,
+      maxTurnsPerSession,
+      maxIterations: Math.max(15, tally.total * 3),
+      customTools: restOptions.customTools || customTools,
+      blockTools: restOptions.blockTools || ['invoke_agent', 'enter_plan_mode'],
     });
 
     return {
-      agentOutput: implOutput,
+      agentOutput: `Inner Implementation Loop completed: ${innerResult.implementedCount}/${innerResult.totalSuggestions} suggestions implemented across ${innerResult.iterations} iteration(s).`,
       shouldImplement: true,
       tally,
       suggestionsText,
+      innerResult,
     };
   };
 
