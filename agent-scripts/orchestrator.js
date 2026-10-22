@@ -9,6 +9,8 @@ import { promisify } from 'node:util';
 
 import { tool, z } from '@google/gemini-cli-sdk';
 
+import { PREFERRED_DEFAULT_BRANCHES } from '../.gemini/skills/git/scripts/create-branch.js';
+
 // Import our deterministic modular libraries
 import { flushLogs, initializeAgentRunner, isAbortError, runAgentSession } from './lib/agent-runner.js';
 import { getGitDiff, stageAndCommit, stripDiffMetadata, validateMessage } from './lib/git-release.js';
@@ -343,7 +345,7 @@ Your final JSON response must strictly conform to this schema:
         cwd: repoRoot,
       });
       const currentBranch = branchOutput.trim();
-      if (currentBranch === 'main' || currentBranch === 'master') {
+      if (PREFERRED_DEFAULT_BRANCHES.includes(currentBranch)) {
         console.log(`\n🌿 Currently on "${currentBranch}" branch. Syncing and creating a new working branch...`);
 
         const prefixMap = {
@@ -415,7 +417,7 @@ Once you have fully finished your implementation, stop.`;
           flashModel: models.flash,
           flashLiteModel: models.flash_lite,
           sessionRunner: runAgentSession,
-          validator: (args) => runQAPipeline(args),
+          validator: (args) => runQAPipeline({ ...args, fix: false }),
           validationCommands: [
             'bash .github/workflows/scripts/lint.sh all',
             'bash .github/workflows/scripts/test.sh all',
@@ -463,7 +465,9 @@ Once you have fully finished your implementation, stop.`;
           .filter(Boolean)
           .forEach((p) => modifiedFiles.add(p));
       } catch (err) {
-        console.debug(`[DEBUG] Could not inspect modified paths for scope boundary check: ${err.message}`);
+        console.error(`❌ Failed closed: Could not inspect modified paths for scope boundary check: ${err.message}`);
+        process.exitCode = 1;
+        return;
       }
 
       // Also ensure staged files in the index are captured to prevent bypassing checks via staging
@@ -478,7 +482,9 @@ Once you have fully finished your implementation, stop.`;
           .filter(Boolean)
           .forEach((f) => modifiedFiles.add(f));
       } catch (err) {
-        console.debug(`[DEBUG] Could not inspect staged files for scope boundary check: ${err.message}`);
+        console.error(`❌ Failed closed: Could not inspect staged files for scope boundary check: ${err.message}`);
+        process.exitCode = 1;
+        return;
       }
 
       // Also check any branch changes relative to base branch (e.g. if changes were committed)
@@ -490,10 +496,12 @@ Once you have fully finished your implementation, stop.`;
         branchChangesOutput
           .split('\n')
           .map((p) => p.trim())
-          .filter(Boolean)
+          .filter((f) => Boolean(f) && !f.startsWith('❌ Error:') && !f.startsWith('==='))
           .forEach((f) => modifiedFiles.add(f));
       } catch (err) {
-        console.debug(`[DEBUG] Could not inspect branch changes for scope boundary check: ${err.message}`);
+        console.error(`❌ Failed closed: Could not inspect branch changes for scope boundary check: ${err.message}`);
+        process.exitCode = 1;
+        return;
       }
 
       const invalidChanges = Array.from(modifiedFiles).filter((f) => {

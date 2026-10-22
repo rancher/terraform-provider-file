@@ -20,21 +20,32 @@ export function resetSkillsContextCache() {
 
 /**
  * Recursively calculates the maximum mtime across all files in a directory.
+ * Safely guards against circular symlink recursion and avoids call stack overflow.
  * @param {string} dir
+ * @param {Set<string>} [visited=new Set()]
  * @returns {Promise<number>}
  */
-async function getMaxSkillsMtime(dir) {
+async function getMaxSkillsMtime(dir, visited = new Set()) {
   let maxMtime = 0;
   try {
+    const realDir = await fs.realpath(dir).catch(() => path.resolve(dir));
+    if (visited.has(realDir)) {
+      return 0;
+    }
+    visited.add(realDir);
+
     const entries = await fs.readdir(dir, { withFileTypes: true });
     const mtimes = await Promise.all(
       entries.map(async (entry) => {
+        if (entry.isSymbolicLink()) {
+          return 0;
+        }
         const fullPath = path.join(dir, entry.name);
         try {
           const stats = await fs.stat(fullPath);
           let itemMax = stats.mtimeMs;
           if (entry.isDirectory()) {
-            const subMtime = await getMaxSkillsMtime(fullPath);
+            const subMtime = await getMaxSkillsMtime(fullPath, visited);
             if (subMtime > itemMax) {
               itemMax = subMtime;
             }
@@ -46,7 +57,7 @@ async function getMaxSkillsMtime(dir) {
       }),
     );
     if (mtimes.length > 0) {
-      maxMtime = Math.max(...mtimes);
+      maxMtime = mtimes.reduce((max, current) => Math.max(max, current), 0);
     }
   } catch {
     // ignore readdir error
@@ -100,7 +111,9 @@ export async function loadWorkspaceSkillsContext(customRepoRoot = null) {
           try {
             const content = await fs.readFile(skillMdPath, 'utf8');
             const nameMatch = content.match(/(?:^name:\s*|<name>)(.+?)(?:<\/name>|$)/m);
-            const descMatch = content.match(/(?:^description:\s*|<description>)(.+?)(?:<\/description>|$)/m);
+            const descMatch = content.match(
+              /(?:^description:\s*(?:[>|]\s*\n)?|<description>)([\s\S]+?)(?:<\/description>|\n---|\n[a-zA-Z0-9_-]+:\s*|$)/m,
+            );
             const name = nameMatch ? nameMatch[1].trim() : dirName;
             const description = descMatch ? descMatch[1].trim() : '';
 
@@ -1124,7 +1137,7 @@ export function renderProseCard(text, columns = process.stdout.columns) {
   if (typeof text !== 'string') {
     return '';
   }
-  const cleanText = text.replace(/\r/g, '').trim();
+  const cleanText = stripAnsi(text).replace(/\r\n/g, '\n').replace(/\r/g, '').trim();
   if (!cleanText) {
     return '';
   }
@@ -1137,7 +1150,7 @@ export function renderProseCard(text, columns = process.stdout.columns) {
   const lines = [];
   for (const rLine of rawLines) {
     const sanitized = rLine.replace(/\t/g, '  ');
-    if (stripAnsi(sanitized).length > innerWidth) {
+    if (sanitized.length > innerWidth) {
       lines.push(...wrapLine(sanitized, innerWidth));
     } else {
       lines.push(sanitized);
@@ -1148,8 +1161,7 @@ export function renderProseCard(text, columns = process.stdout.columns) {
   const bottom = `╰─${'─'.repeat(innerWidth)}─╯`;
   const middle = lines
     .map((l) => {
-      const stripped = stripAnsi(l);
-      const pad = Math.max(innerWidth - stripped.length, 0);
+      const pad = Math.max(innerWidth - l.length, 0);
       return `│ ${l}${' '.repeat(pad)} │`;
     })
     .join('\n');

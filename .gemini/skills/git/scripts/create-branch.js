@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { simpleGit } from 'simple-git';
 
-const PREFERRED_DEFAULT_BRANCHES = ['main', 'master', 'trunk', 'dev'];
+export const PREFERRED_DEFAULT_BRANCHES = ['main', 'master', 'trunk', 'dev'];
 
 /**
  * Creates a new branch, syncing the base branch from upstream first.
@@ -91,7 +91,10 @@ export function parseCreateBranchArgs(args = []) {
   let i = 0;
   while (i < args.length) {
     const arg = args[i];
-    if ((arg === '--base' || arg === '-b') && i + 1 < args.length) {
+    if (arg === '--base' || arg === '-b') {
+      if (i + 1 >= args.length) {
+        throw new Error(`Flag '${arg}' requires a value.`);
+      }
       baseBranch = args[i + 1];
       i += 2;
     } else if (arg.startsWith('--base=')) {
@@ -115,7 +118,14 @@ export function parseCreateBranchArgs(args = []) {
 }
 
 async function main() {
-  const { branchName, baseBranch } = parseCreateBranchArgs(process.argv.slice(2));
+  let parsed;
+  try {
+    parsed = parseCreateBranchArgs(process.argv.slice(2));
+  } catch (err) {
+    console.error(`❌ Error: ${err.message}`);
+    process.exit(1);
+  }
+  const { branchName, baseBranch } = parsed;
 
   if (!branchName) {
     console.error('Usage: create-branch.js <branch-name> [--base <base-branch>]');

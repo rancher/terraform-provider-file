@@ -624,6 +624,12 @@ test('renderBox and cli formatting utilities', async (t) => {
     assert.strictEqual(renderProseCard(null), '');
     assert.strictEqual(renderProseCard(undefined), '');
   });
+
+  await t.test('renderProseCard sanitizes ANSI escape and terminal control sequences', () => {
+    const card = renderProseCard('\x1b[31m' + 'Red text' + '\x1b[0m with green info', 80);
+    assert.ok(!card.includes('\x1b'));
+    assert.ok(card.includes('Red text with green info'));
+  });
 });
 
 test('loadWorkspaceSkillsContext discovery and formatting', async (t) => {

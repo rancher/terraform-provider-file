@@ -984,6 +984,7 @@ export async function runRalphLoop(options = {}) {
     checkCompletion = null,
     captureState = null,
     detectChange = null,
+    recaptureStateAfterValidation = false,
     logger: inputLogger = console.log,
     onIterationStart = null,
     onIterationEnd = null,
@@ -1154,7 +1155,7 @@ export async function runRalphLoop(options = {}) {
     }
 
     // Capture state after agent execution
-    const stateAfter = await captureFn({
+    let stateAfter = await captureFn({
       repoRoot: root,
       planPath: resolvedPlanPath,
       stageBeforeIteration,
@@ -1163,7 +1164,7 @@ export async function runRalphLoop(options = {}) {
     });
 
     const changeResult = detectFn(currentStateBefore, stateAfter);
-    const stateChanged = typeof changeResult === 'boolean' ? changeResult : Boolean(changeResult?.hasChanged);
+    let stateChanged = typeof changeResult === 'boolean' ? changeResult : Boolean(changeResult?.hasChanged);
 
     // Deterministic Backpressure: run machine validation if no session error
     let validationResult = sessionError
@@ -1193,6 +1194,23 @@ export async function runRalphLoop(options = {}) {
           stderr: err.message || String(err),
           error: err.message || String(err),
         };
+      }
+
+      if (recaptureStateAfterValidation) {
+        const postValidationState = await captureFn({
+          repoRoot: root,
+          planPath: resolvedPlanPath,
+          stageBeforeIteration,
+          maxFileSizeBytes,
+          maxTotalContextBytes,
+        });
+
+        const postValidationChange = detectFn(currentStateBefore, postValidationState);
+        const postValidationChanged =
+          typeof postValidationChange === 'boolean' ? postValidationChange : Boolean(postValidationChange?.hasChanged);
+
+        stateAfter = postValidationState;
+        stateChanged = postValidationChanged;
       }
     }
     lastValidation = validationResult;
@@ -1344,7 +1362,9 @@ export async function runRalphLoop(options = {}) {
  */
 export function calculateScaledTurns(baseTurns = 20, suggestionCount = 5, maxCeiling = 60) {
   const count = Math.max(0, suggestionCount ?? 5);
-  return Math.max(baseTurns, Math.min(maxCeiling, Math.round(baseTurns * Math.max(1, count / 5))));
+  const effectiveBase = Math.min(baseTurns, maxCeiling);
+  const scaled = Math.round(effectiveBase * Math.max(1, count / 5));
+  return Math.min(maxCeiling, Math.max(effectiveBase, scaled));
 }
 
 /**

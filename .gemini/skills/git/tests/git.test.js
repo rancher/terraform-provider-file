@@ -751,6 +751,11 @@ test('git skill - parseCreateBranchArgs unit tests', async (t) => {
     assert.strictEqual(res.branchName, '');
     assert.strictEqual(res.baseBranch, undefined);
   });
+
+  await t.test('throws when --base or -b is provided as a trailing flag without a value', () => {
+    assert.throws(() => parseCreateBranchArgs(['my-feature', '--base']), /Flag '--base' requires a value\./);
+    assert.throws(() => parseCreateBranchArgs(['my-feature', '-b']), /Flag '-b' requires a value\./);
+  });
 });
 
 test('git skill - getBranchChanges unit tests', async (t) => {
@@ -761,6 +766,9 @@ test('git skill - getBranchChanges unit tests', async (t) => {
       raw: async (args) => {
         if (args[0] === 'merge-base') {
           return 'abc1234\n';
+        }
+        if (args.includes('diff')) {
+          throw new Error('fallback');
         }
         return '';
       },
@@ -782,6 +790,9 @@ test('git skill - getBranchChanges unit tests', async (t) => {
         if (args[0] === 'merge-base') {
           assert.strictEqual(args[1], 'upstream/main');
           return 'def5678\n';
+        }
+        if (args.includes('diff')) {
+          throw new Error('fallback');
         }
         return '';
       },

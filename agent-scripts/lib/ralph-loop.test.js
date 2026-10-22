@@ -1179,6 +1179,8 @@ test('multi-agent prompts and suggestion parsing', async (t) => {
     assert.strictEqual(calculateScaledTurns(20, 30), 60);
     // Custom maxCeiling
     assert.strictEqual(calculateScaledTurns(20, 30, 80), 80);
+    // When baseTurns exceeds maxCeiling, base budget is clamped to maxCeiling
+    assert.strictEqual(calculateScaledTurns(100, 1, 60), 60);
   });
 
   await t.test('tallySuggestionsWithFlashLite executes sessionRunner and parses counts', async () => {
