@@ -14,64 +14,74 @@ import {
   syncSessionTools,
   TurnTracker,
 } from './turn-accounting.js';
-import { getRepoRoot, renderToolCard, renderTopicBanner } from './utils.js';
+import {
+  getRepoRoot,
+  loadWorkspaceSkillsContext,
+  renderProseCard,
+  renderToolCard,
+  renderTopicBanner,
+} from './utils.js';
 
 const MAX_SILENT_RETRY_DELAY_MS = 300000; // 5 minutes
 
 // Intercept retryDelayMs of TerminalQuotaError to prevent massive retry hangs (> 5 minutes)
-if (TerminalQuotaError && TerminalQuotaError.prototype) {
-  Object.defineProperty(TerminalQuotaError.prototype, 'name', {
-    get() {
-      return this._name;
-    },
-    set(val) {
-      this._name = val;
-      Object.defineProperty(this, 'retryDelayMs', {
-        get() {
-          return this._retryDelayMs;
-        },
-        set(delayVal) {
-          this._retryDelayMs = delayVal;
-          if (delayVal !== undefined && delayVal > MAX_SILENT_RETRY_DELAY_MS) {
-            if (typeof this.message === 'string') {
-              this.message = this.message.replace(
-                /exhausted your capacity|capacity exceeded|MODEL_CAPACITY_EXHAUSTED/gi,
-                'exhausted capacity (immediate fallback)',
-              );
+try {
+  if (TerminalQuotaError && TerminalQuotaError.prototype) {
+    Object.defineProperty(TerminalQuotaError.prototype, 'name', {
+      get() {
+        return this._name;
+      },
+      set(val) {
+        this._name = val;
+        Object.defineProperty(this, 'retryDelayMs', {
+          get() {
+            return this._retryDelayMs;
+          },
+          set(delayVal) {
+            this._retryDelayMs = delayVal;
+            if (delayVal !== undefined && delayVal > MAX_SILENT_RETRY_DELAY_MS) {
+              if (typeof this.message === 'string') {
+                this.message = this.message.replace(
+                  /exhausted your capacity|capacity exceeded|MODEL_CAPACITY_EXHAUSTED/gi,
+                  'exhausted capacity (immediate fallback)',
+                );
+              }
+              if (typeof this._reason === 'string') {
+                this._reason = this._reason.replace(
+                  /MODEL_CAPACITY_EXHAUSTED|MODEL_CAPACITY_EXCEEDED/g,
+                  'MODEL_CAPACITY_EXHAUSTED_IMMEDIATE_FALLBACK',
+                );
+              }
             }
-            if (typeof this._reason === 'string') {
-              this._reason = this._reason.replace(
+          },
+          configurable: true,
+          enumerable: true,
+        });
+
+        Object.defineProperty(this, 'reason', {
+          get() {
+            return this._reason;
+          },
+          set(reasonVal) {
+            if (reasonVal !== undefined && this.retryDelayMs > MAX_SILENT_RETRY_DELAY_MS) {
+              this._reason = reasonVal.replace(
                 /MODEL_CAPACITY_EXHAUSTED|MODEL_CAPACITY_EXCEEDED/g,
                 'MODEL_CAPACITY_EXHAUSTED_IMMEDIATE_FALLBACK',
               );
+            } else {
+              this._reason = reasonVal;
             }
-          }
-        },
-        configurable: true,
-        enumerable: true,
-      });
-
-      Object.defineProperty(this, 'reason', {
-        get() {
-          return this._reason;
-        },
-        set(reasonVal) {
-          if (reasonVal !== undefined && this.retryDelayMs > MAX_SILENT_RETRY_DELAY_MS) {
-            this._reason = reasonVal.replace(
-              /MODEL_CAPACITY_EXHAUSTED|MODEL_CAPACITY_EXCEEDED/g,
-              'MODEL_CAPACITY_EXHAUSTED_IMMEDIATE_FALLBACK',
-            );
-          } else {
-            this._reason = reasonVal;
-          }
-        },
-        configurable: true,
-        enumerable: true,
-      });
-    },
-    configurable: true,
-    enumerable: true,
-  });
+          },
+          configurable: true,
+          enumerable: true,
+        });
+      },
+      configurable: true,
+      enumerable: true,
+    });
+  }
+} catch (err) {
+  console.debug(`[DEBUG] Failed to patch TerminalQuotaError prototype: ${err.message}`);
 }
 
 let initPromise = null;
@@ -303,63 +313,73 @@ function safeGet(obj, prop) {
   }
 }
 
-function extractErrorStrings(target, depth = 0, seen = new Set()) {
+function testObjectForMaxTurns(target, depth = 0, seen = new Set()) {
   if (!target || depth > 4) {
-    return [];
+    return false;
   }
   if (typeof target === 'string') {
-    return [target];
+    return MAX_TURNS_REGEX.test(target);
   }
   if (typeof target !== 'object') {
-    return [String(target)];
+    return MAX_TURNS_REGEX.test(String(target));
   }
   if (seen.has(target)) {
-    return [];
+    return false;
   }
   seen.add(target);
 
-  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(target)) {
+  if (Buffer.isBuffer(target)) {
     if (target.length <= 64 * 1024) {
       const text = target.toString('utf8');
       try {
         const parsed = JSON.parse(text);
         if (typeof parsed === 'object' && parsed !== null) {
-          return extractErrorStrings(parsed, depth + 1, seen);
+          return testObjectForMaxTurns(parsed, depth + 1, seen);
         }
       } catch (parseErr) {
         void parseErr;
       }
-      return [text];
+      return MAX_TURNS_REGEX.test(text);
     }
-    return [];
+    return false;
   }
 
   if (typeof ArrayBuffer !== 'undefined' && (target instanceof ArrayBuffer || ArrayBuffer.isView(target))) {
-    return [];
+    return false;
   }
-
-  const parts = [];
 
   if (Array.isArray(target)) {
     for (const item of target) {
-      parts.push(...extractErrorStrings(item, depth + 1, seen));
+      if (testObjectForMaxTurns(item, depth + 1, seen)) {
+        return true;
+      }
     }
-    return parts;
+    return false;
   }
 
   for (const prop of STANDARD_STRING_PROPS) {
     const val = safeGet(target, prop);
-    if (typeof val === 'string') {
-      parts.push(val);
-    } else if (typeof val === 'object' && val !== null) {
-      parts.push(...extractErrorStrings(val, depth + 1, seen));
+    if (val !== null && val !== undefined) {
+      if (typeof val !== 'object') {
+        if (MAX_TURNS_REGEX.test(String(val))) {
+          return true;
+        }
+      } else if (testObjectForMaxTurns(val, depth + 1, seen)) {
+        return true;
+      }
     }
   }
 
   for (const key of NESTED_KEYS) {
     const val = safeGet(target, key);
     if (val !== null && val !== undefined) {
-      parts.push(...extractErrorStrings(val, depth + 1, seen));
+      if (typeof val !== 'object') {
+        if (MAX_TURNS_REGEX.test(String(val))) {
+          return true;
+        }
+      } else if (testObjectForMaxTurns(val, depth + 1, seen)) {
+        return true;
+      }
     }
   }
 
@@ -367,18 +387,30 @@ function extractErrorStrings(target, depth = 0, seen = new Set()) {
   if (responseObj && typeof responseObj === 'object') {
     const data = safeGet(responseObj, 'data');
     if (data !== null && data !== undefined) {
-      parts.push(...extractErrorStrings(data, depth + 1, seen));
+      if (testObjectForMaxTurns(data, depth + 1, seen)) {
+        return true;
+      }
     }
     const body = safeGet(responseObj, 'body');
     if (body !== null && body !== undefined && body !== data) {
-      parts.push(...extractErrorStrings(body, depth + 1, seen));
+      if (testObjectForMaxTurns(body, depth + 1, seen)) {
+        return true;
+      }
     }
     const statusText = safeGet(responseObj, 'statusText');
-    if (typeof statusText === 'string') {
-      parts.push(statusText);
+    if (statusText !== null && statusText !== undefined) {
+      if (typeof statusText !== 'object') {
+        if (MAX_TURNS_REGEX.test(String(statusText))) {
+          return true;
+        }
+      } else if (testObjectForMaxTurns(statusText, depth + 1, seen)) {
+        return true;
+      }
     }
-  } else if (typeof responseObj === 'string') {
-    parts.push(responseObj);
+  } else if (responseObj !== null && responseObj !== undefined && typeof responseObj !== 'object') {
+    if (MAX_TURNS_REGEX.test(String(responseObj))) {
+      return true;
+    }
   }
 
   let keys = [];
@@ -394,16 +426,20 @@ function extractErrorStrings(target, depth = 0, seen = new Set()) {
     }
     const val = safeGet(target, key);
     if (val !== false && val !== null && val !== undefined && val !== 0 && val !== '' && MAX_TURNS_REGEX.test(key)) {
-      parts.push(key);
+      return true;
     }
-    if (typeof val === 'string') {
-      parts.push(val);
-    } else if (typeof val === 'object' && val !== null) {
-      parts.push(...extractErrorStrings(val, depth + 1, seen));
+    if (val !== null && val !== undefined) {
+      if (typeof val !== 'object') {
+        if (MAX_TURNS_REGEX.test(String(val))) {
+          return true;
+        }
+      } else if (testObjectForMaxTurns(val, depth + 1, seen)) {
+        return true;
+      }
     }
   }
 
-  return parts;
+  return false;
 }
 
 export function isMaxTurnsError(err) {
@@ -420,8 +456,7 @@ export function isMaxTurnsError(err) {
     }
   }
   try {
-    const parts = extractErrorStrings(err);
-    return parts.some((part) => MAX_TURNS_REGEX.test(part));
+    return testObjectForMaxTurns(err);
   } catch (extractErr) {
     void extractErr;
     return false;
@@ -496,6 +531,7 @@ export async function runAgentSession({
   systemInstructions = '',
   requestedModel,
   blockTools = [],
+  allowedTools = null,
   customTools = [],
   isolate = false,
   standalone = false,
@@ -559,8 +595,22 @@ export async function runAgentSession({
         ? `\n\n⚠️ TOOL USAGE INSTRUCTIONS: Immediately before calling a tool, you MUST output a single short sentence starting with "Intent:" explaining why you are calling it.`
         : '';
 
+      let skillsContext = '';
+      if (!isolate) {
+        try {
+          skillsContext = await loadWorkspaceSkillsContext(repoRoot);
+        } catch {
+          skillsContext = '';
+        }
+      }
+
+      const hasSkillsAlready =
+        typeof systemInstructions === 'string' &&
+        (systemInstructions.includes('<available_skills>') || systemInstructions.includes('Skills-First Mandate'));
+
       const modelInstructions =
         (systemInstructions || 'You are a highly capable agentic assistant.') +
+        (hasSkillsAlready ? '' : skillsContext) +
         topicInstructions +
         intentInstructions +
         `\n\n⚠️ IMPORTANT TURN BUDGET: You are allowed a MAXIMUM of ${maxTurns} turns/iterations for this entire run. Conduct yourself efficiently, use tools in parallel, avoid unnecessary turns, and complete your task before reaching this limit.`;
@@ -605,31 +655,87 @@ export async function runAgentSession({
         });
 
         const session = agent.session();
-        const projectTempDir = path.join(os.homedir(), '.gemini/tmp/terraform-provider-file');
+        const rootDir = repoRoot || (await getRepoRoot());
+        const repoName = path.basename(rootDir) || 'workspace';
+        const projectTempDir = path.join(os.homedir(), '.gemini/tmp', repoName);
         await fsPromises.mkdir(projectTempDir, { recursive: true });
         session.config.getWorkspaceContext().addDirectory(projectTempDir);
         await session.initialize();
 
+        // Register GrepSearch tool alias if grep_search is available in registry
+        const builtinGrep = session.config.toolRegistry.getTool('grep_search');
+        if (builtinGrep && typeof builtinGrep.constructor === 'function') {
+          const GrepToolClass = builtinGrep.constructor;
+          class GrepSearchTool extends GrepToolClass {
+            constructor(config) {
+              super(config);
+              this.name = 'GrepSearch';
+              this.displayName = 'GrepSearch';
+            }
+            getSchema(modelId) {
+              const schema = super.getSchema ? super.getSchema(modelId) : {};
+              return {
+                ...schema,
+                name: 'GrepSearch',
+                description:
+                  'Searches for a regular expression pattern within file contents across the workspace. Alias for grep_search.',
+              };
+            }
+          }
+          try {
+            session.config.toolRegistry.registerTool(new GrepSearchTool(session.config));
+            syncSessionTools(session);
+          } catch (err) {
+            console.debug(`[DEBUG] Failed to register GrepSearch alias: ${err.message}`);
+          }
+        }
+
+        const allowedSet = Array.isArray(allowedTools) ? new Set(allowedTools) : null;
+        if (allowedSet && (allowedSet.has('grep_search') || allowedSet.has('GrepSearch'))) {
+          allowedSet.add('grep_search');
+          allowedSet.add('GrepSearch');
+        }
+
+        const blockedSet = new Set(blockTools || []);
+        if (blockedSet.has('grep_search') || blockedSet.has('GrepSearch')) {
+          blockedSet.add('grep_search');
+          blockedSet.add('GrepSearch');
+        }
+
         if (isolate) {
           const registeredTools = session.config.toolRegistry.getAllToolNames();
           for (const toolName of registeredTools) {
-            if (toolName !== 'no_op') {
+            if (toolName !== 'no_op' && (!allowedSet || !allowedSet.has(toolName))) {
               session.config.toolRegistry.unregisterTool(toolName);
             }
           }
         } else {
           // Enforce custom sandboxing by unregistering specified tools
-          for (const toolName of blockTools) {
-            session.config.toolRegistry.unregisterTool(toolName);
+          const registeredTools = session.config.toolRegistry.getAllToolNames();
+          for (const toolName of registeredTools) {
+            if (allowedSet && !allowedSet.has(toolName) && toolName !== 'no_op') {
+              session.config.toolRegistry.unregisterTool(toolName);
+            } else if (blockedSet.has(toolName)) {
+              session.config.toolRegistry.unregisterTool(toolName);
+            }
           }
           // Always unregister invoke_agent to prevent unmonitored delegation
           session.config.toolRegistry.unregisterTool('invoke_agent');
         }
 
         let currentTurnText = '';
+        let unrenderedProse = '';
         const pendingToolCalls = [];
 
+        const flushProse = () => {
+          if (unrenderedProse && unrenderedProse.trim() !== '') {
+            console.log(renderProseCard(unrenderedProse));
+            unrenderedProse = '';
+          }
+        };
+
         const renderToolOutput = (toolName, args, result, status = 'success') => {
+          flushProse();
           if (toolName === 'update_topic' && status !== 'error') {
             console.log(
               renderTopicBanner({
@@ -707,10 +813,11 @@ export async function runAgentSession({
                     break;
                   }
                   const text = chunk.value || '';
-                  process.stdout.write(text);
                   accumulatedText += text;
                   currentTurnText += text;
+                  unrenderedProse += text;
                 } else if (chunk.type === 'tool_call_request') {
+                  flushProse();
                   const toolCall = chunk.value;
                   const toolName = toolCall.name;
                   if (toolName === 'invoke_agent') {
@@ -783,6 +890,7 @@ export async function runAgentSession({
                 }
               }
 
+              flushProse();
               for (const pending of pendingToolCalls) {
                 if (!pending.rendered) {
                   pending.rendered = true;
@@ -791,6 +899,7 @@ export async function runAgentSession({
               }
               pendingToolCalls.length = 0;
             } catch (err) {
+              flushProse();
               if (isMaxTurnsError(err)) {
                 writeLogAsync(`[Turn Budget Reached] SDK threw max turns error during stream: ${err.message}`);
                 turnTracker.turnsExecuted = turnTracker.currentTurnBudget;

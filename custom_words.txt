@@ -6,6 +6,7 @@ argjson
 authconfig
 autorelease
 awscli
+backpressure
 backreferenced
 bashism
 bashisms
@@ -20,6 +21,7 @@ buildrace
 CAINFO
 claudeignore
 containerize
+criticals
 currentdiff
 dgst
 diataxis
@@ -55,6 +57,7 @@ gotestfmt
 gotestsum
 gpgconf
 gpgsign
+grepsearch
 gsub
 hclean
 hclog
@@ -69,11 +72,13 @@ keyid
 kubeconfig
 lifecycles
 lockfiles
+lstats
 makefiles
 mapfile
 maxturn
 metacharacter
 mktemp
+mockability
 modularly
 monkeypatch
 mtimes
@@ -124,6 +129,7 @@ stdenv
 stringdefault
 stringplanmodifier
 subkey
+subclassing
 svchost
 tagparser
 templatefile
@@ -133,6 +139,8 @@ testacc
 testaccrelay
 testracc
 textwithbellandcontrol
+textwithc
+textwithc1
 tfbackend
 tflint
 tflog
@@ -160,10 +168,8 @@ updatecli
 variablize
 vulnerability
 webfetch
+wiggum
 worklist
 worktree
 yamux
 yubi
-textwithc
-textwithbellandcontrol
-textwithc1

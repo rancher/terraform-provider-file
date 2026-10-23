@@ -13,7 +13,7 @@ import { simpleGit } from 'simple-git';
  * @returns {Promise<string>}
  */
 export async function getBranchChanges({
-  git = simpleGit(),
+  git = simpleGit({ config: ['core.quotepath=false'] }),
   baseBranch,
   files = [],
   statOnly = false,
@@ -64,7 +64,7 @@ export async function getBranchChanges({
         '--',
         ...fileArgs,
       ]);
-      if (rawDiff) {
+      if (typeof rawDiff === 'string') {
         return rawDiff;
       }
     } catch {
@@ -136,7 +136,9 @@ async function main() {
   try {
     const diff = await getBranchChanges({ baseBranch, files, statOnly, nameOnly });
     if (!diff.trim()) {
-      console.log('No branch changes found relative to base branch.');
+      if (!nameOnly) {
+        console.log('No branch changes found relative to base branch.');
+      }
       return;
     }
     process.stdout.write(diff.endsWith('\n') ? diff : diff + '\n');

@@ -7,6 +7,196 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 
 let cachedRepoRoot = null;
+let cachedSkillsContext = null;
+let cachedSkillsMtime = 0;
+
+/**
+ * Resets the cached skills context (useful for testing).
+ */
+export function resetSkillsContextCache() {
+  cachedSkillsContext = null;
+  cachedSkillsMtime = 0;
+}
+
+/**
+ * Recursively calculates the maximum mtime across all files in a directory.
+ * Safely guards against circular symlink recursion and avoids call stack overflow.
+ * @param {string} dir
+ * @param {Set<string>} [visited=new Set()]
+ * @returns {Promise<number>}
+ */
+async function getMaxSkillsMtime(dir, visited = new Set()) {
+  let maxMtime = 0;
+  try {
+    const realDir = await fs.realpath(dir).catch(() => path.resolve(dir));
+    if (visited.has(realDir)) {
+      return 0;
+    }
+    visited.add(realDir);
+
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    const mtimes = await Promise.all(
+      entries.map(async (entry) => {
+        if (entry.isSymbolicLink()) {
+          return 0;
+        }
+        const fullPath = path.join(dir, entry.name);
+        try {
+          const stats = await fs.stat(fullPath);
+          let itemMax = stats.mtimeMs;
+          if (entry.isDirectory()) {
+            const subMtime = await getMaxSkillsMtime(fullPath, visited);
+            if (subMtime > itemMax) {
+              itemMax = subMtime;
+            }
+          }
+          return itemMax;
+        } catch {
+          return 0;
+        }
+      }),
+    );
+    if (mtimes.length > 0) {
+      maxMtime = mtimes.reduce((max, current) => Math.max(max, current), 0);
+    }
+  } catch {
+    // ignore readdir error
+  }
+  return maxMtime;
+}
+
+/**
+ * Loads and formats workspace skills from .gemini/skills/ and .gemini/system.md.
+ * Automatically checks directory and file mtimes to invalidate stale cache.
+ * @param {string} [customRepoRoot=null]
+ * @returns {Promise<string>} Formatted markdown block of available skills and mandate
+ */
+export async function loadWorkspaceSkillsContext(customRepoRoot = null) {
+  const root = customRepoRoot || (await getRepoRoot());
+  const skillsDir = path.join(root, '.gemini/skills');
+  const systemMdPath = path.join(root, '.gemini/system.md');
+
+  let currentMtime = 0;
+  let hasSystemMd = false;
+  try {
+    currentMtime = await getMaxSkillsMtime(skillsDir);
+  } catch (err) {
+    console.debug('[DEBUG] Failed to get max skills mtime:', err.message);
+  }
+  try {
+    const stats = await fs.stat(systemMdPath);
+    currentMtime = Math.max(currentMtime, stats.mtimeMs);
+    hasSystemMd = stats.isFile();
+  } catch {
+    // ignore missing system.md
+  }
+
+  if (cachedSkillsContext && !customRepoRoot && currentMtime > 0 && currentMtime <= cachedSkillsMtime) {
+    return cachedSkillsContext;
+  }
+
+  let skillsBlock = '';
+  if (await exists(skillsDir)) {
+    try {
+      const entries = await fs.readdir(skillsDir, { withFileTypes: true });
+      const skillDirs = entries
+        .filter((e) => e.isDirectory())
+        .map((e) => e.name)
+        .sort();
+
+      const skills = [];
+      for (const dirName of skillDirs) {
+        const skillMdPath = path.join(skillsDir, dirName, 'SKILL.md');
+        if (await exists(skillMdPath)) {
+          try {
+            const content = await fs.readFile(skillMdPath, 'utf8');
+            const nameMatch = content.match(/(?:^name:\s*|<name>)(.+?)(?:<\/name>|$)/m);
+            const descMatch = content.match(
+              /(?:^description:\s*(?:[>|]\s*\n)?|<description>)([\s\S]+?)(?:<\/description>|\n---|\n[a-zA-Z0-9_-]+:\s*|$)/m,
+            );
+            const name = nameMatch ? nameMatch[1].trim() : dirName;
+            const description = descMatch ? descMatch[1].trim() : '';
+
+            // Discover scripts
+            const scriptsDir = path.join(skillsDir, dirName, 'scripts');
+            let scriptFiles = [];
+            if (await exists(scriptsDir)) {
+              try {
+                const scriptEntries = await fs.readdir(scriptsDir, { withFileTypes: true });
+                scriptFiles = scriptEntries
+                  .filter(
+                    (e) =>
+                      e.isFile() &&
+                      (e.name.endsWith('.js') ||
+                        e.name.endsWith('.mjs') ||
+                        e.name.endsWith('.cjs') ||
+                        e.name.endsWith('.sh') ||
+                        e.name.endsWith('.py')),
+                  )
+                  .map((e) => e.name)
+                  .sort()
+                  .map((f) => {
+                    if (f.endsWith('.sh')) {
+                      return `bash .gemini/skills/${dirName}/scripts/${f}`;
+                    }
+                    if (f.endsWith('.py')) {
+                      return `python3 .gemini/skills/${dirName}/scripts/${f}`;
+                    }
+                    return `node .gemini/skills/${dirName}/scripts/${f}`;
+                  });
+              } catch {
+                scriptFiles = [];
+              }
+            }
+
+            skills.push({ name, description, location: `.gemini/skills/${dirName}/SKILL.md`, scripts: scriptFiles });
+          } catch {
+            // ignore error reading single skill
+          }
+        }
+      }
+
+      if (skills.length > 0) {
+        skillsBlock =
+          `<available_skills>\n` +
+          skills
+            .map(
+              (s) =>
+                `  <skill>\n    <name>${s.name}</name>\n    <description>${s.description}</description>\n    <location>${s.location}</location>\n    <scripts>\n${s.scripts.map((sc) => `      - ${sc}`).join('\n')}\n    </scripts>\n  </skill>`,
+            )
+            .join('\n') +
+          `\n</available_skills>`;
+      }
+    } catch {
+      skillsBlock = '';
+    }
+  }
+
+  // Load Skills-First Mandate from .gemini/system.md if present
+  let mandateText = '';
+  if (hasSystemMd) {
+    try {
+      const systemContent = await fs.readFile(systemMdPath, 'utf8');
+      const mandateMatch = systemContent.match(/## (?:[^\n]*?)Skills-First Mandate[\s\S]*?(?=\n---|\n## |$)/);
+      if (mandateMatch) {
+        mandateText = mandateMatch[0].trim();
+      }
+    } catch {
+      mandateText = '';
+    }
+  }
+
+  if (!mandateText) {
+    mandateText = `## 🛠️ Skills-First Mandate\nTo guarantee safety and compliance with repository guardrails, you MUST prioritize the installed skills in .gemini/skills/ (such as git, github-ci, and github-pr) for repository operations instead of raw mutating commands.`;
+  }
+
+  const result = `\n\n# Available Workspace Skills\n\n${skillsBlock}\n\n${mandateText}\n`;
+  if (!customRepoRoot) {
+    cachedSkillsContext = result;
+    cachedSkillsMtime = currentMtime;
+  }
+  return result;
+}
 
 /**
  * Gets the repository root path dynamically.
@@ -80,6 +270,8 @@ export function getStandardsFile(filePath) {
     '.mjs': 'docs/development/reference/JavaScript.toml',
     '.cjs': 'docs/development/reference/JavaScript.toml',
     '.ts': 'docs/development/reference/JavaScript.toml',
+    '.jsx': 'docs/development/reference/JavaScript.toml',
+    '.tsx': 'docs/development/reference/JavaScript.toml',
     '.md': 'docs/development/reference/DocumentationFormatting.toml',
     '.toml': 'docs/development/reference/DocumentationFormatting.toml',
     '.yml': 'docs/development/reference/Workflows.toml',
@@ -725,7 +917,8 @@ export function formatToolAction(toolName, args = {}) {
     toolArgs = {};
   }
 
-  switch (toolName) {
+  const normalizedToolName = String(toolName).toLowerCase();
+  switch (normalizedToolName) {
     case 'run_shell_command':
       return `Shell ${toolArgs.command || ''}`.trim();
     case 'read_file':
@@ -735,6 +928,7 @@ export function formatToolAction(toolName, args = {}) {
     case 'replace':
       return `Replace ${toolArgs.file_path || ''}`.trim();
     case 'grep_search':
+    case 'grepsearch':
       return `GrepSearch ${toolArgs.pattern ? `'${toolArgs.pattern}'` : ''}`.trim();
     case 'glob':
       return `Glob ${toolArgs.pattern ? `'${toolArgs.pattern}'` : ''}`.trim();
@@ -926,6 +1120,48 @@ export function renderTopicBanner({ topic, objective, summary } = {}, columns = 
     .map((l) => {
       const stripped = stripAnsi(l);
       const pad = Math.max(innerWidth - stripped.length, 0);
+      return `│ ${l}${' '.repeat(pad)} │`;
+    })
+    .join('\n');
+
+  return `${top}\n${middle}\n${bottom}`;
+}
+
+/**
+ * Renders prose and commentary text inside a rounded box aligned with tool cards and topic banners.
+ * @param {string} text
+ * @param {number} [columns]
+ * @returns {string}
+ */
+export function renderProseCard(text, columns = process.stdout.columns) {
+  if (typeof text !== 'string') {
+    return '';
+  }
+  const cleanText = stripAnsi(text).replace(/\r\n/g, '\n').replace(/\r/g, '').trim();
+  if (!cleanText) {
+    return '';
+  }
+
+  const width = typeof columns === 'number' && columns > 0 ? columns : process.stdout.columns || 100;
+  const boxWidth = Math.max(Math.min(width, 160), 40);
+  const innerWidth = boxWidth - 4;
+
+  const rawLines = cleanText.split('\n');
+  const lines = [];
+  for (const rLine of rawLines) {
+    const sanitized = rLine.replace(/\t/g, '  ');
+    if (sanitized.length > innerWidth) {
+      lines.push(...wrapLine(sanitized, innerWidth));
+    } else {
+      lines.push(sanitized);
+    }
+  }
+
+  const top = `╭─${'─'.repeat(innerWidth)}─╮`;
+  const bottom = `╰─${'─'.repeat(innerWidth)}─╯`;
+  const middle = lines
+    .map((l) => {
+      const pad = Math.max(innerWidth - l.length, 0);
       return `│ ${l}${' '.repeat(pad)} │`;
     })
     .join('\n');

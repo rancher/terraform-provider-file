@@ -9,7 +9,7 @@ import {
   validateCommit,
   validateCommitMessage,
 } from '../scripts/commit.js';
-import { createBranch } from '../scripts/create-branch.js';
+import { createBranch, parseCreateBranchArgs } from '../scripts/create-branch.js';
 import { getBranchChanges, parseBranchChangesArgs } from '../scripts/get_branch_changes.js';
 import { getCommitLog, parseCommitLogArgs, parseCommitLogOptions } from '../scripts/get_commit_log.js';
 import { getDeletedFile } from '../scripts/get_deleted_file.js';
@@ -19,7 +19,7 @@ import { getModifiedPaths } from '../scripts/get_modified_paths.js';
 import { getStagedFiles, parseStageArgs, parseStageOutput } from '../scripts/get_staged_files.js';
 import { isExcludedByAIExclude, readIgnoredFile } from '../scripts/read-ignored-file.js';
 import { stageFiles } from '../scripts/stage-files.js';
-import { switchBranch } from '../scripts/switch-branch.js';
+import { checkBranchExists, getCurrentBranch, switchBranch } from '../scripts/switch-branch.js';
 import { unstageFiles } from '../scripts/unstage-files.js';
 
 test('git skill - commit message validation', async (t) => {
@@ -164,6 +164,14 @@ test('git skill - getModifiedPaths parsing', async (t) => {
     };
     const paths = await getModifiedPaths({ git: mockGit });
     assert.deepStrictEqual(paths, ['new name.js']);
+  });
+
+  await t.test('captures both staged and unstaged file paths', async () => {
+    const mockGit = {
+      raw: async () => 'M  staged.js\n M unstaged.js\nA  added.js\n?? untracked.js\n',
+    };
+    const paths = await getModifiedPaths({ git: mockGit });
+    assert.deepStrictEqual(paths, ['staged.js', 'unstaged.js', 'added.js', 'untracked.js']);
   });
 });
 
@@ -536,6 +544,31 @@ test('git skill - createBranch unit tests', async (t) => {
     assert.strictEqual(syncedRef, 'main:main');
   });
 
+  await t.test('dynamically identifies default base branch via symbolic-ref when omitted', async () => {
+    let checkedOut = null;
+    const mockGit = {
+      raw: async (args) => {
+        if (args[0] === 'symbolic-ref') {
+          return 'origin/trunk\n';
+        }
+        return '';
+      },
+      branchLocal: async () => ({ all: ['feature', 'trunk'] }),
+      getRemotes: async () => [{ name: 'origin' }],
+      fetch: async () => {},
+      branch: async () => ({ current: 'trunk' }),
+      merge: async () => {},
+      checkoutBranch: async (branchName, base) => {
+        checkedOut = { branchName, base };
+      },
+    };
+
+    const result = await createBranch({ git: mockGit, branchName: 'feature-trunk' });
+    assert.strictEqual(result.branchName, 'feature-trunk');
+    assert.strictEqual(result.baseBranch, 'trunk');
+    assert.deepStrictEqual(checkedOut, { branchName: 'feature-trunk', base: 'trunk' });
+  });
+
   await t.test('aborts and throws error when synchronization fails', async () => {
     const mockGit = {
       branchLocal: async () => ({ all: ['main'] }),
@@ -628,6 +661,103 @@ test('git skill - switchBranch unit tests', async (t) => {
   });
 });
 
+test('git skill - getCurrentBranch unit tests', async (t) => {
+  await t.test('returns current branch name from branch summary', async () => {
+    const mockGit = {
+      branch: async () => ({ current: 'feature/ralph-loop' }),
+    };
+    const current = await getCurrentBranch({ git: mockGit });
+    assert.strictEqual(current, 'feature/ralph-loop');
+  });
+
+  await t.test('returns empty string when current branch is missing', async () => {
+    const mockGit = {
+      branch: async () => ({ current: '' }),
+    };
+    const current = await getCurrentBranch({ git: mockGit });
+    assert.strictEqual(current, '');
+  });
+});
+
+test('git skill - checkBranchExists unit tests', async (t) => {
+  await t.test('returns false when branchName is empty or missing', async () => {
+    assert.strictEqual(await checkBranchExists({ branchName: '' }), false);
+    assert.strictEqual(await checkBranchExists({ branchName: null }), false);
+  });
+
+  await t.test('identifies existing local branch', async () => {
+    const mockGit = {
+      branch: async () => ({ all: ['main', 'feat-branch'] }),
+    };
+    assert.strictEqual(await checkBranchExists({ git: mockGit, branchName: 'feat-branch' }), true);
+  });
+
+  await t.test('identifies existing remote tracking branch', async () => {
+    const mockGit = {
+      branch: async () => ({ all: ['main', 'remotes/origin/feat-remote', 'remotes/upstream/feat-upstream'] }),
+    };
+    assert.strictEqual(await checkBranchExists({ git: mockGit, branchName: 'feat-remote' }), true);
+    assert.strictEqual(await checkBranchExists({ git: mockGit, branchName: 'origin/feat-remote' }), true);
+    assert.strictEqual(await checkBranchExists({ git: mockGit, branchName: 'feat-upstream' }), true);
+    assert.strictEqual(await checkBranchExists({ git: mockGit, branchName: 'upstream/feat-upstream' }), true);
+    assert.strictEqual(await checkBranchExists({ git: mockGit, branchName: 'refs/heads/main' }), true);
+    assert.strictEqual(await checkBranchExists({ git: mockGit, branchName: 'refs/remotes/origin/feat-remote' }), true);
+  });
+
+  await t.test('returns false when branch does not exist', async () => {
+    const mockGit = {
+      branch: async () => ({ all: ['main'] }),
+    };
+    assert.strictEqual(await checkBranchExists({ git: mockGit, branchName: 'missing' }), false);
+  });
+
+  await t.test('handles git branch errors safely by returning false', async () => {
+    const mockGit = {
+      branch: async () => {
+        throw new Error('git error');
+      },
+    };
+    assert.strictEqual(await checkBranchExists({ git: mockGit, branchName: 'any' }), false);
+  });
+});
+
+test('git skill - parseCreateBranchArgs unit tests', async (t) => {
+  await t.test('parses positional branch and base branch', () => {
+    const { branchName, baseBranch } = parseCreateBranchArgs(['my-feature', 'main']);
+    assert.strictEqual(branchName, 'my-feature');
+    assert.strictEqual(baseBranch, 'main');
+  });
+
+  await t.test('parses --base and -b flags', () => {
+    const res1 = parseCreateBranchArgs(['my-feature', '--base', 'develop']);
+    assert.strictEqual(res1.branchName, 'my-feature');
+    assert.strictEqual(res1.baseBranch, 'develop');
+
+    const res2 = parseCreateBranchArgs(['my-feature', '-b', 'develop']);
+    assert.strictEqual(res2.branchName, 'my-feature');
+    assert.strictEqual(res2.baseBranch, 'develop');
+
+    const res3 = parseCreateBranchArgs(['--base=develop', 'my-feature']);
+    assert.strictEqual(res3.branchName, 'my-feature');
+    assert.strictEqual(res3.baseBranch, 'develop');
+
+    const res4 = parseCreateBranchArgs(['-b=develop', 'my-feature']);
+    assert.strictEqual(res4.branchName, 'my-feature');
+    assert.strictEqual(res4.baseBranch, 'develop');
+  });
+
+  await t.test('handles empty or missing arguments', () => {
+    const res = parseCreateBranchArgs([]);
+    assert.strictEqual(res.branchName, '');
+    assert.strictEqual(res.baseBranch, undefined);
+  });
+
+  await t.test('throws when --base or -b is provided as a trailing flag without a value', () => {
+    assert.throws(() => parseCreateBranchArgs(['my-feature', '--base']), /Flag '--base' requires a value\./);
+    assert.throws(() => parseCreateBranchArgs(['my-feature', '-b']), /Flag '-b' requires a value\./);
+  });
+});
+
 test('git skill - getBranchChanges unit tests', async (t) => {
   await t.test('gets diff relative to base branch using merge-base', async () => {
     let capturedArgs = null;
@@ -636,6 +766,9 @@ test('git skill - getBranchChanges unit tests', async (t) => {
       raw: async (args) => {
         if (args[0] === 'merge-base') {
           return 'abc1234\n';
+        }
+        if (args.includes('diff')) {
+          throw new Error('fallback');
         }
         return '';
       },
@@ -657,6 +790,9 @@ test('git skill - getBranchChanges unit tests', async (t) => {
         if (args[0] === 'merge-base') {
           assert.strictEqual(args[1], 'upstream/main');
           return 'def5678\n';
+        }
+        if (args.includes('diff')) {
+          throw new Error('fallback');
         }
         return '';
       },
@@ -1070,6 +1206,13 @@ test('git skill - getDiffToReview unit tests', async (t) => {
     assert.strictEqual(nameRes.unstaged, 'diff data');
     assert.ok(calls[0].includes('--name-only'));
     assert.ok(calls[1].includes('--name-only'));
+
+    calls.length = 0;
+    const headRes = await getDiffToReview({ git: mockGit, head: true });
+    assert.strictEqual(headRes.head, 'diff data');
+    assert.strictEqual(headRes.staged, '');
+    assert.strictEqual(headRes.unstaged, '');
+    assert.ok(calls[0].includes('HEAD'));
   });
 
   await t.test('parseDiffArgs separates flags and files correctly', () => {
@@ -1079,6 +1222,8 @@ test('git skill - getDiffToReview unit tests', async (t) => {
       unstagedOnly: false,
       statOnly: false,
       nameOnly: false,
+      head: false,
+      raw: false,
     });
     assert.deepStrictEqual(parseDiffArgs(['--unstaged', 'file1.txt', 'file2.txt']), {
       files: ['file1.txt', 'file2.txt'],
@@ -1086,6 +1231,8 @@ test('git skill - getDiffToReview unit tests', async (t) => {
       unstagedOnly: true,
       statOnly: false,
       nameOnly: false,
+      head: false,
+      raw: false,
     });
     assert.deepStrictEqual(parseDiffArgs(['--cached', 'file1.txt']), {
       files: ['file1.txt'],
@@ -1093,6 +1240,8 @@ test('git skill - getDiffToReview unit tests', async (t) => {
       unstagedOnly: false,
       statOnly: false,
       nameOnly: false,
+      head: false,
+      raw: false,
     });
     assert.deepStrictEqual(parseDiffArgs(['--staged', '--unstaged', 'file1.txt']), {
       files: ['file1.txt'],
@@ -1100,6 +1249,8 @@ test('git skill - getDiffToReview unit tests', async (t) => {
       unstagedOnly: false,
       statOnly: false,
       nameOnly: false,
+      head: false,
+      raw: false,
     });
     assert.deepStrictEqual(parseDiffArgs(['--stat', 'file1.txt']), {
       files: ['file1.txt'],
@@ -1107,6 +1258,8 @@ test('git skill - getDiffToReview unit tests', async (t) => {
       unstagedOnly: false,
       statOnly: true,
       nameOnly: false,
+      head: false,
+      raw: false,
     });
     assert.deepStrictEqual(parseDiffArgs(['--name-only', 'file1.txt']), {
       files: ['file1.txt'],
@@ -1114,6 +1267,17 @@ test('git skill - getDiffToReview unit tests', async (t) => {
       unstagedOnly: false,
       statOnly: false,
       nameOnly: true,
+      head: false,
+      raw: false,
+    });
+    assert.deepStrictEqual(parseDiffArgs(['--head', '--raw', 'file1.txt']), {
+      files: ['file1.txt'],
+      stagedOnly: false,
+      unstagedOnly: false,
+      statOnly: false,
+      nameOnly: false,
+      head: true,
+      raw: true,
     });
     assert.deepStrictEqual(parseDiffArgs(['--', '--special-file.txt', 'file2.txt']), {
       files: ['--special-file.txt', 'file2.txt'],
@@ -1121,6 +1285,8 @@ test('git skill - getDiffToReview unit tests', async (t) => {
       unstagedOnly: false,
       statOnly: false,
       nameOnly: false,
+      head: false,
+      raw: false,
     });
   });
 });

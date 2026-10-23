@@ -6,11 +6,14 @@ import test from 'node:test';
 import {
   formatToolAction,
   getRepoRoot,
+  loadWorkspaceSkillsContext,
   normalizePlanObject,
   parseJSONFromText,
   renderBox,
+  renderProseCard,
   renderToolCard,
   renderTopicBanner,
+  resetSkillsContextCache,
   savePlanFromJSON,
   stripAnsi,
   validateAgentOutput,
@@ -465,6 +468,7 @@ test('renderBox and cli formatting utilities', async (t) => {
     assert.strictEqual(formatToolAction('write_file', { file_path: 'foo.txt' }), 'WriteFile foo.txt');
     assert.strictEqual(formatToolAction('replace', { file_path: 'bar.js' }), 'Replace bar.js');
     assert.strictEqual(formatToolAction('grep_search', { pattern: 'test_func' }), "GrepSearch 'test_func'");
+    assert.strictEqual(formatToolAction('GrepSearch', { pattern: 'test_func' }), "GrepSearch 'test_func'");
     assert.strictEqual(formatToolAction('glob', { pattern: '*.go' }), "Glob '*.go'");
     assert.strictEqual(formatToolAction('list_directory', { dir_path: 'src' }), 'ListDirectory src');
     assert.strictEqual(formatToolAction('list_directory', {}), 'ListDirectory .');
@@ -604,5 +608,61 @@ test('renderBox and cli formatting utilities', async (t) => {
       80,
     );
     assert.ok(card.includes('[truncated remaining 5000 characters]'));
+  });
+
+  await t.test('renderProseCard formats multiline prose in rounded box matching tool card width', () => {
+    const card = renderProseCard('Paragraph 1\n\nParagraph 2 with more details', 80);
+    assert.ok(card.startsWith('╭─'));
+    assert.ok(card.endsWith('─╯'));
+    assert.ok(card.includes('│ Paragraph 1'));
+    assert.ok(card.includes('│ Paragraph 2 with more details'));
+  });
+
+  await t.test('renderProseCard safely handles empty or non-string inputs', () => {
+    assert.strictEqual(renderProseCard(''), '');
+    assert.strictEqual(renderProseCard('   \n\r  '), '');
+    assert.strictEqual(renderProseCard(null), '');
+    assert.strictEqual(renderProseCard(undefined), '');
+  });
+
+  await t.test('renderProseCard sanitizes ANSI escape and terminal control sequences', () => {
+    const card = renderProseCard('\x1b[31m' + 'Red text' + '\x1b[0m with green info', 80);
+    assert.ok(!card.includes('\x1b'));
+    assert.ok(card.includes('Red text with green info'));
+  });
+});
+
+test('loadWorkspaceSkillsContext discovery and formatting', async (t) => {
+  await t.test('discovers skills in .gemini/skills and formats available_skills block with mandate', async () => {
+    resetSkillsContextCache();
+    const skillsContext = await loadWorkspaceSkillsContext();
+
+    assert.ok(skillsContext.includes('# Available Workspace Skills'));
+    assert.ok(skillsContext.includes('<available_skills>'));
+    assert.ok(skillsContext.includes('<name>git</name>'));
+    assert.ok(skillsContext.includes('<name>github-pr</name>'));
+    assert.ok(skillsContext.includes('<name>github-ci</name>'));
+    assert.ok(skillsContext.includes('node .gemini/skills/git/scripts/read-ignored-file.js'));
+    assert.ok(skillsContext.includes('Skills-First Mandate'));
+  });
+
+  await t.test('caches skills context across repeated calls and resetSkillsContextCache clears it', async () => {
+    resetSkillsContextCache();
+    const first = await loadWorkspaceSkillsContext();
+    const second = await loadWorkspaceSkillsContext();
+    assert.strictEqual(first, second);
+
+    resetSkillsContextCache();
+    const third = await loadWorkspaceSkillsContext();
+    assert.strictEqual(typeof third, 'string');
+    assert.ok(third.includes('<available_skills>'));
+  });
+
+  await t.test('handles non-existent skills directory safely without throwing', async () => {
+    resetSkillsContextCache();
+    const skillsContext = await loadWorkspaceSkillsContext('/nonexistent/repo/root');
+    assert.strictEqual(typeof skillsContext, 'string');
+    assert.ok(!skillsContext.includes('<available_skills>'));
+    assert.ok(skillsContext.includes('Skills-First Mandate'));
   });
 });

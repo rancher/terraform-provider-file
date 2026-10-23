@@ -34,3 +34,4 @@ plans/current.md
 agent-scripts/*.log
 PR_DESCRIPTION.md
 REVIEW_FINDINGS.md
+.gemini/tmp
