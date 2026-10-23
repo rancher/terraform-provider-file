@@ -1733,7 +1733,7 @@ export async function runImplementationRalphLoop(options = {}) {
       );
     }
 
-    const currentModel = isExhaustionFallback ? proModel : model;
+    const currentModel = innerIteration === 1 || isExhaustionFallback ? proModel : model;
 
     const currentSuggestion = remaining[0];
     const maxBatchSize = 3;
@@ -1927,7 +1927,10 @@ export async function runReviewRalphLoop(options = {}) {
     logger: iterLogger,
   }) => {
     const activeLogger = typeof iterLogger === 'function' ? iterLogger : logger;
-    activeLogger(`\n🤔 [Review Loop] Step 1: Thinking Reviewer (${resolvedProModel}) evaluating staged code...`);
+    const activeReviewModel = iteration <= 3 ? resolvedProModel : resolvedFlashModel;
+    activeLogger(
+      `\n🤔 [Review Loop] Step 1: Reviewer (${activeReviewModel}) evaluating staged code (Iteration ${iteration}/${totalIterations})...`,
+    );
 
     const reviewerPrompt = buildReviewerPrompt({
       iteration,
@@ -1942,10 +1945,10 @@ export async function runReviewRalphLoop(options = {}) {
       'You are a senior technical reviewer. Review the staged code against the active plan in plans/current.md. Output ONLY a numbered list of at least 5 suggestions with severity ratings [critical], [medium], or [minor]. Do NOT modify files or call mutating tools. You may use grep_search to inspect code.' +
       (skillsContext ? `\n\n${skillsContext}` : '');
 
-    // 1. Thinking model reviews staged code
+    // 1. Review staged code (Pro model for first 3 iterations, Flash model for remaining)
     const suggestionsText = await sessionRunner({
       initialPrompt: reviewerInstructions + '\n\n' + reviewerPrompt,
-      requestedModel: resolvedProModel,
+      requestedModel: activeReviewModel,
       maxTurnsOverride: 5,
       requireTopic: false,
       isolate: true,
@@ -1990,14 +1993,15 @@ export async function runReviewRalphLoop(options = {}) {
     }
 
     activeLogger(
-      `\n🛠️ [Review Loop] Step 3: Critical or medium suggestions detected. Initiating inner implementation Ralph Loop (${resolvedFlashModel})...`,
+      `\n🛠️ [Review Loop] Step 3: Critical or medium suggestions detected. Initiating inner implementation Ralph Loop...`,
     );
 
-    // 4. Run the inner Ralph Loop to implement one suggestion per iteration, stage code upon completion
+    // 4. Run the inner Ralph Loop to implement suggestions (Pro model for iteration 1, Flash model for subsequent retries)
     const innerResult = await runImplementationRalphLoop({
       suggestionsText,
       sessionRunner,
       model: resolvedFlashModel,
+      proModel: resolvedProModel,
       validator,
       validationCommands: restOptions.validationCommands,
       repoRoot: root,

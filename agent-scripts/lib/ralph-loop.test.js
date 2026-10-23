@@ -1278,7 +1278,7 @@ test('runReviewRalphLoop multi-agent pipeline execution', async (t) => {
       sessionRunner: async ({ requestedModel, initialPrompt }) => {
         sessionsInvoked.push(requestedModel);
 
-        if (requestedModel === 'gemini-3.1-pro-preview') {
+        if (initialPrompt.includes('senior technical reviewer')) {
           iteration++;
           if (iteration === 1) {
             return `
@@ -1306,8 +1306,10 @@ test('runReviewRalphLoop multi-agent pipeline execution', async (t) => {
           return JSON.stringify({ critical: 0, medium: 0, minor: 5 });
         }
 
-        if (requestedModel === 'gemini-3.8-flash') {
-          assert.ok(initialPrompt.includes('remaining suggestion(s) to implement'));
+        if (
+          initialPrompt.includes('remaining suggestion(s) to implement') ||
+          initialPrompt.includes('Implementation Phase')
+        ) {
           return '<completed_suggestion id="1">Implemented</completed_suggestion>';
         }
 
@@ -1321,8 +1323,18 @@ test('runReviewRalphLoop multi-agent pipeline execution', async (t) => {
     assert.strictEqual(result.completed, true);
     assert.strictEqual(result.iterations, 2);
     assert.strictEqual(stageCalled, true, 'Stage function must be called after inner implementation loop completes');
+    const proReviewerInvocations = sessionsInvoked.filter(
+      (m, idx) => m === 'gemini-3.1-pro-preview' && (idx === 0 || idx === 7),
+    );
+    assert.strictEqual(proReviewerInvocations.length, 2, 'Pro reviewer should be invoked on review iterations');
+    const proImplementerInvocations = sessionsInvoked.filter((m, idx) => m === 'gemini-3.1-pro-preview' && idx === 2);
+    assert.strictEqual(
+      proImplementerInvocations.length,
+      1,
+      'Pro model should be invoked for the first implementation iteration',
+    );
     const flashInvocations = sessionsInvoked.filter((m) => m === 'gemini-3.8-flash');
-    assert.strictEqual(flashInvocations.length, 5, 'Flash implementer should be invoked once per suggestion');
+    assert.strictEqual(flashInvocations.length, 4, 'Flash implementer should be invoked for remaining 4 suggestions');
   });
 
   await t.test('runs thinking reviewer in isolated session and executes inner implementation loop', async () => {
@@ -1347,8 +1359,8 @@ test('runReviewRalphLoop multi-agent pipeline execution', async (t) => {
         stageCalled = true;
       },
       detectChange: () => ({ hasChanged: false }),
-      sessionRunner: async ({ requestedModel, isolate, maxTurnsOverride }) => {
-        if (requestedModel === 'gemini-3.1-pro-preview') {
+      sessionRunner: async ({ requestedModel, isolate, maxTurnsOverride, initialPrompt }) => {
+        if (isolate === true) {
           reviewerIsolate = isolate;
           return `
 1. [critical] Item 1
@@ -1361,7 +1373,7 @@ test('runReviewRalphLoop multi-agent pipeline execution', async (t) => {
         if (requestedModel === 'gemini-3.1-flash-lite') {
           return JSON.stringify({ critical: 2, medium: 2, minor: 1 });
         }
-        if (requestedModel === 'gemini-3.8-flash') {
+        if (initialPrompt.includes('remaining suggestion(s) to implement')) {
           implementerTurns = maxTurnsOverride;
           return '<completed_suggestion id="1">COMPLETE</completed_suggestion>';
         }
@@ -2123,6 +2135,103 @@ Validate nil pointer before lookup.
         loggedMessages.some((m) => m.includes('Running deterministic validation pipeline for suggestion ID(s) 2')),
       );
       assert.ok(loggedMessages.some((m) => m.includes('Validation failed for suggestion ID(s) 2')));
+    },
+  );
+
+  await t.test(
+    'runImplementationRalphLoop uses proModel for iteration 1 and flashModel for iterations 2+',
+    async () => {
+      const modelsUsed = [];
+      const mockCapture = async () => ({
+        diff: 'staged diff',
+        status: 'M main.go',
+        diffHash: 'diff-hash',
+        plan: '## Review Plan',
+        changedFiles: ['main.go'],
+        modifiedFilesContext: '<file path="main.go">content</file>',
+      });
+
+      let iteration = 0;
+      const result = await runImplementationRalphLoop({
+        suggestions: [
+          { id: 1, severity: 'critical', text: 'Fix leak' },
+          { id: 2, severity: 'medium', text: 'Add validation' },
+        ],
+        model: 'flash-model-custom',
+        proModel: 'pro-model-custom',
+        captureState: mockCapture,
+        stageFn: async () => {},
+        sessionRunner: async ({ requestedModel }) => {
+          iteration++;
+          modelsUsed.push(requestedModel);
+          return `<completed_suggestion id="${iteration}">Done</completed_suggestion>`;
+        },
+        validator: async () => ({ success: true }),
+        logger: () => {},
+      });
+
+      assert.strictEqual(result.success, true);
+      assert.strictEqual(result.iterations, 2);
+      assert.strictEqual(modelsUsed[0], 'pro-model-custom', 'Iteration 1 must use proModel');
+      assert.strictEqual(modelsUsed[1], 'flash-model-custom', 'Iteration 2 must use flashModel');
+    },
+  );
+
+  await t.test(
+    'runReviewRalphLoop uses proModel for review iterations 1-3 and flashModel for iterations 4+',
+    async () => {
+      const reviewModelsUsed = [];
+      let reviewIteration = 0;
+
+      const mockCapture = async () => ({
+        diff: 'staged diff',
+        status: 'M main.go',
+        diffHash: 'diff-hash',
+        plan: '## Review Plan',
+        changedFiles: ['main.go'],
+        modifiedFilesContext: '<file path="main.go">content</file>',
+      });
+
+      const result = await runReviewRalphLoop({
+        maxIterations: 4,
+        models: {
+          pro: 'my-pro-model',
+          flash: 'my-flash-model',
+          flash_lite: 'my-flash-lite-model',
+        },
+        captureState: mockCapture,
+        stageFn: async () => {},
+        detectChange: () => ({ hasChanged: true }),
+        sessionRunner: async ({ requestedModel, initialPrompt }) => {
+          if (initialPrompt.includes('senior technical reviewer')) {
+            reviewIteration++;
+            reviewModelsUsed.push(requestedModel);
+            if (reviewIteration < 4) {
+              return '1. [critical] Issue\n2. [medium] Issue 2\n3. [minor] A\n4. [minor] B\n5. [minor] C';
+            }
+            // Converge on iteration 4
+            return '1. [minor] A\n2. [minor] B\n3. [minor] C\n4. [minor] D\n5. [minor] E';
+          }
+          if (requestedModel === 'my-flash-lite-model') {
+            if (reviewIteration < 4) {
+              return JSON.stringify({ critical: 1, medium: 1, minor: 3 });
+            }
+            return JSON.stringify({ critical: 0, medium: 0, minor: 5 });
+          }
+          // Implementer
+          return '<completed_suggestion id="1">Fixed</completed_suggestion>';
+        },
+        validator: async () => ({ success: true }),
+        logger: () => {},
+      });
+
+      assert.strictEqual(result.success, true);
+      assert.strictEqual(result.iterations, 4);
+      assert.deepStrictEqual(
+        reviewModelsUsed,
+        ['my-pro-model', 'my-pro-model', 'my-pro-model', 'my-flash-model'],
+        'Review iterations 1-3 must use proModel, iteration 4 must switch to flashModel',
+      );
     },
   );
 });
