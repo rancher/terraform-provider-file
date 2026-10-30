@@ -190,7 +190,27 @@ export function parseCommitArgs(args) {
   return positionalWords.join(' ').trim();
 }
 
+/**
+ * Prints help and usage information.
+ */
+export function printHelp() {
+  console.log(`Usage: commit.js [-m <message>] <message>
+
+Creates a validated conventional commit with spellcheck and SemVer branch safety.
+
+Options:
+  -m, --message <text>   Specify commit message text (supports multiple flags)
+  -h, --help             Show this help message
+`);
+}
+
 async function main() {
+  const rawArgs = process.argv.slice(2);
+  if (rawArgs.includes('-h') || rawArgs.includes('--help')) {
+    printHelp();
+    process.exit(0);
+  }
+
   const args = process.argv.slice(2);
   const message = parseCommitArgs(args);
 

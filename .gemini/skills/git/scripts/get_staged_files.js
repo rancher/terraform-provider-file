@@ -115,7 +115,25 @@ export function parseStageArgs(args = []) {
   return { nameOnly };
 }
 
+/**
+ * Prints help and usage information.
+ */
+export function printHelp() {
+  console.log(`Usage: get_staged_files.js [-n | --name-only]
+
+Retrieves the list of currently staged files in index with stage details and conflicts.
+
+Options:
+  -n, --name-only  Output only file paths
+  -h, --help       Show this help message
+`);
+}
+
 async function main() {
+  if (process.argv.includes('-h') || process.argv.includes('--help')) {
+    printHelp();
+    process.exit(0);
+  }
   const { nameOnly } = parseStageArgs(process.argv.slice(2));
   try {
     const { entries, paths, hasConflicts } = await getStagedFiles();

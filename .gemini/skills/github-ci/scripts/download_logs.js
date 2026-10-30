@@ -130,8 +130,35 @@ export function parseDownloadArgs(args = []) {
   return { runId, outputDir, failedOnly };
 }
 
+/**
+ * Prints help and usage information.
+ */
+export function printHelp() {
+  console.log(`Usage: download_logs.js [run_id] [output_dir] [--failed-only]
+   or: download_logs.js [-o output_dir] [-f]
+
+Arguments:
+  run_id                       Workflow run ID (default: latest failed run on current branch)
+  output_dir                   Directory path to save downloaded logs (default: /tmp/ci-logs-<run_id>)
+
+Options:
+  -o, --output <dir>           Output directory path for saved logs
+  -f, --failed-only            Download logs only for failed/timed_out jobs
+  -h, --help                   Show this help message
+
+Environment Variables:
+  GH_REPO / GITHUB_REPOSITORY  Target repository in 'owner/repo' format (overrides git remote detection)
+  GITHUB_TOKEN / GH_TOKEN      GitHub authentication token (falls back to 'gh auth token')
+`);
+}
+
 async function main() {
-  const { runId: parsedRunId, outputDir: parsedOutputDir, failedOnly } = parseDownloadArgs(process.argv.slice(2));
+  const args = process.argv.slice(2);
+  if (args.includes('-h') || args.includes('--help')) {
+    printHelp();
+    process.exit(0);
+  }
+  const { runId: parsedRunId, outputDir: parsedOutputDir, failedOnly } = parseDownloadArgs(args);
   let runId = parsedRunId;
   let outputDir = parsedOutputDir;
 

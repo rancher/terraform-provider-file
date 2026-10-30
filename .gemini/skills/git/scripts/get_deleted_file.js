@@ -59,7 +59,28 @@ export async function getDeletedFile({ git = simpleGit(), filePath, commit }) {
   }
 }
 
+/**
+ * Prints help and usage information.
+ */
+export function printHelp() {
+  console.log(`Usage: get_deleted_file.js <file_path> [commit_or_rev]
+
+Retrieves contents of a deleted or modified file from git history.
+
+Arguments:
+  file_path           Relative or absolute path to target file
+  commit_or_rev       Optional commit SHA or git revision (default: auto-detected last commit)
+
+Options:
+  -h, --help          Show this help message
+`);
+}
+
 async function main() {
+  if (process.argv.includes('-h') || process.argv.includes('--help')) {
+    printHelp();
+    process.exit(0);
+  }
   const filePath = process.argv[2];
   const commit = process.argv[3];
   if (!filePath) {

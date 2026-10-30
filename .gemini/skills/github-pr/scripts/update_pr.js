@@ -127,8 +127,37 @@ export function parseUpdateArgs(args) {
   };
 }
 
+/**
+ * Prints help and usage information.
+ */
+export function printHelp() {
+  console.log(`Usage: update_pr.js [pr_number_or_current] <title> [body]
+   or: update_pr.js [pr_number_or_current] [--title title] [--body body] [--state open|closed]
+
+Arguments:
+  pr_number_or_current         PR number, URL, or 'current' (default: 'current')
+  title                        New PR title
+  body                         New PR body text
+
+Options:
+  -t, --title <text>           Set the pull request title
+  -b, --body <text>            Set the pull request body
+  -s, --state <open|closed>    Update pull request state ('open' or 'closed')
+  -h, --help                   Show this help message
+
+Environment Variables:
+  GH_REPO / GITHUB_REPOSITORY  Target repository in 'owner/repo' format (overrides git remote detection)
+  GITHUB_TOKEN / GH_TOKEN      GitHub authentication token (falls back to 'gh auth token')
+`);
+}
+
 async function main() {
   const args = process.argv.slice(2);
+  if (args.includes('-h') || args.includes('--help')) {
+    printHelp();
+    process.exit(0);
+  }
+
   const { prTarget, title, body, state } = parseUpdateArgs(args);
 
   if (title === undefined && body === undefined && state === undefined) {

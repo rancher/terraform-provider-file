@@ -119,11 +119,37 @@ export async function getOctokit(tokenOverride) {
 }
 
 /**
+ * Resolves owner and repo from the directory path convention (e.g. /go/src/github.com/<owner>/<repo>).
+ * @returns {Promise<{owner: string, repo: string}|null>}
+ */
+export async function getRepoFromDirectory() {
+  let cwdPath = process.cwd();
+  try {
+    const { stdout } = await sys.execFileAsync('git', ['rev-parse', '--show-toplevel']);
+    if (stdout && stdout.trim()) {
+      cwdPath = stdout.trim();
+    }
+  } catch {
+    // Fall back to process.cwd()
+  }
+
+  const match = cwdPath.match(/(?:^|[/\\])github\.com[/\\]([^/\\]+)[/\\]([^/\\]+)/);
+  if (match && match[1] && match[2]) {
+    return {
+      owner: match[1],
+      repo: match[2].replace(/\.git$/, ''),
+    };
+  }
+  return null;
+}
+
+/**
  * Resolves the owner and repo for the current workspace.
  * Precedence:
  * 1. process.env.GH_REPO or process.env.GITHUB_REPOSITORY (e.g. 'owner/repo')
  * 2. Git remote 'upstream'
- * 3. Git remote 'origin'
+ * 3. Go workspace path convention (e.g. '.../github.com/<owner>/<repo>')
+ * 4. Git remote 'origin'
  * Throws an error if owner and repo cannot be determined.
  * @returns {Promise<{owner: string, repo: string}>}
  */
@@ -136,17 +162,34 @@ export async function getRepoDetails() {
     }
   }
 
-  for (const remote of ['upstream', 'origin']) {
-    try {
-      const { stdout } = await sys.execFileAsync('git', ['remote', 'get-url', remote]);
-      const url = stdout.trim();
-      const match = url.match(/[:/]([^/]+)\/([^/.]+)(?:\.git)?$/);
-      if (match) {
-        return { owner: match[1], repo: match[2] };
-      }
-    } catch {
-      // Remote does not exist or git failed, try next
+  // Check git remote 'upstream'
+  try {
+    const { stdout } = await sys.execFileAsync('git', ['remote', 'get-url', 'upstream']);
+    const url = stdout.trim();
+    const match = url.match(/[:/]([^/]+)\/([^/.]+)(?:\.git)?$/);
+    if (match) {
+      return { owner: match[1], repo: match[2] };
     }
+  } catch {
+    // Upstream does not exist, try directory structure next
+  }
+
+  // Fallback to Go directory structure convention
+  const dirRepo = await getRepoFromDirectory();
+  if (dirRepo) {
+    return dirRepo;
+  }
+
+  // Fallback to git remote 'origin'
+  try {
+    const { stdout } = await sys.execFileAsync('git', ['remote', 'get-url', 'origin']);
+    const url = stdout.trim();
+    const match = url.match(/[:/]([^/]+)\/([^/.]+)(?:\.git)?$/);
+    if (match) {
+      return { owner: match[1], repo: match[2] };
+    }
+  } catch {
+    // Remote does not exist or git failed
   }
 
   throw new Error(
@@ -264,4 +307,47 @@ export async function getCurrentPRNumber(octokitInstance, repoDetails) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Prints help and usage information.
+ */
+export function printHelp() {
+  console.log(`Usage: auth.js
+
+Verifies authentication and repository detection for GitHub PR scripts.
+
+Options:
+  -h, --help                   Show this help message
+
+Environment Variables:
+  GH_REPO / GITHUB_REPOSITORY  Target repository in 'owner/repo' format (overrides git remote detection)
+  GITHUB_TOKEN / GH_TOKEN      GitHub authentication token (falls back to 'gh auth token')
+`);
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  if (args.includes('-h') || args.includes('--help')) {
+    printHelp();
+    process.exit(0);
+  }
+
+  try {
+    const { owner, repo } = await getRepoDetails();
+    const branch = await getCurrentBranch();
+    const token = await getAuthToken();
+    const prNumber = await getCurrentPRNumber();
+    console.log(`Repository: ${owner}/${repo}`);
+    console.log(`Branch:     ${branch || '(detached/unknown)'}`);
+    console.log(`PR Number:  ${prNumber ? `#${prNumber}` : 'None detected'}`);
+    console.log(`Auth Token: ${token ? 'Detected' : 'Not found'}`);
+  } catch (err) {
+    console.error(`❌ ${err.message}`);
+    process.exit(1);
+  }
+}
+
+if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/^.*\//, ''))) {
+  main();
 }

@@ -166,3 +166,44 @@ export async function getCurrentBranch() {
     return '';
   }
 }
+
+/**
+ * Prints help and usage information.
+ */
+export function printHelp() {
+  console.log(`Usage: auth.js
+
+Verifies authentication and repository detection for GitHub CI scripts.
+
+Options:
+  -h, --help                   Show this help message
+
+Environment Variables:
+  GH_REPO / GITHUB_REPOSITORY  Target repository in 'owner/repo' format (overrides git remote detection)
+  GITHUB_TOKEN / GH_TOKEN      GitHub authentication token (falls back to 'gh auth token')
+`);
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  if (args.includes('-h') || args.includes('--help')) {
+    printHelp();
+    process.exit(0);
+  }
+
+  try {
+    const { owner, repo } = await getRepoDetails();
+    const branch = await getCurrentBranch();
+    const token = await getAuthToken();
+    console.log(`Repository: ${owner}/${repo}`);
+    console.log(`Branch:     ${branch || '(detached/unknown)'}`);
+    console.log(`Auth Token: ${token ? 'Detected' : 'Not found'}`);
+  } catch (err) {
+    console.error(`❌ ${err.message}`);
+    process.exit(1);
+  }
+}
+
+if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/^.*\//, ''))) {
+  main();
+}

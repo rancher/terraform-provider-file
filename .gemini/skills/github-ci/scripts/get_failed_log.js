@@ -128,8 +128,35 @@ export function parseFailedLogArgs(args = []) {
   return { runId, targetBranch };
 }
 
+/**
+ * Prints help and usage information.
+ */
+export function printHelp() {
+  console.log(`Usage: get_failed_log.js [run_id] [branch]
+   or: get_failed_log.js [-r run_id] [-b branch]
+
+Arguments:
+  run_id                       Workflow run ID to inspect (default: latest failed run)
+  branch                       Target branch to query for failed runs (e.g. 'main', 'current', 'all') (default: 'current')
+
+Options:
+  -r, --run, --run-id <id>     Workflow run ID to inspect
+  -b, --branch <name>          Branch name to query for failed runs
+  -h, --help                   Show this help message
+
+Environment Variables:
+  GH_REPO / GITHUB_REPOSITORY  Target repository in 'owner/repo' format (overrides git remote detection)
+  GITHUB_TOKEN / GH_TOKEN      GitHub authentication token (falls back to 'gh auth token')
+`);
+}
+
 async function main() {
-  const { runId: parsedRunId, targetBranch } = parseFailedLogArgs(process.argv.slice(2));
+  const args = process.argv.slice(2);
+  if (args.includes('-h') || args.includes('--help')) {
+    printHelp();
+    process.exit(0);
+  }
+  const { runId: parsedRunId, targetBranch } = parseFailedLogArgs(args);
   let runId = parsedRunId;
 
   const { owner, repo } = await getRepoDetails();

@@ -203,8 +203,34 @@ export function parseResolveArgs(args = []) {
   };
 }
 
+/**
+ * Prints help and usage information.
+ */
+export function printHelp() {
+  console.log(`Usage: resolve_comment.js <thread_id_or_comment_id> [pr_number] [--unresolve]
+   or: resolve_comment.js [pr_number_or_current] <thread_id_or_comment_id> [--unresolve]
+
+Arguments:
+  thread_id_or_comment_id      GraphQL thread ID (PRRT_...) or numeric comment ID
+  pr_number                    PR number or URL (required when resolving by numeric comment ID)
+
+Options:
+  --unresolve                  Unresolve the review thread instead of resolving it
+  -h, --help                   Show this help message
+
+Environment Variables:
+  GH_REPO / GITHUB_REPOSITORY  Target repository in 'owner/repo' format (overrides git remote detection)
+  GITHUB_TOKEN / GH_TOKEN      GitHub authentication token (falls back to 'gh auth token')
+`);
+}
+
 async function main() {
   const args = process.argv.slice(2);
+  if (args.includes('-h') || args.includes('--help')) {
+    printHelp();
+    process.exit(0);
+  }
+
   const { threadId, prNumber: parsedPr, prTarget, unresolve } = parseResolveArgs(args);
 
   if (!threadId) {

@@ -85,7 +85,29 @@ export function parseCommitLogArgs(args = []) {
   return parseCommitLogOptions(args).limit;
 }
 
+/**
+ * Prints help and usage information.
+ */
+export function printHelp() {
+  console.log(`Usage: get_commit_log.js [limit] [-n limit] [-f file] [-b branch]
+
+Outputs a concise commit log for the current branch, target branch, or specific file.
+
+Options:
+  -n, --limit <count>  Number of commits to display (default: 5)
+  -f, --file <path>    Filter commits affecting specific file
+  -b, --branch <name>  Show commit history for specific branch
+  -h, --help           Show this help message
+`);
+}
+
 async function main() {
+  const rawArgs = process.argv.slice(2);
+  if (rawArgs.includes('-h') || rawArgs.includes('--help')) {
+    printHelp();
+    process.exit(0);
+  }
+
   const { limit, file, branch } = parseCommitLogOptions(process.argv.slice(2));
 
   try {

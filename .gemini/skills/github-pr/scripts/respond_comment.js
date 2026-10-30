@@ -139,8 +139,35 @@ export function parseRespondArgs(args) {
   return { prTarget, commentId, body };
 }
 
+/**
+ * Prints help and usage information.
+ */
+export function printHelp() {
+  console.log(`Usage: respond_comment.js [pr_number_or_current] [comment_id_or_general] "body"
+   or: respond_comment.js [pr_number_or_current] [comment_id_or_general] -m "body"
+
+Arguments:
+  pr_number_or_current         PR number, URL, or 'current' (default: 'current')
+  comment_id_or_general        Inline comment ID, GraphQL thread ID (PRRT_...), or 'general' (default: 'general')
+  body                         Comment body text
+
+Options:
+  -m, --body <text>            Specify comment body explicitly
+  -h, --help                   Show this help message
+
+Environment Variables:
+  GH_REPO / GITHUB_REPOSITORY  Target repository in 'owner/repo' format (overrides git remote detection)
+  GITHUB_TOKEN / GH_TOKEN      GitHub authentication token (falls back to 'gh auth token')
+`);
+}
+
 async function main() {
   const args = process.argv.slice(2);
+  if (args.includes('-h') || args.includes('--help')) {
+    printHelp();
+    process.exit(0);
+  }
+
   const { prTarget, commentId, body } = parseRespondArgs(args);
 
   if (!body) {

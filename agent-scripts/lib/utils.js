@@ -7,6 +7,228 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 
 let cachedRepoRoot = null;
+let cachedSkillsContext = null;
+let cachedSkillsFingerprint = '';
+let lastSkillsFingerprintTime = 0;
+const SKILLS_FINGERPRINT_TTL_MS = 2000;
+
+/**
+ * Resets the cached skills context (useful for testing).
+ */
+export function resetSkillsContextCache() {
+  cachedSkillsContext = null;
+  cachedSkillsFingerprint = '';
+  lastSkillsFingerprintTime = 0;
+}
+
+/**
+ * Recursively calculates a fingerprint across all files in a skills directory.
+ * Safely guards against circular symlink recursion and avoids call stack overflow.
+ * Captures file paths, file mtimes, and sizes so additions, deletions, renames,
+ * and modifications of files invalidate the cache. Empty-directory additions
+ * and removals do not alter the fingerprint because directory entries themselves
+ * are not hashed.
+ * @param {string} dir
+ * @param {string} [baseDir=dir]
+ * @param {Set<string>} [visited=new Set()]
+ * @returns {Promise<string>}
+ */
+export async function getSkillsFingerprint(dir, baseDir = dir, visited = new Set()) {
+  const parts = [];
+  try {
+    const realDir = await fs.realpath(dir).catch(() => path.resolve(dir));
+    if (visited.has(realDir)) {
+      return '';
+    }
+    visited.add(realDir);
+
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+
+    const results = await Promise.all(
+      entries.map(async (entry) => {
+        if (entry.isSymbolicLink()) {
+          return null;
+        }
+        const fullPath = path.join(dir, entry.name);
+        const relPath = path.relative(baseDir, fullPath);
+        try {
+          if (entry.isDirectory()) {
+            return await getSkillsFingerprint(fullPath, baseDir, visited);
+          } else if (entry.isFile()) {
+            const stats = await fs.stat(fullPath);
+            return `f:${relPath}:${stats.mtimeMs}:${stats.size}`;
+          }
+        } catch {
+          // ignore missing/unreadable entry
+        }
+        return null;
+      }),
+    );
+
+    for (const res of results) {
+      if (res) {
+        parts.push(res);
+      }
+    }
+  } catch {
+    // ignore readdir error
+  }
+  return parts.join('|');
+}
+
+/**
+ * Loads and formats workspace skills from .gemini/skills/ and .gemini/system.md.
+ * Automatically checks directory and file mtimes to invalidate stale cache.
+ * @param {string} [customRepoRoot=null]
+ * @returns {Promise<string>} Formatted markdown block of available skills and mandate
+ */
+export async function loadWorkspaceSkillsContext(customRepoRoot = null) {
+  if (cachedSkillsContext && !customRepoRoot && Date.now() - lastSkillsFingerprintTime < SKILLS_FINGERPRINT_TTL_MS) {
+    return cachedSkillsContext;
+  }
+
+  const root = customRepoRoot || (await getRepoRoot());
+  const skillsDir = path.join(root, '.gemini/skills');
+  const systemMdPath = path.join(root, '.gemini/system.md');
+
+  let currentFingerprint = '';
+  let hasSystemMd = false;
+
+  if (!customRepoRoot) {
+    try {
+      currentFingerprint = await getSkillsFingerprint(skillsDir);
+    } catch (err) {
+      console.debug('[DEBUG] Failed to get skills fingerprint:', err?.message || String(err));
+    }
+  }
+
+  try {
+    const stats = await fs.stat(systemMdPath);
+    if (!customRepoRoot) {
+      currentFingerprint += `|system.md:${stats.mtimeMs}:${stats.size}`;
+    }
+    hasSystemMd = stats.isFile();
+  } catch {
+    // ignore missing system.md
+  }
+
+  if (!customRepoRoot) {
+    lastSkillsFingerprintTime = Date.now();
+  }
+
+  if (cachedSkillsContext && !customRepoRoot && currentFingerprint === cachedSkillsFingerprint) {
+    return cachedSkillsContext;
+  }
+
+  let skillsBlock = '';
+  try {
+    const entries = await fs.readdir(skillsDir, { withFileTypes: true });
+    const skillDirs = entries
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort();
+
+    const skills = (
+      await Promise.all(
+        skillDirs.map(async (dirName) => {
+          const skillMdPath = path.join(skillsDir, dirName, 'SKILL.md');
+          if (await exists(skillMdPath)) {
+            try {
+              const content = await fs.readFile(skillMdPath, 'utf8');
+              const nameMatch = content.match(/(?:^name:\s*|<name>)(.+?)(?:<\/name>|$)/m);
+              const descMatch = content.match(
+                /(?:^description:\s*(?:[>|]\s*\n)?|<description>)([\s\S]+?)(?:<\/description>|\n---|\n[a-zA-Z0-9_-]+:\s*|$)/m,
+              );
+              const name = nameMatch ? nameMatch[1].trim() : dirName;
+              const description = descMatch ? descMatch[1].trim() : '';
+
+              // Discover scripts
+              const scriptsDir = path.join(skillsDir, dirName, 'scripts');
+              let scriptFiles = [];
+              if (await exists(scriptsDir)) {
+                try {
+                  const scriptEntries = await fs.readdir(scriptsDir, { withFileTypes: true });
+                  scriptFiles = scriptEntries
+                    .filter(
+                      (e) =>
+                        e.isFile() &&
+                        (e.name.endsWith('.js') ||
+                          e.name.endsWith('.mjs') ||
+                          e.name.endsWith('.cjs') ||
+                          e.name.endsWith('.sh') ||
+                          e.name.endsWith('.py')),
+                    )
+                    .map((e) => e.name)
+                    .sort()
+                    .map((f) => {
+                      if (f.endsWith('.sh')) {
+                        return `bash .gemini/skills/${dirName}/scripts/${f}`;
+                      }
+                      if (f.endsWith('.py')) {
+                        return `python3 .gemini/skills/${dirName}/scripts/${f}`;
+                      }
+                      return `node .gemini/skills/${dirName}/scripts/${f}`;
+                    });
+                } catch {
+                  scriptFiles = [];
+                }
+              }
+
+              return { name, description, location: `.gemini/skills/${dirName}/SKILL.md`, scripts: scriptFiles };
+            } catch {
+              // ignore error reading single skill
+            }
+          }
+          return null;
+        }),
+      )
+    ).filter(Boolean);
+
+    if (skills.length > 0) {
+      skillsBlock =
+        `<available_skills>\n` +
+        skills
+          .map(
+            (s) =>
+              `  <skill>\n    <name>${s.name}</name>\n    <description>${s.description}</description>\n    <location>${s.location}</location>\n    <scripts>\n${s.scripts.map((sc) => `      - ${sc}`).join('\n')}\n    </scripts>\n  </skill>`,
+          )
+          .join('\n') +
+        `\n</available_skills>`;
+    }
+  } catch {
+    skillsBlock = '';
+  }
+
+  // Load Skills-First Mandate from .gemini/system.md if present
+  let mandateText = '';
+  if (hasSystemMd) {
+    try {
+      const systemContent = await fs.readFile(systemMdPath, 'utf8');
+      const mandateMatch = systemContent.match(/## (?:[^\n]*?)Skills-First Mandate[\s\S]*?(?=\n---|\n## |$)/);
+      if (mandateMatch) {
+        mandateText = mandateMatch[0].trim();
+      }
+    } catch {
+      mandateText = '';
+    }
+  }
+
+  if (!mandateText) {
+    console.warn(
+      '⚠️ WARNING: .gemini/system.md is missing or lacks the Skills-First Mandate block. Using hardcoded fallback which may drift out of sync.',
+    );
+    mandateText = `## 🛠️ Skills-First Mandate\nTo guarantee safety and compliance with repository guardrails, you MUST prioritize the installed skills in .gemini/skills/ (such as git, github-ci, and github-pr) for repository operations instead of raw mutating commands.`;
+  }
+
+  const result = `\n\n# Available Workspace Skills\n\n${skillsBlock}\n\n${mandateText}\n`;
+  if (!customRepoRoot) {
+    cachedSkillsContext = result;
+    cachedSkillsFingerprint = currentFingerprint;
+    lastSkillsFingerprintTime = Date.now();
+  }
+  return result;
+}
 
 /**
  * Gets the repository root path dynamically.
@@ -21,7 +243,7 @@ export async function getRepoRoot() {
     cachedRepoRoot = stdout.trim();
     return cachedRepoRoot;
   } catch (err) {
-    console.debug(`[DEBUG] Failed to resolve git repo root via execFile: ${err.message}. Falling back to cwd.`);
+    console.debug(`[DEBUG] Failed to resolve git repo root via execFile: ${err?.message || err}. Falling back to cwd.`);
     cachedRepoRoot = process.cwd();
     return cachedRepoRoot;
   }
@@ -59,7 +281,7 @@ export async function loadAgentInstructions(agentName) {
       temperature: parsed.temperature,
     };
   } catch (err) {
-    console.warn(`⚠️ Could not load custom instructions for agent ${agentName}: ${err.message}`);
+    console.warn(`⚠️ Could not load custom instructions for agent ${agentName}: ${err?.message || err}`);
     return { instructions: '' };
   }
 }
@@ -80,6 +302,8 @@ export function getStandardsFile(filePath) {
     '.mjs': 'docs/development/reference/JavaScript.toml',
     '.cjs': 'docs/development/reference/JavaScript.toml',
     '.ts': 'docs/development/reference/JavaScript.toml',
+    '.jsx': 'docs/development/reference/JavaScript.toml',
+    '.tsx': 'docs/development/reference/JavaScript.toml',
     '.md': 'docs/development/reference/DocumentationFormatting.toml',
     '.toml': 'docs/development/reference/DocumentationFormatting.toml',
     '.yml': 'docs/development/reference/Workflows.toml',
@@ -110,6 +334,9 @@ function extractTopLevelJSONObjects(str) {
         escape = true;
       } else if (char === '"') {
         inString = false;
+      } else if (char === '\n') {
+        inString = false;
+        escape = false;
       }
       continue;
     }
@@ -134,7 +361,7 @@ function extractTopLevelJSONObjects(str) {
                 objects.push(parsed);
               }
             } catch (err) {
-              console.debug(`[DEBUG] Skipping malformed JSON candidate: ${err.message}`);
+              console.debug(`[DEBUG] Skipping malformed JSON candidate: ${err?.message || err}`);
             }
             startIndex = -1;
           }
@@ -310,7 +537,7 @@ export function parseJSONFromText(text, fallbackType = 'qa') {
         return normalizeResult(parsed);
       }
     } catch (err) {
-      console.debug(`[DEBUG] Code block candidate did not contain valid JSON: ${err.message}`);
+      console.debug(`[DEBUG] Code block candidate did not contain valid JSON: ${err?.message || err}`);
     }
   }
   try {
@@ -322,7 +549,7 @@ export function parseJSONFromText(text, fallbackType = 'qa') {
       }
     }
   } catch (err) {
-    console.debug(`[DEBUG] Raw text was not pure JSON: ${err.message}`);
+    console.debug(`[DEBUG] Raw text was not pure JSON: ${err?.message || err}`);
   }
 
   const unadorned = extractTopLevelJSONObjects(safeText);
@@ -513,10 +740,12 @@ export async function validateAgentOutput(
       return validatedData;
     } catch (err) {
       console.log(
-        `\n⚠️ Agent Output Validation failed (Try ${i + 1}/5): ${err.message}. Retrying via Validator Agent...`,
+        `\n⚠️ Agent Output Validation failed (Try ${i + 1}/5): ${err?.message || err}. Retrying via Validator Agent...`,
       );
       if (i === 4) {
-        console.error(`❌ Failed to validate agent output against schema after 5 tries. Last error: ${err.message}`);
+        console.error(
+          `❌ Failed to validate agent output against schema after 5 tries. Last error: ${err?.message || err}`,
+        );
         return null;
       }
 
@@ -529,7 +758,7 @@ export async function validateAgentOutput(
             schemaDetails = JSON.stringify(described, null, 2);
           }
         } catch (shapeErr) {
-          console.debug(`[DEBUG] Failed to inspect schema shape: ${shapeErr.message}`);
+          console.debug(`[DEBUG] Failed to inspect schema shape: ${shapeErr?.message || shapeErr}`);
           schemaDetails = '';
         }
       }
@@ -548,7 +777,7 @@ export async function validateAgentOutput(
 
       const prompt = `The following JSON output failed schema validation:
 Error:
-${err.message}
+${err?.message || err}
 
 ${schemaContext}${dataComparison}
 
@@ -569,7 +798,7 @@ Please re-format the original data to strictly fit the required schema without l
           isolate: true,
         });
       } catch (sessionErr) {
-        console.error(`❌ Validator Agent session failed: ${sessionErr.message}`);
+        console.error(`❌ Validator Agent session failed: ${sessionErr?.message || sessionErr}`);
         return null;
       }
     }
@@ -725,7 +954,8 @@ export function formatToolAction(toolName, args = {}) {
     toolArgs = {};
   }
 
-  switch (toolName) {
+  const normalizedToolName = String(toolName).toLowerCase();
+  switch (normalizedToolName) {
     case 'run_shell_command':
       return `Shell ${toolArgs.command || ''}`.trim();
     case 'read_file':
@@ -735,6 +965,7 @@ export function formatToolAction(toolName, args = {}) {
     case 'replace':
       return `Replace ${toolArgs.file_path || ''}`.trim();
     case 'grep_search':
+    case 'grepsearch':
       return `GrepSearch ${toolArgs.pattern ? `'${toolArgs.pattern}'` : ''}`.trim();
     case 'glob':
       return `Glob ${toolArgs.pattern ? `'${toolArgs.pattern}'` : ''}`.trim();
@@ -802,7 +1033,11 @@ export function renderToolCard(
       } else if (typeof result.llmContent === 'string') {
         formattedResult = result.llmContent;
       } else {
-        formattedResult = JSON.stringify(result, null, 2);
+        try {
+          formattedResult = JSON.stringify(result, null, 2);
+        } catch {
+          formattedResult = String(result);
+        }
       }
     } else {
       formattedResult = String(result);
@@ -926,6 +1161,48 @@ export function renderTopicBanner({ topic, objective, summary } = {}, columns = 
     .map((l) => {
       const stripped = stripAnsi(l);
       const pad = Math.max(innerWidth - stripped.length, 0);
+      return `│ ${l}${' '.repeat(pad)} │`;
+    })
+    .join('\n');
+
+  return `${top}\n${middle}\n${bottom}`;
+}
+
+/**
+ * Renders prose and commentary text inside a rounded box aligned with tool cards and topic banners.
+ * @param {string} text
+ * @param {number} [columns]
+ * @returns {string}
+ */
+export function renderProseCard(text, columns = process.stdout.columns) {
+  if (typeof text !== 'string') {
+    return '';
+  }
+  const cleanText = stripAnsi(text).replace(/\r\n/g, '\n').replace(/\r/g, '').trim();
+  if (!cleanText) {
+    return '';
+  }
+
+  const width = typeof columns === 'number' && columns > 0 ? columns : process.stdout.columns || 100;
+  const boxWidth = Math.max(Math.min(width, 160), 40);
+  const innerWidth = boxWidth - 4;
+
+  const rawLines = cleanText.split('\n');
+  const lines = [];
+  for (const rLine of rawLines) {
+    const sanitized = rLine.replace(/\t/g, '  ');
+    if (sanitized.length > innerWidth) {
+      lines.push(...wrapLine(sanitized, innerWidth));
+    } else {
+      lines.push(sanitized);
+    }
+  }
+
+  const top = `╭─${'─'.repeat(innerWidth)}─╮`;
+  const bottom = `╰─${'─'.repeat(innerWidth)}─╯`;
+  const middle = lines
+    .map((l) => {
+      const pad = Math.max(innerWidth - l.length, 0);
       return `│ ${l}${' '.repeat(pad)} │`;
     })
     .join('\n');

@@ -117,7 +117,29 @@ export async function readIgnoredFile({ targetPath, startLine, endLine, repoRoot
   return lines.slice(start - 1, end).join('\n');
 }
 
+/**
+ * Prints help and usage information.
+ */
+export function printHelp() {
+  console.log(`Usage: read-ignored-file.js <file_path> [start_line] [end_line]
+
+Reads a file that may be ignored by .gitignore, enforcing .aiexclude rules.
+
+Arguments:
+  file_path    Path to the target file
+  start_line   Starting line number (1-based, optional)
+  end_line     Ending line number (1-based, optional)
+
+Options:
+  -h, --help   Show this help message
+`);
+}
+
 async function main() {
+  if (process.argv.includes('-h') || process.argv.includes('--help')) {
+    printHelp();
+    process.exit(0);
+  }
   const targetPath = process.argv[2];
   const startArg = process.argv[3];
   const endArg = process.argv[4];

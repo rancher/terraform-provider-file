@@ -77,8 +77,31 @@ export async function findPR({ octokit, owner, repo, target }) {
   return pr;
 }
 
+/**
+ * Prints help and usage information.
+ */
+export function printHelp() {
+  console.log(`Usage: find_pr.js [pr_number_or_branch]
+
+Arguments:
+  pr_number_or_branch          PR number, PR URL, or branch name (default: current branch)
+
+Options:
+  -h, --help                   Show this help message
+
+Environment Variables:
+  GH_REPO / GITHUB_REPOSITORY  Target repository in 'owner/repo' format (overrides git remote detection)
+  GITHUB_TOKEN / GH_TOKEN      GitHub authentication token (falls back to 'gh auth token')
+`);
+}
+
 async function main() {
-  const target = process.argv[2];
+  const args = process.argv.slice(2);
+  if (args.includes('-h') || args.includes('--help')) {
+    printHelp();
+    process.exit(0);
+  }
+  const target = args[0];
   const { owner, repo } = await getRepoDetails();
   const octokit = await getOctokit();
 

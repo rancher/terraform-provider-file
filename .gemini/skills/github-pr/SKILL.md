@@ -9,6 +9,21 @@ description: Manage, review, and address GitHub pull request comments and metada
 
 The `github-pr` skill enables seamless local management of GitHub pull requests and review comment threads. It uses pure JavaScript and the Octokit SDK with automatic credential fallback (`GITHUB_TOKEN` -> default `gh` auth) to view, update, respond to, and resolve comments directly from the command line.
 
+## Universal Options & Environment Variables
+
+- **Help Option (`-h`, `--help`)**: Every script in this skill supports `-h` and `--help`. Run any script with `--help` to inspect its parameters, flag options, and usage examples without reading the source file:
+  ```bash
+  node ./scripts/<script_name>.js --help
+  ```
+- **Environment Variables**:
+  - `GH_REPO` / `GITHUB_REPOSITORY`: Explicit target repository in `owner/repo` format (e.g. `rancher/terraform-provider-file`). Overrides git remote detection.
+  - `GITHUB_TOKEN` / `GH_TOKEN`: GitHub personal access token. When unset, scripts automatically fall back to `gh auth token`.
+- **Auth & Repository Inspection**:
+  - Check your active credentials, detected branch, and detected PR number by running:
+    ```bash
+    node ./scripts/auth.js
+    ```
+
 ## Core Tasks
 
 ### 1. View and Find a PR

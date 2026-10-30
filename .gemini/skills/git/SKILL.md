@@ -11,13 +11,20 @@ The `git` skill provides a safe, curated, and standardized set of Git utilities 
 
 **Rule:** You should always prefer using the scripts in this skill over running raw, direct `git` commands (such as `git diff`, `git status`, `git commit`, `git checkout`, etc.) to interact with repository state.
 
+## Universal Options & Script Discovery
+
+- **Help Option (`-h`, `--help`)**: Every script in this skill supports `-h` and `--help`. Whenever you need to discover available arguments, positional parameters, or flags for any script, execute it with `--help` instead of reading the source file:
+  ```bash
+  node ./scripts/<script_name>.js --help
+  ```
+
 ## Core Tasks
 
 ### 1. Check Workspace and Branch Status
 
-- **Working Tree & Branch Status**: View uncommitted changes and list files changed in the current branch compared to the base branch (`main`, `master`, or specified `[-b base-branch]` / `[base-branch]`):
+- **Working Tree & Branch Status**: View uncommitted changes and list files changed in the current branch compared to the base branch (`main`, `master`, or specified `-b base-branch`):
   ```bash
-  node ./scripts/get_files_changed.js [-b base-branch] [base-branch]
+  node ./scripts/get_files_changed.js [-b base-branch]
   ```
 - **List Modified/Untracked Paths**: Get a clean list of explicit file paths that have been modified or are untracked:
   ```bash
@@ -34,9 +41,9 @@ The `git` skill provides a safe, curated, and standardized set of Git utilities 
   ```bash
   node ./scripts/get_diff_to_review.js [--staged|--unstaged] [--stat|--name-only] [file_path...]
   ```
-- **Branch Changes**: View all changes introduced in the current branch relative to the base branch (`main`, `master`, or specified `[base-branch]`), optionally filtering by specific files or requesting a compact summary with `--stat` or `--name-only`:
+- **Branch Changes**: View all changes introduced in the current branch relative to the base branch (`main`, `master`, or specified `-b base-branch`), optionally filtering by specific files or requesting a compact summary with `--stat` or `--name-only`:
   ```bash
-  node ./scripts/get_branch_changes.js [--stat|--name-only] [-b base-branch] [base-branch] [file_path...]
+  node ./scripts/get_branch_changes.js [--stat|--name-only] [-b base-branch] [file_path...]
   ```
 
 ### 3. Read Files Ignored by .gitignore

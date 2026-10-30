@@ -58,7 +58,27 @@ export async function unstageFiles({ git = simpleGit(), files = [], all = false 
   return files;
 }
 
+/**
+ * Prints help and usage information.
+ */
+export function printHelp() {
+  console.log(`Usage: unstage-files.js <file1> [file2...] | --all
+
+Unstages specified files or all staged changes from the git index safely.
+
+Options:
+  -A, --all    Unstage all staged files from the index
+  -h, --help   Show this help message
+`);
+}
+
 async function main() {
+  const rawArgs = process.argv.slice(2);
+  if (rawArgs.includes('-h') || rawArgs.includes('--help')) {
+    printHelp();
+    process.exit(0);
+  }
+
   const args = process.argv.slice(2);
   if (args.length === 0) {
     console.error('Usage: unstage-files.js <file1> [file2...] | --all');
