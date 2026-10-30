@@ -10,13 +10,24 @@ export function validateCommitTitle(title, affectsProduct, isMerge) {
     return { valid: true, isMerge: true };
   }
 
-  const CONVENTIONAL_COMMIT_REGEXP =
-    /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(?:\([^)]+\))?(!?): .+/i;
+  /**
+   * Commit message prefixes indicate semver changes.
+   * 'refactor:' prefix conveys that this is a change in the EU product and breaks a user interface, it should result in a major semver change.
+   * 'feat:' prefix conveys that this is a change in the EU product and adds or updates a user interface, it should result in a minor semver change.
+   * 'fix:' prefix conveys that this is a change in the EU product and resolves unwanted or bad behavior, it should result in a trivial semver change.
+   * Any prefix can have '!' appended to it, such as 'fix!:', this indicates a breaking fix which should result in a major semver change.
+   * Any prefix other than 'refactor', 'feat', or 'fix' represents a change that isn't in the EU product and should result in a trivial semver change.
+   */
+  const CONVENTIONAL_COMMIT_REGEXP = /^(refactor|feat|fix|docs|test|build|ci|chore|env|dev)(?:\([^)]+\))?(!?): .+/i;
 
   if (!CONVENTIONAL_COMMIT_REGEXP.test(title)) {
     return {
       valid: false,
-      reason: `Commit message title does not follow Conventional Commits format. Expected "type: description" or "type(scope): description". Got: "${title}"`,
+      reason:
+        `Commit message title does not follow Conventional Commits format. ` +
+        `Expected "type: description" or "type(scope): description". ` +
+        `Accepted types: refactor, feat, fix, docs, test, build, ci, chore, env, dev.` +
+        `Got: "${title}"`,
     };
   }
 
@@ -27,10 +38,10 @@ export function validateCommitTitle(title, affectsProduct, isMerge) {
 
   // Enforce strict product-boundary check for semver safety (non-product changes cannot use feat, refactor, or !)
   if (!affectsProduct) {
-    if (type === 'feat' || type === 'refactor' || hasExclamation) {
+    if (type === 'feat' || type === 'refactor' || type === 'fix' || hasExclamation) {
       return {
         valid: false,
-        reason: `Non-product change (outside 'internal/') must NOT use 'feat', 'refactor', or '!' breaking-change indicators (which trigger incorrect minor/major semver bumps on release-please).`,
+        reason: `Non-product change (outside 'internal/') must NOT use 'feat', 'refactor', fix, or '!' breaking-change indicators (which trigger incorrect minor/major semver bumps on release-please).`,
       };
     }
   }
@@ -83,8 +94,10 @@ export default async ({ github, context, core, process }) => {
     }
 
     // 2. Length Check
-    if (subjectLine.length > 100) {
-      core.error(`Error: Commit message subject line should be less than 100 characters, found ${subjectLine.length}.`);
+    if (subjectLine.length > 70) {
+      core.error(
+        `Error: Commit message subject line should be less than 70 characters, found ${subjectLine.length}. This is a GitHub constraint.`,
+      );
       allPassed = false;
       continue;
     }

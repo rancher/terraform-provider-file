@@ -53,7 +53,28 @@ export async function stageFiles({ git = simpleGit(), files = [], all = false, i
   return targets;
 }
 
+/**
+ * Prints help and usage information.
+ */
+export function printHelp() {
+  console.log(`Usage: stage-files.js <file1> [file2...] | --all | --include-untracked
+
+Stages files safely in the git index while enforcing .aiexclude policy checks.
+
+Options:
+  -A, --all              Stage modified and deleted files
+  -u, --include-untracked Include untracked files
+  -h, --help             Show this help message
+`);
+}
+
 async function main() {
+  const rawArgs = process.argv.slice(2);
+  if (rawArgs.includes('-h') || rawArgs.includes('--help')) {
+    printHelp();
+    process.exit(0);
+  }
+
   const args = process.argv.slice(2);
   if (args.length === 0) {
     console.error('Usage: stage-files.js <file1> [file2...] | --all | --include-untracked');

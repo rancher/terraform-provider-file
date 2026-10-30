@@ -11,6 +11,20 @@ The `github-ci` skill provides tools to investigate and resolve failed GitHub Ac
 
 **Rule:** You should always use the scripts in this skill instead of running direct `gh` CLI commands when investigating CI failures or fetching workflow logs.
 
+## Universal Options & Environment Variables
+
+- **Help Option (`-h`, `--help`)**: Every script supports `-h` and `--help`. Run any script with `--help` to view parameter syntax, flags, and usage without reading the script file:
+  ```bash
+  node ./scripts/<script_name>.js --help
+  ```
+- **Environment Variables**:
+  - `GH_REPO` / `GITHUB_REPOSITORY`: Explicit target repository in `owner/repo` format (e.g. `rancher/terraform-provider-file`). Overrides git remote detection.
+  - `GITHUB_TOKEN` / `GH_TOKEN`: GitHub personal access token or app installation token. When omitted, scripts automatically fall back to the token stored in GitHub CLI (`gh auth token`).
+  - Verify authentication and repository detection anytime by running:
+    ```bash
+    node ./scripts/auth.js --help
+    ```
+
 ## Core Tasks
 
 ### 1. List Actions / Workflow Runs

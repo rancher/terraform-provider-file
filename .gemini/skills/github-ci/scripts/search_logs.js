@@ -110,8 +110,29 @@ export function parseSearchArgs(args = []) {
   return { logsDir, pattern, limit };
 }
 
+/**
+ * Prints help and usage information.
+ */
+export function printHelp() {
+  console.log(`Usage: search_logs.js <logs_directory> [regex_pattern] [-n limit]
+
+Arguments:
+  <logs_directory>    Path to directory containing downloaded log files
+  [regex_pattern]     Regex pattern to search for (default: error/fail/failure/exception/exit status/fatal/panic)
+
+Options:
+  -n, --limit <num>   Maximum number of matching lines to display (default: 100)
+  -h, --help          Show this help message
+`);
+}
+
 async function main() {
-  const { logsDir, pattern: customPattern, limit } = parseSearchArgs(process.argv.slice(2));
+  const args = process.argv.slice(2);
+  if (args.includes('-h') || args.includes('--help')) {
+    printHelp();
+    process.exit(0);
+  }
+  const { logsDir, pattern: customPattern, limit } = parseSearchArgs(args);
 
   if (!logsDir) {
     console.error('Usage: search_logs.js <logs_directory> [regex_pattern] [-n limit]');

@@ -530,6 +530,50 @@ test('runAgentSession maxTurns override integration', async (t) => {
     }
   });
 
+  await t.test('runAgentSession aborts and throws timeout error when streamIdleTimeoutMs expires', async () => {
+    try {
+      GeminiCliAgent.prototype.session = function () {
+        return attachMockSendStream(this, async function* () {
+          await new Promise((resolve) => setTimeout(resolve, 150));
+          yield { type: 'content', value: 'Too late' };
+        });
+      };
+
+      await assert.rejects(async () => {
+        await runAgentSession({
+          initialPrompt: 'Timeout test',
+          isolate: true,
+          streamIdleTimeoutMs: 50,
+        });
+      }, /Stream idle timeout exceeded/);
+    } finally {
+      GeminiCliAgent.prototype.session = originalSession;
+    }
+  });
+
+  await t.test('runAgentSession resets streamIdleTimeoutMs when chunks arrive and completes', async () => {
+    try {
+      GeminiCliAgent.prototype.session = function () {
+        return attachMockSendStream(this, async function* () {
+          await new Promise((resolve) => setTimeout(resolve, 25));
+          yield { type: 'content', value: 'Chunk 1 ' };
+          await new Promise((resolve) => setTimeout(resolve, 25));
+          yield { type: 'content', value: 'Chunk 2' };
+        });
+      };
+
+      const result = await runAgentSession({
+        initialPrompt: 'Reset timeout test',
+        isolate: true,
+        streamIdleTimeoutMs: 50,
+      });
+
+      assert.strictEqual(result, 'Chunk 1 Chunk 2');
+    } finally {
+      GeminiCliAgent.prototype.session = originalSession;
+    }
+  });
+
   await t.test('respects precedence of maxTurnsOverride over maxTurns', async () => {
     let capturedAgentOptions = null;
     try {

@@ -30,7 +30,24 @@ export async function getModifiedPaths({ git = simpleGit() } = {}) {
   return paths;
 }
 
+/**
+ * Prints help and usage information.
+ */
+export function printHelp() {
+  console.log(`Usage: get_modified_paths.js
+
+Lists modified and untracked file paths from git status porcelain.
+
+Options:
+  -h, --help   Show this help message
+`);
+}
+
 async function main() {
+  if (process.argv.includes('-h') || process.argv.includes('--help')) {
+    printHelp();
+    process.exit(0);
+  }
   try {
     const paths = await getModifiedPaths();
     for (const p of paths) {

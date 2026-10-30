@@ -189,8 +189,31 @@ export async function readComments({ octokit, owner, repo, prNumber, unresolvedO
   const filteredThreads = unresolvedOnly ? reviewThreads.filter((t) => !t.isResolved) : reviewThreads;
   return { conversationComments, reviewThreads: filteredThreads };
 }
+
+/**
+ * Prints help and usage information.
+ */
+export function printHelp() {
+  console.log(`Usage: read_comments.js [pr_number_or_branch] [--unresolved] [--json]
+
+Options:
+  --unresolved  Filter to only unresolved review comment threads
+  --json        Output the results as JSON
+  -h, --help    Show this help message
+
+Environment Variables:
+  GH_REPO / GITHUB_REPOSITORY  Target repository in 'owner/repo' format (overrides git remote detection)
+  GITHUB_TOKEN / GH_TOKEN      GitHub authentication token (falls back to 'gh auth token')
+`);
+}
+
 async function main() {
   const args = process.argv.slice(2);
+  if (args.includes('-h') || args.includes('--help')) {
+    printHelp();
+    process.exit(0);
+  }
+
   const unresolvedOnly = args.includes('--unresolved');
   const jsonOutput = args.includes('--json');
   const targetArgs = args.filter((a) => !a.startsWith('-'));
@@ -210,7 +233,14 @@ async function main() {
     });
     prNumber = pr.number;
   } catch (err) {
-    console.error(`❌ Error: ${err.message}`);
+    const targetDesc = argTarget ? `'${argTarget}'` : 'for current branch';
+    console.error(`❌ Error finding PR ${targetDesc} in repository ${owner}/${repo}: ${err.message}`);
+    if (err.status === 404) {
+      console.error(
+        `💡 Tip: Verify that PR ${targetDesc} exists in ${owner}/${repo}. ` +
+          `If working from a fork, set an 'upstream' git remote or export GH_REPO="rancher/terraform-provider-file".`,
+      );
+    }
     process.exit(1);
   }
 
@@ -259,7 +289,7 @@ async function main() {
       }
     }
   } catch (err) {
-    console.error(`❌ Error fetching comments: ${err.message}`);
+    console.error(`❌ Error fetching comments for PR #${prNumber} in repository ${owner}/${repo}: ${err.message}`);
     process.exit(1);
   }
 }

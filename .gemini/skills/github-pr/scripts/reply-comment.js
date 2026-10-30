@@ -279,8 +279,36 @@ export function parseReplyArgs(args) {
   return res;
 }
 
+/**
+ * Prints help and usage information.
+ */
+export function printHelp() {
+  console.log(`Usage: reply-comment.js <comment_id_or_thread_id> <body> [pr_number_or_current]
+   or: reply-comment.js [pr_number_or_current] <comment_id_or_thread_id> <body>
+   or: reply-comment.js <comment_id_or_thread_id> -m <body>
+
+Arguments:
+  comment_id_or_thread_id      Numeric review comment ID or GraphQL Thread ID (PRRT_...)
+  body                         Reply body text
+  pr_number_or_current         PR number, URL, or 'current' (default: 'current')
+
+Options:
+  -m, --body <text>            Specify reply body explicitly
+  -h, --help                   Show this help message
+
+Environment Variables:
+  GH_REPO / GITHUB_REPOSITORY  Target repository in 'owner/repo' format (overrides git remote detection)
+  GITHUB_TOKEN / GH_TOKEN      GitHub authentication token (falls back to 'gh auth token')
+`);
+}
+
 async function main() {
   const args = process.argv.slice(2);
+  if (args.includes('-h') || args.includes('--help')) {
+    printHelp();
+    process.exit(0);
+  }
+
   const { prNumber: parsedPr, prTarget, commentId, body } = parseReplyArgs(args);
   let prNumber = parsedPr;
 
